@@ -8,11 +8,9 @@ import {
   ArrowLeft, 
   Phone, 
   Lock, 
-  MapPin, 
   ShieldAlert, 
   CheckCircle2, 
   AlertCircle,
-  HelpCircle,
   Eye,
   EyeOff
 } from "lucide-react";
@@ -122,7 +120,6 @@ export default function InscriptionPage() {
     setLoading(true);
     setErrorMsg("");
 
-    // Normalisation du téléphone (chiffres uniquement)
     const cleanPhone = telephone.replace(/\D/g, "");
     if (cleanPhone.length < 8) {
       setErrorMsg("Veuillez renseigner un numéro de téléphone valide à au moins 8 chiffres.");
@@ -136,7 +133,6 @@ export default function InscriptionPage() {
       return;
     }
 
-    // Email technique transparent
     const technicalEmail = `tel_${cleanPhone}@ascq.local`;
 
     try {
@@ -148,7 +144,7 @@ export default function InscriptionPage() {
 
       if (authError) {
         if (authError.message.includes("already registered") || authError.message.includes("User already registered")) {
-          throw new Error("Un compte existe déjà avec ce numéro de téléphone. Si vous avez oublié votre mot de passe, contactez votre administrateur.");
+          throw new Error("Un compte existe déjà avec ce numéro de téléphone. Si vous avez oublié votre mot de passe, contactez l'administrateur.");
         }
         throw authError;
       }
@@ -158,40 +154,29 @@ export default function InscriptionPage() {
         throw new Error("Impossible de générer l'identifiant du compte. Veuillez réessayer.");
       }
 
-      // 2. Création de la fiche dans la table utilisateurs (statut EN_ATTENTE obligatoire)
-      const { error: userError } = await supabase.from("utilisateurs").insert({
-        id: userId,
-        telephone: cleanPhone.startsWith("229") ? `+${cleanPhone}` : `+229${cleanPhone}`,
-        nom: nom.trim().toUpperCase(),
-        prenoms: prenoms.trim(),
-        poste: poste,
-        poste_autre: poste === "AUTRE" ? posteAutre.trim() : null,
-        role_technique: poste === "ASCQ" ? "ASCQ_OPERATEUR" : "PUBLIC",
-        statut_compte: "EN_ATTENTE", // En attente de validation
-        departement_id: selectedDep || null,
-        zone_sanitaire_id: selectedZs || null,
-        commune_id: selectedCom || null,
-        arrondissement_id: selectedArr || null,
-        second_arrondissement_id: cumulArrondissements ? selectedSecondArr || null : null,
+      // 2. Appel de la fonction RPC sécurisée (anti-récursion et écriture garantie)
+      const { error: rpcError } = await supabase.rpc("inscrire_nouvel_agent", {
+        p_id: userId,
+        p_telephone: cleanPhone.startsWith("229") ? `+${cleanPhone}` : `+229${cleanPhone}`,
+        p_nom: nom.trim().toUpperCase(),
+        p_prenoms: prenoms.trim(),
+        p_poste: poste,
+        p_poste_autre: poste === "AUTRE" ? posteAutre.trim() : null,
+        p_departement_id: selectedDep || null,
+        p_zone_sanitaire_id: selectedZs || null,
+        p_commune_id: selectedCom || null,
+        p_arrondissement_id: selectedArr || null,
+        p_second_arrondissement_id: cumulArrondissements ? selectedSecondArr || null : null,
+        p_source_financement: sourceFinancement,
+        p_source_financement_autre: sourceFinancement === "AUTRE" ? sourceFinancementAutre.trim() : null,
+        p_nombre_rc: Number(nombreRc) || 0,
+        p_afficher_annuaire: afficherAnnuaire,
+        p_cumul_deux_arrondissements: cumulArrondissements,
       });
 
-      if (userError) throw userError;
+      if (rpcError) throw rpcError;
 
-      // 3. Si c'est un ASCQ, créer sa fiche de profil
-      if (poste === "ASCQ") {
-        const { error: ascqError } = await supabase.from("ascq_profils").insert({
-          id: userId,
-          source_financement: sourceFinancement,
-          source_financement_autre: sourceFinancement === "AUTRE" ? sourceFinancementAutre.trim() : null,
-          nombre_rc: Number(nombreRc) || 0,
-          afficher_annuaire_public: afficherAnnuaire,
-          cumul_deux_arrondissements: cumulArrondissements,
-        });
-
-        if (ascqError) throw ascqError;
-      }
-
-      // 4. Déconnexion immédiate pour forcer l'attente de validation administrative
+      // 3. Déconnexion immédiate : compte en attente
       await supabase.auth.signOut();
 
       setSuccess(true);
@@ -206,7 +191,6 @@ export default function InscriptionPage() {
   return (
     <main className="min-h-screen bg-slate-50 py-8 px-4 sm:px-6">
       <div className="max-w-2xl mx-auto space-y-6">
-        {/* Navigation retour */}
         <Link
           href="/"
           className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors"
@@ -215,7 +199,6 @@ export default function InscriptionPage() {
           <span>Retour à l'accueil officiel</span>
         </Link>
 
-        {/* En-tête */}
         <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-sm text-center space-y-2">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-800 mb-2">
             <UserPlus className="w-6 h-6" />
@@ -228,7 +211,6 @@ export default function InscriptionPage() {
           </p>
         </div>
 
-        {/* Message de succès */}
         {success ? (
           <div className="bg-white rounded-3xl p-8 border border-emerald-200 shadow-sm text-center space-y-4">
             <div className="w-16 h-16 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center mx-auto">
@@ -243,7 +225,7 @@ export default function InscriptionPage() {
                 <span>Statut du compte : En attente de validation</span>
               </div>
               <p>
-                Conformément aux protocoles de santé communautaire, votre compte doit être validé par l'administrateur communal ou départemental avant toute première utilisation.
+                Votre demande a bien été enregistrée. Elle est visible dans l'espace administration pour être validée par votre responsable communal ou départemental.
               </p>
               <p className="font-semibold text-slate-800 pt-1">
                 Dès validation, vous pourrez vous connecter directement avec votre numéro de téléphone et votre mot de passe.
@@ -265,7 +247,6 @@ export default function InscriptionPage() {
             </div>
           </div>
         ) : (
-          /* Formulaire */
           <form
             onSubmit={handleSubmit}
             className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-sm space-y-6"
@@ -398,14 +379,14 @@ export default function InscriptionPage() {
                       value={posteAutre}
                       onChange={(e) => setPosteAutre(e.target.value)}
                       placeholder="Ex: Superviseur de zone"
-                      className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 uppercase"
                     />
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Section 3 : Aire géographique */}
+            {/* Section 3 : Aire géographique (EN MAJUSCULES SANS ACCENTS) */}
             <div className="space-y-4 pt-2">
               <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                 <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
@@ -415,7 +396,6 @@ export default function InscriptionPage() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Département (Tous) */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
                     Département *
@@ -435,7 +415,6 @@ export default function InscriptionPage() {
                   </select>
                 </div>
 
-                {/* Zone Sanitaire (ASCQ, PF CCLS-TP, RCSE) */}
                 {["ASCQ", "PF_CCLS_TP", "RCSE"].includes(poste) && (
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
@@ -458,7 +437,6 @@ export default function InscriptionPage() {
                   </div>
                 )}
 
-                {/* Commune (ASCQ, PF CCLS-TP) */}
                 {["ASCQ", "PF_CCLS_TP"].includes(poste) && (
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
@@ -481,7 +459,6 @@ export default function InscriptionPage() {
                   </div>
                 )}
 
-                {/* Arrondissement (ASCQ uniquement) */}
                 {poste === "ASCQ" && (
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
@@ -505,7 +482,6 @@ export default function InscriptionPage() {
                 )}
               </div>
 
-              {/* Option Cumul Arrondissements pour ASCQ */}
               {poste === "ASCQ" && selectedCom && (
                 <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-3">
                   <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-800">
@@ -600,7 +576,6 @@ export default function InscriptionPage() {
                   </div>
                 </div>
 
-                {/* Case Annuaire Public */}
                 <div className="bg-emerald-50/60 rounded-2xl p-4 border border-emerald-100 mt-2">
                   <label className="flex items-start gap-3 cursor-pointer">
                     <input
@@ -622,7 +597,6 @@ export default function InscriptionPage() {
               </div>
             )}
 
-            {/* Bouton de validation */}
             <div className="pt-4 border-t border-slate-100">
               <button
                 type="submit"

@@ -23,7 +23,6 @@ export default function ConnexionPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Messages d'état
   const [errorMsg, setErrorMsg] = useState("");
   const [pendingAccount, setPendingAccount] = useState<any>(null);
   const [loginSuccess, setLoginSuccess] = useState<any>(null);
@@ -58,25 +57,16 @@ export default function ConnexionPage() {
         throw authError;
       }
 
-      const userId = authData.user?.id;
-      if (!userId) throw new Error("Identifiant utilisateur introuvable.");
+      // 2. Récupérer le profil via RPC (sans aucun problème de politique RLS récursive)
+      const { data: profils, error: rpcError } = await supabase.rpc("obtenir_mon_profil");
 
-      // 2. Vérification du statut du compte dans la table utilisateurs
-      const { data: userProfile, error: profileError } = await supabase
-        .from("utilisateurs")
-        .select(`
-          id, nom, prenoms, telephone, poste, role_technique, statut_compte,
-          communes:commune_id(nom),
-          arrondissements:arrondissement_id(nom)
-        `)
-        .eq("id", userId)
-        .single();
-
-      if (profileError || !userProfile) {
+      if (rpcError || !profils || profils.length === 0) {
         throw new Error("Profil utilisateur introuvable. Veuillez contacter un administrateur.");
       }
 
-      // Si le compte est EN_ATTENTE : on déconnecte et on prévient l'agent
+      const userProfile = profils[0];
+
+      // Si le compte est EN_ATTENTE : on déconnecte et on affiche le message clair
       if (userProfile.statut_compte === "EN_ATTENTE") {
         await supabase.auth.signOut();
         setPendingAccount(userProfile);
@@ -94,7 +84,6 @@ export default function ConnexionPage() {
       // Compte validé !
       setLoginSuccess(userProfile);
 
-      // Redirection selon le rôle
       setTimeout(() => {
         if (userProfile.role_technique === "SUPER_ADMIN" || userProfile.role_technique === "ADMINISTRATEUR") {
           router.push("/admin/validation-comptes");
@@ -105,7 +94,7 @@ export default function ConnexionPage() {
 
     } catch (err: any) {
       console.error("Erreur connexion:", err);
-      setErrorMsg(err.message || "Erreur de connexion. Veuillez réessayer.");
+      setErrorMsg(err.message || "Erreur de connexion. Veuillez vérifier vos identifiants.");
     } finally {
       setLoading(false);
     }
@@ -114,7 +103,6 @@ export default function ConnexionPage() {
   return (
     <main className="min-h-screen bg-slate-50 py-10 px-4 sm:px-6 flex flex-col justify-center">
       <div className="max-w-md w-full mx-auto space-y-6">
-        {/* Lien retour */}
         <Link
           href="/"
           className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors"
@@ -123,7 +111,6 @@ export default function ConnexionPage() {
           <span>Retour à l'accueil</span>
         </Link>
 
-        {/* En-tête */}
         <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-sm text-center space-y-2">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-800 mb-1">
             <LogIn className="w-6 h-6" />
@@ -136,7 +123,6 @@ export default function ConnexionPage() {
           </p>
         </div>
 
-        {/* Message Compte en attente */}
         {pendingAccount && (
           <div className="bg-amber-50 border border-amber-200 rounded-3xl p-6 text-xs sm:text-sm text-amber-900 space-y-3 shadow-sm">
             <div className="flex items-center gap-2 font-bold text-amber-950 text-base">
@@ -144,29 +130,27 @@ export default function ConnexionPage() {
               <span>Compte en cours de validation</span>
             </div>
             <p>
-              Bonjour <strong>{pendingAccount.prenoms} {pendingAccount.nom}</strong>. Votre inscription a bien été enregistrée dans notre système.
+              Bonjour <strong>{pendingAccount.prenoms} {pendingAccount.nom}</strong>. Votre inscription a bien été enregistrée.
             </p>
             <p className="bg-white/80 p-3 rounded-xl border border-amber-200/60 text-slate-700">
-              Votre compte ({pendingAccount.poste} à {pendingAccount.communes?.nom || "votre commune"}) est actuellement au statut <strong>« En attente de validation »</strong> par un administrateur.
+              Votre compte ({pendingAccount.poste} à {pendingAccount.commune_nom || "votre commune"}) est actuellement au statut <strong>« En attente de validation »</strong> par l'administrateur.
             </p>
             <p className="text-[11px] text-amber-800">
-              Dès qu'un administrateur aura validé votre identité, vous pourrez accéder à l'ensemble de vos modules.
+              Dès validation administrative, vous pourrez accéder à l'ensemble de vos modules.
             </p>
           </div>
         )}
 
-        {/* Message Succès */}
         {loginSuccess && (
           <div className="bg-emerald-50 border border-emerald-200 rounded-3xl p-6 text-center space-y-2 text-emerald-900 shadow-sm">
             <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto" />
             <h2 className="font-bold text-base">Connexion réussie !</h2>
             <p className="text-xs text-emerald-700">
-              Bienvenue, {loginSuccess.prenoms} {loginSuccess.nom}. Redirection vers votre espace...
+              Bienvenue, {loginSuccess.prenoms} {loginSuccess.nom}. Redirection en cours...
             </p>
           </div>
         )}
 
-        {/* Formulaire de connexion */}
         {!loginSuccess && (
           <form
             onSubmit={handleLogin}

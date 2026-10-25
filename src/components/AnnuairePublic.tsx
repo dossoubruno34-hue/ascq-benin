@@ -63,31 +63,19 @@ export default function AnnuairePublic({ departements }: AnnuaireProps) {
     loadArrondissements();
   }, [selectedCom]);
 
-  // Rechercher les ASCQ validés avec option annuaire cochée
+  // Rechercher les ASCQ validés via la fonction RPC (rapide, sans problème de RLS)
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setSearched(true);
 
     try {
-      let query = supabase
-        .from("utilisateurs")
-        .select(`
-          id, nom, prenoms, telephone, poste,
-          departements:departement_id(nom),
-          communes:commune_id(nom),
-          arrondissements:arrondissement_id(nom),
-          ascq_profils!inner(afficher_annuaire_public)
-        `)
-        .eq("statut_compte", "VALIDE")
-        .eq("role_technique", "ASCQ_OPERATEUR")
-        .eq("ascq_profils.afficher_annuaire_public", true);
+      const { data, error } = await supabase.rpc("rechercher_annuaire_ascq", {
+        p_departement_id: selectedDep || null,
+        p_commune_id: selectedCom || null,
+        p_arrondissement_id: selectedArr || null,
+      });
 
-      if (selectedDep) query = query.eq("departement_id", selectedDep);
-      if (selectedCom) query = query.eq("commune_id", selectedCom);
-      if (selectedArr) query = query.eq("arrondissement_id", selectedArr);
-
-      const { data, error } = await query;
       if (error) throw error;
       setResults(data || []);
     } catch (err) {
@@ -122,7 +110,7 @@ export default function AnnuairePublic({ departements }: AnnuaireProps) {
           <select
             value={selectedDep}
             onChange={(e) => setSelectedDep(e.target.value)}
-            className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 uppercase font-medium"
           >
             <option value="">Tous les départements</option>
             {departements.map((d) => (
@@ -141,7 +129,7 @@ export default function AnnuairePublic({ departements }: AnnuaireProps) {
             value={selectedCom}
             onChange={(e) => setSelectedCom(e.target.value)}
             disabled={!selectedDep}
-            className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50"
+            className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50 uppercase font-medium"
           >
             <option value="">Toutes les communes</option>
             {communes.map((c) => (
@@ -160,7 +148,7 @@ export default function AnnuairePublic({ departements }: AnnuaireProps) {
             value={selectedArr}
             onChange={(e) => setSelectedArr(e.target.value)}
             disabled={!selectedCom}
-            className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50"
+            className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50 uppercase font-medium"
           >
             <option value="">Tous les arrondissements</option>
             {arrondissements.map((a) => (
@@ -210,7 +198,7 @@ export default function AnnuairePublic({ departements }: AnnuaireProps) {
                   >
                     <div className="flex items-start justify-between">
                       <div className="space-y-0.5">
-                        <h3 className="font-bold text-slate-900 text-sm">
+                        <h3 className="font-bold text-slate-900 text-sm uppercase">
                           {ascq.nom} {ascq.prenoms}
                         </h3>
                         <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-800">
@@ -222,8 +210,8 @@ export default function AnnuairePublic({ departements }: AnnuaireProps) {
                     <div className="text-xs text-slate-600 space-y-1">
                       <div className="flex items-center gap-1.5">
                         <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                        <span>
-                          {ascq.arrondissements?.nom || "Arrondissement"}, {ascq.communes?.nom || "Commune"} ({ascq.departements?.nom})
+                        <span className="font-medium">
+                          {ascq.arrondissement_nom || "ARRONDISSEMENT"}, {ascq.commune_nom || "COMMUNE"} ({ascq.departement_nom})
                         </span>
                       </div>
                     </div>

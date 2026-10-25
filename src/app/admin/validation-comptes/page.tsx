@@ -12,7 +12,6 @@ import {
   Phone, 
   MapPin, 
   User, 
-  Filter,
   RefreshCw,
   Search
 } from "lucide-react";
@@ -27,22 +26,7 @@ export default function AdminValidationComptesPage() {
   const loadComptes = async () => {
     setLoading(true);
     try {
-      let query = supabase
-        .from("utilisateurs")
-        .select(`
-          id, nom, prenoms, telephone, poste, role_technique, statut_compte, created_at,
-          departements:departement_id(nom),
-          communes:commune_id(nom),
-          arrondissements:arrondissement_id(nom),
-          ascq_profils(source_financement, nombre_rc, afficher_annuaire_public)
-        `)
-        .order("created_at", { ascending: false });
-
-      if (filterStatut !== "TOUS") {
-        query = query.eq("statut_compte", filterStatut);
-      }
-
-      const { data, error } = await query;
+      const { data, error } = await supabase.rpc("lister_comptes_admin");
       if (error) throw error;
       setComptes(data || []);
     } catch (err) {
@@ -54,24 +38,18 @@ export default function AdminValidationComptesPage() {
 
   useEffect(() => {
     loadComptes();
-  }, [filterStatut]);
+  }, []);
 
-  // Valider un compte
-  const handleValiderCompte = async (id: string, poste: string) => {
+  // Valider un compte via RPC
+  const handleValiderCompte = async (id: string) => {
     setActionLoadingId(id);
     try {
-      const { error } = await supabase
-        .from("utilisateurs")
-        .update({
-          statut_compte: "VALIDE",
-          role_technique: poste === "ASCQ" ? "ASCQ_OPERATEUR" : "PUBLIC",
-          date_validation: new Date().toISOString(),
-        })
-        .eq("id", id);
+      const { error } = await supabase.rpc("changer_statut_compte", {
+        p_id: id,
+        p_nouveau_statut: "VALIDE",
+      });
 
       if (error) throw error;
-
-      // Recharger la liste
       await loadComptes();
     } catch (err: any) {
       alert("Erreur lors de la validation du compte : " + err.message);
@@ -85,12 +63,10 @@ export default function AdminValidationComptesPage() {
     if (!confirm("Voulez-vous vraiment refuser / suspendre ce compte ?")) return;
     setActionLoadingId(id);
     try {
-      const { error } = await supabase
-        .from("utilisateurs")
-        .update({
-          statut_compte: "REJETE",
-        })
-        .eq("id", id);
+      const { error } = await supabase.rpc("changer_statut_compte", {
+        p_id: id,
+        p_nouveau_statut: "REJETE",
+      });
 
       if (error) throw error;
       await loadComptes();
@@ -101,15 +77,19 @@ export default function AdminValidationComptesPage() {
     }
   };
 
-  const filteredComptes = comptes.filter((c) => {
-    const full = `${c.nom} ${c.prenoms} ${c.telephone} ${c.communes?.nom || ""}`.toLowerCase();
-    return full.includes(searchTerm.toLowerCase());
-  });
+  const filteredComptes = comptes
+    .filter((c) => {
+      if (filterStatut === "TOUS") return true;
+      return c.statut_compte === filterStatut;
+    })
+    .filter((c) => {
+      const full = `${c.nom} ${c.prenoms} ${c.telephone} ${c.commune_nom || ""}`.toLowerCase();
+      return full.includes(searchTerm.toLowerCase());
+    });
 
   return (
     <main className="min-h-screen bg-slate-50 py-8 px-4 sm:px-6">
       <div className="max-w-5xl mx-auto space-y-6">
-        {/* Navigation */}
         <div className="flex items-center justify-between">
           <Link
             href="/"
@@ -128,7 +108,6 @@ export default function AdminValidationComptesPage() {
           </button>
         </div>
 
-        {/* En-tête */}
         <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1">
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
@@ -167,7 +146,6 @@ export default function AdminValidationComptesPage() {
           </div>
         </div>
 
-        {/* Barre de recherche */}
         <div className="relative">
           <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
             <Search className="w-4 h-4" />
@@ -181,7 +159,6 @@ export default function AdminValidationComptesPage() {
           />
         </div>
 
-        {/* Liste des comptes */}
         {loading ? (
           <div className="text-center py-12 bg-white rounded-3xl border border-slate-200/80">
             <RefreshCw className="w-8 h-8 text-emerald-600 animate-spin mx-auto mb-2" />
@@ -190,7 +167,7 @@ export default function AdminValidationComptesPage() {
         ) : filteredComptes.length === 0 ? (
           <div className="text-center py-12 bg-white rounded-3xl border border-slate-200/80 text-slate-500 text-sm space-y-2">
             <User className="w-10 h-10 text-slate-300 mx-auto" />
-            <p className="font-semibold text-slate-700">Aucun compte trouvé</p>
+            <p className="font-semibold text-slate-700">Aucun compte dans cette vue</p>
             <p className="text-xs text-slate-400">
               {filterStatut === "EN_ATTENTE"
                 ? "Il n'y a aucun compte en attente de validation pour le moment."
@@ -200,7 +177,6 @@ export default function AdminValidationComptesPage() {
         ) : (
           <div className="grid grid-cols-1 gap-4">
             {filteredComptes.map((compte) => {
-              const ascq = Array.isArray(compte.ascq_profils) ? compte.ascq_profils[0] : compte.ascq_profils;
               const isPending = compte.statut_compte === "EN_ATTENTE";
               const isValide = compte.statut_compte === "VALIDE";
               const isBusy = actionLoadingId === compte.id;
@@ -217,7 +193,7 @@ export default function AdminValidationComptesPage() {
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="space-y-2">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-bold text-slate-900 text-base">
+                        <span className="font-bold text-slate-900 text-base uppercase">
                           {compte.nom} {compte.prenoms}
                         </span>
 
@@ -249,28 +225,27 @@ export default function AdminValidationComptesPage() {
                         <span className="inline-flex items-center gap-1">
                           <MapPin className="w-3.5 h-3.5 text-slate-400" />
                           <span>
-                            {compte.arrondissements?.nom || "Arrondissement"}, {compte.communes?.nom || "Commune"} ({compte.departements?.nom})
+                            {compte.arrondissement_nom || "ARRONDISSEMENT"}, {compte.commune_nom || "COMMUNE"} ({compte.departement_nom})
                           </span>
                         </span>
                       </div>
 
-                      {ascq && (
+                      {compte.source_financement && (
                         <div className="text-[11px] text-slate-500 flex flex-wrap gap-x-3 pt-1 border-t border-slate-100">
-                          <span>Financement : <strong>{ascq.source_financement}</strong></span>
+                          <span>Financement : <strong>{compte.source_financement}</strong></span>
                           <span>•</span>
-                          <span>RC en charge : <strong>{ascq.nombre_rc}</strong></span>
+                          <span>RC en charge : <strong>{compte.nombre_rc}</strong></span>
                           <span>•</span>
-                          <span>Annuaire public : <strong>{ascq.afficher_annuaire_public ? "Oui" : "Non"}</strong></span>
+                          <span>Annuaire public : <strong>{compte.afficher_annuaire_public ? "Oui" : "Non"}</strong></span>
                         </div>
                       )}
                     </div>
 
-                    {/* Boutons d'action administrative */}
                     <div className="flex items-center gap-2 shrink-0">
                       {isPending ? (
                         <>
                           <button
-                            onClick={() => handleValiderCompte(compte.id, compte.poste)}
+                            onClick={() => handleValiderCompte(compte.id)}
                             disabled={isBusy}
                             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm transition-all active:scale-95 disabled:opacity-50"
                           >
@@ -297,7 +272,7 @@ export default function AdminValidationComptesPage() {
                         </button>
                       ) : (
                         <button
-                          onClick={() => handleValiderCompte(compte.id, compte.poste)}
+                          onClick={() => handleValiderCompte(compte.id)}
                           disabled={isBusy}
                           className="text-xs font-bold text-emerald-700 hover:underline"
                         >
