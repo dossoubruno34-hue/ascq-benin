@@ -1,306 +1,275 @@
+import Image from "next/image";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
-import InstallPwaButton from "@/components/InstallPwaButton";
-import AnnuairePublic from "@/components/AnnuairePublic";
-import FormulaireSuggestions from "@/components/FormulaireSuggestions";
-import ConseilsSanteSection from "@/components/ConseilsSanteSection";
-import { 
-  Users, 
-  Activity, 
-  Home, 
-  ShieldCheck, 
-  LogIn, 
-  UserPlus, 
-  Mail, 
-  Phone, 
-  ExternalLink,
-  ChevronRight,
-  HeartHandshake
-} from "lucide-react";
+import QuiEstAscqCard from "@/components/QuiEstAscqCard";
+import SuggestionsCard from "@/components/SuggestionsCard";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  // Récupérer les données pour la page publique
+  // Récupérer les données pour la page d'accueil
   const [depsRes, ascqCountRes, rcCountRes, conseilsRes] = await Promise.all([
     supabase.from("departements").select("id, nom").order("nom"),
     supabase.from("utilisateurs").select("*", { count: "exact", head: true }).eq("poste", "ASCQ").eq("statut_compte", "VALIDE"),
     supabase.from("relais_communautaires").select("*", { count: "exact", head: true }),
-    supabase.from("conseils_sante").select("*").eq("est_publie", true).order("created_at", { ascending: false }).limit(6),
+    supabase.from("conseils_sante").select("*").eq("est_publie", true).order("created_at", { ascending: false }),
   ]);
 
   const departements = depsRes.data || [];
-  const nbAscq = ascqCountRes.count || 1; // Au moins 1 avec le test fictif
-  const nbRc = rcCountRes.count || 1;
-  // Calculs agrégés des ménages et personnes touchées
-  const nbMenages = nbRc * 50; 
-  const nbPersonnes = nbMenages * 6;
+  
+  // Chiffres basés sur les données de test / maquette
+  const nbAscq = ascqCountRes.count && ascqCountRes.count > 0 ? ascqCountRes.count : 5;
+  const nbRc = rcCountRes.count && rcCountRes.count > 0 ? rcCountRes.count : 97;
+  const nbMenages = 7876;
+  const nbPersonnes = "755 624";
   const conseils = conseilsRes.data || [];
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-between selection:bg-emerald-100 selection:text-emerald-900">
-      {/* 1. Barre de navigation officielle */}
-      <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-200/80">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          {/* Logo & Identité Bénin */}
-          <Link href="/" className="flex items-center gap-2.5">
-            <div className="flex flex-col gap-0.5 shadow-sm rounded overflow-hidden">
-              <span className="w-4 h-1.5 bg-[#008751]"></span>
-              <span className="w-4 h-1.5 bg-[#FCD116]"></span>
-              <span className="w-4 h-1.5 bg-[#E8112D]"></span>
-            </div>
-            <div>
-              <span className="font-extrabold text-base tracking-tight text-slate-900">
-                ASCQ BÉNIN
-              </span>
-              <span className="hidden sm:inline-block text-[10px] text-slate-500 font-medium ml-2 border-l border-slate-200 pl-2">
-                Santé Communautaire
-              </span>
-            </div>
-          </Link>
-
-          {/* Actions : PWA, Connexion, Inscription */}
-          <div className="flex items-center gap-2">
-            <InstallPwaButton />
-
-            <Link
-              href="/connexion"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold text-slate-700 hover:text-slate-900 hover:bg-slate-100 transition-colors"
-            >
-              <LogIn className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Se connecter</span>
-            </Link>
-
-            <Link
-              href="/inscription"
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 shadow-sm transition-all active:scale-95"
-            >
-              <UserPlus className="w-3.5 h-3.5" />
-              <span>S'inscrire</span>
-            </Link>
+    <div className="min-h-screen bg-[#f4f7f5] text-slate-800 antialiased pb-16">
+      {/* 1. En-tête vert foncé avec le logo, « ASCQ Bénin » et « Ministère de la Santé » */}
+      <header className="bg-[#005c30] text-white">
+        <div className="max-w-xl mx-auto px-4 h-14 flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-full bg-white p-1 flex items-center justify-center shrink-0 shadow-sm overflow-hidden">
+            <Image
+              src="/logo-ascq.png"
+              alt="Logo ASCQ Bénin"
+              width={32}
+              height={32}
+              className="object-contain"
+            />
           </div>
+          <div className="leading-tight">
+            <h1 className="font-extrabold text-sm sm:text-base tracking-tight text-white">
+              ASCQ Bénin
+            </h1>
+            <p className="text-[11px] text-white/80 font-normal">
+              Ministère de la Santé
+            </p>
+          </div>
+        </div>
+
+        {/* Bandeau tricolore vert, jaune, rouge juste en dessous */}
+        <div className="h-1 w-full flex">
+          <span className="w-1/3 bg-[#008751]"></span>
+          <span className="w-1/3 bg-[#FCD116]"></span>
+          <span className="w-1/3 bg-[#E8112D]"></span>
         </div>
       </header>
 
-      {/* 2. Hero Section : Accueil officiel */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-white to-slate-50 border-b border-slate-200/60 pt-12 pb-16 px-4 sm:px-6">
-        <div className="max-w-4xl mx-auto text-center space-y-6">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-50 border border-emerald-200/80 text-emerald-800 text-xs font-bold shadow-sm">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            Application officielle des ASCQ de la République du Bénin
-          </div>
-
-          <h1 className="text-3xl sm:text-5xl font-black text-slate-950 tracking-tight leading-tight">
-            Au cœur des communautés,<br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-700 via-teal-700 to-emerald-900">
-              pour la santé de chaque Béninois.
-            </span>
-          </h1>
-
-          <p className="text-sm sm:text-base text-slate-600 max-w-2xl mx-auto leading-relaxed">
-            Bienvenue sur la plateforme nationale des Agents de Santé Communautaire Qualifiés (ASCQ) et de leurs Relais. Suivi épidémiologique, prévention et proximité sanitaire dans les 546 arrondissements du Bénin.
+      {/* Contenu principal : mobile-first, centré, largeur maximale confortable */}
+      <main className="max-w-md sm:max-w-lg mx-auto px-4 pt-6 space-y-5">
+        
+        {/* 2. Titre « Bienvenue », pastille « ASCQ DU BÉNIN » et Logo officiel */}
+        <section className="text-center space-y-3 pt-2">
+          <h2 className="font-handwritten text-[#1e3a8a] text-4xl sm:text-5xl font-bold tracking-wide">
+            Bienvenue
+          </h2>
+          
+          <p className="text-xs sm:text-sm font-semibold text-slate-700">
+            sur l'application officielle des
           </p>
 
-          <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
-            <a
-              href="#annuaire"
-              className="px-5 py-2.5 rounded-xl font-bold text-sm text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm transition-all active:scale-95 flex items-center gap-2"
-            >
-              <span>Trouver l'ASCQ de mon milieu</span>
-              <ChevronRight className="w-4 h-4" />
-            </a>
-
-            <a
-              href="#votre-voix-compte"
-              className="px-5 py-2.5 rounded-xl font-semibold text-sm text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition-all shadow-sm"
-            >
-              Faire une suggestion / réclamation
-            </a>
-
-            {/* Accès rapide Espace Administration pour le test */}
-            <Link
-              href="/admin/validation-comptes"
-              className="px-4 py-2.5 rounded-xl font-medium text-xs text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition-all flex items-center gap-1.5"
-            >
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>Espace Admin : Valider les comptes</span>
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* 3. Tableau de bord national agrégé */}
-      <section className="max-w-6xl mx-auto px-4 sm:px-6 py-12 w-full">
-        <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200/80 space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-4">
-            <div>
-              <h2 className="text-lg font-bold text-slate-900">
-                Tableau de bord national de santé communautaire
-              </h2>
-              <p className="text-xs text-slate-500">
-                Indicateurs consolidés en direct à partir des rapports validés sur le territoire national.
-              </p>
-            </div>
-            <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-100">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-              Données strictement agrégées
+          <div>
+            <span className="inline-block bg-[#0e7f47] text-white font-extrabold text-sm sm:text-base px-6 py-2 rounded-2xl shadow-sm tracking-wider uppercase">
+              ASCQ DU BÉNIN
             </span>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {/* Indicateur 1 : ASCQ */}
-            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60 space-y-1">
-              <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center mb-2">
-                <Users className="w-4 h-4" />
-              </div>
-              <p className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-                {nbAscq.toLocaleString("fr-FR")}
-              </p>
-              <p className="text-xs font-semibold text-slate-600">ASCQ qualifiés</p>
-              <p className="text-[10px] text-slate-400">Déployés et certifiés</p>
-            </div>
-
-            {/* Indicateur 2 : Relais Communautaires */}
-            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60 space-y-1">
-              <div className="w-8 h-8 rounded-xl bg-teal-100 text-teal-800 flex items-center justify-center mb-2">
-                <HeartHandshake className="w-4 h-4" />
-              </div>
-              <p className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-                {nbRc.toLocaleString("fr-FR")}
-              </p>
-              <p className="text-xs font-semibold text-slate-600">Relais Communautaires (RC)</p>
-              <p className="text-[10px] text-slate-400">Actifs dans les grappes</p>
-            </div>
-
-            {/* Indicateur 3 : Ménages touchés */}
-            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60 space-y-1">
-              <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center mb-2">
-                <Home className="w-4 h-4" />
-              </div>
-              <p className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-                {nbMenages.toLocaleString("fr-FR")}
-              </p>
-              <p className="text-xs font-semibold text-slate-600">Ménages suivis</p>
-              <p className="text-[10px] text-slate-400">Visites à domicile régulières</p>
-            </div>
-
-            {/* Indicateur 4 : Personnes touchées */}
-            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60 space-y-1">
-              <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-800 flex items-center justify-center mb-2">
-                <Activity className="w-4 h-4" />
-              </div>
-              <p className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-                {nbPersonnes.toLocaleString("fr-FR")}
-              </p>
-              <p className="text-xs font-semibold text-slate-600">Personnes touchées</p>
-              <p className="text-[10px] text-slate-400">Sensibilisées et soignées</p>
+          {/* Logo officiel centré sans chevauchement */}
+          <div className="pt-2 flex justify-center">
+            <div className="w-48 sm:w-56 h-auto drop-shadow-sm">
+              <Image
+                src="/logo-ascq.png"
+                alt="Collectif des Agents de Santé Communautaire Qualifiés du Bénin"
+                width={240}
+                height={140}
+                priority
+                className="w-full h-auto object-contain"
+              />
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* 4. Annuaire public « Qui est l'ASCQ de mon milieu ? » */}
-      <section id="annuaire" className="max-w-6xl mx-auto px-4 sm:px-6 py-6 w-full">
-        <AnnuairePublic departements={departements} />
-      </section>
+        {/* 3. Barre d'onglets : Accueil, Connexion, Inscription, Suggestions */}
+        <nav className="bg-white rounded-2xl p-1 shadow-sm border border-slate-200/80 flex items-center justify-between text-xs font-bold text-slate-600">
+          <Link
+            href="/"
+            className="flex-1 py-2 px-1 text-center rounded-xl bg-[#e0f2e9] text-[#0e7f47] transition-colors"
+          >
+            Accueil
+          </Link>
+          <Link
+            href="/connexion"
+            className="flex-1 py-2 px-1 text-center rounded-xl hover:text-slate-900 transition-colors"
+          >
+            Connexion
+          </Link>
+          <Link
+            href="/inscription"
+            className="flex-1 py-2 px-1 text-center rounded-xl hover:text-slate-900 transition-colors"
+          >
+            Inscription
+          </Link>
+          <a
+            href="#suggestions"
+            className="flex-1 py-2 px-1 text-center rounded-xl hover:text-slate-900 transition-colors"
+          >
+            Suggestions
+          </a>
+        </nav>
 
-      {/* 5. Espace Conseils Santé */}
-      <section className="max-w-6xl mx-auto px-4 sm:px-6 py-12 w-full">
-        <ConseilsSanteSection conseils={conseils} />
-      </section>
+        {/* 4. Boutons « Se connecter » (vert plein) et « S'inscrire » (contour) */}
+        <section className="flex items-center justify-center gap-3 pt-1">
+          <Link
+            href="/connexion"
+            className="flex-1 max-w-[170px] py-2.5 px-4 rounded-2xl font-bold text-xs sm:text-sm text-center text-white bg-[#0e7f47] hover:bg-[#0b6d3c] shadow-sm transition-all active:scale-95"
+          >
+            Se connecter
+          </Link>
 
-      {/* 6. Formulaire « Votre voix compte / Aidez-nous à mieux vous servir » */}
-      <section id="votre-voix-compte" className="max-w-6xl mx-auto px-4 sm:px-6 py-6 w-full">
-        <FormulaireSuggestions departements={departements} />
-      </section>
+          <Link
+            href="/inscription"
+            className="flex-1 max-w-[170px] py-2.5 px-4 rounded-2xl font-bold text-xs sm:text-sm text-center text-slate-800 bg-white hover:bg-slate-50 border border-slate-300 shadow-sm transition-all active:scale-95"
+          >
+            S'inscrire
+          </Link>
+        </section>
 
-      {/* 7. Section Contact & Réseaux Sociaux officiels */}
-      <footer className="mt-16 bg-white border-t border-slate-200 pt-12 pb-8 px-4 sm:px-6">
-        <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-8 pb-8 border-b border-slate-100">
-          {/* Identité */}
-          <div className="space-y-3 md:col-span-2">
-            <div className="flex items-center gap-2">
-              <span className="w-3.5 h-2.5 bg-[#008751] rounded-sm"></span>
-              <span className="w-3.5 h-2.5 bg-[#FCD116] rounded-sm"></span>
-              <span className="w-3.5 h-2.5 bg-[#E8112D] rounded-sm"></span>
-              <span className="font-bold text-slate-900 text-sm">ASCQ BÉNIN</span>
-            </div>
-            <p className="text-xs text-slate-500 max-w-sm leading-relaxed">
-              Dispositif officiel des Agents de Santé Communautaire Qualifiés de la République du Bénin. Promotion de la santé, surveillance épidémiologique et prévention à base communautaire.
+        {/* 5. 4 cartes de chiffres en 2 colonnes */}
+        <section className="grid grid-cols-2 gap-3 pt-1">
+          {/* Carte 1 */}
+          <div className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-200/80 shadow-sm space-y-1">
+            <p className="text-2xl sm:text-3xl font-extrabold text-[#005b60] tracking-tight">
+              {nbAscq}
             </p>
-            <p className="text-[11px] text-slate-400">
-              Projet initié et coordonné par Bruno DOSSOU, infirmier et ASCQ au Bénin.
+            <p className="text-[11px] sm:text-xs text-slate-500 font-medium leading-tight">
+              ASCQ opérationnels
             </p>
           </div>
 
-          {/* Contact officiel */}
-          <div className="space-y-3">
-            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-              Contact Officiel
-            </h3>
-            <div className="space-y-2 text-xs text-slate-600">
-              <a
-                href="mailto:ascqbenin@gmail.com"
-                className="flex items-center gap-2 hover:text-emerald-700 transition-colors"
-              >
-                <Mail className="w-4 h-4 text-emerald-600" />
-                <span>ascqbenin@gmail.com</span>
-              </a>
-              <div className="flex items-center gap-2 text-slate-500">
-                <Phone className="w-4 h-4 text-emerald-600" />
-                <span>République du Bénin</span>
-              </div>
+          {/* Carte 2 */}
+          <div className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-200/80 shadow-sm space-y-1">
+            <p className="text-2xl sm:text-3xl font-extrabold text-[#005b60] tracking-tight">
+              {nbRc}
+            </p>
+            <p className="text-[11px] sm:text-xs text-slate-500 font-medium leading-tight">
+              Relais communautaires opérationnels
+            </p>
+          </div>
+
+          {/* Carte 3 */}
+          <div className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-200/80 shadow-sm space-y-1">
+            <p className="text-2xl sm:text-3xl font-extrabold text-[#005b60] tracking-tight">
+              {nbMenages}
+            </p>
+            <p className="text-[11px] sm:text-xs text-slate-500 font-medium leading-tight">
+              Ménages touchés cette année
+            </p>
+          </div>
+
+          {/* Carte 4 */}
+          <div className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-200/80 shadow-sm space-y-1">
+            <p className="text-2xl sm:text-3xl font-extrabold text-[#005b60] tracking-tight">
+              {nbPersonnes}
+            </p>
+            <p className="text-[11px] sm:text-xs text-slate-500 font-medium leading-tight">
+              Personnes touchées cette année
+            </p>
+          </div>
+        </section>
+
+        {/* 6. Carte « Conseils santé » */}
+        <section className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/80 shadow-sm space-y-3">
+          <h2 className="text-base font-bold text-slate-900">
+            Conseils santé
+          </h2>
+
+          {conseils && conseils.length > 0 ? (
+            <div className="space-y-3 pt-1">
+              {conseils.slice(0, 2).map((c) => (
+                <div key={c.id} className="text-xs space-y-1 border-l-2 border-[#0e7f47] pl-3 py-0.5">
+                  <p className="font-bold text-slate-900">{c.titre}</p>
+                  <p className="text-slate-600 line-clamp-2">{c.contenu}</p>
+                </div>
+              ))}
             </div>
+          ) : (
+            <p className="text-xs text-slate-400 font-normal">
+              Aucun conseil publié pour le moment.
+            </p>
+          )}
+        </section>
+
+        {/* 7. Carte « Qui est l'ASCQ de mon milieu ? » */}
+        <section>
+          <QuiEstAscqCard departements={departements} />
+        </section>
+
+        {/* 8. Carte verte pâle « Aidez-nous à mieux vous servir » */}
+        <section>
+          <SuggestionsCard departements={departements} />
+        </section>
+
+        {/* 9. Carte « Suivez-nous » avec 4 icônes */}
+        <section className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm text-center space-y-4">
+          <h2 className="text-sm font-bold text-slate-900">
+            Suivez-nous
+          </h2>
+
+          <div className="flex items-center justify-center gap-3">
+            {/* Facebook */}
+            <a
+              href="https://www.facebook.com/profile.php?id=61595028870500"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-12 h-12 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-center hover:bg-slate-50 hover:border-blue-300 transition-all active:scale-95"
+              title="Facebook"
+            >
+              <svg className="w-5 h-5 text-[#1877F2]" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+              </svg>
+            </a>
+
+            {/* LinkedIn */}
+            <a
+              href="https://www.linkedin.com/company/ascq-benin/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-12 h-12 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-center hover:bg-slate-50 hover:border-sky-300 transition-all active:scale-95"
+              title="LinkedIn"
+            >
+              <svg className="w-5 h-5 text-[#0A66C2]" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.28 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.75M6.88 8.56a1.68 1.68 0 0 0 1.68-1.68c0-.93-.75-1.69-1.68-1.69a1.69 1.69 0 0 0-1.69 1.69c0 .93.76 1.68 1.69 1.68m1.39 9.94v-8.37H5.5v8.37h2.77z"/>
+              </svg>
+            </a>
+
+            {/* Email */}
+            <a
+              href="mailto:ascqbenin@gmail.com"
+              className="w-12 h-12 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-center hover:bg-slate-50 hover:border-emerald-300 transition-all active:scale-95"
+              title="E-mail"
+            >
+              <svg className="w-5 h-5 text-[#0e7f47]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+            </a>
+
+            {/* WhatsApp */}
+            <a
+              href="https://whatsapp.com/channel/0029VbE6MZcHbFV2YFxXoe05"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-12 h-12 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-center hover:bg-slate-50 hover:border-emerald-300 transition-all active:scale-95"
+              title="WhatsApp"
+            >
+              <svg className="w-5 h-5 text-[#25D366]" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981z"/>
+              </svg>
+            </a>
           </div>
+        </section>
 
-          {/* Réseaux sociaux & Canaux */}
-          <div className="space-y-3">
-            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-              Canaux Officiels
-            </h3>
-            <div className="flex flex-col gap-2 text-xs">
-              <a
-                href="https://whatsapp.com/channel/0029VbE6MZcHbFV2YFxXoe05"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 text-emerald-700 hover:text-emerald-800 font-medium"
-              >
-                <span>Chaîne WhatsApp</span>
-                <ExternalLink className="w-3 h-3" />
-              </a>
-
-              <a
-                href="https://www.facebook.com/profile.php?id=61595028870500"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 text-blue-700 hover:text-blue-800 font-medium"
-              >
-                <span>Page Facebook</span>
-                <ExternalLink className="w-3 h-3" />
-              </a>
-
-              <a
-                href="https://www.linkedin.com/company/ascq-benin/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 text-sky-700 hover:text-sky-800 font-medium"
-              >
-                <span>Page LinkedIn</span>
-                <ExternalLink className="w-3 h-3" />
-              </a>
-            </div>
-          </div>
-        </div>
-
-        <div className="max-w-6xl mx-auto pt-6 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-slate-400">
-          <p>© 2026 ASCQ Bénin • Tous droits réservés.</p>
-          <div className="flex items-center gap-4">
-            <Link href="/connexion" className="hover:text-slate-600">Connexion</Link>
-            <Link href="/inscription" className="hover:text-slate-600">Inscription</Link>
-            <Link href="/admin/validation-comptes" className="hover:text-slate-600">Administration</Link>
-          </div>
-        </div>
-      </footer>
+      </main>
     </div>
   );
 }

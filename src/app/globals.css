@@ -1,6 +1,12 @@
+@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Dancing+Script:wght@600;700&family=Pacifico&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+.font-handwritten {
+  font-family: 'Dancing Script', 'Caveat', 'Pacifico', cursive;
+}
 
 :root {
   --background: #f8fafc;
