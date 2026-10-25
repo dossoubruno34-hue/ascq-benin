@@ -41,7 +41,7 @@ export default function ConnexionPage() {
             } else if (userProfile.poste === "RC") {
               router.push("/espace-rc");
             } else if (userProfile.poste === "ASCQ") {
-              router.push("/espace-ascq/relais");
+              router.push("/espace-ascq");
             }
           }
         }
@@ -124,7 +124,7 @@ export default function ConnexionPage() {
             router.push("/espace-rc");
           }
         } else if (userProfile.poste === "ASCQ") {
-          router.push("/espace-ascq/relais");
+          router.push("/espace-ascq");
         } else {
           router.push("/");
         }

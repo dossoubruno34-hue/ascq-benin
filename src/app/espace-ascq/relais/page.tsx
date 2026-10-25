@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import AscqNav from "@/components/AscqNav";
 import { 
   Users, 
   UserPlus, 
@@ -224,47 +225,30 @@ export default function GestionRelaisPage() {
 
   return (
     <div className="min-h-screen bg-[#f4f7f5] text-slate-800 antialiased pb-20">
-      {/* 1. En-tête ASCQ */}
-      <header className="bg-[#005c30] text-white sticky top-0 z-20 shadow-md">
-        <div className="max-w-2xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link
-              href="/"
-              className="p-1.5 rounded-xl hover:bg-white/10 transition-colors text-white"
-              title="Retour à l'accueil"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </Link>
-            <div>
-              <h1 className="font-extrabold text-sm sm:text-base tracking-tight leading-tight">
-                Relais Communautaires
-              </h1>
-              <p className="text-[11px] text-white/80">
-                {ascqProfile ? `${ascqProfile.prenoms} ${ascqProfile.nom} (ASCQ)` : "Espace Superviseur"}
-              </p>
-            </div>
+      <AscqNav userProfile={ascqProfile} />
+
+      {/* Contenu principal */}
+      <main className="max-w-2xl mx-auto px-4 pt-5 space-y-4">
+        
+        {/* Titre et Action d'enrôlement */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-base sm:text-lg font-black text-slate-900 leading-tight">
+              Mes Relais Communautaires
+            </h1>
+            <p className="text-xs text-slate-500">
+              Gestion de vos agents communautaires et des codes d'accès
+            </p>
           </div>
 
           <button
             onClick={() => setIsEnrollModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white text-[#005c30] font-bold text-xs shadow hover:bg-emerald-50 active:scale-95 transition-all"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#005c30] text-white font-bold text-xs shadow hover:bg-[#004724] active:scale-95 transition-all"
           >
             <UserPlus className="w-4 h-4" />
-            <span className="hidden sm:inline">Enrôler un RC</span>
-            <span className="sm:hidden">Enrôler</span>
+            <span>Enrôler un RC</span>
           </button>
         </div>
-
-        {/* Bandeau tricolore béninois */}
-        <div className="h-1 w-full flex">
-          <span className="w-1/3 bg-[#008751]"></span>
-          <span className="w-1/3 bg-[#FCD116]"></span>
-          <span className="w-1/3 bg-[#E8112D]"></span>
-        </div>
-      </header>
-
-      {/* Contenu principal */}
-      <main className="max-w-2xl mx-auto px-4 pt-5 space-y-4">
         
         {/* Cartes d'indicateurs de l'ASCQ */}
         <div className="grid grid-cols-3 gap-2.5">

@@ -60,7 +60,7 @@ Ce document consigne les choix d'architecture validés, les règles métier arbi
   - Retrait du bouton d'administration de la page publique.
 - **Référentiel géographique nettoyé** : Noms des 12 départements, 34 zones, 77 communes et 546 arrondissements en MAJUSCULES SANS ACCENT.
 
-### Phase 4 : Enrôlement et accès des Relais Communautaires (RC) (Réalisée le 25/10/2026)
+### Phase 4 : Enrôlement et accès des Relais Communautaires (RC) (Validée le 25/10/2026)
 - **Table `relais_communautaires` & Sécurité RLS** :
   - RLS activée : Un ASCQ ne peut voir, ajouter, modifier et supprimer que ses propres RC (`ascq_id = auth.uid()`).
   - Un RC connecté ne peut voir que sa propre fiche (`user_id = auth.uid()`).
@@ -81,3 +81,26 @@ Ce document consigne les choix d'architecture validés, les règles métier arbi
     1. **Mes fiches** (Registre communautaire, Notification d'alerte, Notification de décès).
     2. **Notifications** (consignes et alertes de son superviseur ASCQ).
     3. **Mon compte** (fiche d'identification, village, grappe, coordonnées de son superviseur ASCQ avec bouton d'appel direct, changement de mot de passe, déconnexion).
+
+### Phase 5 : Mon espace, permutation, requêtes, bibliothèque (Réalisée le 25/10/2026)
+- **Navigation unifiée de l'ASCQ (`AscqNav`)** :
+  - En-tête vert foncé avec logo officiel, identité de l'agent, bouton « Enrôler un RC », notifications et déconnexion.
+  - Barre d'onglets pour tous les modules de l'ASCQ : *Mon espace*, *Mes Relais*, *Permutations*, *Requêtes*, *Bibliothèque*.
+- **Mon Espace (`/espace-ascq`)** :
+  - Synthèse de « Ma situation » : Zone d'intervention complète (département, zone sanitaire, commune, arrondissement, cumul, structure de santé rattachée).
+  - Modification directe des 3 champs autorisés : téléphone, source de financement et nombre de RC en charge via la fonction RPC `mettre_a_jour_mon_espace`.
+  - Verrouillage sécurisé des données administratives et territoriales avec cadenas et renvoi vers les requêtes.
+- **Permutations (`/espace-ascq/permutations`)** :
+  - Table `permutations` et sécurité RLS.
+  - Bourse des permutations disponibles avec visualisation du poste actuel de départ et de la destination souhaitée.
+  - Fonctionnalité « Proposer une permutation » via `proposer_permutation`.
+  - Formulaire de publication d'une demande avec sélection géographique en cascade (département → commune → arrondissement) et motif via `publier_demande_permutation`.
+  - Onglet « Ma demande active » pour suivre le statut de son offre.
+- **Requêtes administratives & techniques (`/espace-ascq/requetes`)** :
+  - Table `requetes_ascq` avec statuts (`ENVOYEE`, `EN_COURS`, `RESOLUE`, `REJETEE`) et priorités (`NORMALE`, `URGENTE`).
+  - Formulaire de création de requête par type (modification d'affectation, administrative, technique, suggestion, autre).
+  - Suivi des réponses formulées par l'administration avec horodatage et affichage distinctif.
+- **Bibliothèque officielle (`/espace-ascq/bibliotheque`)** :
+  - Table `bibliotheque_documents` avec catégories officielles (Guides cliniques, Surveillance épidémiologique, Outils de gestion, Textes réglementaires, Formation).
+  - Seed initial de 5 documents officiels du Ministère de la Santé du Bénin (iCCM / PCIME-C, directives de surveillance SBC, politique nationale de santé communautaire, outils de rapportage RMA, formation RC).
+  - Boutons d'accès direct « Consulter sur Google Drive » et recherche instantanée par mot-clé.
