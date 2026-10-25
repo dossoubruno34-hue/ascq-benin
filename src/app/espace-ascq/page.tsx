@@ -28,11 +28,12 @@ export default function MonEspacePage() {
   const router = useRouter();
   const [espaceData, setEspaceData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
 
   // Édition des champs autorisés (Téléphone, Source de financement, Nombre de RC)
   const [isEditing, setIsEditing] = useState(false);
   const [telephone, setTelephone] = useState("");
-  const [sourceFinancement, setSourceFinancement] = useState("");
+  const [sourceFinancement, setSourceFinancement] = useState("LLF");
   const [sourceFinancementAutre, setSourceFinancementAutre] = useState("");
   const [nombreRc, setNombreRc] = useState(0);
 
@@ -41,22 +42,64 @@ export default function MonEspacePage() {
 
   const loadEspaceData = async () => {
     setLoading(true);
+    setLoadError("");
+
     try {
+      // 1. Essayer d'abord la RPC Phase 5 obtenir_mon_espace
       const { data, error } = await supabase.rpc("obtenir_mon_espace");
-      if (error) {
+
+      if (!error && data) {
+        setEspaceData(data);
+        setTelephone(data.telephone || "");
+        setSourceFinancement(data.source_financement || "LLF");
+        setSourceFinancementAutre(data.source_financement_autre || "");
+        setNombreRc(data.nombre_rc_declare || 0);
+        setLoading(false);
+        return;
+      }
+
+      // 2. Si obtenir_mon_espace n'existe pas encore (migration non exécutée), utiliser obtenir_mon_profil en fallback
+      console.warn("obtenir_mon_espace indisponible, tentative via obtenir_mon_profil...");
+      const { data: profils, error: profError } = await supabase.rpc("obtenir_mon_profil");
+
+      if (profError || !profils || profils.length === 0) {
         router.push("/connexion");
         return;
       }
 
-      setEspaceData(data);
-      setTelephone(data.telephone || "");
-      setSourceFinancement(data.source_financement || "LLF");
-      setSourceFinancementAutre(data.source_financement_autre || "");
-      setNombreRc(data.nombre_rc_declare || 0);
+      const prof = profils[0];
+      const fallbackData = {
+        id: prof.id,
+        nom: prof.nom,
+        prenoms: prof.prenoms,
+        telephone: prof.telephone,
+        poste: prof.poste,
+        departement_id: prof.departement_id,
+        departement_nom: prof.departement_nom || "NON DÉFINI",
+        commune_id: prof.commune_id,
+        commune_nom: prof.commune_nom || "NON DÉFINIE",
+        arrondissement_id: prof.arrondissement_id,
+        arrondissement_nom: prof.arrondissement_nom || "NON DÉFINI",
+        second_arrondissement_nom: null,
+        cumul_deux_arrondissements: false,
+        zone_sanitaire_nom: prof.zone_sanitaire_nom || "NON DÉFINIE",
+        structure_sante_nom: "CENTRE DE SANTÉ COMMUNAL",
+        source_financement: "LLF",
+        source_financement_autre: "",
+        nombre_rc_declare: 0,
+        nombre_rc_enroles: 0,
+        nombre_requetes_en_cours: 0,
+        permutation_active: null,
+        is_fallback: true,
+      };
 
-    } catch (err) {
+      setEspaceData(fallbackData);
+      setTelephone(prof.telephone || "");
+      setNombreRc(0);
+
+    } catch (err: any) {
       console.error("Erreur chargement mon espace:", err);
-      router.push("/connexion");
+      setLoadError("Impossible de charger vos données. Veuillez vous reconnecter.");
     } finally {
       setLoading(false);
     }
@@ -91,12 +134,21 @@ export default function MonEspacePage() {
     }
   };
 
-  if (loading) {
+  // Sécurité absolue : Ne jamais rendre la page si les données ne sont pas chargées
+  if (loading || !espaceData) {
     return (
       <div className="min-h-screen bg-[#f4f7f5] flex items-center justify-center p-4">
-        <div className="text-center space-y-2 text-slate-500">
+        <div className="text-center space-y-3 text-slate-500 max-w-sm mx-auto">
           <RefreshCw className="w-8 h-8 animate-spin mx-auto text-[#005c30]" />
           <p className="text-xs font-semibold">Chargement de votre situation...</p>
+          {loadError && (
+            <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-2xl text-xs space-y-2">
+              <p>{loadError}</p>
+              <Link href="/connexion" className="inline-block text-[#005c30] font-bold underline">
+                Aller à la page de connexion
+              </Link>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -128,7 +180,7 @@ export default function MonEspacePage() {
           </button>
         </div>
 
-        {/* Message de succès ou d'erreur */}
+        {/* Message de succès ou d'erreur de sauvegarde */}
         {saveMsg && (
           <div
             className={`p-3 rounded-2xl text-xs font-semibold flex items-center gap-2 border ${
@@ -139,6 +191,16 @@ export default function MonEspacePage() {
           >
             {saveMsg.error ? <AlertTriangle className="w-4 h-4 shrink-0" /> : <CheckCircle2 className="w-4 h-4 shrink-0" />}
             <span>{saveMsg.text}</span>
+          </div>
+        )}
+
+        {/* Alerte si la migration n'a pas encore été exécutée */}
+        {espaceData?.is_fallback && (
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-900 flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            <p className="leading-snug">
+              <strong>Action requise :</strong> Pensez à exécuter la migration Phase 5 (fichier <code className="font-mono font-bold bg-white px-1 py-0.5 rounded border border-amber-300">supabase/migrations/20261025_phase5_modules_ascq.sql</code>) dans l'éditeur SQL Supabase pour activer la gestion complète de votre espace.
+            </p>
           </div>
         )}
 
@@ -160,24 +222,30 @@ export default function MonEspacePage() {
           <div className="grid grid-cols-2 gap-3 text-xs">
             <div className="p-3 bg-slate-50/70 rounded-2xl border border-slate-100">
               <span className="text-slate-400 font-medium block text-[11px]">Département</span>
-              <span className="font-extrabold text-slate-900 uppercase">{espaceData.departement_nom}</span>
+              <span className="font-extrabold text-slate-900 uppercase">
+                {espaceData?.departement_nom || "NON DÉFINI"}
+              </span>
             </div>
 
             <div className="p-3 bg-slate-50/70 rounded-2xl border border-slate-100">
               <span className="text-slate-400 font-medium block text-[11px]">Zone Sanitaire</span>
-              <span className="font-extrabold text-slate-900 uppercase">{espaceData.zone_sanitaire_nom}</span>
+              <span className="font-extrabold text-slate-900 uppercase">
+                {espaceData?.zone_sanitaire_nom || "NON DÉFINIE"}
+              </span>
             </div>
 
             <div className="p-3 bg-slate-50/70 rounded-2xl border border-slate-100">
               <span className="text-slate-400 font-medium block text-[11px]">Commune</span>
-              <span className="font-extrabold text-slate-900 uppercase">{espaceData.commune_nom}</span>
+              <span className="font-extrabold text-slate-900 uppercase">
+                {espaceData?.commune_nom || "NON DÉFINIE"}
+              </span>
             </div>
 
             <div className="p-3 bg-slate-50/70 rounded-2xl border border-slate-100">
               <span className="text-slate-400 font-medium block text-[11px]">Arrondissement</span>
               <span className="font-extrabold text-slate-900 uppercase">
-                {espaceData.arrondissement_nom}
-                {espaceData.cumul_deux_arrondissements && espaceData.second_arrondissement_nom && (
+                {espaceData?.arrondissement_nom || "NON DÉFINI"}
+                {espaceData?.cumul_deux_arrondissements && espaceData?.second_arrondissement_nom && (
                   <span className="text-emerald-700 block text-[11px] font-semibold">
                     + {espaceData.second_arrondissement_nom} (Cumul)
                   </span>
@@ -187,7 +255,9 @@ export default function MonEspacePage() {
 
             <div className="col-span-2 p-3 bg-slate-50/70 rounded-2xl border border-slate-100">
               <span className="text-slate-400 font-medium block text-[11px]">Structure de santé de référence</span>
-              <span className="font-extrabold text-slate-900 uppercase">{espaceData.structure_sante_nom}</span>
+              <span className="font-extrabold text-slate-900 uppercase">
+                {espaceData?.structure_sante_nom || "CENTRE DE SANTÉ COMMUNAL"}
+              </span>
             </div>
           </div>
 
@@ -237,7 +307,7 @@ export default function MonEspacePage() {
                   <Phone className="w-4 h-4 text-slate-400" />
                   <span>Numéro de téléphone professionnel</span>
                 </div>
-                <span className="font-bold text-slate-900">{espaceData.telephone}</span>
+                <span className="font-bold text-slate-900">{espaceData?.telephone || "Non renseigné"}</span>
               </div>
 
               <div className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-100">
@@ -246,8 +316,8 @@ export default function MonEspacePage() {
                   <span>Source de financement</span>
                 </div>
                 <span className="font-bold text-slate-900">
-                  {espaceData.source_financement}
-                  {espaceData.source_financement_autre ? ` (${espaceData.source_financement_autre})` : ""}
+                  {espaceData?.source_financement || "LLF"}
+                  {espaceData?.source_financement_autre ? ` (${espaceData.source_financement_autre})` : ""}
                 </span>
               </div>
 
@@ -257,7 +327,7 @@ export default function MonEspacePage() {
                   <span>Relais communautaires en charge</span>
                 </div>
                 <span className="font-bold text-slate-900">
-                  {espaceData.nombre_rc_declare} déclarés ({espaceData.nombre_rc_enroles} enrôlés)
+                  {espaceData?.nombre_rc_declare ?? 0} déclarés ({espaceData?.nombre_rc_enroles ?? 0} enrôlés)
                 </span>
               </div>
             </div>
@@ -347,7 +417,7 @@ export default function MonEspacePage() {
                 <MessageSquareText className="w-4 h-4" />
               </div>
               <span className="text-[11px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md">
-                {espaceData.nombre_requetes_en_cours} en cours
+                {espaceData?.nombre_requetes_en_cours ?? 0} en cours
               </span>
             </div>
             <div>
@@ -368,7 +438,7 @@ export default function MonEspacePage() {
                 <ArrowLeftRight className="w-4 h-4" />
               </div>
               <span className="text-[11px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md">
-                {espaceData.permutation_active ? "Demande active" : "Bourse ouverte"}
+                {espaceData?.permutation_active ? "Demande active" : "Bourse ouverte"}
               </span>
             </div>
             <div>
