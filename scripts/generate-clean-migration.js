@@ -39,7 +39,7 @@ let sql = `-- ==================================================================
 -- ASCQ BÉNIN - Nettoyage des Doublons & Référentiel 100% Propre (MAJUSCULES SANS ACCENT)
 -- =====================================================================
 
--- 1. Détachement temporaire des clés étrangères des utilisateurs et structures
+-- 1. Détachement temporaire des utilisateurs et nettoyage des tables dépendantes
 UPDATE public.utilisateurs 
 SET departement_id = NULL, 
     zone_sanitaire_id = NULL, 
@@ -47,11 +47,11 @@ SET departement_id = NULL,
     arrondissement_id = NULL, 
     second_arrondissement_id = NULL;
 
-UPDATE public.structures_sante SET commune_id = NULL, arrondissement_id = NULL;
 UPDATE public.relais_communautaires SET village_id = NULL;
+DELETE FROM public.structures_sante;
+DELETE FROM public.villages;
 
 -- 2. Suppression de tous les anciens enregistrements et doublons corrompus
-DELETE FROM public.villages;
 DELETE FROM public.arrondissements;
 DELETE FROM public.communes;
 DELETE FROM public.zones_sanitaires;
@@ -156,4 +156,4 @@ WHERE telephone = '+2290100000002';
 `;
 
 fs.writeFileSync('supabase/migrations/nettoyage_doublons_accents.sql', sql, 'utf8');
-console.log('Script nettoyage_doublons_accents.sql generated successfully!');
+console.log('Script nettoyage_doublons_accents.sql regenerated successfully with DELETE structures_sante!');
