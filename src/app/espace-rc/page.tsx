@@ -244,32 +244,40 @@ export default function EspaceRelaisPage() {
               </div>
             </div>
 
-            {/* Fiche 2 : Notification d'alerte */}
-            <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm space-y-3 hover:border-emerald-300 transition-all">
+            {/* Fiche 2 : Notification d'alerte (Active en Phase 6) */}
+            <div className="bg-white rounded-3xl p-5 border-2 border-emerald-500 shadow-md space-y-3 hover:border-emerald-600 transition-all">
               <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
-                  <Activity className="w-5 h-5" />
+                <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-[#005c30] flex items-center justify-center shrink-0">
+                  <Activity className="w-5 h-5 stroke-[2.5]" />
                 </div>
                 <div className="flex-1">
-                  <h3 className="font-bold text-slate-900 text-sm">
-                    Notification d'alerte
-                  </h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-extrabold text-slate-900 text-sm">
+                      Notification d'alerte
+                    </h3>
+                    <span className="text-[10px] font-black uppercase text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                      Actif
+                    </span>
+                  </div>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Signalement immédiat d'une maladie à potentiel épidémique ou symptôme suspect.
+                    Signalement immédiat d'une maladie à potentiel épidémique, épizootie ou symptôme suspect.
                   </p>
                 </div>
               </div>
 
               <div className="pt-2 flex items-center justify-between border-t border-slate-100">
-                <span className="text-[11px] font-bold text-[#005c30] bg-emerald-50 px-2 py-1 rounded-lg">
-                  Pilote en Phase 6
-                </span>
-                <button
-                  disabled
-                  className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-emerald-100 text-[#005c30] cursor-not-allowed"
+                <Link
+                  href="/fiches"
+                  className="text-xs font-bold text-slate-500 hover:text-slate-800 underline"
                 >
-                  Bientôt disponible
-                </button>
+                  Voir mes alertes
+                </Link>
+                <Link
+                  href="/fiches/alerte/nouvelle"
+                  className="px-4 py-2 rounded-xl text-xs font-extrabold bg-[#005c30] hover:bg-[#004724] text-white shadow-sm active:scale-95 transition-all flex items-center gap-1.5"
+                >
+                  <span>Notifier une alerte</span>
+                </Link>
               </div>
             </div>
 

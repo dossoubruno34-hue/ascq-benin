@@ -44,3 +44,19 @@ Ce document consigne l'organisation détaillée, les formulaires, les règles de
 ## 5. Confidentialité des données (Sécurité RLS)
 - L'identité nominative (NPI, nom, prénom, téléphone) des cas et des défunts est isolée dans les tables privées `cas_identite_privee` et `deces_identite_privee`.
 - Les listes, synthèses hebdomadaires et rapports mensuels n'affichent que les données agrégées et épidémiologiques anonymisées.
+
+---
+
+## 6. Moteur de notification d'alerte (Fiche Pilote Phase 6)
+- **Table principale** : `alertes_communautaires` (numérotation unique `ALR-AAAA-XXXXXX`).
+- **Table privée sous RLS** : `cas_identite_privee` (NPI, nom, prénom, téléphone, adresse du cas index).
+- **Types d'alertes officiels (20 types)** :
+  - Prioritaires (notification d'urgence requise) : Rougeole, Choléra, Méningite, PFA, Lassa, Ebola, Fièvre Jaune, Rage.
+  - Autres alertes humaines : Dengue, Shigellose, COVID-19, Mpox, Morsure de serpent.
+  - Alertes animales / zoonoses : Anthrax, Grippe aviaire, Morsure de chien, Morsure d'autres animaux, Animaux malades (épizootie), Mortalité inhabituelle d'animaux.
+  - Événement inhabituel : Saisie libre obligatoire.
+- **Référentiel des signes et symptômes (30 signes)** :
+  - Répartis en 8 catégories : Général, Cutané, Digestif, Neurologique, Hémorragique, Respiratoire, Urinaire, Autre.
+- **Cycle de vie et vérification par l'ASCQ** :
+  - Statuts : `NOTIFIEE` ➔ `RECUE` ➔ `VERIFIEE` ➔ `INVESTIGUEE` ➔ `CLOTUREE` (ou `REJETEE`).
+  - L'ASCQ superviseur peut vérifier toute alerte transmise par ses relais ou saisie par lui-même, et la marquer comme `AVEREE` ou `NON_AVEREE` avec horodatage et observations.

@@ -104,3 +104,27 @@ Ce document consigne les choix d'architecture validés, les règles métier arbi
   - Table `bibliotheque_documents` avec catégories officielles (Guides cliniques, Surveillance épidémiologique, Outils de gestion, Textes réglementaires, Formation).
   - Seed initial de 5 documents officiels du Ministère de la Santé du Bénin (iCCM / PCIME-C, directives de surveillance SBC, politique nationale de santé communautaire, outils de rapportage RMA, formation RC).
   - Boutons d'accès direct « Consulter sur Google Drive » et recherche instantanée par mot-clé.
+
+### Phase 6 : Moteur de formulaire commun et fiche pilote : notification d'alerte (Réalisée le 25/10/2026)
+- **Moteur de fiches et architecture (`src/lib/fiches.ts`)** :
+  - Définition des 20 types d'alertes officiels (avec drapeaux `estPrioritaire` et `concerneAnimaux`).
+  - Référentiel des 30 signes et symptômes de référence classés par catégorie clinique.
+  - Calcul dynamique et automatique de la semaine épidémiologique ISO 8601 (la semaine débute strictement le **lundi**, norme Bénin validée en Phase 1).
+  - Calcul dynamique du délai détection → notification en heures décimales.
+  - Moteur de brouillons hors-ligne (`localStorage`) avec détection automatique sur l'appareil.
+- **Composant partagé de signature tactile (`src/components/SignatureCanvas.tsx`)** :
+  - Canevas interactif HTML5 compatible mobile (toucher / stylet) et ordinateur (souris).
+  - Bouton « Effacer », indicateur visuel de validation et export en Base64 PNG.
+- **Base de données et sécurité RLS (`supabase/migrations/20261025_phase6_surveillance_alertes.sql`)** :
+  - Table `alertes_communautaires` avec temporalité épidémiologique, cascade géographique, bilan d'impact sans plafond ($\ge 0$), identification du notificateur et statuts (`NOTIFIEE`, `RECUE`, `VERIFIEE`, `INVESTIGUEE`, `CLOTUREE`, `REJETEE`).
+  - Table privée `cas_identite_privee` : isolation stricte sous RLS du NPI, nom, prénom, téléphone et adresse du patient (visibles uniquement par le notificateur et son ASCQ superviseur).
+  - Tables de référence `types_alertes_reference` (20 types) et `symptomes_reference` (30 symptômes).
+  - Fonctions RPC sécurisées : `creer_notification_alerte`, `lister_mes_alertes`, `obtenir_detail_alerte`, `verifier_alerte`.
+- **Écrans et parcours utilisateur** :
+  - `/fiches` : Page centrale « Mes fiches » avec onglets de filtrage par code (`ALR`, `REG`, `DEC`, `INV`, `RAP`), recherche instantanée, filtres d'alerte prioritaire et badges d'état.
+  - `/fiches/nouvelle` : Sélecteur visuel avec les 5 fiches officielles du Bénin (Fiche alerte active, autres signalées pour la Phase 7).
+  - `/fiches/alerte/nouvelle` : Formulaire guidé en 4 étapes réactives (1. Lieu & Cas index, 2. Maladie & Signes avec bandeau d'alerte prioritaire, 3. Bilan d'impact & Délais, 4. Notificateur & Signature tactile).
+  - `/fiches/alerte/[id]` : Consultation détaillée et bloc d'action de vérification officielle (`AVEREE` / `NON_AVEREE`) réservé à l'ASCQ superviseur avec commentaire d'enquête.
+- **Navigation connectée** :
+  - Onglet « Surveillance » intégré dans la barre principale `AscqNav`.
+  - Bouton actif « Notifier une alerte » intégré dans l'Espace Relais Communautaire (`/espace-rc`).
