@@ -46,21 +46,38 @@ Ce document consigne les choix d'architecture validés, les règles métier arbi
 - Données d'essai fictives créées dans le Zou (Covè, Zagnanado, Ouinhi).
 - Validation réussie par la batterie de tests automatisés (`scripts/test-phase2.js`).
 
-### Phase 3 : Partie publique, inscription, connexion, validation des comptes, annuaire (En cours de validation)
-- **Partie publique (`/`)** :
-  - Accueil officiel avec bouton d'installation PWA (`InstallPwaButton`).
-  - Tableau de bord national consolidé en direct (nombre d'ASCQ, de RC, ménages et personnes suivies).
-  - Annuaire officiel interactif « Qui est l'ASCQ de mon milieu ? » avec filtres en cascade (département → commune → arrondissement) et appel direct sécurisé.
-  - Espace Conseils santé officiel avec cartes thématiques.
-  - Module citoyen « Votre voix compte / Aidez-nous à mieux vous servir » (suggestions, recommandations, réclamations).
-  - Coordonnées officielles, e-mail et canaux certifiés (WhatsApp, Facebook, LinkedIn).
-- **Inscription (`/inscription`)** :
-  - Formulaire professionnel complet par numéro de téléphone et mot de passe (sans SMS OTP).
-  - Cascades géographiques dynamiques reliées au référentiel.
-  - Gestion des cas particuliers : cumul d'arrondissements, sources de financement, option visibilité annuaire.
-  - Compte créé immédiatement au statut `EN_ATTENTE` avec déconnexion forcée de sécurité.
-- **Connexion (`/connexion`)** :
-  - Connexion par numéro de téléphone et mot de passe.
-  - Contrôle du statut administratif : affichage d'un panneau d'information bienveillant si le compte est en attente, redirection selon rôle si validé.
-- **Validation des comptes (`/admin/validation-comptes`)** :
-  - Interface dédiée pour les administrateurs permettant de visualiser tous les agents en attente, d'examiner leur affectation et de valider ou refuser les accès en un clic.
+### Phase 3 : Partie publique, inscription, connexion, validation des comptes, annuaire (Validée le 25/10/2026)
+- **Refonte visuelle de l'accueil selon la maquette Format 1** :
+  - En-tête vert foncé `#005c30` avec logo officiel ASCQ, Ministère de la Santé et liseré tricolore béninois.
+  - Typographie manuscrite élégante (`Dancing Script / Caveat`) pour le mot « Bienvenue ».
+  - Logo officiel centré sans chevauchement avec la barre d'onglets (Accueil, Connexion, Inscription, Suggestions).
+  - Boutons d'action : « Se connecter » (vert plein) et « S'inscrire » (contour).
+  - 4 cartes d'indicateurs clés : ASCQ opérationnels, Relais communautaires opérationnels, Ménages touchés, Personnes touchées.
+  - Carte Conseils santé avec état par défaut.
+  - Annuaire de proximité « Qui est l'ASCQ de mon milieu ? » en cascade avec appel direct.
+  - Carte d'écoute citoyenne sur fond vert pâle « Aidez-nous à mieux vous servir » avec bouton d'envoi et email officiel.
+  - 4 réseaux sociaux officiels : Facebook, LinkedIn, e-mail, WhatsApp.
+  - Retrait du bouton d'administration de la page publique.
+- **Référentiel géographique nettoyé** : Noms des 12 départements, 34 zones, 77 communes et 546 arrondissements en MAJUSCULES SANS ACCENT.
+
+### Phase 4 : Enrôlement et accès des Relais Communautaires (RC) (Réalisée le 25/10/2026)
+- **Table `relais_communautaires` & Sécurité RLS** :
+  - RLS activée : Un ASCQ ne peut voir, ajouter, modifier et supprimer que ses propres RC (`ascq_id = auth.uid()`).
+  - Un RC connecté ne peut voir que sa propre fiche (`user_id = auth.uid()`).
+  - Sécurisation anti-récursion des politiques de la table `utilisateurs`.
+- **Enrôlement d'un RC par son ASCQ (`/espace-ascq/relais`)** :
+  - Formulaire : Nom, Prénoms, Téléphone, Village de rattachement (avec sélection ou ajout libre), Numéro de grappe, Nom de grappe.
+  - Génération automatique d'un code d'accès temporaire aléatoire à 6 chiffres via la fonction RPC `enroler_relais_communautaire`.
+  - Modale d'alerte haute priorité : affichage géant du code temporaire **une seule fois**, avec boutons de copie et de partage direct via WhatsApp au RC.
+  - Gestion des RC : tableau de bord de l'ASCQ avec badges de statut (Code en attente vs Compte actif).
+  - Fonctionnalité de réinitialisation du code d'accès (`reinitialiser_code_acces_rc`) en cas d'oubli ou de perte d'accès.
+- **Accès et première connexion du RC (`/relais/premiere-connexion`)** :
+  - Le RC se connecte avec son numéro et son code temporaire.
+  - Obligation immédiate de définir un mot de passe personnel d'au moins 6 caractères via la fonction RPC `definir_mot_de_passe_rc`.
+  - Le code temporaire est marqué comme utilisé (`code_temporaire_utilise = TRUE`) et le mot de passe est enregistré.
+- **Espace dédié du Relais Communautaire (`/espace-rc`)** :
+  - En-tête personnalisé avec le nom du RC.
+  - 3 onglets conformes à AGENTS.md :
+    1. **Mes fiches** (Registre communautaire, Notification d'alerte, Notification de décès).
+    2. **Notifications** (consignes et alertes de son superviseur ASCQ).
+    3. **Mon compte** (fiche d'identification, village, grappe, coordonnées de son superviseur ASCQ avec bouton d'appel direct, changement de mot de passe, déconnexion).

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
@@ -26,6 +26,29 @@ export default function ConnexionPage() {
   const [errorMsg, setErrorMsg] = useState("");
   const [pendingAccount, setPendingAccount] = useState<any>(null);
   const [loginSuccess, setLoginSuccess] = useState<any>(null);
+
+  // Redirection automatique si déjà connecté
+  useEffect(() => {
+    async function checkCurrentSession() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        const { data: profils } = await supabase.rpc("obtenir_mon_profil");
+        if (profils && profils.length > 0) {
+          const userProfile = profils[0];
+          if (userProfile.statut_compte === "VALIDE") {
+            if (userProfile.role_technique === "SUPER_ADMIN" || userProfile.role_technique === "ADMINISTRATEUR") {
+              router.push("/admin/validation-comptes");
+            } else if (userProfile.poste === "RC") {
+              router.push("/espace-rc");
+            } else if (userProfile.poste === "ASCQ") {
+              router.push("/espace-ascq/relais");
+            }
+          }
+        }
+      }
+    }
+    checkCurrentSession();
+  }, [router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,13 +107,28 @@ export default function ConnexionPage() {
       // Compte validé !
       setLoginSuccess(userProfile);
 
-      setTimeout(() => {
+      setTimeout(async () => {
         if (userProfile.role_technique === "SUPER_ADMIN" || userProfile.role_technique === "ADMINISTRATEUR") {
           router.push("/admin/validation-comptes");
+        } else if (userProfile.poste === "RC") {
+          // Vérifier si le RC a déjà défini son mot de passe
+          const { data: rcData } = await supabase
+            .from("relais_communautaires")
+            .select("code_temporaire_utilise")
+            .eq("user_id", userProfile.id)
+            .maybeSingle();
+
+          if (rcData && rcData.code_temporaire_utilise === false) {
+            router.push("/relais/premiere-connexion");
+          } else {
+            router.push("/espace-rc");
+          }
+        } else if (userProfile.poste === "ASCQ") {
+          router.push("/espace-ascq/relais");
         } else {
           router.push("/");
         }
-      }, 1500);
+      }, 1200);
 
     } catch (err: any) {
       console.error("Erreur connexion:", err);
