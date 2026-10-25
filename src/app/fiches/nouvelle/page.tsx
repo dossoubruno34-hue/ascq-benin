@@ -124,9 +124,12 @@ export default function NouvelleFicheSelecteurPage() {
           </Link>
 
           {/* 2. Registre communautaire (REG) */}
-          <div className="bg-white/80 rounded-3xl p-5 border border-slate-200 shadow-sm opacity-80 relative">
+          <Link
+            href="/fiches/registre/nouvelle"
+            className="block group bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm hover:border-blue-400 hover:shadow-md transition-all"
+          >
             <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+              <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
                 <ClipboardList className="w-6 h-6" />
               </div>
 
@@ -138,24 +141,31 @@ export default function NouvelleFicheSelecteurPage() {
                     </span>
                     <span className="text-xs font-bold text-slate-400">RC & ASCQ</span>
                   </div>
-                  <span className="text-[11px] font-bold text-slate-400 bg-slate-100 px-2.5 py-0.5 rounded-full">
-                    Phase 7
+                  <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full">
+                    Actif
                   </span>
                 </div>
-                <h3 className="text-sm font-extrabold text-slate-700 mt-1">
+                <h3 className="text-sm font-extrabold text-slate-900 mt-1">
                   Registre des alertes et rumeurs
                 </h3>
                 <p className="text-xs text-slate-500 mt-1 leading-relaxed">
                   Cahier de détection continue : suivi des 15 signes/symptômes et rumeurs en communauté avant transformation en alerte formelle.
                 </p>
+                <div className="mt-2.5 inline-flex items-center gap-1.5 text-xs font-extrabold text-blue-700 group-hover:translate-x-1 transition-transform">
+                  <span>Renseigner le registre</span>
+                  <ChevronRight className="w-4 h-4" />
+                </div>
               </div>
             </div>
-          </div>
+          </Link>
 
           {/* 3. Notification de décès (DEC) */}
-          <div className="bg-white/80 rounded-3xl p-5 border border-slate-200 shadow-sm opacity-80 relative">
+          <Link
+            href="/fiches/deces/nouvelle"
+            className="block group bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm hover:border-purple-400 hover:shadow-md transition-all"
+          >
             <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+              <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
                 <Skull className="w-6 h-6" />
               </div>
 
@@ -167,81 +177,131 @@ export default function NouvelleFicheSelecteurPage() {
                     </span>
                     <span className="text-xs font-bold text-slate-400">RC & ASCQ</span>
                   </div>
-                  <span className="text-[11px] font-bold text-slate-400 bg-slate-100 px-2.5 py-0.5 rounded-full">
-                    Phase 7
+                  <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full">
+                    Actif
                   </span>
                 </div>
-                <h3 className="text-sm font-extrabold text-slate-700 mt-1">
+                <h3 className="text-sm font-extrabold text-slate-900 mt-1">
                   Notification des décès en communauté
                 </h3>
                 <p className="text-xs text-slate-500 mt-1 leading-relaxed">
                   Déclaration des décès maternels, néonatals et communautaires avec autopsie verbale sous supervision médicale.
                 </p>
+                <div className="mt-2.5 inline-flex items-center gap-1.5 text-xs font-extrabold text-purple-700 group-hover:translate-x-1 transition-transform">
+                  <span>Notifier un décès</span>
+                  <ChevronRight className="w-4 h-4" />
+                </div>
               </div>
             </div>
-          </div>
+          </Link>
 
           {/* 4. Investigation d'un événement (INV) - ASCQ uniquement */}
-          <div className="bg-white/80 rounded-3xl p-5 border border-slate-200 shadow-sm opacity-80 relative">
-            <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
-                <Search className="w-6 h-6" />
-              </div>
+          {isAscq ? (
+            <Link
+              href="/fiches/investigation/nouvelle"
+              className="block group bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm hover:border-amber-400 hover:shadow-md transition-all"
+            >
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                  <Search className="w-6 h-6" />
+                </div>
 
-              <div className="flex-1">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-mono font-extrabold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md">
-                      Code INV
-                    </span>
-                    <span className="text-xs font-bold text-slate-400">
-                      {isAscq ? "Réservé ASCQ" : "ASCQ uniquement"}
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-mono font-extrabold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md">
+                        Code INV
+                      </span>
+                      <span className="text-xs font-bold text-slate-400">ASCQ</span>
+                    </div>
+                    <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full">
+                      Actif
                     </span>
                   </div>
-                  <span className="text-[11px] font-bold text-slate-400 bg-slate-100 px-2.5 py-0.5 rounded-full">
-                    Phase 7
-                  </span>
+                  <h3 className="text-sm font-extrabold text-slate-900 mt-1">
+                    Investigation des événements de santé
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                    Enquête de terrain approfondie sur une alerte avérée, ventilation par tranches d'âge et synthèse d'action.
+                  </p>
+                  <div className="mt-2.5 inline-flex items-center gap-1.5 text-xs font-extrabold text-amber-700 group-hover:translate-x-1 transition-transform">
+                    <span>Créer une investigation</span>
+                    <ChevronRight className="w-4 h-4" />
+                  </div>
                 </div>
-                <h3 className="text-sm font-extrabold text-slate-700 mt-1">
-                  Investigation des événements de santé
-                </h3>
-                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                  Enquête de terrain approfondie sur une alerte avérée, ventilation par tranches d'âge et synthèse d'action.
-                </p>
+              </div>
+            </Link>
+          ) : (
+            <div className="bg-white/60 rounded-3xl p-5 border border-slate-200 opacity-60">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center shrink-0">
+                  <Search className="w-6 h-6" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-mono font-extrabold text-slate-400">Code INV</span>
+                    <span className="text-[10px] font-bold text-slate-400">Réservé ASCQ</span>
+                  </div>
+                  <h3 className="text-sm font-bold text-slate-500 mt-1">Investigation d'événement</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">Ce module d'enquête approfondie est réservé aux ASCQ superviseurs.</p>
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* 5. Rapport hebdomadaire (RAP) - ASCQ uniquement */}
-          <div className="bg-white/80 rounded-3xl p-5 border border-slate-200 shadow-sm opacity-80 relative">
-            <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-                <FileSpreadsheet className="w-6 h-6" />
-              </div>
+          {isAscq ? (
+            <Link
+              href="/fiches/rapport-hebdo/nouvelle"
+              className="block group bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm hover:border-indigo-400 hover:shadow-md transition-all"
+            >
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                  <FileSpreadsheet className="w-6 h-6" />
+                </div>
 
-              <div className="flex-1">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-mono font-extrabold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md">
-                      Code RAP
-                    </span>
-                    <span className="text-xs font-bold text-slate-400">
-                      {isAscq ? "Réservé ASCQ" : "ASCQ uniquement"}
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-mono font-extrabold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md">
+                        Code RAP
+                      </span>
+                      <span className="text-xs font-bold text-slate-400">ASCQ</span>
+                    </div>
+                    <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full">
+                      Actif
                     </span>
                   </div>
-                  <span className="text-[11px] font-bold text-slate-400 bg-slate-100 px-2.5 py-0.5 rounded-full">
-                    Phase 7
-                  </span>
+                  <h3 className="text-sm font-extrabold text-slate-900 mt-1">
+                    Rapport hebdomadaire de surveillance
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                    Bilan par village et semaine épidémiologique, pré-rempli depuis les alertes et décès enregistrés.
+                  </p>
+                  <div className="mt-2.5 inline-flex items-center gap-1.5 text-xs font-extrabold text-indigo-700 group-hover:translate-x-1 transition-transform">
+                    <span>Créer le rapport hebdomadaire</span>
+                    <ChevronRight className="w-4 h-4" />
+                  </div>
                 </div>
-                <h3 className="text-sm font-extrabold text-slate-700 mt-1">
-                  Rapport hebdomadaire de surveillance
-                </h3>
-                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                  Bilan par village et semaine épidémiologique, pré-rempli depuis les alertes et décès enregistrés.
-                </p>
+              </div>
+            </Link>
+          ) : (
+            <div className="bg-white/60 rounded-3xl p-5 border border-slate-200 opacity-60">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center shrink-0">
+                  <FileSpreadsheet className="w-6 h-6" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-mono font-extrabold text-slate-400">Code RAP</span>
+                    <span className="text-[10px] font-bold text-slate-400">Réservé ASCQ</span>
+                  </div>
+                  <h3 className="text-sm font-bold text-slate-500 mt-1">Rapport hebdomadaire</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">La synthèse hebdomadaire officielle est transmise par l'ASCQ superviseur.</p>
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
         </div>
 

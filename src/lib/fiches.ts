@@ -41,7 +41,115 @@ export const TYPES_ALERTES_OFFICIELS: TypeAlerteRef[] = [
   { code: 20, nom: "Autre événement inhabituel", description: "Tout phénomène anormal de santé communautaire à préciser", estPrioritaire: false, concerneAnimaux: false },
 ];
 
-// 30 symptômes officiels (Section 6.3)
+// ---------------------------------------------------------------------
+// 15 TYPES DU REGISTRE COMMUNAUTAIRE (Section 6.2)
+// ---------------------------------------------------------------------
+export interface RegistreTypeRef {
+  code: number;
+  nom: string;
+  categorie: "SIGNAL" | "DECES";
+}
+
+export const REGISTRE_TYPES_OFFICIELS: RegistreTypeRef[] = [
+  { code: 1, nom: "Fièvre ou notion de fièvre", categorie: "SIGNAL" },
+  { code: 2, nom: "Éruption cutanée", categorie: "SIGNAL" },
+  { code: 3, nom: "Diarrhée", categorie: "SIGNAL" },
+  { code: 4, nom: "Raideur de la nuque", categorie: "SIGNAL" },
+  { code: 5, nom: "Paralysie flasque aiguë (PFA)", categorie: "SIGNAL" },
+  { code: 6, nom: "Saignements inexpliqués", categorie: "SIGNAL" },
+  { code: 7, nom: "Yeux jaunes", categorie: "SIGNAL" },
+  { code: 8, nom: "Vomissements importants", categorie: "SIGNAL" },
+  { code: 9, nom: "Douleurs abdominales", categorie: "SIGNAL" },
+  { code: 10, nom: "Décès néonatal (0-28 jours)", categorie: "DECES" },
+  { code: 11, nom: "Décès infantile (< 1 an, néonatals inclus)", categorie: "DECES" },
+  { code: 12, nom: "Décès infanto-juvénile (0-5 ans)", categorie: "DECES" },
+  { code: 13, nom: "Décès maternel", categorie: "DECES" },
+  { code: 14, nom: "Décès ≥ 5 ans, sauf décès maternel", categorie: "DECES" },
+  { code: 15, nom: "Autres (à préciser)", categorie: "SIGNAL" },
+];
+
+// ---------------------------------------------------------------------
+// DÉCÈS COMMUNAUTAIRES (Section 6.4)
+// ---------------------------------------------------------------------
+export const DECES_TYPES_OFFICIELS = [
+  { code: 1, nom: "Décès maternel", description: "Pendant la grossesse, lors de l'accouchement ou dans les 42 jours après" },
+  { code: 2, nom: "Bébé de 0 à 28 jours", description: "Décès néonatal précoce ou tardif" },
+  { code: 3, nom: "Enfant de 1 mois à moins d'1 an", description: "Décès infantile post-néonatal" },
+  { code: 4, nom: "Enfant de 1 à 5 ans", description: "Décès infanto-juvénile" },
+  { code: 5, nom: "Personne de plus de 5 ans", description: "Décès de tout individu âgé de 5 ans et plus (hors décès maternel)" },
+];
+
+export const DECES_LIEUX_OFFICIELS = [
+  { code: 1, nom: "Centre de santé" },
+  { code: 2, nom: "Domicile" },
+  { code: 3, nom: "Accoucheuse traditionnelle" },
+  { code: 4, nom: "Lieu de culte" },
+  { code: 5, nom: "Au cours du transport" },
+  { code: 6, nom: "À l'étranger (avec rapatriement du corps au Bénin)" },
+  { code: 7, nom: "Autres lieux" },
+];
+
+export const DECES_CIRCONSTANCES_OFFICIELLES = [
+  { code: 1, nom: "Grossesse / Avortement / Accouchement / Suites de couches" },
+  { code: 2, nom: "Maladie" },
+  { code: 3, nom: "Accident de la voie publique" },
+  { code: 4, nom: "Accident domestique" },
+  { code: 5, nom: "Mort subite" },
+  { code: 6, nom: "Violence (agression, arme à feu, suicide...)" },
+  { code: 7, nom: "Autres circonstances" },
+];
+
+/**
+ * Règle de correspondance officielle (Section 6.4) :
+ * Détermine automatiquement le type de décès selon l'âge
+ */
+export function calculerTypeDecesParAge(
+  ageValeur: number,
+  ageUnite: "JOURS" | "MOIS" | "ANS",
+  estDecesMaternel: boolean = false
+): number {
+  if (estDecesMaternel) return 1;
+
+  if (ageUnite === "JOURS") {
+    if (ageValeur <= 28) return 2; // Bébé de 0 à 28 jours
+    return 3; // 29 jours à < 1 an
+  }
+
+  if (ageUnite === "MOIS") {
+    if (ageValeur < 12) return 3; // Enfant de 1 mois à moins d'1 an
+    if (ageValeur <= 60) return 4; // 1 à 5 ans
+    return 5;
+  }
+
+  // ANS
+  if (ageValeur < 1) return 3;
+  if (ageValeur <= 5) return 4; // Enfant de 1 à 5 ans
+  return 5; // Plus de 5 ans
+}
+
+/**
+ * Calcule les dates de début (lundi) et fin (dimanche) d'une semaine épidémiologique
+ */
+export function calculerDatesSemaine(annee: number, semaine: number): { dateDebut: string; dateFin: string } {
+  // Trouver le premier jeudi de l'année
+  const firstThursday = new Date(Date.UTC(annee, 0, 4));
+  const day = firstThursday.getUTCDay() || 7;
+  firstThursday.setUTCDate(firstThursday.getUTCDate() + 4 - day);
+
+  // Le lundi de la semaine ISO 1
+  const firstMonday = new Date(firstThursday.getTime());
+  firstMonday.setUTCDate(firstMonday.getUTCDate() - 3);
+
+  // Le lundi de la semaine demandée
+  const targetMonday = new Date(firstMonday.getTime() + (semaine - 1) * 7 * 86400000);
+  const targetSunday = new Date(targetMonday.getTime() + 6 * 86400000);
+
+  return {
+    dateDebut: targetMonday.toISOString().split("T")[0],
+    dateFin: targetSunday.toISOString().split("T")[0],
+  };
+}
+
 export const SYMPTOMES_OFFICIELS: SymptomeRef[] = [
   { code: 1, nom: "Fièvre", categorie: "GENERAL" },
   { code: 2, nom: "Boutons sur le corps / Éruption cutanée", categorie: "CUTANE" },
@@ -137,6 +245,57 @@ export function calculateHoursDelay(
   if (diffMs <= 0) return 0;
   
   return Math.round((diffMs / (1000 * 60 * 60)) * 10) / 10;
+}
+
+// ---------------------------------------------------------------------
+// Nettoyage et correction des encodages (mojibake)
+// ---------------------------------------------------------------------
+
+/**
+ * Corrige les problèmes d'encodage (mojibake : CholÃ©ra -> Choléra, FiÃ¨vre -> Fièvre)
+ */
+export function corrigerAccents(texte?: string | null): string {
+  if (!texte) return "";
+  let clean = texte;
+  try {
+    if (/[\u00C2\u00C3]/.test(clean)) {
+      clean = decodeURIComponent(escape(clean));
+    }
+  } catch {
+    // Si decodeURIComponent échoue, on continue avec les remplacements ciblés
+  }
+  return clean
+    .replace(/Ã©/g, "é")
+    .replace(/Ã¨/g, "è")
+    .replace(/Ãª/g, "ê")
+    .replace(/Ã«/g, "ë")
+    .replace(/Ã /g, "à")
+    .replace(/Ã¢/g, "â")
+    .replace(/Ã®/g, "î")
+    .replace(/Ã¯/g, "ï")
+    .replace(/Ã´/g, "ô")
+    .replace(/Ã¹/g, "ù")
+    .replace(/Ã»/g, "û")
+    .replace(/Ã§/g, "ç")
+    .replace(/Ã‰/g, "É")
+    .replace(/Ã%/g, "É")
+    .replace(/Ãˆ/g, "È")
+    .replace(/ÃŠ/g, "Ê")
+    .replace(/Ã€/g, "À")
+    .replace(/Ã‚/g, "Â")
+    .replace(/Ã”/g, "Ô");
+}
+
+export function getNomTypeAlerte(code: number, fallback?: string): string {
+  const found = TYPES_ALERTES_OFFICIELS.find((t) => t.code === code);
+  if (found) return found.nom;
+  return corrigerAccents(fallback) || `Type ${code}`;
+}
+
+export function getNomSymptome(code: number, fallback?: string): string {
+  const found = SYMPTOMES_OFFICIELS.find((s) => s.code === code);
+  if (found) return found.nom;
+  return corrigerAccents(fallback) || `Symptôme ${code}`;
 }
 
 // ---------------------------------------------------------------------

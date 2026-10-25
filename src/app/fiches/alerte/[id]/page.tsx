@@ -22,6 +22,7 @@ import {
   Phone,
   Check
 } from "lucide-react";
+import { corrigerAccents, getNomTypeAlerte } from "@/lib/fiches";
 
 export default function DetailAlertePage() {
   const params = useParams();
@@ -197,7 +198,7 @@ export default function DetailAlertePage() {
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-lg font-black text-slate-900">
-                {alerte.type_alerte_nom}
+                {getNomTypeAlerte(alerte.type_alerte_code, alerte.type_alerte_nom)}
               </h2>
               {isPrioritaire && (
                 <span className="text-[10px] font-black uppercase text-red-700 bg-red-100 px-2 py-0.5 rounded-md flex items-center gap-1">
@@ -344,7 +345,7 @@ export default function DetailAlertePage() {
                   key={idx}
                   className="px-3 py-1.5 rounded-xl bg-emerald-50 text-[#005c30] font-bold text-xs border border-emerald-100"
                 >
-                  ✓ {nom}
+                  ✓ {corrigerAccents(nom)}
                 </span>
               ))}
             </div>

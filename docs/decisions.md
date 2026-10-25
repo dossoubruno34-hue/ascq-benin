@@ -128,3 +128,28 @@ Ce document consigne les choix d'architecture validés, les règles métier arbi
 - **Navigation connectée** :
   - Onglet « Surveillance » intégré dans la barre principale `AscqNav`.
   - Bouton actif « Notifier une alerte » intégré dans l'Espace Relais Communautaire (`/espace-rc`).
+
+### Phase 7 : Autres fiches de surveillance (Réalisée le 25/10/2026)
+- **1. Registre des alertes et rumeurs (`REG-`)** :
+  - Table de référence `registre_types_reference` avec les 15 codes officiels (Signaux & Décès).
+  - Table `registre_alertes_rumeurs` et fonction RPC `creer_ligne_registre`.
+  - Écran dédié ultra-simple `/fiches/registre/nouvelle` avec sélection par gros boutons, contrôles de complétude et bilan d'impact.
+- **2. Notification des décès en communauté (`DEC-`)** :
+  - Table `deces_communautaires` avec numéro `DEC-AAAA-XXXXXX` et table privée sous RLS `deces_identite_privee` (NPI, nom/prénom du défunt, proche contact).
+  - Référentiels : `deces_types_reference` (5 types), `deces_lieux_reference` (7 lieux), `deces_circonstances_reference` (7 circonstances).
+  - Algorithme de correspondance automatique de type de décès selon l'âge et contrôle bloquant pour décès maternel (sexe féminin obligatoire).
+  - Écran de déclaration guidé `/fiches/deces/nouvelle` avec signature tactile.
+- **3. Investigation d'un événement de santé (`INV-`)** :
+  - Table `investigations_evenements` avec numéro `INV-AAAA-XXXXXX`.
+  - Support de l'investigation liée à une alerte OU autonome (Option B validée).
+  - Ventilation détaillée des cas et décès en 8 tranches d'âge et sexe (0-11m, 1-5a, 6-15a, >15a M/F) avec totaux automatiques.
+  - Écran `/fiches/investigation/nouvelle` avec synchronisation automatique du statut de vérification de l'alerte liée (`AVEREE` / `NON_AVEREE`).
+- **4. Rapport hebdomadaire de surveillance (`RAP-`)** :
+  - Table `rapports_hebdomadaires` avec contrainte unique par ASCQ, village et semaine épidémiologique.
+  - Fonction RPC `generer_pre_remplissage_hebdo` pour agréger instantanément toutes les alertes et décès de la semaine.
+  - Écran `/fiches/rapport-hebdo/nouvelle` avec bouton de pré-remplissage magique, contrôles bloquants de pyramide des âges et confirmation explicite du rapport « zéro ».
+- **5. Moteur unifié et correction des accents** :
+  - Correction définitive des encodages (mojibake) avec `corrigerAccents` et les fonctions d'association sur le frontend.
+  - Script SQL de nettoyage `supabase/migrations/20261025_fix_accents.sql`.
+  - Vue centrale « Mes fiches » (`/fiches`) unifiée avec filtrage par onglets (`ALR`, `REG`, `DEC`, `INV`, `RAP`) et recherche dynamique.
+  - Activation de l'ensemble des 5 cartes sur le sélecteur `/fiches/nouvelle`.

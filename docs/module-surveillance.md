@@ -60,3 +60,21 @@ Ce document consigne l'organisation détaillée, les formulaires, les règles de
 - **Cycle de vie et vérification par l'ASCQ** :
   - Statuts : `NOTIFIEE` ➔ `RECUE` ➔ `VERIFIEE` ➔ `INVESTIGUEE` ➔ `CLOTUREE` (ou `REJETEE`).
   - L'ASCQ superviseur peut vérifier toute alerte transmise par ses relais ou saisie par lui-même, et la marquer comme `AVEREE` ou `NON_AVEREE` avec horodatage et observations.
+
+---
+
+## 7. Les 4 autres fiches de surveillance communautaire (Phase 7)
+- **Registre des alertes et rumeurs (`REG-`)** :
+  - Table `registre_alertes_rumeurs`, 15 codes (signaux d'alerte et décès).
+  - Statuts : `ENREGISTREE`, `TRANSFORMEE_ALERTE`, `TRANSFORMEE_DECES`, `CLASSEE_SANS_SUITE`.
+- **Notification des décès en communauté (`DEC-`)** :
+  - Table `deces_communautaires`, table privée `deces_identite_privee`.
+  - 5 types de décès, 7 lieux de survenue, 7 circonstances. Détermination automatique par l'âge.
+  - Autopsie verbale sous supervision du médecin coordonnateur de commune.
+- **Investigation d'un événement (`INV-`)** :
+  - Table `investigations_evenements`. Ventilation des cas et décès en 8 tranches d'âge/sexe.
+  - Synchronisation automatique avec l'alerte liée.
+- **Rapport hebdomadaire de surveillance (`RAP-`)** :
+  - Table `rapports_hebdomadaires` par ASCQ, village et semaine épidémiologique.
+  - Pré-remplissage dynamique via `generer_pre_remplissage_hebdo`.
+  - Contrôles stricts de pyramide des âges et confirmation obligatoire du rapport « zéro ».
