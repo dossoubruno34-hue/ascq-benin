@@ -153,3 +153,24 @@ Ce document consigne les choix d'architecture validés, les règles métier arbi
   - Script SQL de nettoyage `supabase/migrations/20261025_fix_accents.sql`.
   - Vue centrale « Mes fiches » (`/fiches`) unifiée avec filtrage par onglets (`ALR`, `REG`, `DEC`, `INV`, `RAP`) et recherche dynamique.
   - Activation de l'ensemble des 5 cartes sur le sélecteur `/fiches/nouvelle`.
+
+### Phase 8 : Planning, Activité menée, Suivi groupé des RC (Réalisée le 25/10/2026)
+- **1. Planning mensuel des activités (`/espace-ascq/planning`)** :
+  - Tables `plannings_ascq` et `lignes_planning_ascq` avec statuts `BROUILLON` et `VALIDE`.
+  - Grille dynamique d'activités : activité, période/dates, lieu, personnes impliquées, objectifs.
+  - Validation officielle avec signature tactile et version imprimable / export PDF haute fidélité (`window.print()`).
+  - Fonction RPC `enregistrer_planning_ascq`.
+- **2. Compte-rendu d'activité menée (`/espace-ascq/activites-menees`)** :
+  - Table `activites_menees` et fonction RPC `enregistrer_activite_menee`.
+  - Superviseur facultatif, liste dynamique des autres acteurs présents avec rôle.
+  - Liste d'émargement et de présence avec statut d'émargement individuel.
+  - Support de justificatif photo (caméra ou galerie en Base64).
+  - Difficultés rencontrées et commentaires détaillés.
+- **3. Suivi groupé des Relais Communautaires (`/espace-ascq/suivi-relais`)** :
+  - Table `seances_suivi_relais` et fonction RPC `enregistrer_suivi_relais`.
+  - Liste des RC attendus chargée automatiquement depuis les effectifs réels de l'ASCQ (`relais_communautaires`).
+  - Calcul dynamique en direct du taux de présence des RC (effectif et pourcentage).
+  - Grille d'inventaire du matériel officiel (Registres, Boîtes à images, TDR, Médicaments essentiels, Lampes, Sacoches/Vestes) avec état et recommandations.
+  - Décisions prises, date de la prochaine séance et signature tactile.
+- **4. Navigation unifiée** :
+  - Intégration des liens directs *Planning*, *Activités*, *Suivi RC* dans la barre de navigation `AscqNav`.

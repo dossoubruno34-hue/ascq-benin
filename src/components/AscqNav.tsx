@@ -14,7 +14,10 @@ import {
   Bell, 
   UserPlus, 
   User,
-  Activity
+  Activity,
+  Calendar,
+  CheckSquare,
+  ClipboardCheck
 } from "lucide-react";
 
 interface Props {
@@ -33,6 +36,9 @@ export default function AscqNav({ userProfile }: Props) {
   const navItems = [
     { href: "/espace-ascq", label: "Mon espace", icon: Home },
     { href: "/fiches", label: "Surveillance", icon: Activity },
+    { href: "/espace-ascq/planning", label: "Planning", icon: Calendar },
+    { href: "/espace-ascq/activites-menees", label: "Activités", icon: CheckSquare },
+    { href: "/espace-ascq/suivi-relais", label: "Suivi RC", icon: ClipboardCheck },
     { href: "/espace-ascq/relais", label: "Mes Relais", icon: Users },
     { href: "/espace-ascq/permutations", label: "Permutations", icon: ArrowLeftRight },
     { href: "/espace-ascq/requetes", label: "Requêtes", icon: MessageSquareText },
