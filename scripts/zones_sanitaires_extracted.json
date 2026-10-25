@@ -1,0 +1,240 @@
+[
+  {
+    "row": 2,
+    "dep": "ALIBORI",
+    "nom": "BANIKOARA",
+    "communes": "BANIKOARA",
+    "statut": "À CONFIRMER (CONNAISSANCE DU DÉCOUPAGE)"
+  },
+  {
+    "row": 3,
+    "dep": "ALIBORI",
+    "nom": "KANDI-GOGOUNOU-SÉGBANA",
+    "communes": "KANDI, GOGOUNOU, SÉGBANA",
+    "statut": "À CONFIRMER (CONNAISSANCE DU DÉCOUPAGE)"
+  },
+  {
+    "row": 4,
+    "dep": "ALIBORI",
+    "nom": "MALANVILLE-KARIMAMA",
+    "communes": "MALANVILLE, KARIMAMA",
+    "statut": "À CONFIRMER (CONNAISSANCE DU DÉCOUPAGE)"
+  },
+  {
+    "row": 5,
+    "dep": "ATACORA",
+    "nom": "NATITINGOU-BOUKOUMBÉ-TOUCOUNTOUNA",
+    "communes": "NATITINGOU, BOUKOUMBÉ, TOUCOUNTOUNA",
+    "statut": "À CONFIRMER (CONNAISSANCE DU DÉCOUPAGE)"
+  },
+  {
+    "row": 6,
+    "dep": "ATACORA",
+    "nom": "TANGUIÉTA-COBLY-MATÉRI",
+    "communes": "TANGUIÉTA, COBLY, MATÉRI",
+    "statut": "À CONFIRMER (CONNAISSANCE DU DÉCOUPAGE)"
+  },
+  {
+    "row": 7,
+    "dep": "ATACORA",
+    "nom": "KOUANDÉ-PÉHUNCO-KÉROU",
+    "communes": "KOUANDÉ, PÉHUNCO, KÉROU",
+    "statut": "À CONFIRMER (CONNAISSANCE DU DÉCOUPAGE)"
+  },
+  {
+    "row": 8,
+    "dep": "ATLANTIQUE",
+    "nom": "ABOMEY-CALAVI-SÔ-AVA",
+    "communes": "ABOMEY-CALAVI, SÔ-AVA",
+    "statut": "CONFIRMÉ (DOCUMENT)"
+  },
+  {
+    "row": 9,
+    "dep": "ATLANTIQUE",
+    "nom": "ALLADA-ZÈ-TOFFO",
+    "communes": "ALLADA, ZÈ, TOFFO",
+    "statut": "CONFIRMÉ (DOCUMENT)"
+  },
+  {
+    "row": 10,
+    "dep": "ATLANTIQUE",
+    "nom": "OUIDAH-KPOMASSÈ-TORI-BOSSITO",
+    "communes": "OUIDAH, KPOMASSÈ, TORI-BOSSITO",
+    "statut": "CONFIRMÉ (DOCUMENT)"
+  },
+  {
+    "row": 11,
+    "dep": "BORGOU",
+    "nom": "PARAKOU-N&apos;DALI",
+    "communes": "PARAKOU, N&apos;DALI",
+    "statut": "À CONFIRMER (CONNAISSANCE DU DÉCOUPAGE)"
+  },
+  {
+    "row": 12,
+    "dep": "BORGOU",
+    "nom": "TCHAOUROU",
+    "communes": "TCHAOUROU",
+    "statut": "À CONFIRMER (CONNAISSANCE DU DÉCOUPAGE)"
+  },
+  {
+    "row": 13,
+    "dep": "BORGOU",
+    "nom": "NIKKI-KALALÉ-PÈRÈRÈ",
+    "communes": "NIKKI, KALALÉ, PÈRÈRÈ",
+    "statut": "À CONFIRMER (CONNAISSANCE DU DÉCOUPAGE)"
+  },
+  {
+    "row": 14,
+    "dep": "BORGOU",
+    "nom": "BEMBÉRÉKÉ-SINENDÉ",
+    "communes": "BEMBÉRÉKÉ, SINENDÉ",
+    "statut": "À CONFIRMER (CONNAISSANCE DU DÉCOUPAGE)"
+  },
+  {
+    "row": 15,
+    "dep": "COLLINES",
+    "nom": "DASSA-GLAZOUÉ",
+    "communes": "DASSA-ZOUMÈ, GLAZOUÉ",
+    "statut": "À CONFIRMER (CONNAISSANCE DU DÉCOUPAGE)"
+  },
+  {
+    "row": 16,
+    "dep": "COLLINES",
+    "nom": "SAVALOU-BANTÈ",
+    "communes": "SAVALOU, BANTÈ",
+    "statut": "À CONFIRMER (CONNAISSANCE DU DÉCOUPAGE)"
+  },
+  {
+    "row": 17,
+    "dep": "COLLINES",
+    "nom": "SAVÈ-OUÈSSÈ",
+    "communes": "SAVÈ, OUÈSSÈ",
+    "statut": "À CONFIRMER (CONNAISSANCE DU DÉCOUPAGE)"
+  },
+  {
+    "row": 18,
+    "dep": "COUFFO",
+    "nom": "APLAHOUÉ-DJAKOTOMEY-DOGBO",
+    "communes": "APLAHOUÉ, DJAKOTOMEY, DOGBO-TOTA",
+    "statut": "À CONFIRMER (CONNAISSANCE DU DÉCOUPAGE)"
+  },
+  {
+    "row": 19,
+    "dep": "COUFFO",
+    "nom": "KLOUÉKANMÈ-TOVIKLIN-LALO",
+    "communes": "KLOUÉKANMÈ, TOVIKLIN, LALO",
+    "statut": "À CONFIRMER (CONNAISSANCE DU DÉCOUPAGE)"
+  },
+  {
+    "row": 20,
+    "dep": "DONGA",
+    "nom": "DJOUGOU-OUAKÉ-COPARGO",
+    "communes": "DJOUGOU, OUAKÉ, COPARGO",
+    "statut": "À CONFIRMER (CONNAISSANCE DU DÉCOUPAGE)"
+  },
+  {
+    "row": 21,
+    "dep": "DONGA",
+    "nom": "BASSILA",
+    "communes": "BASSILA",
+    "statut": "À CONFIRMER (CONNAISSANCE DU DÉCOUPAGE)"
+  },
+  {
+    "row": 22,
+    "dep": "LITTORAL",
+    "nom": "COTONOU 1-4",
+    "communes": "COTONOU (arrondissements à répartir)",
+    "statut": "À CONFIRMER (CONNAISSANCE DU DÉCOUPAGE)"
+  },
+  {
+    "row": 23,
+    "dep": "LITTORAL",
+    "nom": "COTONOU 2-3",
+    "communes": "COTONOU (arrondissements à répartir)",
+    "statut": "À CONFIRMER (CONNAISSANCE DU DÉCOUPAGE)"
+  },
+  {
+    "row": 24,
+    "dep": "LITTORAL",
+    "nom": "COTONOU 5",
+    "communes": "COTONOU (arrondissements à répartir)",
+    "statut": "À CONFIRMER (CONNAISSANCE DU DÉCOUPAGE)"
+  },
+  {
+    "row": 25,
+    "dep": "LITTORAL",
+    "nom": "COTONOU 6",
+    "communes": "COTONOU (arrondissements à répartir)",
+    "statut": "À CONFIRMER (CONNAISSANCE DU DÉCOUPAGE)"
+  },
+  {
+    "row": 26,
+    "dep": "MONO",
+    "nom": "LOKOSSA-ATHIÉMÉ",
+    "communes": "LOKOSSA, ATHIÉMÉ",
+    "statut": "À CONFIRMER (CONNAISSANCE DU DÉCOUPAGE)"
+  },
+  {
+    "row": 27,
+    "dep": "MONO",
+    "nom": "COMÈ-GRAND-POPO-BOPA-HOUÉYOGBÉ",
+    "communes": "COMÈ, GRAND-POPO, BOPA, HOUÉYOGBÉ",
+    "statut": "À CONFIRMER (CONNAISSANCE DU DÉCOUPAGE)"
+  },
+  {
+    "row": 28,
+    "dep": "OUÉMÉ",
+    "nom": "PORTO-NOVO-AGUÉGUÉS-SÈMÈ-PODJI",
+    "communes": "PORTO-NOVO, AGUÉGUÉS, SÈMÈ-KPODJI",
+    "statut": "À CONFIRMER (CONNAISSANCE DU DÉCOUPAGE)"
+  },
+  {
+    "row": 29,
+    "dep": "OUÉMÉ",
+    "nom": "ADJARRA-AVRANKOU-AKPRO-MISSÉRÉTÉ",
+    "communes": "ADJARRA, AVRANKOU, AKPRO-MISSÉRÉTÉ",
+    "statut": "À CONFIRMER (CONNAISSANCE DU DÉCOUPAGE)"
+  },
+  {
+    "row": 30,
+    "dep": "OUÉMÉ",
+    "nom": "ADJOHOUN-BONOU-DANGBO",
+    "communes": "ADJOHOUN, BONOU, DANGBO",
+    "statut": "À CONFIRMER (CONNAISSANCE DU DÉCOUPAGE)"
+  },
+  {
+    "row": 31,
+    "dep": "PLATEAU",
+    "nom": "POBÈ-ADJA-OUÈRÈ-KÉTOU",
+    "communes": "POBÈ, ADJA-OUÈRÈ, KÉTOU",
+    "statut": "À CONFIRMER (CONNAISSANCE DU DÉCOUPAGE)"
+  },
+  {
+    "row": 32,
+    "dep": "PLATEAU",
+    "nom": "SAKÉTÉ-IFANGNI",
+    "communes": "SAKÉTÉ, IFANGNI",
+    "statut": "À CONFIRMER (CONNAISSANCE DU DÉCOUPAGE)"
+  },
+  {
+    "row": 33,
+    "dep": "ZOU",
+    "nom": "DJIDJA-ABOMEY-AGBANGNIZOUN (DAA)",
+    "communes": "DJIDJA, ABOMEY, AGBANGNIZOUN",
+    "statut": "À CONFIRMER (CONNAISSANCE DU DÉCOUPAGE)"
+  },
+  {
+    "row": 34,
+    "dep": "ZOU",
+    "nom": "ZOGBODOMEY-BOHICON-ZA-KPOTA (ZOBOZA)",
+    "communes": "ZOGBODOMEY, BOHICON, ZA-KPOTA",
+    "statut": "À CONFIRMER (CONNAISSANCE DU DÉCOUPAGE)"
+  },
+  {
+    "row": 35,
+    "dep": "ZOU",
+    "nom": "COVÈ-ZAGNANADO-OUINHI (COZO)",
+    "communes": "COVÈ, ZAGNANADO, OUINHI",
+    "statut": "À CONFIRMER (CONNAISSANCE DU DÉCOUPAGE)"
+  }
+]
