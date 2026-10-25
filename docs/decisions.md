@@ -1,6 +1,6 @@
-# Décisions d'architecture et questions ouvertes (Projet ASCQ BÉNIN)
+# Décisions d'architecture et questions arbitrées (Projet ASCQ BÉNIN)
 
-Ce document consigne les choix d'architecture validés et les questions soumises à arbitrage.
+Ce document consigne les choix d'architecture validés et les règles métier arbitrées avec Bruno DOSSOU.
 
 ---
 
@@ -67,8 +67,7 @@ Les tables sont nommées en français, en minuscules, sans accents, avec tirets 
 ---
 
 ## 4. Modèle des Rôles et Droits d'accès
-Pour éviter toute confusion, nous séparons le **poste professionnel de terrain** du **rôle technique de sécurité** dans l'application :
-
+Pour que la gestion reste limpide et sans blocage, nous séparons deux choses :
 1. **Poste de terrain (métier)** :
    - `ASCQ` (Agent de Santé Communautaire Qualifié)
    - `RC` (Relais Communautaire)
@@ -89,13 +88,13 @@ Pour éviter toute confusion, nous séparons le **poste professionnel de terrain
 ## 5. Comptes par téléphone & Authentification sans frais SMS
 - **Identifiant de connexion** : le numéro de téléphone béninois (ex: `01XXXXXXXX` ou `+229XXXXXXXX`).
 - **Solution technique avec Supabase Auth** :
-  - Pour éviter les coûts très élevés des SMS OTP (qui peuvent atteindre plusieurs centaines de milliers de FCFA rapidement), chaque utilisateur choisit un mot de passe à l'inscription.
+  - Chaque utilisateur choisit un mot de passe à l'inscription.
   - En coulisse, Supabase utilise un e-mail technique transparent (ex: `229XXXXXXXX@ascq-auth.local`), totalement invisible pour l'utilisateur.
   - L'écran de connexion ne demande que le numéro de téléphone et le mot de passe.
 - **Workflow d'inscription et activation** :
   - À la création, le compte est au statut `EN_ATTENTE`.
   - L'utilisateur ne peut pas se connecter tant qu'un administrateur (communal ou départemental) n'a pas vérifié son identité et validé son compte.
-  - Protection contre les attaques : limitation automatique des tentatives de connexion et intégration de Cloudflare Turnstile (gratuit et invisible).
+  - Protection contre les attaques : limitation automatique des tentatives de connexion et intégration de Cloudflare Turnstile.
 - **Accès des Relais Communautaires (RC)** :
   - Le RC est enrôlé directement par son ASCQ.
   - L'application génère un code d'accès temporaire à 6 chiffres, affiché une seule fois à l'ASCQ, qui le transmet à son RC.
@@ -108,12 +107,8 @@ Pour éviter toute confusion, nous séparons le **poste professionnel de terrain
 - **Avantages majeurs** :
   - Gratuité complète pour le volume d'utilisation d'ASCQ Bénin.
   - Bande passante illimitée (aucun risque de dépassement ou de facturation surprise).
-  - Excellentes performances en Afrique de l'Ouest grâce aux nœuds de cache réseau de Cloudflare.
+  - Performances optimales en Afrique de l'Ouest.
   - Connexion HTTPS sécurisée automatique.
-  - Bruno possède déjà un compte Cloudflare actif (`ascqbenin.dossoubruno34.workers.dev`).
-- **Limites de l'offre gratuite Cloudflare** :
-  - 100 000 requêtes d'exécution par jour (notre application utilise le cache et communique directement avec Supabase, donc largement sous le plafond).
-  - 500 déploiements (mises à jour) par mois (très suffisant).
 - **Domaine personnalisé** :
   - Déploiement initial sur sous-domaine Cloudflare gratuit.
   - Connexion du domaine `ascqbenin.com` plus tard en quelques clics sans changer d'architecture.
@@ -124,31 +119,29 @@ Pour éviter toute confusion, nous séparons le **poste professionnel de terrain
 - **Code source** : Sauvegardé et versionné sur GitHub (dépôt privé).
 - **Base de données Supabase** : 
   - Sauvegardes automatiques quotidiennes incluses dans Supabase.
-  - Script d'export mensuel complet (SQL/CSV) téléchargeable par le Super Admin pour conservation locale.
+  - Export périodique complet (SQL/CSV) téléchargeable pour conservation locale.
 - **Mode Hors Ligne (PWA)** :
-  - Stockage local sécurisé sur le smartphone de l'agent (`IndexedDB`).
-  - File d'attente des fiches saisies sans réseau avec indicateur visuel « En attente de synchronisation ».
-  - Envoi automatique dès que la connexion internet (3G/4G/Wi-Fi) est rétablie.
+  - Stockage local sécurisé sur le smartphone (`IndexedDB`).
+  - File d'attente des fiches saisies sans réseau avec indicateur visuel « En attente d'envoi ».
+  - Envoi automatique dès que la connexion internet est rétablie.
 
 ---
 
-## 8. Questions ouvertes soumises à la validation de Bruno
+## 8. Décisions arbitrées avec Bruno DOSSOU (Validées le 25/10/2026)
 
-### Question 1 : Semaine épidémiologique
-Le Ministère de la Santé du Bénin fait-il démarrer la semaine épidémiologique le **lundi** ou le **dimanche** ?
+### Arbitrage 1 : Semaine épidémiologique
+- **Décision** : La semaine épidémiologique commence officiellement le **LUNDI** (selon les directives du Ministère de la Santé du Bénin).
+- **Règle de calcul** : La semaine 1 de chaque année est celle qui contient le premier jeudi de l'année (norme ISO 8601 alignée sur les semaines débutant le lundi).
 
-### Question 2 : Investigation sans alerte
-Lorsqu'un ASCQ ouvre une fiche d'investigation sans être parti d'une fiche d'alerte existante, souhaitez-vous que l'application :
-- Option A : Crée automatiquement en coulisse une fiche d'alerte liée pour que les statistiques restent alignées ?
-- Option B : Laisse l'investigation exister seule sans créer d'alerte ?
+### Arbitrage 2 : Investigation sans alerte préalable
+- **Décision** : **Option B retenue**.
+- **Règle** : Une fiche d'investigation ouverte directement par un ASCQ peut exister de manière autonome sans forcer la création automatique d'une fausse alerte en amont. Les liens entre alerte et investigation sont établis lorsqu'une alerte préexiste, mais ne sont pas obligatoires.
 
-### Question 3 : Rattachement automatique des codes décès du Registre (codes 10 à 14)
-Dans le registre, les codes 10 à 14 recouvrent différentes tranches d'âge :
-- Code 10 : Décès néonatal (0 à 28 jours)
-- Code 11 : Décès infantile (< 1 an, néonatals inclus)
-- Code 12 : Décès infanto-juvénile (0 à 5 ans)
-- Code 13 : Décès maternel
-- Code 14 : Décès ≥ 5 ans (hors maternel)
-
-Pour éviter toute ambiguïté lors de la conversion d'une ligne du registre en fiche de décès officielle :
-- Validez-vous que le choix du code de décès soit guidé par **l'âge exact du défunt** (0-28 jours = néonatal ; 29 jours à 11 mois = infantile non néonatal ; 1 an à 5 ans = enfant 1-5 ans ; > 5 ans = adulte/plus de 5 ans), le décès maternel restant une case à cocher prioritaire dédiée ?
+### Arbitrage 3 : Rattachement automatique des tranches de décès
+- **Décision** : **Validation confirmée (OUI)**.
+- **Règles d'âge strictes** :
+  - De 0 à 28 jours : Code 10 du registre ➔ Type 2 (Décès néonatal).
+  - De 29 jours à moins de 12 mois : Code 11 du registre ➔ Type 3 (Décès infantile).
+  - De 1 an à 5 ans : Code 12 du registre ➔ Type 4 (Décès infanto-juvénile).
+  - Plus de 5 ans : Code 14 du registre ➔ Type 5 (Personne de plus de 5 ans).
+  - Décès maternel (Code 13 / Type 1) : Prioritaire, sélectionné manuellement, contrôlé obligatoirement par sexe féminin et âge compatible.
