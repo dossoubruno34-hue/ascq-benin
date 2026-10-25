@@ -2,17 +2,23 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "ASCQ BÉNIN - Santé Communautaire",
-  description: "Application officielle des Agents de Santé Communautaire Qualifiés du Bénin",
+  title: "ASCQ BÉNIN - Application Officielle",
+  description: "Application officielle des Agents de Santé Communautaire Qualifiés (ASCQ) du Bénin",
   applicationName: "ASCQ Bénin",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "ASCQ Bénin",
+  },
   authors: [{ name: "Bruno DOSSOU" }],
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  maximumScale: 5,
+  userScalable: true,
   themeColor: "#008751",
 };
 
@@ -22,8 +28,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="fr">
-      <body className="min-h-screen bg-slate-50 text-slate-900 antialiased">
+    <html lang="fr" className="scroll-smooth">
+      <body className="min-h-screen bg-slate-50 text-slate-900 antialiased font-sans selection:bg-emerald-100 selection:text-emerald-900">
         {children}
       </body>
     </html>

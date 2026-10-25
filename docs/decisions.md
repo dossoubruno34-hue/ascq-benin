@@ -41,7 +41,26 @@ Ce document consigne les choix d'architecture validés, les règles métier arbi
   - **12 départements**
   - **34 zones sanitaires** (dont les 4 zones de Cotonou)
   - **77 communes**
-  - **546 arrondissements** (dont 13 de Cotonou avec `zone_sanitaire_id IS NULL` conformément à la consigne « À rattacher »)
-- Sécurité RLS active sur 100% des tables (tests confirmant 0 fuite sur la table privée `ascq_profil_prive`).
+  - **546 arrondissements** (dont 13 de Cotonou « À rattacher »)
+- Sécurité RLS active sur 100% des tables (0 donnée privée exposée).
 - Données d'essai fictives créées dans le Zou (Covè, Zagnanado, Ouinhi).
 - Validation réussie par la batterie de tests automatisés (`scripts/test-phase2.js`).
+
+### Phase 3 : Partie publique, inscription, connexion, validation des comptes, annuaire (En cours de validation)
+- **Partie publique (`/`)** :
+  - Accueil officiel avec bouton d'installation PWA (`InstallPwaButton`).
+  - Tableau de bord national consolidé en direct (nombre d'ASCQ, de RC, ménages et personnes suivies).
+  - Annuaire officiel interactif « Qui est l'ASCQ de mon milieu ? » avec filtres en cascade (département → commune → arrondissement) et appel direct sécurisé.
+  - Espace Conseils santé officiel avec cartes thématiques.
+  - Module citoyen « Votre voix compte / Aidez-nous à mieux vous servir » (suggestions, recommandations, réclamations).
+  - Coordonnées officielles, e-mail et canaux certifiés (WhatsApp, Facebook, LinkedIn).
+- **Inscription (`/inscription`)** :
+  - Formulaire professionnel complet par numéro de téléphone et mot de passe (sans SMS OTP).
+  - Cascades géographiques dynamiques reliées au référentiel.
+  - Gestion des cas particuliers : cumul d'arrondissements, sources de financement, option visibilité annuaire.
+  - Compte créé immédiatement au statut `EN_ATTENTE` avec déconnexion forcée de sécurité.
+- **Connexion (`/connexion`)** :
+  - Connexion par numéro de téléphone et mot de passe.
+  - Contrôle du statut administratif : affichage d'un panneau d'information bienveillant si le compte est en attente, redirection selon rôle si validé.
+- **Validation des comptes (`/admin/validation-comptes`)** :
+  - Interface dédiée pour les administrateurs permettant de visualiser tous les agents en attente, d'examiner leur affectation et de valider ou refuser les accès en un clic.
