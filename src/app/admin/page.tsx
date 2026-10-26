@@ -776,7 +776,7 @@ export default function AdminPage() {
                         </span>
                       </div>
                       <p className="text-xs text-slate-500 mt-0.5 font-medium">
-                        Tél : <span className="font-bold text-slate-700">{c.telephone}</span> • {c.commune_nom || "Commune non assignée"} ({c.arrondissement_nom || "Arrondissement"}) • Financement : {c.source_financement || "LLF"}
+                        Tél : <span className="font-bold text-slate-700">{c.telephone}</span> • {c.commune_nom || c.communes?.nom || "Commune non assignée"} ({c.arrondissement_nom || c.arrondissements?.nom || "Arrondissement"}) • Financement : {c.source_financement || c.ascq_profils?.source_financement || "LLF"}
                       </p>
                     </div>
 

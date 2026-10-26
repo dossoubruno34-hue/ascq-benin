@@ -708,11 +708,12 @@ AS $$
         COALESCE(d.nom, 'NON DEFINI'),
         COALESCE(c.nom, 'NON DEFINIE'),
         COALESCE(a.nom, 'NON DEFINI'),
-        COALESCE(u.source_financement, 'LLF'),
-        COALESCE(u.nombre_rc_declare, 0),
+        COALESCE(p.source_financement, 'LLF'),
+        COALESCE(p.nombre_rc, (SELECT COUNT(*)::INTEGER FROM public.relais_communautaires rc WHERE rc.ascq_id = u.id)),
         u.statut_compte,
         to_char(u.created_at, 'DD/MM/YYYY HH24:MI')
     FROM public.utilisateurs u
+    LEFT JOIN public.ascq_profils p ON u.id = p.id
     LEFT JOIN public.departements d ON u.departement_id = d.id
     LEFT JOIN public.communes c ON u.commune_id = c.id
     LEFT JOIN public.arrondissements a ON u.arrondissement_id = a.id
