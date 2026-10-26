@@ -108,8 +108,11 @@ export default function ConnexionPage() {
       setLoginSuccess(userProfile);
 
       setTimeout(async () => {
-        if (userProfile.role_technique === "SUPER_ADMIN" || userProfile.role_technique === "ADMINISTRATEUR") {
-          router.push("/admin/validation-comptes");
+        if (userProfile.poste === "ASCQ") {
+          // L'ASCQ (même Super Admin) arrive sur son espace complet avec tous ses modules
+          router.push("/espace-ascq");
+        } else if (userProfile.role_technique === "SUPER_ADMIN" || userProfile.role_technique === "ADMINISTRATEUR") {
+          router.push("/admin");
         } else if (userProfile.poste === "RC") {
           // Vérifier si le RC a déjà défini son mot de passe
           const { data: rcData } = await supabase
@@ -123,8 +126,6 @@ export default function ConnexionPage() {
           } else {
             router.push("/espace-rc");
           }
-        } else if (userProfile.poste === "ASCQ") {
-          router.push("/espace-ascq");
         } else {
           router.push("/");
         }

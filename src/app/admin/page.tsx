@@ -495,12 +495,20 @@ export default function AdminPage() {
             </Link>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Link
               href="/espace-ascq"
-              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-colors"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold shadow-sm transition-all active:scale-95"
             >
-              Retour à mon espace ASCQ
+              <LayoutDashboard className="w-3.5 h-3.5" />
+              <span>Mon Espace ASCQ (Terrain)</span>
+            </Link>
+            <Link
+              href="/fiches"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-colors"
+            >
+              <Activity className="w-3.5 h-3.5" />
+              <span>Surveillance</span>
             </Link>
           </div>
         </div>

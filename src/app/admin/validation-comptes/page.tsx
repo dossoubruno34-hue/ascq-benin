@@ -90,21 +90,27 @@ export default function AdminValidationComptesPage() {
   return (
     <main className="min-h-screen bg-slate-50 py-8 px-4 sm:px-6">
       <div className="max-w-5xl mx-auto space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-3 flex-wrap">
             <Link
-              href="/"
-              className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors"
+              href="/espace-ascq"
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-[#005c30] hover:bg-[#004724] px-3.5 py-1.5 rounded-xl shadow-sm transition-colors"
             >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Accueil</span>
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Mon Espace ASCQ & Modules</span>
+            </Link>
+            <Link
+              href="/fiches"
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-800 bg-emerald-100 hover:bg-emerald-200 px-3 py-1.5 rounded-xl transition-colors"
+            >
+              <span>Surveillance</span>
             </Link>
             <Link
               href="/admin"
-              className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-800 bg-emerald-100 hover:bg-emerald-200 px-3 py-1 rounded-xl transition-colors"
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-slate-200 hover:bg-slate-300 px-3 py-1.5 rounded-xl transition-colors"
             >
               <ShieldCheck className="w-3.5 h-3.5" />
-              <span>Portail Complet d'Administration</span>
+              <span>Tableau de Bord Admin</span>
             </Link>
           </div>
 

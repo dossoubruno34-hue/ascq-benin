@@ -34,6 +34,10 @@ export default function AscqNav({ userProfile }: Props) {
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
+  const [detectedRole, setDetectedRole] = useState<string | null>(
+    userProfile?.role_technique || null
+  );
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.push("/connexion");
@@ -55,16 +59,25 @@ export default function AscqNav({ userProfile }: Props) {
   };
 
   useEffect(() => {
+    if (userProfile?.role_technique) {
+      setDetectedRole(userProfile.role_technique);
+    } else {
+      supabase.rpc("obtenir_mon_profil").then(({ data }) => {
+        if (data && data.length > 0) {
+          setDetectedRole(data[0].role_technique);
+        }
+      });
+    }
     chargerNonLues();
-  }, []);
+  }, [userProfile]);
 
-  const isAdmin = userProfile && [
+  const isAdmin = [
     "SUPER_ADMIN",
     "ADMINISTRATEUR",
     "GESTIONNAIRE_PERIMETRE",
     "ADMIN_COMMUNAL",
     "ADMIN_DEPARTEMENTAL"
-  ].includes(userProfile.role_technique);
+  ].includes(detectedRole || "");
 
   const navItems = [
     { href: "/espace-ascq", label: "Mon espace", icon: Home },
