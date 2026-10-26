@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
@@ -20,7 +20,9 @@ import {
 import SignatureCanvas from "@/components/SignatureCanvas";
 import { TYPES_ALERTES_OFFICIELS, getEpidemiologicalWeek } from "@/lib/fiches";
 
-export default function NouvelleInvestigationPage() {
+export const dynamic = "force-dynamic";
+
+function NouvelleInvestigationContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const alerteIdParam = searchParams.get("alerte_id");
@@ -520,5 +522,22 @@ export default function NouvelleInvestigationPage() {
         </form>
       </main>
     </div>
+  );
+}
+
+export default function NouvelleInvestigationPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+          <div className="text-center text-slate-600">
+            <div className="w-8 h-8 border-3 border-[#005c30] border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+            <p className="text-xs font-semibold">Chargement de la fiche d'investigation...</p>
+          </div>
+        </div>
+      }
+    >
+      <NouvelleInvestigationContent />
+    </Suspense>
   );
 }
