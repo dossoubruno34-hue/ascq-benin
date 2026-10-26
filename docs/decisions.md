@@ -203,3 +203,27 @@ Ce document consigne les choix d'architecture validés, les règles métier arbi
 - **4. Navigation & Historique** :
   - Ajout de l'onglet « Rapport mensuel » dans `AscqNav`.
   - Historique des rapports précédents accessible avec sélection instantanée par mois/année.
+
+### Phase 10 : Périmètre, administration, notifications, tableaux de bord, exports (Réalisée le 26/10/2026)
+- **1. Base de données & Périmètre (`supabase/migrations/20261026_phase10_perimetre_admin_notifs_dashboards.sql`)** :
+  - Table `notifications` avec typologie complète (`ALERTE_PRIORITAIRE`, `RMA_RAPPEL`, `RMA_RETARD`, `RAPPORT_HEBDO_MANQUANT`, `VALIDATION_COMPTE`, `PERMUTATION`, `REQUETE`, `CONSIGNE_ADMIN`, `ACTIVITE_DEMANDEE`) et priorités (`NORMALE`, `HAUTE`, `URGENTE`).
+  - Déclencheurs automatiques (`AFTER INSERT` sur `alertes_communautaires` et `deces_communautaires`) : notification prioritaire immédiate transmise aux gestionnaires de périmètre communal et départemental pour toute alerte prioritaire (choléra, Ebola, Lassa, rage, méningite, PFA, rougeole, fièvre jaune) ou décès maternel/néonatal.
+  - Table `activites_demandees_ascq` : permet aux représentants communaux et départementaux d'ordonner des missions spécifiques aux ASCQ de leur périmètre (campagnes de sensibilisation, ratissage vaccinal, riposte épidémique).
+  - Fonctions RPC d'agrégation et de décision : `obtenir_statistiques_tableau_de_bord`, `obtenir_mes_notifications`, `marquer_notification_lue`, `envoyer_notification_broadcast`, `demander_activite_ascq`, `admin_definir_gestionnaire_perimetre`, `admin_repondre_requete`, `admin_valider_permutation`, `admin_rattacher_arrondissement_cotonou`.
+  - Fonctions RPC d'exportation sécurisée : `exporter_liste_ascq`, `exporter_donnees_surveillance_anonymisees` (100% anonymisées sans NPI ni nom conformément à AGENTS.md).
+- **2. Centre de Notifications In-App & Cloche dynamique** :
+  - Composant `NotificationsModal.tsx` avec badges d'urgence pulsants, détails de date et liens d'action directe.
+  - Intégration de la cloche dans `AscqNav` avec badge numérique rouge en direct des alertes non lues.
+- **3. Portail Unifié d'Administration & Périmètre (`/admin`)** :
+  - Bandeau officiel de périmètre : affichage du territoire sous responsabilité (National, Départemental ou Communal) avec cloisonnement RLS respecté.
+  - **8 modules complets** :
+    1. *Tableau de bord Épidémiologique & Décisionnel* : indicateurs clés, délais moyens détection/notification et notification/investigation, suivi des alertes prioritaires non investiguées et pyramide One Health.
+    2. *Comptes & ASCQ* : validation des comptes en attente, annuaire complet avec filtres et recherche instantanée, nomination de gestionnaires de périmètre.
+    3. *Périmètre & Activités* : module de création et de suivi des missions demandées aux ASCQ.
+    4. *Permutations & Requêtes* : approbation des permutations et rédaction des réponses officielles aux doléances des ASCQ.
+    5. *Diffusion d'Alertes* : envoi d'alertes sanitaires d'urgence par ciblage géographique.
+    6. *Conseils Santé & Citoyens* : modération des suggestions et réclamations du public (`suggestions_publiques`), publication de conseils de santé.
+    7. *Cotonou & Référentiel* : outil de rattachement officiel des 13 arrondissements de Cotonou aux 4 zones sanitaires de Cotonou.
+    8. *Centre d'Exports* : téléchargement immédiat en fichiers CSV (ASCQ, Surveillance anonymisée, RMA).
+- **4. Navigation unifiée** :
+  - Lien direct vers `/admin` dans `AscqNav` pour les profils administrateurs et gestionnaires de périmètre.

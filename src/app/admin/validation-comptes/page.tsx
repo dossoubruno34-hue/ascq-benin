@@ -91,13 +91,22 @@ export default function AdminValidationComptesPage() {
     <main className="min-h-screen bg-slate-50 py-8 px-4 sm:px-6">
       <div className="max-w-5xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Retour à l'accueil public</span>
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link
+              href="/"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Accueil</span>
+            </Link>
+            <Link
+              href="/admin"
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-800 bg-emerald-100 hover:bg-emerald-200 px-3 py-1 rounded-xl transition-colors"
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>Portail Complet d'Administration</span>
+            </Link>
+          </div>
 
           <button
             onClick={loadComptes}

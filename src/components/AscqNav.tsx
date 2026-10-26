@@ -1,9 +1,11 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import NotificationsModal from "@/components/NotificationsModal";
 import { 
   Home, 
   Users, 
@@ -18,7 +20,8 @@ import {
   Calendar,
   CheckSquare,
   ClipboardCheck,
-  FileText
+  FileText,
+  ShieldCheck
 } from "lucide-react";
 
 interface Props {
@@ -28,11 +31,40 @@ interface Props {
 export default function AscqNav({ userProfile }: Props) {
   const pathname = usePathname();
   const router = useRouter();
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.push("/connexion");
   };
+
+  const chargerNonLues = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { count } = await supabase
+        .from("notifications")
+        .select("*", { count: "exact", head: true })
+        .eq("lu", false)
+        .or(`destinataire_id.eq.${user.id},destinataire_id.is.null`);
+      setUnreadCount(count || 0);
+    } catch (e) {
+      // Ignore
+    }
+  };
+
+  useEffect(() => {
+    chargerNonLues();
+  }, []);
+
+  const isAdmin = userProfile && [
+    "SUPER_ADMIN",
+    "ADMINISTRATEUR",
+    "GESTIONNAIRE_PERIMETRE",
+    "ADMIN_COMMUNAL",
+    "ADMIN_DEPARTEMENTAL"
+  ].includes(userProfile.role_technique);
 
   const navItems = [
     { href: "/espace-ascq", label: "Mon espace", icon: Home },
@@ -45,6 +77,7 @@ export default function AscqNav({ userProfile }: Props) {
     { href: "/espace-ascq/permutations", label: "Permutations", icon: ArrowLeftRight },
     { href: "/espace-ascq/requetes", label: "Requêtes", icon: MessageSquareText },
     { href: "/espace-ascq/bibliotheque", label: "Bibliothèque", icon: BookOpen },
+    ...(isAdmin ? [{ href: "/admin", label: "Administration", icon: ShieldCheck }] : []),
   ];
 
   return (
@@ -85,11 +118,16 @@ export default function AscqNav({ userProfile }: Props) {
             </Link>
 
             <button
-              onClick={() => alert("Aucune nouvelle notification pour le moment.")}
-              className="p-2 rounded-xl text-white/90 hover:text-white hover:bg-white/10 transition-colors"
+              onClick={() => setIsNotifOpen(true)}
+              className="p-2 rounded-xl text-white/90 hover:text-white hover:bg-white/10 transition-colors relative"
               title="Notifications"
             >
               <Bell className="w-4 h-4" />
+              {unreadCount > 0 && (
+                <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-black flex items-center justify-center animate-pulse">
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
             </button>
 
             <button
@@ -133,6 +171,15 @@ export default function AscqNav({ userProfile }: Props) {
           </div>
         </div>
       </header>
+
+      <NotificationsModal
+        isOpen={isNotifOpen}
+        onClose={() => {
+          setIsNotifOpen(false);
+          chargerNonLues();
+        }}
+        onNotificationsUpdated={chargerNonLues}
+      />
     </>
   );
 }
