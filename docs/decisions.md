@@ -174,3 +174,32 @@ Ce document consigne les choix d'architecture validés, les règles métier arbi
   - Décisions prises, date de la prochaine séance et signature tactile.
 - **4. Navigation unifiée** :
   - Intégration des liens directs *Planning*, *Activités*, *Suivi RC* dans la barre de navigation `AscqNav`.
+
+### Phase 9 : Rapport Mensuel d'Activité (RMA) et version imprimable (Réalisée le 26/10/2026)
+- **1. Base de données & Fonctionnalités (`supabase/migrations/20261026_phase9_rapport_mensuel_activite.sql`)** :
+  - Table `rapports_mensuels_ascq` avec contrainte unique par ASCQ, mois et année `(ascq_id, mois, annee)`.
+  - Numérotation officielle automatique séquentielle : `RMA-AAAA-MM-XXXX`.
+  - Calcul réglementaire strict de la date d'échéance : au plus tard le **3 du mois suivant** (ex: le 3 novembre pour le rapport d'octobre).
+  - Statuts du rapport : `BROUILLON` (modifiable) et `VALIDE` (validé et signé avec date de validation figée).
+  - Indicateur visuel de retard automatique (`est_en_retard = true`) lorsque la date actuelle dépasse le 3 du mois suivant pour un rapport non validé.
+  - Fonction RPC `generer_pre_remplissage_surveillance_mensuelle` : agrégation automatique en direct de la surveillance One Health (les 17 pathologies officielles) à partir des alertes et des décès communautaires enregistrés au cours du mois.
+  - Fonction RPC `enregistrer_rapport_mensuel_ascq` avec signature tactile et gestion des conflits (upsert).
+- **2. Les 9 sections du Rapport Mensuel d'Activité** :
+  - **Section 1 : Effectifs RC** (relais en charge, relais actifs ce mois-ci).
+  - **Section 2 : Ménages & Hygiène** (ménages en charge, ménages visités, total personnes touchées, eau potable, latrines hygiéniques, moustiquaires MILD en bon état).
+  - **Section 3 : Santé Mère-Enfant** (enfants 0-5 ans suivis, femmes enceintes suivies, enfants sous-vaccinés orientés/rattrapés).
+  - **Section 4 : Prise en charge iCCM / PCIME-C** (diarrhée SRO/Zinc, IRA/pneumonie, malnutrition, paludisme TDR+ et TDR-, suspicion tuberculose, suspicion hypertension HTA, suspicion diabète).
+  - **Section 5 : Surveillance à base communautaire (One Health)** : les 17 pathologies officielles (rougeole, choléra, méningite, PFA, Lassa, Ebola, fièvre jaune, dengue, anthrax, shigellose, grippe aviaire, rage humaine, COVID-19, Mpox, hantavirus, décès maternels, décès néonatals 0-28 jours) avec bouton « Pré-remplir automatiquement ».
+  - **Section 6 : Santé animale & Zoonoses** (chiens recensés/vaccinés, morsures de chiens, chats vaccinés, morsures d'animaux sauvages, mortalités anormales de troupeaux).
+  - **Section 7 : Références & Prise en charge** (référés au Centre de Santé Communal / CS, référés au GUPS Affaires Sociales, pris en charge dans la communauté).
+  - **Section 8 : Autres activités, difficultés et recommandations** (listes dynamiques d'activités notables, difficultés et recommandations adressées au MCC).
+  - **Section 9 : Signature tactile ASCQ & Validation** (composant `SignatureCanvas`, options brouillon vs validation officielle).
+- **3. Version imprimable officielle (MCC / DDS)** :
+  - Mise en page réglementaire A4 conforme aux normes du Ministère de la Santé du Bénin : En-tête « République du Bénin - Fraternité-Justice-Travail - Ministère de la Santé - Direction Départementale de la Santé », période couverte, identification de l'ASCQ et structure de rattachement.
+  - Tableaux récapitulatifs complets et aérés.
+  - Double zone d'émargement : signature tactile de l'ASCQ et emplacement réservé pour le visa & cachet du Médecin Coordonnateur de Commune (MCC).
+  - Masquage automatique à l'impression (`print:hidden`) de la barre de navigation et des boutons interactifs.
+  - Bouton direct « Imprimer / PDF officiel » (`window.print()`).
+- **4. Navigation & Historique** :
+  - Ajout de l'onglet « Rapport mensuel » dans `AscqNav`.
+  - Historique des rapports précédents accessible avec sélection instantanée par mois/année.

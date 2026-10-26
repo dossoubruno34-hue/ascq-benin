@@ -17,7 +17,8 @@ import {
   Activity,
   Calendar,
   CheckSquare,
-  ClipboardCheck
+  ClipboardCheck,
+  FileText
 } from "lucide-react";
 
 interface Props {
@@ -39,6 +40,7 @@ export default function AscqNav({ userProfile }: Props) {
     { href: "/espace-ascq/planning", label: "Planning", icon: Calendar },
     { href: "/espace-ascq/activites-menees", label: "Activités", icon: CheckSquare },
     { href: "/espace-ascq/suivi-relais", label: "Suivi RC", icon: ClipboardCheck },
+    { href: "/espace-ascq/rapport-mensuel", label: "Rapport mensuel", icon: FileText },
     { href: "/espace-ascq/relais", label: "Mes Relais", icon: Users },
     { href: "/espace-ascq/permutations", label: "Permutations", icon: ArrowLeftRight },
     { href: "/espace-ascq/requetes", label: "Requêtes", icon: MessageSquareText },
@@ -48,7 +50,7 @@ export default function AscqNav({ userProfile }: Props) {
   return (
     <>
       {/* 1. En-tête officiel vert foncé avec bandeau tricolore */}
-      <header className="bg-[#005c30] text-white sticky top-0 z-30 shadow-md">
+      <header className="bg-[#005c30] text-white sticky top-0 z-30 shadow-md print:hidden">
         <div className="max-w-3xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <Link href="/" className="flex items-center gap-2.5 group">
