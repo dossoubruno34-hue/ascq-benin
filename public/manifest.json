@@ -1,21 +1,27 @@
 {
-  "name": "ASCQ BÉNIN - Application officielle",
+  "name": "ASCQ BÉNIN - Application Officielle",
   "short_name": "ASCQ Bénin",
-  "description": "Application officielle des Agents de Santé Communautaire Qualifiés du Bénin",
+  "description": "Application officielle de surveillance épidémiologique et d'activité des Agents de Santé Communautaire Qualifiés (ASCQ) du Bénin",
   "start_url": "/",
+  "id": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#008751",
+  "orientation": "portrait",
+  "background_color": "#f4f7f5",
+  "theme_color": "#005c30",
+  "lang": "fr-BJ",
+  "categories": ["medical", "health", "government"],
   "icons": [
     {
       "src": "/icon-192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     },
     {
       "src": "/icon-512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }

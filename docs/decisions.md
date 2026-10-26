@@ -227,3 +227,17 @@ Ce document consigne les choix d'architecture validés, les règles métier arbi
     8. *Centre d'Exports* : téléchargement immédiat en fichiers CSV (ASCQ, Surveillance anonymisée, RMA).
 - **4. Navigation unifiée** :
   - Lien direct vers `/admin` dans `AscqNav` pour les profils administrateurs et gestionnaires de périmètre.
+
+### Phase 11 : Mise en ligne, PWA installable, sauvegardes et validations DDS (Réalisée le 26/10/2026)
+- **1. PWA installable & Fonctionnement Hors-ligne** :
+  - Métadonnées complètes dans `public/manifest.json` : affichage `standalone`, orientation portrait, catégorie médicale/gouvernementale, couleurs de marque (`#005c30`, `#f4f7f5`).
+  - Icônes maskables multi-résolutions générées (`public/icon-192.png`, `public/icon-512.png`).
+  - Service Worker officiel (`public/sw.js`) pour la mise en cache de l'app shell et le fonctionnement hors réseau.
+  - Composant d'enregistrement automatique du Service Worker (`ServiceWorkerRegister.tsx`) monté dans `layout.tsx`.
+  - Bouton d'installation de la PWA (`InstallPwaButton.tsx`) sur mobile et ordinateur.
+- **2. Revue de sécurité finale & Tests de conformité** :
+  - Script d'audit automatisé `scripts/test-phase11-securite-conformite.js` vérifiant l'isolation RLS des tables sensibles (`cas_identite_privee`, `deces_identite_privee`, `ascq_profil_prive`), l'intégrité du référentiel (12 départements, 34 zones, 77 communes, 546 arrondissements) et l'absence de fuite de clés de service.
+- **3. Continuité d'activité et sauvegardes** :
+  - Script d'extraction et de sauvegarde locale complète `scripts/sauvegarde-base-supabase.js` exportant l'ensemble des tables en format JSON horodaté.
+- **4. Guide officiel de déploiement et de validation institutionnelle** :
+  - Rédaction du guide complet `docs/guide-mise-en-ligne-et-validation-dds.md` couvrant le déploiement sur Cloudflare Pages, l'installation sur smartphone Android/iOS, la conformité APDP Bénin et le protocole de validation hiérarchique avec le Médecin Coordonnateur de Commune (MCC) et la Direction Départementale de la Santé (DDS).
