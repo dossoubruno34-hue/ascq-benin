@@ -212,7 +212,7 @@ export default function AdminPage() {
       // 2. Permutations
       const { data: perms } = await supabase
         .from("permutations")
-        .select("*, demandeur:demandeur_id(nom, prenoms, telephone), repreneur:repreneur_id(nom, prenoms, telephone)")
+        .select("*, ascq:ascq_id(nom, prenoms, telephone), partenaire:partenaire_ascq_id(nom, prenoms, telephone)")
         .order("created_at", { ascending: false });
       setPermutations(perms || []);
 
@@ -964,16 +964,16 @@ export default function AdminPage() {
                     <div key={p.id} className="py-3 space-y-2">
                       <div className="flex items-center justify-between text-xs">
                         <span className="font-bold text-slate-900">
-                          {p.demandeur?.prenoms} {p.demandeur?.nom}
+                          {p.ascq?.prenoms} {p.ascq?.nom} {p.partenaire ? `⇄ ${p.partenaire.prenoms} ${p.partenaire.nom}` : ""}
                         </span>
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
                           {p.statut}
                         </span>
                       </div>
                       <p className="text-[11px] text-slate-600">
-                        Motif : {p.motif} • Poste actuel : {p.departement_actuel_nom || "Origine"} &rarr; Souhait : {p.departement_souhaite_nom || "Destination"}
+                        Motif : {p.motif} • Poste actuel : {p.commune_depart_id || "Origine"} &rarr; Souhait : {p.commune_souhaite_id || "Destination"}
                       </p>
-                      {p.statut === "EN_ATTENTE" && (
+                      {(p.statut === "OUVERTE" || p.statut === "PROPOSEE") && (
                         <div className="flex justify-end pt-1">
                           <button
                             type="button"

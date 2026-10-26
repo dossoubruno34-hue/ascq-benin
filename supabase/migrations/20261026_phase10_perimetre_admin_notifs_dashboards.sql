@@ -436,8 +436,8 @@ BEGIN
         COUNT(*) FILTER (WHERE resultat_verification = 'AVEREE'),
         COUNT(*) FILTER (WHERE statut = 'INVESTIGUEE'),
         COUNT(*) FILTER (WHERE statut != 'INVESTIGUEE' AND type_alerte_code IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 14)),
-        ROUND(AVG(delai_notification_heures)::NUMERIC, 1),
-        ROUND(AVG(delai_investigation_heures)::NUMERIC, 1)
+        ROUND(COALESCE(AVG(delai_detection_notification_heures), 0)::NUMERIC, 1),
+        ROUND(COALESCE(AVG(EXTRACT(EPOCH FROM (date_verification - created_at)) / 3600) FILTER (WHERE date_verification IS NOT NULL), 0)::NUMERIC, 1)
     INTO 
         v_total_alertes,
         v_alertes_prioritaires,
@@ -455,7 +455,7 @@ BEGIN
         COUNT(*),
         COUNT(*) FILTER (WHERE type_deces_code = 1),
         COUNT(*) FILTER (WHERE type_deces_code = 2),
-        COUNT(*) FILTER (WHERE cause_deces_probable IS NOT NULL AND cause_deces_probable != '')
+        COUNT(*) FILTER (WHERE cause_cim10_code IS NOT NULL AND cause_cim10_code != '')
     INTO 
         v_total_deces,
         v_deces_maternels,
@@ -606,7 +606,8 @@ BEGIN
     UPDATE public.requetes_ascq
     SET reponse_admin = p_reponse,
         statut = p_statut,
-        date_reponse = NOW(),
+        repondu_par = auth.uid(),
+        repondu_at = NOW(),
         updated_at = NOW()
     WHERE id = p_requete_id
     RETURNING * INTO v_req;
@@ -647,13 +648,13 @@ DECLARE
     v_perm RECORD;
 BEGIN
     UPDATE public.permutations
-    SET statut = 'VALIDE_ADMIN',
-        date_reponse = NOW(),
+    SET statut = 'VALIDEE',
+        commentaire_admin = p_commentaire,
         updated_at = NOW()
     WHERE id = p_permutation_id
     RETURNING * INTO v_perm;
 
-    IF v_perm.demandeur_id IS NOT NULL THEN
+    IF v_perm.ascq_id IS NOT NULL THEN
         INSERT INTO public.notifications (
             destinataire_id,
             titre,
@@ -662,7 +663,7 @@ BEGIN
             priorite,
             lien_action
         ) VALUES (
-            v_perm.demandeur_id,
+            v_perm.ascq_id,
             '🎉 Demande de permutation APPROUVÉE',
             'Votre proposition de permutation a été validée officiellement par l''administration.',
             'PERMUTATION',
@@ -726,7 +727,7 @@ CREATE OR REPLACE FUNCTION public.exporter_donnees_surveillance_anonymisees()
 RETURNS TABLE (
     numero_alerte TEXT,
     annee INTEGER,
-    semaine_epidemiologique INTEGER,
+    semaine_epidemio INTEGER,
     mois INTEGER,
     pathologie TEXT,
     est_prioritaire BOOLEAN,
@@ -734,15 +735,14 @@ RETURNS TABLE (
     commune TEXT,
     arrondissement TEXT,
     village TEXT,
-    personnes_touchees INTEGER,
-    personnes_decedees INTEGER,
-    animaux_malades INTEGER,
-    animaux_morts INTEGER,
+    nb_personnes_touchees INTEGER,
+    nb_personnes_mortes INTEGER,
+    nb_animaux_malades INTEGER,
+    nb_animaux_morts INTEGER,
     delai_notification_heures NUMERIC,
-    delai_investigation_heures NUMERIC,
     statut TEXT,
     resultat_verification TEXT,
-    date_survenue DATE,
+    date_detection DATE,
     date_notification DATE
 )
 LANGUAGE sql
@@ -752,30 +752,29 @@ AS $$
     SELECT 
         a.numero_alerte,
         a.annee,
-        a.semaine_epidemiologique,
+        a.semaine_epidemio,
         a.mois,
         COALESCE(t.nom, 'Type ' || a.type_alerte_code),
         COALESCE(t.est_prioritaire, FALSE),
-        COALESCE(d.nom, 'ZOU'),
-        COALESCE(c.nom, 'COVE'),
-        COALESCE(arr.nom, 'ARRONDISSEMENT'),
+        COALESCE(d.nom, 'NON DEFINI'),
+        COALESCE(c.nom, 'NON DEFINIE'),
+        COALESCE(arr.nom, 'NON DEFINI'),
         COALESCE(a.village_nom, 'VILLAGE'),
-        a.personnes_touchees,
-        a.personnes_mortes,
-        a.animaux_malades,
-        a.animaux_morts,
-        ROUND(a.delai_notification_heures::NUMERIC, 1),
-        ROUND(a.delai_investigation_heures::NUMERIC, 1),
+        a.nb_personnes_touchees,
+        a.nb_personnes_mortes,
+        a.nb_animaux_malades,
+        a.nb_animaux_morts,
+        ROUND(COALESCE(a.delai_detection_notification_heures, 0)::NUMERIC, 1),
         a.statut,
         COALESCE(a.resultat_verification, 'EN_ATTENTE'),
-        a.date_survenue,
+        a.date_detection,
         a.date_notification
     FROM public.alertes_communautaires a
     LEFT JOIN public.types_alertes_reference t ON a.type_alerte_code = t.code
     LEFT JOIN public.departements d ON a.departement_id = d.id
     LEFT JOIN public.communes c ON a.commune_id = c.id
     LEFT JOIN public.arrondissements arr ON a.arrondissement_id = arr.id
-    ORDER BY a.annee DESC, a.semaine_epidemiologique DESC;
+    ORDER BY a.annee DESC, a.semaine_epidemio DESC;
 $$;
 
 -- Permissions d'exécution
