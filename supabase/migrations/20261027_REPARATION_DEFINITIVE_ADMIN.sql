@@ -75,6 +75,15 @@ BEGIN
     ORDER BY created_at DESC 
     LIMIT 1;
 
+    -- Si non trouvé dans auth.users, chercher dans public.utilisateurs
+    IF v_new_id IS NULL THEN
+        SELECT id INTO v_new_id 
+        FROM public.utilisateurs 
+        WHERE telephone LIKE '%69031463%' 
+        ORDER BY created_at DESC 
+        LIMIT 1;
+    END IF;
+
     -- Trouver l'ancien compte test (*44485650*)
     SELECT id INTO v_old_id 
     FROM auth.users 
@@ -258,7 +267,9 @@ BEGIN
 END;
 $$;
 
--- Fonction obtenir_mon_profil (garantie 100% sans erreur)
+-- Fonction obtenir_mon_profil (garantie 100% sans erreur 42P13 grâce au DROP préalable)
+DROP FUNCTION IF EXISTS public.obtenir_mon_profil() CASCADE;
+
 CREATE OR REPLACE FUNCTION public.obtenir_mon_profil()
 RETURNS TABLE (
     id UUID,
@@ -293,6 +304,40 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.obtenir_mon_profil TO authenticated;
 GRANT EXECUTE ON FUNCTION public.est_administrateur TO authenticated;
+
+
+-- ---------------------------------------------------------------------
+-- ÉTAPE 5 : RÉINSTALLATION SÉCURISÉE DES TRIGGERS ANTI-PIRATAGE (AUDIT C3)
+-- ---------------------------------------------------------------------
+
+-- Trigger protégeant le rôle et le statut contre les tentatives d'usurpation via l'API
+CREATE OR REPLACE FUNCTION public.proteger_champs_sensibles_utilisateurs()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  -- Autoriser les modifications directes en SQL Editor / scripts internes (auth.uid() IS NULL)
+  IF auth.uid() IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  -- Pour un utilisateur connecté, interdire de modifier son propre rôle ou statut de validation
+  IF (OLD.role_technique IS DISTINCT FROM NEW.role_technique OR OLD.statut_compte IS DISTINCT FROM NEW.statut_compte) THEN
+    IF NOT public.est_administrateur() THEN
+      RAISE EXCEPTION 'Interdit : la modification du rôle technique ou du statut est strictement réservée aux administrateurs.';
+    END IF;
+  END IF;
+  
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_proteger_champs_utilisateurs ON public.utilisateurs;
+CREATE TRIGGER trg_proteger_champs_utilisateurs
+BEFORE UPDATE ON public.utilisateurs
+FOR EACH ROW
+EXECUTE FUNCTION public.proteger_champs_sensibles_utilisateurs();
 
 -- Confirmation de réussite
 DO $$
