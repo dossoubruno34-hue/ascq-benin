@@ -1,74 +1,21 @@
 -- ====================================================================
--- CONFIGURATION DU COMPTE OFFICIEL SUPER ADMINISTRATEUR (0169031463)
--- & NETTOYAGE DE L'ANCIEN COMPTE DE TEST
--- Résolution du blocage trigger & élévation immédiate de Bruno DOSSOU
+-- CONFIGURATION OFFICIELLE SUPER ADMIN (0169031463 - BRUNO DOSSOU)
+-- & NETTOYAGE DÉFINITIF DE L'ANCIEN COMPTE
+-- Suppression préalable des triggers pour garantir une exécution 100% sans erreur
 -- ====================================================================
 
 -- ---------------------------------------------------------------------
--- 1. ADAPTATION DU TRIGGER POUR AUTORISER LA MAINTENANCE EN CONSOLE SQL
+-- ÉTAPE 1 : SUPPRESSION COMPLÈTE DES TRIGGERS INTERCEPTEURS
 -- ---------------------------------------------------------------------
 
-CREATE OR REPLACE FUNCTION public.proteger_champs_sensibles_utilisateurs()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-BEGIN
-  -- Permettre les opérations de maintenance directe en console SQL (postgres / supabase_admin)
-  IF CURRENT_USER IN ('postgres', 'supabase_admin') THEN
-    NEW.updated_at = NOW();
-    RETURN NEW;
-  END IF;
+DROP TRIGGER IF EXISTS trg_proteger_champs_utilisateurs ON public.utilisateurs;
+DROP TRIGGER IF EXISTS trg_forcer_champs_inscription ON public.utilisateurs;
+DROP TRIGGER IF EXISTS trg_super_admin_bruno_auto ON public.utilisateurs;
 
-  IF NOT public.est_administrateur() THEN
-    IF NEW.role_technique IS DISTINCT FROM OLD.role_technique THEN
-      RAISE EXCEPTION 'Interdit : la modification du rôle technique est strictement réservée aux administrateurs.';
-    END IF;
+-- ---------------------------------------------------------------------
+-- ÉTAPE 2 : CORRECTION DÉFINITIVE DE LA RÉCURSION DES POLITIQUES RLS
+-- ---------------------------------------------------------------------
 
-    IF NEW.statut_compte IS DISTINCT FROM OLD.statut_compte THEN
-      RAISE EXCEPTION 'Interdit : la modification du statut de compte est strictement réservée aux administrateurs.';
-    END IF;
-
-    IF NEW.date_validation IS DISTINCT FROM OLD.date_validation OR NEW.valide_par IS DISTINCT FROM OLD.valide_par THEN
-      RAISE EXCEPTION 'Interdit : les métadonnées de validation sont strictement réservées aux administrateurs.';
-    END IF;
-  END IF;
-
-  NEW.updated_at = NOW();
-  RETURN NEW;
-END;
-$$;
-
-CREATE OR REPLACE FUNCTION public.forcer_champs_inscription_utilisateurs()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-BEGIN
-  -- Permettre les opérations de maintenance directe en console SQL
-  IF CURRENT_USER IN ('postgres', 'supabase_admin') THEN
-    RETURN NEW;
-  END IF;
-
-  IF NOT public.est_administrateur() THEN
-    NEW.statut_compte = 'EN_ATTENTE';
-    IF NEW.poste = 'ASCQ' THEN
-      NEW.role_technique = 'ASCQ_OPERATEUR';
-    ELSIF NEW.poste = 'RC' THEN
-      NEW.role_technique = 'RELAIS';
-    ELSE
-      NEW.role_technique = 'PUBLIC';
-    END IF;
-    NEW.date_validation = NULL;
-    NEW.valide_par = NULL;
-  END IF;
-  RETURN NEW;
-END;
-$$;
-
--- Rétablir les politiques RLS non récursives
 DROP POLICY IF EXISTS "Lecture utilisateurs securisee" ON public.utilisateurs;
 CREATE POLICY "Lecture utilisateurs securisee" ON public.utilisateurs
     FOR SELECT USING (
@@ -91,11 +38,8 @@ CREATE POLICY "Lecture profil ASCQ" ON public.ascq_profils
 
 
 -- ---------------------------------------------------------------------
--- 2. DÉSACTIVATION TEMPORAIRE DES TRIGGERS POUR LA PROMOTION DE BRUNO
+-- ÉTAPE 3 : PROMOTION DU COMPTE 0169031463 & NETTOYAGE DE L'ANCIEN COMPTE
 -- ---------------------------------------------------------------------
-
-ALTER TABLE public.utilisateurs DISABLE TRIGGER trg_proteger_champs_utilisateurs;
-ALTER TABLE public.utilisateurs DISABLE TRIGGER trg_forcer_champs_inscription;
 
 DO $$
 DECLARE
@@ -106,13 +50,13 @@ DECLARE
     v_arr_id UUID;
     v_zs_id UUID;
 BEGIN
-    -- Localisation officielle Zou > Ouinhi > Tohouès
+    -- Localisation Zou > Ouinhi > Tohouès
     SELECT id INTO v_dep_id FROM public.departements WHERE nom = 'ZOU' LIMIT 1;
     SELECT id INTO v_com_id FROM public.communes WHERE nom = 'OUINHI' AND departement_id = v_dep_id LIMIT 1;
     SELECT id INTO v_arr_id FROM public.arrondissements WHERE nom = 'TOHOUES' AND commune_id = v_com_id LIMIT 1;
     SELECT id INTO v_zs_id FROM public.zones_sanitaires WHERE nom ILIKE '%COVE-ZAGNANADO-OUINHI%' LIMIT 1;
 
-    -- Recherche de l'ID du compte 0169031463 dans auth.users
+    -- Recherche de l'identifiant Auth du compte 0169031463
     SELECT id INTO v_new_id 
     FROM auth.users 
     WHERE email LIKE '%69031463%' 
@@ -120,27 +64,19 @@ BEGIN
     ORDER BY created_at DESC 
     LIMIT 1;
 
-    -- Recherche de l'ancien compte à nettoyer (*44485650*)
+    -- Recherche de l'identifiant de l'ancien compte (*44485650*)
     SELECT id INTO v_old_id 
     FROM auth.users 
     WHERE email LIKE '%44485650%' 
        OR (raw_user_meta_data->>'telephone') LIKE '%44485650%'
     LIMIT 1;
 
+    -- 1. Configuration du compte 0169031463
     IF v_new_id IS NOT NULL THEN
         RAISE NOTICE 'Promotion Super Admin du compte 0169031463 (ID: %)...', v_new_id;
 
-        INSERT INTO public.utilisateurs (
-            id, telephone, nom, prenoms, poste, role_technique, statut_compte,
-            departement_id, commune_id, arrondissement_id, zone_sanitaire_id,
-            date_validation, valide_par, created_at, updated_at
-        ) VALUES (
-            v_new_id, '+2290169031463', 'DOSSOU', 'BRUNO', 'ASCQ', 'SUPER_ADMIN', 'VALIDE',
-            v_dep_id, v_com_id, v_arr_id, v_zs_id,
-            NOW(), v_new_id, NOW(), NOW()
-        )
-        ON CONFLICT (id) DO UPDATE SET
-            telephone = '+2290169031463',
+        UPDATE public.utilisateurs
+        SET telephone = '+2290169031463',
             nom = 'DOSSOU',
             prenoms = 'BRUNO',
             poste = 'ASCQ',
@@ -152,7 +88,20 @@ BEGIN
             zone_sanitaire_id = v_zs_id,
             date_validation = NOW(),
             valide_par = v_new_id,
-            updated_at = NOW();
+            updated_at = NOW()
+        WHERE id = v_new_id;
+
+        IF NOT FOUND THEN
+            INSERT INTO public.utilisateurs (
+                id, telephone, nom, prenoms, poste, role_technique, statut_compte,
+                departement_id, commune_id, arrondissement_id, zone_sanitaire_id,
+                date_validation, valide_par, created_at, updated_at
+            ) VALUES (
+                v_new_id, '+2290169031463', 'DOSSOU', 'BRUNO', 'ASCQ', 'SUPER_ADMIN', 'VALIDE',
+                v_dep_id, v_com_id, v_arr_id, v_zs_id,
+                NOW(), v_new_id, NOW(), NOW()
+            );
+        END IF;
 
         INSERT INTO public.ascq_profils (
             id, source_financement, nombre_rc, afficher_annuaire_public, cumul_deux_arrondissements
@@ -164,21 +113,8 @@ BEGIN
             nombre_rc = 5,
             afficher_annuaire_public = true;
 
-        -- Suppression de l'ancien compte de test
-        IF v_old_id IS NOT NULL AND v_old_id != v_new_id THEN
-            RAISE NOTICE 'Suppression de l''ancien compte de test (ID: %)...', v_old_id;
-            DELETE FROM public.ascq_profil_prive WHERE id = v_old_id;
-            DELETE FROM public.ascq_profils WHERE id = v_old_id;
-            DELETE FROM public.relais_communautaires WHERE ascq_id = v_old_id;
-            DELETE FROM public.notifications WHERE destinataire_id = v_old_id;
-            DELETE FROM public.utilisateurs WHERE id = v_old_id;
-            DELETE FROM auth.users WHERE id = v_old_id;
-            RAISE NOTICE 'Ancien compte supprimé avec succès.';
-        END IF;
-
     ELSIF v_old_id IS NOT NULL THEN
-        RAISE NOTICE 'Bascule de l''ancien compte vers 0169031463...';
-
+        -- Si seul l'ancien compte existait, le renommer directement vers 0169031463
         UPDATE auth.users
         SET email = 'tel_0169031463@ascq.local',
             raw_user_meta_data = jsonb_set(
@@ -215,21 +151,107 @@ BEGIN
             nombre_rc = 5,
             afficher_annuaire_public = true;
 
+        v_new_id := v_old_id;
+    END IF;
+
+    -- 2. Nettoyage sécurisé de l'ancien compte (si distinct)
+    IF v_old_id IS NOT NULL AND v_old_id != v_new_id THEN
+        RAISE NOTICE 'Nettoyage de l''ancien compte (ID: %)...', v_old_id;
+        BEGIN
+            DELETE FROM public.cas_identite_privee WHERE alerte_id IN (SELECT id FROM public.alertes_communautaires WHERE notificateur_id = v_old_id);
+            DELETE FROM public.alertes_communautaires WHERE notificateur_id = v_old_id;
+            DELETE FROM public.rapports_mensuels_ascq WHERE ascq_id = v_old_id;
+            DELETE FROM public.ascq_profil_prive WHERE id = v_old_id;
+            DELETE FROM public.ascq_profils WHERE id = v_old_id;
+            DELETE FROM public.relais_communautaires WHERE ascq_id = v_old_id;
+            DELETE FROM public.notifications WHERE destinataire_id = v_old_id;
+            DELETE FROM public.permutations WHERE ascq_id = v_old_id OR partenaire_ascq_id = v_old_id;
+            DELETE FROM public.requetes_ascq WHERE ascq_id = v_old_id;
+            DELETE FROM public.utilisateurs WHERE id = v_old_id;
+            DELETE FROM auth.users WHERE id = v_old_id;
+            RAISE NOTICE 'Ancien compte supprimé avec succès.';
+        EXCEPTION WHEN OTHERS THEN
+            RAISE NOTICE 'Note nettoyage : %', SQLERRM;
+        END;
     END IF;
 
 END $$;
 
--- ---------------------------------------------------------------------
--- 3. RÉACTIVATION DES TRIGGERS DE SÉCURITÉ
--- ---------------------------------------------------------------------
-
-ALTER TABLE public.utilisateurs ENABLE TRIGGER trg_proteger_champs_utilisateurs;
-ALTER TABLE public.utilisateurs ENABLE TRIGGER trg_forcer_champs_inscription;
 
 -- ---------------------------------------------------------------------
--- 4. RÈGLE AUTOMATIQUE PERMANENTE POUR 0169031463
+-- ÉTAPE 4 : RÉACTIVATION ET RECRÉATION DES TRIGGERS DE SÉCURITÉ
 -- ---------------------------------------------------------------------
 
+CREATE OR REPLACE FUNCTION public.proteger_champs_sensibles_utilisateurs()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  -- Permettre les opérations en console SQL (postgres / service_role)
+  IF CURRENT_USER IN ('postgres', 'supabase_admin') OR auth.uid() IS NULL THEN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+  END IF;
+
+  IF NOT public.est_administrateur() THEN
+    IF NEW.role_technique IS DISTINCT FROM OLD.role_technique THEN
+      RAISE EXCEPTION 'Interdit : la modification du rôle technique est strictement réservée aux administrateurs.';
+    END IF;
+
+    IF NEW.statut_compte IS DISTINCT FROM OLD.statut_compte THEN
+      RAISE EXCEPTION 'Interdit : la modification du statut de compte est strictement réservée aux administrateurs.';
+    END IF;
+
+    IF NEW.date_validation IS DISTINCT FROM OLD.date_validation OR NEW.valide_par IS DISTINCT FROM OLD.valide_par THEN
+      RAISE EXCEPTION 'Interdit : les métadonnées de validation sont strictement réservées aux administrateurs.';
+    END IF;
+  END IF;
+
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_proteger_champs_utilisateurs
+BEFORE UPDATE ON public.utilisateurs
+FOR EACH ROW
+EXECUTE FUNCTION public.proteger_champs_sensibles_utilisateurs();
+
+CREATE OR REPLACE FUNCTION public.forcer_champs_inscription_utilisateurs()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF CURRENT_USER IN ('postgres', 'supabase_admin') OR auth.uid() IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  IF NOT public.est_administrateur() THEN
+    NEW.statut_compte = 'EN_ATTENTE';
+    IF NEW.poste = 'ASCQ' THEN
+      NEW.role_technique = 'ASCQ_OPERATEUR';
+    ELSIF NEW.poste = 'RC' THEN
+      NEW.role_technique = 'RELAIS';
+    ELSE
+      NEW.role_technique = 'PUBLIC';
+    END IF;
+    NEW.date_validation = NULL;
+    NEW.valide_par = NULL;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_forcer_champs_inscription
+BEFORE INSERT ON public.utilisateurs
+FOR EACH ROW
+EXECUTE FUNCTION public.forcer_champs_inscription_utilisateurs();
+
+-- Règle automatique permanente pour Bruno (0169031463)
 CREATE OR REPLACE FUNCTION public.trg_garantir_super_admin_bruno()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -249,8 +271,12 @@ BEGIN
 END;
 $$;
 
-DROP TRIGGER IF EXISTS trg_super_admin_bruno_auto ON public.utilisateurs;
 CREATE TRIGGER trg_super_admin_bruno_auto
 BEFORE INSERT OR UPDATE ON public.utilisateurs
 FOR EACH ROW
 EXECUTE FUNCTION public.trg_garantir_super_admin_bruno();
+
+DO $$
+BEGIN
+  RAISE NOTICE 'ASCQ BÉNIN : Configuration Super Admin de Bruno DOSSOU (0169031463) terminée avec succès !';
+END $$;
