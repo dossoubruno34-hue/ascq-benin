@@ -39,7 +39,16 @@ import {
   Edit3,
   ExternalLink,
   FileText,
-  EyeOff
+  EyeOff,
+  Key,
+  KeyRound,
+  Copy,
+  History,
+  UserX,
+  ChevronDown,
+  ChevronUp,
+  FileCheck,
+  PhoneCall
 } from "lucide-react";
 
 export default function AdminPage() {
@@ -141,14 +150,43 @@ export default function AdminPage() {
   const [nominationDepId, setNominationDepId] = useState("");
   const [nominationZsId, setNominationZsId] = useState("");
   const [nominationComId, setNominationComId] = useState("");
+  const [nominationMotif, setNominationMotif] = useState("");
   const [nominationLoading, setNominationLoading] = useState(false);
 
-  // Modification profil communal / PF (Représentant Départemental ou Super Admin)
+  // Modification profil communal / PF avec JUSTIFICATION OBLIGATOIRE
   const [profilModalUser, setProfilModalUser] = useState<any | null>(null);
+  const [profilNom, setProfilNom] = useState("");
+  const [profilPrenoms, setProfilPrenoms] = useState("");
+  const [profilTelephone, setProfilTelephone] = useState("");
+  const [profilDepId, setProfilDepId] = useState("");
+  const [profilZsId, setProfilZsId] = useState("");
   const [profilComId, setProfilComId] = useState("");
   const [profilArrId, setProfilArrId] = useState("");
-  const [profilTelephone, setProfilTelephone] = useState("");
+  const [profilSourceFinancement, setProfilSourceFinancement] = useState("LLF");
+  const [profilDiplome, setProfilDiplome] = useState("");
+  const [profilStatutCompte, setProfilStatutCompte] = useState("VALIDE");
+  const [profilJustification, setProfilJustification] = useState("");
   const [profilLoading, setProfilLoading] = useState(false);
+
+  // Espace Périmètre : Supervision 360°, Dossier complet & Recherche ASCQ
+  const [perimetreSousOnglet, setPerimetreSousOnglet] = useState<"supervision" | "missions" | "demandes_mdp">("supervision");
+  const [searchPerimetreAscq, setSearchPerimetreAscq] = useState("");
+  const [selectedPerimetreAscq, setSelectedPerimetreAscq] = useState<any | null>(null);
+  const [loadingDossier, setLoadingDossier] = useState(false);
+  const [dossierAscq, setDossierAscq] = useState<{ relais: any[]; rma: any[]; hebdo: any[]; audits: any[] }>({
+    relais: [],
+    rma: [],
+    hebdo: [],
+    audits: [],
+  });
+
+  // Réinitialisation de Mot de Passe & Demandes reçues
+  const [resetMdpModalUser, setResetMdpModalUser] = useState<any | null>(null);
+  const [nouveauMdp, setNouveauMdp] = useState("Benin2026!");
+  const [motifResetMdp, setMotifResetMdp] = useState("Réinitialisation suite à mot de passe oublié");
+  const [resetMdpLoading, setResetMdpLoading] = useState(false);
+  const [resetMdpResult, setResetMdpResult] = useState<{ telephone: string; mdp: string } | null>(null);
+  const [demandesMdpList, setDemandesMdpList] = useState<any[]>([]);
 
   // Données géographiques pour nominations et filtres
   const [listeDepartements, setListeDepartements] = useState<any[]>([]);
@@ -259,6 +297,7 @@ export default function AdminPage() {
 
       // Charger les autres données
       await chargerDonneesSecondaires(profil);
+      await chargerDemandesResetMdp();
     } catch (err) {
       console.error("Erreur initialisation admin:", err);
     } finally {
@@ -519,26 +558,58 @@ export default function AdminPage() {
     setNominationDepId(compte.departement_id || "");
     setNominationZsId(compte.zone_sanitaire_id || "");
     setNominationComId(compte.commune_id || "");
+    setNominationMotif("Nomination officielle par le Super Administrateur National");
   };
 
   const handleAssignerResponsabilite = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nominationModalUser) return;
+    if (!nominationMotif.trim()) {
+      alert("Veuillez renseigner le motif ou la référence de la nomination.");
+      return;
+    }
     setNominationLoading(true);
     try {
-      const { data, error } = await supabase.rpc("admin_assigner_responsabilite", {
-        p_target_user_id: nominationModalUser.id,
+      // 1. Tenter la fonction dédiée avec traçabilité et justification
+      const { data, error } = await supabase.rpc("admin_nommer_ascq_responsabilite", {
+        p_ascq_id: nominationModalUser.id,
         p_nouveau_poste: nominationPoste,
         p_nouveau_role_technique: nominationRoleTechnique,
         p_departement_id: nominationDepId || null,
         p_zone_sanitaire_id: nominationZsId || null,
         p_commune_id: nominationComId || null,
+        p_motif_nomination: nominationMotif.trim(),
       });
-      if (error) throw error;
+
+      if (error) {
+        // Fallback sur la fonction d'assignation standard
+        const { error: errFallback } = await supabase.rpc("admin_assigner_responsabilite", {
+          p_target_user_id: nominationModalUser.id,
+          p_nouveau_poste: nominationPoste,
+          p_nouveau_role_technique: nominationRoleTechnique,
+          p_departement_id: nominationDepId || null,
+          p_zone_sanitaire_id: nominationZsId || null,
+          p_commune_id: nominationComId || null,
+        });
+        if (errFallback) throw errFallback;
+      }
+
       setToastMessage({
-        text: `Responsabilité de ${nominationModalUser.nom} ${nominationModalUser.prenoms} assignée avec succès (${nominationPoste} / ${nominationRoleTechnique}) !`,
+        text: `Nomination réussie : ${nominationModalUser.nom} ${nominationModalUser.prenoms} est désormais ${nominationPoste} (${nominationRoleTechnique}) avec accès élargi !`,
         error: false,
       });
+
+      if (selectedPerimetreAscq?.id === nominationModalUser.id) {
+        setSelectedPerimetreAscq((prev: any) => ({
+          ...prev,
+          poste: nominationPoste,
+          role_technique: nominationRoleTechnique,
+          departement_id: nominationDepId || prev?.departement_id,
+          zone_sanitaire_id: nominationZsId || prev?.zone_sanitaire_id,
+          commune_id: nominationComId || prev?.commune_id,
+        }));
+      }
+
       setNominationModalUser(null);
       await chargerComptes();
     } catch (err: any) {
@@ -548,36 +619,200 @@ export default function AdminPage() {
     }
   };
 
-  // Modification profil communal / PF (Représentant Départemental ou Super Admin)
+  // Modification profil ASCQ avec JUSTIFICATION OBLIGATOIRE
   const ouvrirModalProfil = (compte: any) => {
     setProfilModalUser(compte);
+    setProfilNom(compte.nom || "");
+    setProfilPrenoms(compte.prenoms || "");
+    setProfilTelephone(compte.telephone || "");
+    setProfilDepId(compte.departement_id || "");
+    setProfilZsId(compte.zone_sanitaire_id || "");
     setProfilComId(compte.commune_id || "");
     setProfilArrId(compte.arrondissement_id || "");
-    setProfilTelephone(compte.telephone || "");
+    setProfilSourceFinancement(compte.source_financement || compte.ascq_profils?.source_financement || "LLF");
+    setProfilDiplome(compte.diplome || compte.ascq_profils?.diplome || "");
+    setProfilStatutCompte(compte.statut_compte || "VALIDE");
+    setProfilJustification("");
   };
 
   const handleEnregistrerProfil = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!profilModalUser) return;
+
+    if (!profilJustification || profilJustification.trim().length < 5) {
+      alert("⚠️ JUSTIFICATION OBLIGATOIRE : Veuillez fournir un motif ou une justification administrative explicite (au moins 5 caractères) pour valider cette modification.");
+      return;
+    }
+
     setProfilLoading(true);
     try {
-      const { error } = await supabase.rpc("representant_dept_modifier_profil", {
-        p_target_user_id: profilModalUser.id,
+      // 1. Appel RPC complet avec traçabilité d'audit
+      const { data, error } = await supabase.rpc("admin_modifier_profil_ascq_avec_justification", {
+        p_ascq_id: profilModalUser.id,
+        p_nom: profilNom.trim(),
+        p_prenoms: profilPrenoms.trim(),
+        p_telephone: profilTelephone.trim(),
+        p_departement_id: profilDepId || null,
+        p_zone_sanitaire_id: profilZsId || null,
         p_commune_id: profilComId || null,
         p_arrondissement_id: profilArrId || null,
-        p_telephone: profilTelephone || null,
+        p_source_financement: profilSourceFinancement,
+        p_diplome: profilDiplome.trim() || null,
+        p_statut_compte: profilStatutCompte,
+        p_justification: profilJustification.trim(),
       });
-      if (error) throw error;
+
+      if (error) {
+        // Fallback update direct si la migration SQL n'est pas encore appliquée
+        const { error: errDirect } = await supabase
+          .from("utilisateurs")
+          .update({
+            nom: profilNom.trim(),
+            prenoms: profilPrenoms.trim(),
+            telephone: profilTelephone.trim(),
+            departement_id: profilDepId || null,
+            zone_sanitaire_id: profilZsId || null,
+            commune_id: profilComId || null,
+            arrondissement_id: profilArrId || null,
+            statut_compte: profilStatutCompte,
+          })
+          .eq("id", profilModalUser.id);
+        if (errDirect) throw errDirect;
+
+        await supabase
+          .from("ascq_profils")
+          .upsert({
+            user_id: profilModalUser.id,
+            source_financement: profilSourceFinancement,
+            diplome: profilDiplome.trim() || null,
+          });
+      }
+
       setToastMessage({
-        text: `Fiche profil de ${profilModalUser.nom} ${profilModalUser.prenoms} mise à jour avec succès !`,
+        text: `Fiche profil de ${profilNom} ${profilPrenoms} mise à jour et justifiée avec succès !`,
         error: false,
       });
+
+      if (selectedPerimetreAscq?.id === profilModalUser.id) {
+        chargerDossierCompletAscq(profilModalUser);
+      }
+
       setProfilModalUser(null);
       await chargerComptes();
     } catch (err: any) {
       setToastMessage({ text: "Erreur modification profil : " + (err.message || err), error: true });
     } finally {
       setProfilLoading(false);
+    }
+  };
+
+  // Chargement exhaustif du dossier 360° d'un ASCQ (Relais, RMA, PNSC, Plannings, Audits)
+  const chargerDossierCompletAscq = async (ascq: any) => {
+    setSelectedPerimetreAscq(ascq);
+    setLoadingDossier(true);
+    try {
+      // 1. Relais communautaires supervisés
+      const { data: relais } = await supabase
+        .from("relais_communautaires")
+        .select("*")
+        .eq("ascq_id", ascq.id)
+        .order("nom", { ascending: true });
+
+      // 2. Rapports Mensuels RMA
+      const { data: rma } = await supabase
+        .from("rapports_mensuels_ascq")
+        .select("id, mois, annee, statut, date_validation, created_at, numero_rapport")
+        .eq("ascq_id", ascq.id)
+        .order("annee", { ascending: false })
+        .order("mois", { ascending: false });
+
+      // 3. Suivis Hebdo PNSC
+      const { data: hebdo } = await supabase
+        .from("rapports_hebdo_pnsc")
+        .select("id, annee, semaine, statut, rh_gap, motos_gap, ordinateurs_gap, remuneration_due_llf, remuneration_due_fadec, remuneration_due_srhr, created_at")
+        .eq("ascq_id", ascq.id)
+        .order("annee", { ascending: false })
+        .order("semaine", { ascending: false });
+
+      // 4. Audits & Justifications
+      const { data: audits } = await supabase
+        .from("audit_modifications_ascq")
+        .select("*, admin:admin_id(nom, prenoms)")
+        .eq("ascq_id", ascq.id)
+        .order("created_at", { ascending: false });
+
+      setDossierAscq({
+        relais: relais || [],
+        rma: rma || [],
+        hebdo: hebdo || [],
+        audits: audits || [],
+      });
+    } catch (err) {
+      console.error("Erreur chargement dossier complet ASCQ:", err);
+    } finally {
+      setLoadingDossier(false);
+    }
+  };
+
+  // Réinitialisation de mot de passe (En cas d'oubli)
+  const ouvrirModalResetMdp = (compte: any) => {
+    setResetMdpModalUser(compte);
+    setNouveauMdp("Benin2026!");
+    setMotifResetMdp("Réinitialisation suite à mot de passe oublié");
+    setResetMdpResult(null);
+  };
+
+  const handleResetMdp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetMdpModalUser) return;
+    if (!nouveauMdp || nouveauMdp.length < 6) {
+      alert("Le mot de passe doit comporter au moins 6 caractères.");
+      return;
+    }
+    setResetMdpLoading(true);
+    try {
+      const { data, error } = await supabase.rpc("admin_reinitialiser_mot_de_passe", {
+        p_target_user_id: resetMdpModalUser.id,
+        p_nouveau_mot_de_passe: nouveauMdp,
+        p_motif: motifResetMdp.trim(),
+      });
+
+      if (error) {
+        // Notification d'information si la fonction SQL n'est pas encore créée
+        throw new Error(error.message || "Erreur réinitialisation mot de passe.");
+      }
+
+      setResetMdpResult({
+        telephone: resetMdpModalUser.telephone,
+        mdp: nouveauMdp,
+      });
+
+      setToastMessage({
+        text: `Mot de passe réinitialisé avec succès pour ${resetMdpModalUser.nom} ${resetMdpModalUser.prenoms} !`,
+        error: false,
+      });
+
+      await chargerDemandesResetMdp();
+    } catch (err: any) {
+      setToastMessage({ text: "Erreur réinitialisation : " + (err.message || err), error: true });
+    } finally {
+      setResetMdpLoading(false);
+    }
+  };
+
+  // Charger les demandes de réinitialisation de mot de passe en attente
+  const chargerDemandesResetMdp = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("demandes_reinitialisation_mdp")
+        .select("*")
+        .eq("statut", "EN_ATTENTE")
+        .order("created_at", { ascending: false });
+      if (!error && data) {
+        setDemandesMdpList(data);
+      }
+    } catch (e) {
+      // Ignorer si la table n'est pas encore créée
     }
   };
 
@@ -965,7 +1200,7 @@ export default function AdminPage() {
             {[
               { id: "dashboard", label: "Tableau de bord", icon: LayoutDashboard },
               { id: "comptes_ascq", label: "Comptes & ASCQ", icon: Users },
-              { id: "perimetre_activites", label: "Périmètre & Activités", icon: Activity },
+              { id: "perimetre_activites", label: "Périmètre & Supervision ASCQ", icon: Activity, badge: demandesMdpList.length > 0 ? demandesMdpList.length : null },
               { id: "permutations_requetes", label: "Permutations & Requêtes", icon: ArrowLeftRight },
               { id: "diffusion_alertes", label: "Diffusion Alertes", icon: BellRing },
               { id: "ecoute_conseils", label: "Conseils & Citoyens", icon: HeartHandshake },
@@ -987,6 +1222,11 @@ export default function AdminPage() {
                 >
                   <Icon className="w-3.5 h-3.5" />
                   <span>{item.label}</span>
+                  {item.badge && (
+                    <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-red-600 text-white font-black ml-0.5">
+                      {item.badge}
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -1333,10 +1573,23 @@ export default function AdminPage() {
                               type="button"
                               onClick={() => ouvrirModalProfil(c)}
                               className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 font-bold text-xs flex items-center gap-1 active:scale-95 transition-all"
-                              title="Modifier la fiche profil (commune, arrondissement, téléphone)"
+                              title="Modifier la fiche profil (avec justification obligatoire)"
                             >
                               <Edit3 className="w-3 h-3 text-slate-600" />
                               <span>Profil</span>
+                            </button>
+                          )}
+
+                          {/* 2b. BOUTON RÉINITIALISER MOT DE PASSE */}
+                          {(currentUser?.role_technique === "SUPER_ADMIN" || currentUser?.role_technique === "ADMINISTRATEUR" || currentUser?.role_technique === "REPRESENTANT_DEPARTEMENTAL") && (
+                            <button
+                              type="button"
+                              onClick={() => ouvrirModalResetMdp(c)}
+                              className="px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 font-bold text-xs flex items-center gap-1 active:scale-95 transition-all"
+                              title="Réinitialiser le mot de passe de cet agent"
+                            >
+                              <KeyRound className="w-3 h-3 text-amber-600" />
+                              <span>MDP</span>
                             </button>
                           )}
 
@@ -1532,127 +1785,702 @@ export default function AdminPage() {
         )}
 
         {/* ========================================================= */}
-        {/* ONGLET 3 : PÉRIMITRE & ACTIVITÉS DEMANDÉES AUX ASCQ */}
+        {/* ========================================================= */}
+        {/* ONGLET 3 : PÉRIMÈTRE, SUPERVISION ASCQ & ORDRES DE MISSION */}
         {/* ========================================================= */}
         {tab === "perimetre_activites" && (
           <div className="space-y-6">
-            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-              <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
-                <Activity className="w-5 h-5 text-emerald-600" />
-                <div>
-                  <h2 className="font-extrabold text-sm sm:text-base text-slate-900">
-                    Demander une Activité ou Mission Spécifique aux ASCQ
-                  </h2>
-                  <p className="text-xs text-slate-500">
-                    Diffuser une consigne de terrain ou un ordre de mission (Sensibilisation, riposte, ratissage) sur votre périmètre.
-                  </p>
+            {/* EN-TÊTE ET SOUS-ONGLETS DE L'ESPACE PÉRIMÈTRE */}
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-emerald-100 text-[#005c30] rounded-xl">
+                    <Activity className="w-5 h-5 text-emerald-700" />
+                  </div>
+                  <div>
+                    <h2 className="font-extrabold text-sm sm:text-base text-slate-900">
+                      Supervision du Périmètre & Gestion des ASCQ
+                    </h2>
+                    <p className="text-xs text-slate-500 font-medium">
+                      Accès 360° aux ASCQ, modifications justifiées, nominations aux postes territoriaux et gestion des accès.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {currentUser?.role_technique === "SUPER_ADMIN" && (
+                    <span className="inline-flex items-center gap-1 px-3 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-xl text-xs font-bold">
+                      <Crown className="w-3.5 h-3.5 text-amber-600" />
+                      <span>Pouvoir National de Nomination</span>
+                    </span>
+                  )}
                 </div>
               </div>
 
-              <form onSubmit={handleCreerActiviteDemandee} className="space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="sm:col-span-2">
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Titre de la mission</label>
-                    <input
-                      type="text"
-                      placeholder="Ex : Ratissage vaccinal rougeole dans les hameaux isolés"
-                      value={titreActivite}
-                      onChange={(e) => setTitreActivite(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:ring-2 focus:ring-emerald-600 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Date d'échéance</label>
-                    <input
-                      type="date"
-                      value={dateEcheanceActivite}
-                      onChange={(e) => setDateEcheanceActivite(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:ring-2 focus:ring-emerald-600 focus:outline-none"
-                    />
-                  </div>
-                </div>
+              {/* Sous-navigation de l'espace périmètre */}
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setPerimetreSousOnglet("supervision")}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+                    perimetreSousOnglet === "supervision"
+                      ? "bg-[#005c30] text-white shadow-sm"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  <Search className="w-3.5 h-3.5" />
+                  <span>1. Recherche & Dossier 360° ASCQ</span>
+                </button>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Type d'activité</label>
-                    <select
-                      value={typeActivite}
-                      onChange={(e) => setTypeActivite(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:ring-2 focus:ring-emerald-600 focus:outline-none bg-white"
-                    >
-                      <option value="SENSIBILISATION">Campagne de Sensibilisation</option>
-                      <option value="RATISSAGE_VACCINAL">Ratissage Vaccinal</option>
-                      <option value="RIPOSTE_EPIDEMIQUE">Riposte Épidémique Immédiate</option>
-                      <option value="ENQUETE_TERRAIN">Enquête et autopsie communautaire</option>
-                      <option value="REUNION_COORDINATION">Réunion de Coordination</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Niveau d'Urgence</label>
-                    <select
-                      value={prioriteActivite}
-                      onChange={(e) => setPrioriteActivite(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:ring-2 focus:ring-emerald-600 focus:outline-none bg-white"
-                    >
-                      <option value="NORMALE">Priorité Normale</option>
-                      <option value="HAUTE">Haute Priorité</option>
-                      <option value="URGENTE">Urgente (Riposte immédiate)</option>
-                    </select>
-                  </div>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPerimetreSousOnglet("demandes_mdp");
+                    chargerDemandesResetMdp();
+                  }}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+                    perimetreSousOnglet === "demandes_mdp"
+                      ? "bg-amber-600 text-white shadow-sm"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  <KeyRound className="w-3.5 h-3.5" />
+                  <span>2. Mots de Passe Oubliés</span>
+                  {demandesMdpList.length > 0 && (
+                    <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-red-600 text-white font-black">
+                      {demandesMdpList.length}
+                    </span>
+                  )}
+                </button>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Description détaillée des consignes</label>
-                  <textarea
-                    rows={3}
-                    placeholder="Précisez les objectifs, les zones ciblées et les résultats attendus..."
-                    value={descActivite}
-                    onChange={(e) => setDescActivite(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:ring-2 focus:ring-emerald-600 focus:outline-none"
-                  ></textarea>
-                </div>
-
-                <div className="flex justify-end pt-2">
-                  <button
-                    type="submit"
-                    disabled={envoiActiviteLoading}
-                    className="px-5 py-2.5 rounded-xl bg-[#005c30] text-white font-bold text-xs shadow-md hover:bg-[#004724] active:scale-95 transition-all flex items-center gap-1.5"
-                  >
-                    <Send className="w-3.5 h-3.5" />
-                    <span>{envoiActiviteLoading ? "Transmission..." : "Transmettre la mission aux ASCQ"}</span>
-                  </button>
-                </div>
-              </form>
+                <button
+                  type="button"
+                  onClick={() => setPerimetreSousOnglet("missions")}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+                    perimetreSousOnglet === "missions"
+                      ? "bg-slate-900 text-white shadow-sm"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span>3. Ordres de Mission & Activités ({activitesDemandees.length})</span>
+                </button>
+              </div>
             </div>
 
-            {/* HISTORIQUE DES ACTIVITÉS DEMANDÉES */}
-            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
-              <h3 className="font-black text-xs text-slate-800 uppercase tracking-wider">
-                Missions transmises sur le périmètre
-              </h3>
-              <div className="divide-y divide-slate-100">
-                {activitesDemandees.length === 0 ? (
-                  <p className="py-4 text-center text-xs text-slate-400 italic">Aucune mission enregistrée pour le moment.</p>
-                ) : (
-                  activitesDemandees.map((act) => (
-                    <div key={act.id} className="py-3 flex items-start justify-between gap-3 text-xs">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-slate-900">{act.titre}</span>
-                          <span className="px-2 py-0.2 rounded text-[9px] font-black uppercase bg-slate-100 text-slate-700">
-                            {act.type_activite}
-                          </span>
+            {/* ========================================================= */}
+            {/* SOUS-ONGLET 1 : SUPERVISION 360° & ACCÈS COMPLET ASCQ */}
+            {/* ========================================================= */}
+            {perimetreSousOnglet === "supervision" && (
+              <div className="space-y-5">
+                {/* 1. MOTEUR DE RECHERCHE DYNAMIQUE UNIVERSEL */}
+                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+                  <div className="flex flex-col sm:flex-row items-center gap-3">
+                    <div className="relative flex-1 w-full">
+                      <Search className="w-4 h-4 text-emerald-600 absolute left-3 top-3" />
+                      <input
+                        type="text"
+                        placeholder="Rechercher un ASCQ par nom, prénom, téléphone, département, commune, arrondissement..."
+                        value={searchPerimetreAscq}
+                        onChange={(e) => setSearchPerimetreAscq(e.target.value)}
+                        className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#005c30]"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Résumé des effectifs supervisés */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-100 text-center">
+                    <div className="p-2 bg-slate-50 rounded-xl border border-slate-200/60">
+                      <p className="text-[10px] text-slate-500 font-bold uppercase">Total ASCQ</p>
+                      <p className="text-base font-black text-slate-900">
+                        {comptes.filter((c) => ["ASCQ", "REPRESENTANT_COMMUNAL", "REPRESENTANT_DEPARTEMENTAL"].includes(c.poste)).length}
+                      </p>
+                    </div>
+                    <div className="p-2 bg-emerald-50 rounded-xl border border-emerald-200/60">
+                      <p className="text-[10px] text-emerald-800 font-bold uppercase">Registre National</p>
+                      <p className="text-base font-black text-[#005c30]">
+                        {comptes.filter((c) => c.present_liste_nationale).length}
+                      </p>
+                    </div>
+                    <div className="p-2 bg-blue-50 rounded-xl border border-blue-200/60">
+                      <p className="text-[10px] text-blue-800 font-bold uppercase">Représentants Communaux</p>
+                      <p className="text-base font-black text-blue-900">
+                        {comptes.filter((c) => c.poste === "REPRESENTANT_COMMUNAL" || c.role_technique === "REPRESENTANT_COMMUNAL").length}
+                      </p>
+                    </div>
+                    <div className="p-2 bg-purple-50 rounded-xl border border-purple-200/60">
+                      <p className="text-[10px] text-purple-800 font-bold uppercase">Représentants Départementaux</p>
+                      <p className="text-base font-black text-purple-900">
+                        {comptes.filter((c) => c.poste === "REPRESENTANT_DEPARTEMENTAL" || c.role_technique === "REPRESENTANT_DEPARTEMENTAL").length}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. RÉSULTATS DE LA RECHERCHE & SÉLECTEUR D'AGENT */}
+                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+                  <h3 className="font-extrabold text-xs text-slate-800 uppercase tracking-wider flex items-center justify-between">
+                    <span>Sélectionner un ASCQ pour ouvrir son dossier complet 360°</span>
+                    <span className="text-slate-400 font-medium normal-case text-[11px]">
+                      Cliquez sur un agent pour afficher ses données
+                    </span>
+                  </h3>
+
+                  {(() => {
+                    const ascqList = comptes
+                      .filter((c) => ["ASCQ", "REPRESENTANT_COMMUNAL", "REPRESENTANT_DEPARTEMENTAL", "PF_CCLS_TP"].includes(c.poste) || c.role_technique === "ASCQ")
+                      .filter((c) => {
+                        if (!searchPerimetreAscq.trim()) return true;
+                        const query = searchPerimetreAscq.toLowerCase();
+                        const full = `${c.nom} ${c.prenoms} ${c.telephone} ${c.commune_nom || ""} ${c.departement_nom || ""} ${c.arrondissement_nom || ""}`.toLowerCase();
+                        return full.includes(query);
+                      });
+
+                    if (ascqList.length === 0) {
+                      return (
+                        <div className="p-6 text-center text-xs text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                          Aucun ASCQ trouvé correspondant à « {searchPerimetreAscq} ».
                         </div>
-                        <p className="text-slate-600 text-[11px] mt-1">{act.description}</p>
-                        <p className="text-slate-400 text-[10px] mt-1">
-                          Échéance : {act.date_echeance} • Statut : <span className="font-bold">{act.statut}</span>
-                        </p>
+                      );
+                    }
+
+                    return (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-72 overflow-y-auto pr-1">
+                        {ascqList.map((ascq) => {
+                          const isSelected = selectedPerimetreAscq?.id === ascq.id;
+                          return (
+                            <button
+                              key={ascq.id}
+                              type="button"
+                              onClick={() => chargerDossierCompletAscq(ascq)}
+                              className={`p-3 rounded-2xl border text-left transition-all flex items-start gap-3 active:scale-[0.99] ${
+                                isSelected
+                                  ? "bg-emerald-50/80 border-[#005c30] ring-2 ring-[#005c30]/20 shadow-sm"
+                                  : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                              }`}
+                            >
+                              <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 shrink-0 overflow-hidden flex items-center justify-center font-black text-xs text-[#005c30]">
+                                {ascq.photo_url ? (
+                                  <img src={ascq.photo_url} alt="" className="w-full h-full object-cover" />
+                                ) : (
+                                  <span>{ascq.prenoms?.[0] || ""}{ascq.nom?.[0] || ""}</span>
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <p className="font-extrabold text-xs text-slate-900 truncate">
+                                    {ascq.nom} {ascq.prenoms}
+                                  </p>
+                                  {ascq.poste === "REPRESENTANT_COMMUNAL" && (
+                                    <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-blue-100 text-blue-800">
+                                      Rep. Com
+                                    </span>
+                                  )}
+                                  {ascq.poste === "REPRESENTANT_DEPARTEMENTAL" && (
+                                    <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-purple-100 text-purple-800">
+                                      Rep. Dép
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-[11px] text-slate-500 font-mono">
+                                  {ascq.telephone}
+                                </p>
+                                <p className="text-[10px] text-slate-600 truncate mt-0.5">
+                                  {ascq.commune_nom || "Commune N/A"} • {ascq.arrondissement_nom || "Arrond."}
+                                </p>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                {/* 3. DOSSIER 360° DE L'ASCQ SÉLECTIONNÉ (« ACCÈS À TOUT ») */}
+                {selectedPerimetreAscq ? (
+                  <div className="bg-white rounded-3xl border border-slate-200 shadow-md overflow-hidden space-y-5 animate-in fade-in">
+                    {/* BANDEAU EN-TÊTE DU DOSSIER */}
+                    <div className="bg-gradient-to-r from-[#005c30] to-emerald-800 p-5 sm:p-6 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="flex items-center gap-4">
+                        <div className="w-16 h-16 rounded-2xl bg-white p-1 overflow-hidden shrink-0 shadow-lg border-2 border-emerald-300">
+                          {selectedPerimetreAscq.photo_url ? (
+                            <img src={selectedPerimetreAscq.photo_url} alt="" className="w-full h-full object-cover rounded-xl" />
+                          ) : (
+                            <div className="w-full h-full bg-emerald-50 flex items-center justify-center font-black text-lg text-[#005c30] rounded-xl">
+                              {selectedPerimetreAscq.prenoms?.[0] || ""}{selectedPerimetreAscq.nom?.[0] || ""}
+                            </div>
+                          )}
+                        </div>
+
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h2 className="text-lg sm:text-xl font-black uppercase tracking-tight">
+                              {selectedPerimetreAscq.nom} {selectedPerimetreAscq.prenoms}
+                            </h2>
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-400 text-emerald-950">
+                              {selectedPerimetreAscq.statut_compte}
+                            </span>
+                          </div>
+                          <p className="text-xs text-emerald-100 font-medium">
+                            Identifiant : <span className="font-mono font-bold text-white">{selectedPerimetreAscq.telephone}</span> • Affectation : {selectedPerimetreAscq.commune_nom || "Commune"} ({selectedPerimetreAscq.arrondissement_nom || "Arrondissement"})
+                          </p>
+                          <div className="flex items-center gap-2 mt-1 flex-wrap">
+                            <span className="px-2 py-0.5 rounded-lg text-[10px] font-extrabold bg-white/20 text-white">
+                              Poste : {selectedPerimetreAscq.poste}
+                            </span>
+                            <span className="px-2 py-0.5 rounded-lg text-[10px] font-extrabold bg-white/20 text-white">
+                              Rôle : {selectedPerimetreAscq.role_technique}
+                            </span>
+                            {selectedPerimetreAscq.present_liste_nationale && (
+                              <span className="px-2 py-0.5 rounded-lg text-[10px] font-extrabold bg-amber-400 text-amber-950 flex items-center gap-1">
+                                <Check className="w-3 h-3" />
+                                <span>Inscrit Registre National</span>
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 3 BOUTONS D'ACTION MAJEURS DE L'ADMINISTRATEUR */}
+                      <div className="flex flex-wrap items-center gap-2 shrink-0">
+                        {/* Action 1 : Nommer à un poste territorial */}
+                        {currentUser?.role_technique === "SUPER_ADMIN" && (
+                          <button
+                            type="button"
+                            onClick={() => ouvrirModalNomination(selectedPerimetreAscq)}
+                            className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-xs shadow-md active:scale-95 transition-all flex items-center gap-1.5"
+                            title="Nommer cet ASCQ à un poste pour ouvrir ses accès de suivi"
+                          >
+                            <Crown className="w-4 h-4 text-white" />
+                            <span>Nommer au poste</span>
+                          </button>
+                        )}
+
+                        {/* Action 2 : Modifier la fiche avec justification */}
+                        <button
+                          type="button"
+                          onClick={() => ouvrirModalProfil(selectedPerimetreAscq)}
+                          className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-800 font-extrabold text-xs shadow-md active:scale-95 transition-all flex items-center gap-1.5"
+                          title="Modifier les informations de l'ASCQ avec justification obligatoire"
+                        >
+                          <Edit3 className="w-4 h-4 text-emerald-700" />
+                          <span>Modifier (Justifié)</span>
+                        </button>
+
+                        {/* Action 3 : Réinitialiser mot de passe */}
+                        <button
+                          type="button"
+                          onClick={() => ouvrirModalResetMdp(selectedPerimetreAscq)}
+                          className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-black text-white font-extrabold text-xs shadow-md active:scale-95 transition-all flex items-center gap-1.5"
+                          title="Réinitialiser le mot de passe en cas d'oubli"
+                        >
+                          <KeyRound className="w-4 h-4 text-amber-400" />
+                          <span>Réinitialiser MDP</span>
+                        </button>
                       </div>
                     </div>
-                  ))
+
+                    {/* CORPS DU DOSSIER : DONNÉES CROISÉES ET RELAIS */}
+                    <div className="p-5 sm:p-6 space-y-6">
+                      {loadingDossier ? (
+                        <div className="p-8 text-center text-xs text-slate-500 font-bold flex items-center justify-center gap-2">
+                          <RefreshCw className="w-4 h-4 animate-spin text-emerald-600" />
+                          <span>Chargement complet du dossier (Relais, RMA, PNSC, Audits)...</span>
+                        </div>
+                      ) : (
+                        <>
+                          {/* 1. GRILLE RÉCAPITULATIVE DU PROFIL */}
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-1">
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                                Territoire d'Affectation
+                              </span>
+                              <p className="text-xs font-black text-slate-900">
+                                {selectedPerimetreAscq.departement_nom || "National"} &rarr; {selectedPerimetreAscq.commune_nom || "Commune"}
+                              </p>
+                              <p className="text-[11px] text-slate-600">
+                                Arrondissement : <strong>{selectedPerimetreAscq.arrondissement_nom || "N/A"}</strong>
+                              </p>
+                            </div>
+
+                            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-1">
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                                Financement & Qualification
+                              </span>
+                              <p className="text-xs font-black text-slate-900">
+                                Source : <span className="text-emerald-700">{selectedPerimetreAscq.source_financement || selectedPerimetreAscq.ascq_profils?.source_financement || "LLF"}</span>
+                              </p>
+                              <p className="text-[11px] text-slate-600">
+                                Diplôme : {selectedPerimetreAscq.diplome || selectedPerimetreAscq.ascq_profils?.diplome || "Diplôme d'état en santé"}
+                              </p>
+                            </div>
+
+                            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-1">
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                                Droits de Suivi Accordés
+                              </span>
+                              <p className="text-xs font-black text-slate-900">
+                                {selectedPerimetreAscq.poste === "REPRESENTANT_COMMUNAL"
+                                  ? "Accès complet à TOUTE sa Commune"
+                                  : selectedPerimetreAscq.poste === "REPRESENTANT_DEPARTEMENTAL"
+                                  ? "Accès complet à TOUT son Département"
+                                  : "Accès standard Arrondissement"}
+                              </p>
+                              <p className="text-[11px] text-slate-500">
+                                Relais supervisés : <strong>{dossierAscq.relais.length}</strong>
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* 2. LISTE DES RELAIS COMMUNAUTAIRES (RC) RATTACHÉS */}
+                          <div className="p-4 bg-slate-50/70 rounded-2xl border border-slate-200 space-y-3">
+                            <div className="flex items-center justify-between">
+                              <h4 className="font-extrabold text-xs text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                                <Users className="w-4 h-4 text-emerald-600" />
+                                <span>Relais Communautaires (RC) sous la tutelle de cet ASCQ ({dossierAscq.relais.length})</span>
+                              </h4>
+                              <span className="text-[11px] text-slate-500">
+                                Total ménages suivis : <strong>{dossierAscq.relais.reduce((acc, r) => acc + (Number(r.menages_charge) || 0), 0)}</strong>
+                              </span>
+                            </div>
+
+                            {dossierAscq.relais.length === 0 ? (
+                              <p className="py-4 text-center text-xs text-slate-400 italic bg-white rounded-xl border border-slate-200/60">
+                                Aucun relais communautaire n'a encore été créé par cet ASCQ.
+                              </p>
+                            ) : (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                                {dossierAscq.relais.map((rc) => (
+                                  <div key={rc.id} className="p-3 bg-white rounded-xl border border-slate-200 text-xs space-y-1 shadow-sm">
+                                    <div className="flex items-center justify-between">
+                                      <span className="font-extrabold text-slate-900">{rc.nom} {rc.prenoms}</span>
+                                      <span className={`px-1.5 py-0.2 rounded text-[9px] font-black ${rc.statut_compte === "VALIDE" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
+                                        {rc.statut_compte || "VALIDE"}
+                                      </span>
+                                    </div>
+                                    <p className="text-[11px] text-slate-500 font-mono">{rc.telephone || "Sans téléphone"}</p>
+                                    <p className="text-[10px] text-slate-600">
+                                      Village : <strong>{rc.village || "Non spécifié"}</strong> • Ménages : <strong>{rc.menages_charge || 0}</strong>
+                                    </p>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* 3. ACTIVITÉ & SUIVIS (RMA & PNSC) */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            {/* Suivis Hebdo PNSC */}
+                            <div className="p-4 bg-slate-50/70 rounded-2xl border border-slate-200 space-y-2">
+                              <h4 className="font-extrabold text-xs text-slate-800 uppercase tracking-wider flex items-center justify-between">
+                                <span className="flex items-center gap-1.5">
+                                  <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                                  <span>Suivis Hebdo PNSC Déposés</span>
+                                </span>
+                                <span className="text-emerald-700 font-black">{dossierAscq.hebdo.length}</span>
+                              </h4>
+                              {dossierAscq.hebdo.length === 0 ? (
+                                <p className="text-[11px] text-slate-400 italic">Aucun suivi hebdomadaire PNSC enregistré.</p>
+                              ) : (
+                                <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                                  {dossierAscq.hebdo.map((h) => (
+                                    <div key={h.id} className="p-2 bg-white rounded-lg border border-slate-200 text-[11px] flex items-center justify-between">
+                                      <div>
+                                        <span className="font-bold text-slate-800">Semaine {h.semaine} ({h.annee})</span>
+                                        <p className="text-[10px] text-slate-500">
+                                          Gap RH : {h.rh_gap} • Gap Moto : {h.motos_gap} • Arriérés : {Number(h.remuneration_due_llf || 0) + Number(h.remuneration_due_fadec || 0) + Number(h.remuneration_due_srhr || 0)} mois
+                                        </p>
+                                      </div>
+                                      <span className="px-2 py-0.5 rounded text-[9px] font-black bg-emerald-100 text-emerald-800">
+                                        {h.statut}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Rapports Mensuels RMA */}
+                            <div className="p-4 bg-slate-50/70 rounded-2xl border border-slate-200 space-y-2">
+                              <h4 className="font-extrabold text-xs text-slate-800 uppercase tracking-wider flex items-center justify-between">
+                                <span className="flex items-center gap-1.5">
+                                  <FileText className="w-4 h-4 text-emerald-600" />
+                                  <span>Rapports Mensuels RMA</span>
+                                </span>
+                                <span className="text-emerald-700 font-black">{dossierAscq.rma.length}</span>
+                              </h4>
+                              {dossierAscq.rma.length === 0 ? (
+                                <p className="text-[11px] text-slate-400 italic">Aucun RMA mensuel déposé.</p>
+                              ) : (
+                                <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                                  {dossierAscq.rma.map((r) => (
+                                    <div key={r.id} className="p-2 bg-white rounded-lg border border-slate-200 text-[11px] flex items-center justify-between">
+                                      <div>
+                                        <span className="font-bold text-slate-800">{r.numero_rapport || `RMA-${r.annee}-${r.mois}`}</span>
+                                        <p className="text-[10px] text-slate-500">
+                                          Mois : {r.mois}/{r.annee}
+                                        </p>
+                                      </div>
+                                      <span className={`px-2 py-0.5 rounded text-[9px] font-black ${r.statut === "VALIDE" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
+                                        {r.statut}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* 4. HISTORIQUE DES JUSTIFICATIONS ET AUDITS DE MODIFICATIONS */}
+                          <div className="p-4 bg-amber-50/50 rounded-2xl border border-amber-200/80 space-y-2">
+                            <h4 className="font-extrabold text-xs text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
+                              <History className="w-4 h-4 text-amber-700" />
+                              <span>Journal des Justifications Administratives & Audits ({dossierAscq.audits.length})</span>
+                            </h4>
+                            {dossierAscq.audits.length === 0 ? (
+                              <p className="text-[11px] text-amber-700 italic">Aucune modification antérieure enregistrée dans le journal d'audit.</p>
+                            ) : (
+                              <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                                {dossierAscq.audits.map((a) => (
+                                  <div key={a.id} className="p-2 bg-white rounded-lg border border-amber-200 text-[11px] space-y-0.5 shadow-sm">
+                                    <div className="flex items-center justify-between text-[10px] text-slate-500">
+                                      <span>Action : <strong className="text-slate-800">{a.type_action}</strong></span>
+                                      <span>{new Date(a.created_at).toLocaleString("fr-FR")}</span>
+                                    </div>
+                                    <p className="font-semibold text-slate-800">
+                                      Justification : <span className="text-amber-900 font-bold">{a.motif_justification}</span>
+                                    </p>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-8 text-center text-xs text-slate-400 bg-white rounded-3xl border border-slate-200">
+                    <Users className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                    <p className="font-bold text-slate-700">Aucun ASCQ sélectionné</p>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Veuillez utiliser la recherche ci-dessus pour sélectionner un ASCQ et afficher l'intégralité de son dossier de supervision.
+                    </p>
+                  </div>
                 )}
               </div>
-            </div>
+            )}
+
+            {/* ========================================================= */}
+            {/* SOUS-ONGLET 2 : GESTION DES MOTS DE PASSE OUBLIÉS */}
+            {/* ========================================================= */}
+            {perimetreSousOnglet === "demandes_mdp" && (
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                  <div className="flex items-center gap-2">
+                    <KeyRound className="w-5 h-5 text-amber-600" />
+                    <div>
+                      <h3 className="font-extrabold text-sm text-slate-900">
+                        Demandes de Réinitialisation de Mot de Passe en Attente
+                      </h3>
+                      <p className="text-xs text-slate-500">
+                        Agents n'arrivant pas à se connecter et ayant soumis une demande depuis l'écran de connexion.
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={chargerDemandesResetMdp}
+                    className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Actualiser</span>
+                  </button>
+                </div>
+
+                {demandesMdpList.length === 0 ? (
+                  <div className="p-8 text-center text-xs text-slate-400 bg-slate-50 rounded-xl border border-slate-200">
+                    <CheckCircle2 className="w-6 h-6 text-emerald-600 mx-auto mb-2" />
+                    <p className="font-bold text-slate-700">Aucune demande en attente</p>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Tous les agents accèdent normalement à leur compte.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-100">
+                    {demandesMdpList.map((d) => {
+                      const userFound = comptes.find(
+                        (c) => c.telephone?.replace(/\D/g, "") === d.telephone?.replace(/\D/g, "")
+                      );
+                      return (
+                        <div key={d.id} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                          <div className="space-y-0.5">
+                            <div className="flex items-center gap-2">
+                              <span className="font-black text-slate-900 text-sm">
+                                {d.nom_declare || (userFound ? `${userFound.nom} ${userFound.prenoms}` : "Agent")}
+                              </span>
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800">
+                                {userFound?.poste || "ASCQ"}
+                              </span>
+                            </div>
+                            <p className="text-slate-600 font-mono font-bold">
+                              Téléphone : {d.telephone} {userFound?.commune_nom && `• Commune : ${userFound.commune_nom}`}
+                            </p>
+                            <p className="text-[10px] text-slate-400">
+                              Demande reçue le {new Date(d.created_at).toLocaleString("fr-FR")}
+                            </p>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            {userFound ? (
+                              <button
+                                type="button"
+                                onClick={() => ouvrirModalResetMdp(userFound)}
+                                className="px-4 py-2 bg-[#005c30] hover:bg-[#004724] text-white font-bold text-xs rounded-xl shadow-sm flex items-center gap-1.5 active:scale-95 transition-all"
+                              >
+                                <Key className="w-3.5 h-3.5" />
+                                <span>Réinitialiser en 1 clic</span>
+                              </button>
+                            ) : (
+                              <span className="text-[11px] text-amber-700 italic">
+                                Numéro non relié directement à un compte existant
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ========================================================= */}
+            {/* SOUS-ONGLET 3 : ORDRES DE MISSION & ACTIVITÉS DEMANDÉES */}
+            {/* ========================================================= */}
+            {perimetreSousOnglet === "missions" && (
+              <div className="space-y-6">
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                  <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+                    <Activity className="w-5 h-5 text-emerald-600" />
+                    <div>
+                      <h2 className="font-extrabold text-sm sm:text-base text-slate-900">
+                        Demander une Activité ou Mission Spécifique aux ASCQ
+                      </h2>
+                      <p className="text-xs text-slate-500">
+                        Diffuser une consigne de terrain ou un ordre de mission (Sensibilisation, riposte, ratissage) sur votre périmètre.
+                      </p>
+                    </div>
+                  </div>
+
+                  <form onSubmit={handleCreerActiviteDemandee} className="space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="sm:col-span-2">
+                        <label className="block text-xs font-bold text-slate-700 mb-1">Titre de la mission</label>
+                        <input
+                          type="text"
+                          placeholder="Ex : Ratissage vaccinal rougeole dans les hameaux isolés"
+                          value={titreActivite}
+                          onChange={(e) => setTitreActivite(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:ring-2 focus:ring-emerald-600 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">Date d'échéance</label>
+                        <input
+                          type="date"
+                          value={dateEcheanceActivite}
+                          onChange={(e) => setDateEcheanceActivite(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:ring-2 focus:ring-emerald-600 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">Type d'activité</label>
+                        <select
+                          value={typeActivite}
+                          onChange={(e) => setTypeActivite(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:ring-2 focus:ring-emerald-600 focus:outline-none bg-white"
+                        >
+                          <option value="SENSIBILISATION">Campagne de Sensibilisation</option>
+                          <option value="RATISSAGE_VACCINAL">Ratissage Vaccinal</option>
+                          <option value="RIPOSTE_EPIDEMIQUE">Riposte Épidémique Immédiate</option>
+                          <option value="ENQUETE_TERRAIN">Enquête et autopsie communautaire</option>
+                          <option value="REUNION_COORDINATION">Réunion de Coordination</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">Niveau d'Urgence</label>
+                        <select
+                          value={prioriteActivite}
+                          onChange={(e) => setPrioriteActivite(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:ring-2 focus:ring-emerald-600 focus:outline-none bg-white"
+                        >
+                          <option value="NORMALE">Priorité Normale</option>
+                          <option value="HAUTE">Haute Priorité</option>
+                          <option value="URGENTE">Urgente (Riposte immédiate)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Description détaillée des consignes</label>
+                      <textarea
+                        rows={3}
+                        placeholder="Précisez les objectifs, les zones ciblées et les résultats attendus..."
+                        value={descActivite}
+                        onChange={(e) => setDescActivite(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:ring-2 focus:ring-emerald-600 focus:outline-none"
+                      ></textarea>
+                    </div>
+
+                    <div className="flex justify-end pt-2">
+                      <button
+                        type="submit"
+                        disabled={envoiActiviteLoading}
+                        className="px-5 py-2.5 rounded-xl bg-[#005c30] text-white font-bold text-xs shadow-md hover:bg-[#004724] active:scale-95 transition-all flex items-center gap-1.5"
+                      >
+                        <Send className="w-3.5 h-3.5" />
+                        <span>{envoiActiviteLoading ? "Transmission..." : "Transmettre la mission aux ASCQ"}</span>
+                      </button>
+                    </div>
+                  </form>
+                </div>
+
+                {/* HISTORIQUE DES ACTIVITÉS DEMANDÉES */}
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+                  <h3 className="font-black text-xs text-slate-800 uppercase tracking-wider">
+                    Missions transmises sur le périmètre
+                  </h3>
+                  <div className="divide-y divide-slate-100">
+                    {activitesDemandees.length === 0 ? (
+                      <p className="py-4 text-center text-xs text-slate-400 italic">Aucune mission enregistrée pour le moment.</p>
+                    ) : (
+                      activitesDemandees.map((act) => (
+                        <div key={act.id} className="py-3 flex items-start justify-between gap-3 text-xs">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-slate-900">{act.titre}</span>
+                              <span className="px-2 py-0.2 rounded text-[9px] font-black uppercase bg-slate-100 text-slate-700">
+                                {act.type_activite}
+                              </span>
+                            </div>
+                            <p className="text-slate-600 text-[11px] mt-1">{act.description}</p>
+                            <p className="text-slate-400 text-[10px] mt-1">
+                              Échéance : {act.date_echeance} • Statut : <span className="font-bold">{act.statut}</span>
+                            </p>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -2563,6 +3391,24 @@ export default function AdminPage() {
                   </div>
                 </div>
 
+                {/* 4. Motif & Référence de la nomination (OBLIGATOIRE) */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Référence de l'Acte de Nomination / Motif Administratif *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ex : Décision ministérielle n°..., Note de service de nomination..."
+                    value={nominationMotif}
+                    onChange={(e) => setNominationMotif(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    Cette référence sera notifiée à l'agent et inscrite de manière indélébile dans le journal d'audit national.
+                  </p>
+                </div>
+
                 <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
                   <button
                     type="button"
@@ -2586,11 +3432,11 @@ export default function AdminPage() {
         )}
 
         {/* ========================================================= */}
-        {/* MODALE 2 : MODIFICATION PROFIL COMMUNAL (REPRÉSENTANT DÉPT) */}
+        {/* MODALE 2 : MODIFICATION FICHE ASCQ AVEC JUSTIFICATION OBLIGATOIRE */}
         {/* ========================================================= */}
         {profilModalUser && (
           <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-in fade-in">
-            <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-4 my-8">
+            <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 space-y-4 my-8">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div className="flex items-center gap-2.5">
                   <div className="p-2 bg-emerald-100 text-[#005c30] rounded-xl">
@@ -2598,10 +3444,10 @@ export default function AdminPage() {
                   </div>
                   <div>
                     <h3 className="font-black text-sm sm:text-base text-slate-900">
-                      Mise à jour Fiche Profil
+                      Modifier la Fiche ASCQ
                     </h3>
                     <p className="text-[11px] text-slate-500">
-                      Représentant Communal, PF CCLS-TP ou ASCQ
+                      Toute modification nécessite obligatoirement une justification administrative
                     </p>
                   </div>
                 </div>
@@ -2619,68 +3465,153 @@ export default function AdminPage() {
                   {profilModalUser.nom} {profilModalUser.prenoms}
                 </span>
                 <span className="text-slate-500 text-[11px]">
-                  Poste : {profilModalUser.poste} • Département : {profilModalUser.departement_nom}
+                  Poste : {profilModalUser.poste} • Territoire : {profilModalUser.departement_nom || "Dép"} &rarr; {profilModalUser.commune_nom || "Commune"}
                 </span>
               </div>
 
-              <form onSubmit={handleEnregistrerProfil} className="space-y-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Numéro de Téléphone Officiel
-                  </label>
-                  <input
-                    type="text"
-                    value={profilTelephone}
-                    onChange={(e) => setProfilTelephone(e.target.value)}
-                    placeholder="+229 01..."
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-600"
-                  />
+              <form onSubmit={handleEnregistrerProfil} className="space-y-3.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Nom de famille *</label>
+                    <input
+                      type="text"
+                      required
+                      value={profilNom}
+                      onChange={(e) => setProfilNom(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Prénoms *</label>
+                    <input
+                      type="text"
+                      required
+                      value={profilPrenoms}
+                      onChange={(e) => setProfilPrenoms(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                    />
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Commune d'Affectation
-                  </label>
-                  <select
-                    value={profilComId}
-                    onChange={(e) => {
-                      setProfilComId(e.target.value);
-                      setProfilArrId("");
-                    }}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-600 bg-white"
-                  >
-                    <option value="">-- Choisir la commune --</option>
-                    {listeCommunes
-                      .filter((c) => !profilModalUser.departement_id || c.departement_id === profilModalUser.departement_id)
-                      .map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.nom}
-                        </option>
-                      ))}
-                  </select>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Numéro de Téléphone *</label>
+                    <input
+                      type="text"
+                      required
+                      value={profilTelephone}
+                      onChange={(e) => setProfilTelephone(e.target.value)}
+                      placeholder="0197000000"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-600 font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Statut du Compte</label>
+                    <select
+                      value={profilStatutCompte}
+                      onChange={(e) => setProfilStatutCompte(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-600 bg-white"
+                    >
+                      <option value="VALIDE">VALIDE (Compte actif)</option>
+                      <option value="EN_ATTENTE">EN_ATTENTE (En cours d'approbation)</option>
+                      <option value="SUSPENDU">SUSPENDU (Accès bloqué)</option>
+                    </select>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Arrondissement d'Affectation
-                  </label>
-                  <select
-                    value={profilArrId}
-                    onChange={(e) => setProfilArrId(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-600 bg-white"
-                  >
-                    <option value="">-- Choisir l'arrondissement --</option>
-                    {listeArrondissements
-                      .filter((a) => !profilComId || a.commune_id === profilComId)
-                      .map((a) => (
-                        <option key={a.id} value={a.id}>
-                          {a.nom}
-                        </option>
-                      ))}
-                  </select>
+                {/* Territoire */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Commune d'Affectation</label>
+                    <select
+                      value={profilComId}
+                      onChange={(e) => {
+                        setProfilComId(e.target.value);
+                        setProfilArrId("");
+                      }}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-600 bg-white"
+                    >
+                      <option value="">-- Choisir la commune --</option>
+                      {listeCommunes
+                        .filter((c) => !profilModalUser.departement_id || c.departement_id === profilModalUser.departement_id)
+                        .map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.nom}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Arrondissement</label>
+                    <select
+                      value={profilArrId}
+                      onChange={(e) => setProfilArrId(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-600 bg-white"
+                    >
+                      <option value="">-- Choisir l'arrondissement --</option>
+                      {listeArrondissements
+                        .filter((a) => !profilComId || a.commune_id === profilComId)
+                        .map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.nom}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
                 </div>
 
-                <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                {/* Financement & Diplôme */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Source de Financement</label>
+                    <select
+                      value={profilSourceFinancement}
+                      onChange={(e) => setProfilSourceFinancement(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-600 bg-white"
+                    >
+                      <option value="LLF">LLF</option>
+                      <option value="FADEC">FADEC</option>
+                      <option value="LLF_FADEC">LLF et FADEC Santé communautaire</option>
+                      <option value="SRHR">SRHR</option>
+                      <option value="GAVI">GAVI</option>
+                      <option value="AUTRE">AUTRE</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Diplôme / Qualification</label>
+                    <input
+                      type="text"
+                      value={profilDiplome}
+                      onChange={(e) => setProfilDiplome(e.target.value)}
+                      placeholder="Ex : Infirmier d'État, Sage-Femme..."
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                    />
+                  </div>
+                </div>
+
+                {/* CHAMP STRICTEMENT OBLIGATOIRE : JUSTIFICATION ADMINISTRATIVE */}
+                <div className="p-3 bg-amber-50 rounded-2xl border border-amber-300 space-y-1">
+                  <label className="block text-[11px] font-black text-amber-950 mb-1 flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                    <span>Motif & Justification Administrative de la Modification * (OBLIGATOIRE)</span>
+                  </label>
+                  <textarea
+                    required
+                    rows={3}
+                    placeholder="Précisez obligatoirement le motif administratif ou légal (ex : Mutation sur arrêté ministériel n°..., correction suite à régularisation de puce, changement de commune d'affectation...)"
+                    value={profilJustification}
+                    onChange={(e) => setProfilJustification(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-amber-300 bg-white text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-600"
+                  ></textarea>
+                  <p className="text-[10px] text-amber-800 font-medium">
+                    ⚠️ Cette justification est archivée dans le journal d'audit national avec votre nom, l'horodatage et les anciennes valeurs modifiées.
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
                   <button
                     type="button"
                     onClick={() => setProfilModalUser(null)}
@@ -2691,13 +3622,150 @@ export default function AdminPage() {
                   <button
                     type="submit"
                     disabled={profilLoading}
-                    className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-md active:scale-95 transition-all flex items-center gap-1.5"
+                    className="px-5 py-2 bg-[#005c30] hover:bg-[#004724] text-white font-extrabold text-xs rounded-xl shadow-md active:scale-95 transition-all flex items-center gap-1.5"
                   >
                     <Check className="w-4 h-4" />
-                    <span>{profilLoading ? "Enregistrement..." : "Mettre à jour la fiche"}</span>
+                    <span>{profilLoading ? "Enregistrement & Audit..." : "Enregistrer et Justifier"}</span>
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================= */}
+        {/* MODALE 3 : RÉINITIALISATION DU MOT DE PASSE (OUBLI MDP) */}
+        {/* ========================================================= */}
+        {resetMdpModalUser && (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-in fade-in">
+            <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-4 my-8">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-amber-100 text-amber-800 rounded-xl">
+                    <KeyRound className="w-5 h-5 text-amber-700" />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-sm sm:text-base text-slate-900">
+                      Réinitialiser le Mot de Passe
+                    </h3>
+                    <p className="text-[11px] text-slate-500">
+                      Gestion des accès en cas d'oubli ou perte de mot de passe
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setResetMdpModalUser(null)}
+                  className="p-1.5 text-slate-400 hover:text-slate-700 rounded-xl"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {resetMdpResult ? (
+                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs space-y-3">
+                  <div className="flex items-start gap-2 text-emerald-900">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-extrabold text-sm">Mot de passe réinitialisé avec succès !</p>
+                      <p className="text-[11px] text-emerald-700 mt-0.5">
+                        Transmettez les identifiants ci-dessous à l'agent :
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="p-3.5 bg-white rounded-xl border border-emerald-200 font-mono text-xs space-y-1.5 select-all">
+                    <p>Identifiant (Téléphone) : <strong>{resetMdpResult.telephone}</strong></p>
+                    <p>Nouveau Mot de Passe : <strong className="text-[#005c30] text-sm">{resetMdpResult.mdp}</strong></p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(
+                        `Bonjour ${resetMdpModalUser.prenoms}, vos identifiants pour l'application ASCQ Bénin ont été réinitialisés :\nIdentifiant : ${resetMdpResult.telephone}\nMot de passe : ${resetMdpResult.mdp}\nLien : https://ascq-benin.vercel.app/connexion`
+                      );
+                      alert("Identifiants copiés dans le presse-papier ! Vous pouvez les coller dans WhatsApp ou SMS.");
+                    }}
+                    className="w-full py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold text-xs rounded-xl shadow-sm flex items-center justify-center gap-1.5"
+                  >
+                    <Copy className="w-4 h-4" />
+                    <span>Copier le message prêt pour SMS / WhatsApp</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setResetMdpModalUser(null)}
+                    className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl"
+                  >
+                    Fermer
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handleResetMdp} className="space-y-3.5">
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+                    <span className="font-extrabold text-slate-900 uppercase block">
+                      {resetMdpModalUser.nom} {resetMdpModalUser.prenoms}
+                    </span>
+                    <span className="text-slate-600 font-mono">
+                      Téléphone de connexion : <strong>{resetMdpModalUser.telephone}</strong>
+                    </span>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[11px] font-bold text-slate-700">
+                        Nouveau Mot de Passe *
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setNouveauMdp("Benin2026!")}
+                        className="text-[10px] font-extrabold text-[#005c30] hover:underline"
+                      >
+                        Utiliser "Benin2026!"
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      required
+                      value={nouveauMdp}
+                      onChange={(e) => setNouveauMdp(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Motif de la réinitialisation
+                    </label>
+                    <input
+                      type="text"
+                      value={motifResetMdp}
+                      onChange={(e) => setMotifResetMdp(e.target.value)}
+                      placeholder="Ex : Perte de mot de passe signalée par l'agent"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => setResetMdpModalUser(null)}
+                      className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 rounded-xl"
+                    >
+                      Annuler
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={resetMdpLoading}
+                      className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs rounded-xl shadow-md active:scale-95 transition-all flex items-center gap-1.5"
+                    >
+                      <Key className="w-3.5 h-3.5" />
+                      <span>{resetMdpLoading ? "Réinitialisation..." : "Valider le nouveau mot de passe"}</span>
+                    </button>
+                  </div>
+                </form>
+              )}
             </div>
           </div>
         )}

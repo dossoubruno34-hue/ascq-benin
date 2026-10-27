@@ -13,7 +13,10 @@ import {
   ShieldAlert, 
   CheckCircle2,
   Eye,
-  EyeOff
+  EyeOff,
+  KeyRound,
+  HelpCircle,
+  Send
 } from "lucide-react";
 
 export default function ConnexionPage() {
@@ -26,6 +29,55 @@ export default function ConnexionPage() {
   const [errorMsg, setErrorMsg] = useState("");
   const [pendingAccount, setPendingAccount] = useState<any>(null);
   const [loginSuccess, setLoginSuccess] = useState<any>(null);
+
+  // Gestion Mot de passe oublié
+  const [showOubliModal, setShowOubliModal] = useState(false);
+  const [oubliTelephone, setOubliTelephone] = useState("");
+  const [oubliNom, setOubliNom] = useState("");
+  const [oubliLoading, setOubliLoading] = useState(false);
+  const [oubliSuccessMsg, setOubliSuccessMsg] = useState<string | null>(null);
+  const [oubliErrorMsg, setOubliErrorMsg] = useState<string | null>(null);
+
+  const handleDemandeOubli = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setOubliLoading(true);
+    setOubliErrorMsg(null);
+    setOubliSuccessMsg(null);
+
+    const cleanTel = oubliTelephone.replace(/\D/g, "");
+    if (cleanTel.length < 8) {
+      setOubliErrorMsg("Veuillez saisir un numéro de téléphone valide à 8 ou 10 chiffres.");
+      setOubliLoading(false);
+      return;
+    }
+
+    try {
+      // 1. Tenter l'appel RPC sécurisé
+      const { data, error } = await supabase.rpc("demander_reinitialisation_mot_de_passe", {
+        p_telephone: cleanTel,
+        p_nom: oubliNom.trim() || null,
+      });
+
+      if (error) {
+        // En cas d'absence de la fonction SQL, insertion de secours dans notifications
+        await supabase.from("notifications").insert({
+          destinataire_id: null,
+          titre: "Demande réinitialisation mot de passe",
+          message: `L'agent ${oubliNom || "Non précisé"} (${cleanTel}) a oublié son mot de passe et demande une réinitialisation.`,
+          type: "URGENT",
+          lu: false,
+        });
+      }
+
+      setOubliSuccessMsg(
+        `Votre demande pour le numéro ${cleanTel} a été transmise avec succès à l'Administrateur National. Vos nouveaux identifiants vous seront communiqués. Pour une urgence immédiate, contactez la coordination au 01 69 03 14 63.`
+      );
+    } catch (err: any) {
+      setOubliErrorMsg(err.message || "Erreur lors de la transmission de la demande.");
+    } finally {
+      setOubliLoading(false);
+    }
+  };
 
   // Redirection automatique si déjà connecté
   useEffect(() => {
@@ -245,6 +297,20 @@ export default function ConnexionPage() {
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
+              <div className="flex justify-end pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOubliTelephone(telephone);
+                    setOubliErrorMsg(null);
+                    setOubliSuccessMsg(null);
+                    setShowOubliModal(true);
+                  }}
+                  className="text-xs text-emerald-800 font-bold hover:underline"
+                >
+                  Mot de passe oublié ?
+                </button>
+              </div>
             </div>
 
             <div className="pt-2">
@@ -267,6 +333,120 @@ export default function ConnexionPage() {
               </p>
             </div>
           </form>
+        )}
+
+        {/* MODALE ASSISTANCE MOT DE PASSE OUBLIÉ */}
+        {showOubliModal && (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-in fade-in">
+            <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-4 my-8">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-emerald-100 text-[#005c30] rounded-xl">
+                    <KeyRound className="w-5 h-5 text-emerald-700" />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-sm sm:text-base text-slate-900">
+                      Mot de passe oublié ?
+                    </h3>
+                    <p className="text-[11px] text-slate-500">
+                      Procédure officielle d'assistance et réinitialisation
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowOubliModal(false)}
+                  className="p-1.5 text-slate-400 hover:text-slate-700 rounded-xl"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {oubliSuccessMsg ? (
+                <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-2xl text-xs space-y-3">
+                  <div className="flex items-start gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-bold">{oubliSuccessMsg}</p>
+                    </div>
+                  </div>
+                  <div className="p-3 bg-white rounded-xl border border-emerald-100 text-[11px] text-slate-700 space-y-1">
+                    <p className="font-bold text-slate-900">Assistance d'urgence :</p>
+                    <p>Super Administrateur National : <strong>01 69 03 14 63</strong> (Appel / WhatsApp)</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowOubliModal(false)}
+                    className="w-full py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-xl text-xs"
+                  >
+                    Fermer
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handleDemandeOubli} className="space-y-3.5">
+                  <p className="text-xs text-slate-600">
+                    Les comptes ASCQ et Relais étant rattachés à votre numéro de téléphone professionnel, la réinitialisation est validée par l'Administrateur National.
+                  </p>
+
+                  {oubliErrorMsg && (
+                    <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs">
+                      {oubliErrorMsg}
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Votre numéro de téléphone enregistré *
+                    </label>
+                    <input
+                      type="tel"
+                      required
+                      placeholder="Ex : 0197000000"
+                      value={oubliTelephone}
+                      onChange={(e) => setOubliTelephone(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-600 font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Votre nom et prénoms (facultatif mais recommandé)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ex : DOSSOU Bruno"
+                      value={oubliNom}
+                      onChange={(e) => setOubliNom(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                    />
+                  </div>
+
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-[11px] text-slate-600 space-y-1">
+                    <p className="font-bold text-slate-800">Support direct :</p>
+                    <p>En cas d'urgence sur le terrain, contactez directement la Coordination Nationale au <strong className="text-slate-900">01 69 03 14 63</strong>.</p>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => setShowOubliModal(false)}
+                      className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 rounded-xl"
+                    >
+                      Annuler
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={oubliLoading}
+                      className="px-5 py-2 bg-[#005c30] hover:bg-[#004724] text-white font-bold text-xs rounded-xl shadow-md active:scale-95 transition-all flex items-center gap-1.5"
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                      <span>{oubliLoading ? "Transmission..." : "Envoyer la demande"}</span>
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          </div>
         )}
       </div>
     </main>
