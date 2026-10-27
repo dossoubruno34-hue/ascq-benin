@@ -18,6 +18,7 @@ dist/
 # Environnement et secrets (JAMAIS sur Git)
 .env
 .env*.local
+sauvegardes/
 
 # Logs
 npm-debug.log*
