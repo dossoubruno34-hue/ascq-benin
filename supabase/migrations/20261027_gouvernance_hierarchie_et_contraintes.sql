@@ -30,6 +30,8 @@ ALTER TABLE public.ascq_profils ADD CONSTRAINT ascq_profils_source_financement_c
 -- ---------------------------------------------------------------------
 -- 2. FONCTIONS DE PRIVILÈGES (SUPER ADMIN & ADMINISTRATEURS ÉLARGIS)
 -- ---------------------------------------------------------------------
+DROP FUNCTION IF EXISTS public.est_super_admin() CASCADE;
+
 CREATE OR REPLACE FUNCTION public.est_super_admin()
 RETURNS BOOLEAN
 LANGUAGE plpgsql
@@ -50,6 +52,8 @@ BEGIN
   RETURN v_role = 'SUPER_ADMIN';
 END;
 $$;
+
+DROP FUNCTION IF EXISTS public.est_administrateur() CASCADE;
 
 CREATE OR REPLACE FUNCTION public.est_administrateur()
 RETURNS BOOLEAN
@@ -84,6 +88,9 @@ END;
 $$;
 
 -- Protection stricte : Seul le Super Admin National peut changer un role_technique
+DROP TRIGGER IF EXISTS trg_proteger_champs_utilisateurs ON public.utilisateurs;
+DROP FUNCTION IF EXISTS public.proteger_champs_sensibles_utilisateurs() CASCADE;
+
 CREATE OR REPLACE FUNCTION public.proteger_champs_sensibles_utilisateurs()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -114,7 +121,6 @@ BEGIN
 END;
 $$;
 
-DROP TRIGGER IF EXISTS trg_proteger_champs_utilisateurs ON public.utilisateurs;
 CREATE TRIGGER trg_proteger_champs_utilisateurs
 BEFORE UPDATE ON public.utilisateurs
 FOR EACH ROW
@@ -123,6 +129,8 @@ EXECUTE FUNCTION public.proteger_champs_sensibles_utilisateurs();
 -- ---------------------------------------------------------------------
 -- 3. NOMINATION & ATTRIBUTION DES RESPONSABILITÉS (RÉSERVÉ SUPER ADMIN)
 -- ---------------------------------------------------------------------
+DROP FUNCTION IF EXISTS public.admin_assigner_responsabilite CASCADE;
+
 CREATE OR REPLACE FUNCTION public.admin_assigner_responsabilite(
     p_target_user_id UUID,
     p_nouveau_poste TEXT,
@@ -167,6 +175,9 @@ $$;
 -- ---------------------------------------------------------------------
 -- 4. VALIDATION HIÉRARCHIQUE DES COMPTES (COMMUNAL, DÉPT, NATIONAL)
 -- ---------------------------------------------------------------------
+DROP FUNCTION IF EXISTS public.changer_statut_compte(UUID, TEXT) CASCADE;
+DROP FUNCTION IF EXISTS public.changer_statut_compte CASCADE;
+
 CREATE OR REPLACE FUNCTION public.changer_statut_compte(
     p_id UUID,
     p_nouveau_statut TEXT
@@ -227,6 +238,8 @@ $$;
 -- ---------------------------------------------------------------------
 -- 5. MODIFICATION PROFIL D'UN REPRÉSENTANT COMMUNAL OU PF PAR LE REPRÉSENTANT DÉPT
 -- ---------------------------------------------------------------------
+DROP FUNCTION IF EXISTS public.representant_dept_modifier_profil CASCADE;
+
 CREATE OR REPLACE FUNCTION public.representant_dept_modifier_profil(
     p_target_user_id UUID,
     p_commune_id UUID DEFAULT NULL,
@@ -282,7 +295,7 @@ $$;
 -- ---------------------------------------------------------------------
 -- 6. LISTAGE DES COMPTES ADMIN FILTRÉ PAR PÉRIMÈTRE HIÉRARCHIQUE
 -- ---------------------------------------------------------------------
-DROP FUNCTION IF EXISTS public.lister_comptes_admin();
+DROP FUNCTION IF EXISTS public.lister_comptes_admin() CASCADE;
 
 CREATE OR REPLACE FUNCTION public.lister_comptes_admin()
 RETURNS TABLE (
@@ -385,6 +398,10 @@ $$;
 -- ---------------------------------------------------------------------
 -- 7. GESTION DES CONSEILS SANTÉ (FONCTIONS RPC & RLS)
 -- ---------------------------------------------------------------------
+DROP FUNCTION IF EXISTS public.admin_creer_conseil_sante CASCADE;
+DROP FUNCTION IF EXISTS public.admin_supprimer_conseil_sante CASCADE;
+DROP FUNCTION IF EXISTS public.admin_toggle_conseil_sante CASCADE;
+
 CREATE OR REPLACE FUNCTION public.admin_creer_conseil_sante(
     p_titre TEXT,
     p_contenu TEXT,
@@ -465,6 +482,10 @@ CREATE POLICY "Gestion conseils sante admin" ON public.conseils_sante FOR ALL
 -- ---------------------------------------------------------------------
 -- 8. GESTION DE LA BIBLIOTHÈQUE DOCUMENTAIRE (FONCTIONS RPC & RLS)
 -- ---------------------------------------------------------------------
+DROP FUNCTION IF EXISTS public.admin_creer_document_bibliotheque CASCADE;
+DROP FUNCTION IF EXISTS public.admin_supprimer_document_bibliotheque CASCADE;
+DROP FUNCTION IF EXISTS public.admin_toggle_document_bibliotheque CASCADE;
+
 CREATE OR REPLACE FUNCTION public.admin_creer_document_bibliotheque(
     p_titre TEXT,
     p_categorie TEXT,
