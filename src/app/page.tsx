@@ -3,25 +3,36 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import QuiEstAscqCard from "@/components/QuiEstAscqCard";
 import SuggestionsCard from "@/components/SuggestionsCard";
+import { BookOpen, ShieldAlert, ArrowRight } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  // Récupérer les données pour la page d'accueil
-  const [depsRes, ascqCountRes, rcCountRes, conseilsRes] = await Promise.all([
+  // Récupérer les données réelles pour la page d'accueil
+  const [depsRes, ascqCountRes, profilsRes, rcCountRes, rmaRes, conseilsRes] = await Promise.all([
     supabase.from("departements").select("id, nom").order("nom"),
     supabase.from("utilisateurs").select("*", { count: "exact", head: true }).eq("poste", "ASCQ").eq("statut_compte", "VALIDE"),
+    supabase.from("ascq_profils").select("nombre_rc"),
     supabase.from("relais_communautaires").select("*", { count: "exact", head: true }),
+    supabase.from("rapports_mensuels_ascq").select("menages_visites, personnes_touchees_total"),
     supabase.from("conseils_sante").select("*").eq("est_publie", true).order("created_at", { ascending: false }),
   ]);
 
   const departements = depsRes.data || [];
   
-  // Chiffres basés sur les données de test / maquette
-  const nbAscq = ascqCountRes.count && ascqCountRes.count > 0 ? ascqCountRes.count : 5;
-  const nbRc = rcCountRes.count && rcCountRes.count > 0 ? rcCountRes.count : 97;
-  const nbMenages = 7876;
-  const nbPersonnes = "755 624";
+  // Chiffres réels strictement calculés d'après les enregistrements de la base de données
+  const nbAscq = ascqCountRes.count ?? 0;
+  
+  // Nombre de RC : somme exacte déclarée par les ASCQ validés dans leurs profils ou comptes créés
+  const sumRcProfils = (profilsRes.data || []).reduce((acc: number, p: any) => acc + (Number(p.nombre_rc) || 0), 0);
+  const nbRc = Math.max(sumRcProfils, rcCountRes.count ?? 0);
+  
+  // Ménages & Personnes touchées d'après les rapports mensuels et activités réelles (0 si aucun rapport)
+  const sumMenages = (rmaRes.data || []).reduce((acc: number, r: any) => acc + (Number(r.menages_visites) || 0), 0);
+  const sumPersonnes = (rmaRes.data || []).reduce((acc: number, r: any) => acc + (Number(r.personnes_touchees_total) || 0), 0);
+  
+  const nbMenages = sumMenages;
+  const nbPersonnes = sumPersonnes > 0 ? sumPersonnes.toLocaleString("fr-FR") : "0";
   const conseils = conseilsRes.data || [];
 
   return (
@@ -90,13 +101,19 @@ export default async function HomePage() {
           </div>
         </section>
 
-        {/* 3. Barre d'onglets : Accueil, Connexion, Inscription, Suggestions */}
-        <nav className="bg-white rounded-2xl p-1 shadow-sm border border-slate-200/80 flex items-center justify-between text-xs font-bold text-slate-600">
+        {/* 3. Barre d'onglets : Accueil, Guide SIMR, Connexion, Inscription, Suggestions */}
+        <nav className="bg-white rounded-2xl p-1 shadow-sm border border-slate-200/80 flex items-center justify-between text-[11px] sm:text-xs font-bold text-slate-600 gap-0.5">
           <Link
             href="/"
             className="flex-1 py-2 px-1 text-center rounded-xl bg-[#e0f2e9] text-[#0e7f47] transition-colors"
           >
             Accueil
+          </Link>
+          <Link
+            href="/briefing"
+            className="flex-1 py-2 px-1 text-center rounded-xl text-emerald-800 hover:text-emerald-950 hover:bg-emerald-50 transition-colors"
+          >
+            Guide SIMR
           </Link>
           <Link
             href="/connexion"
@@ -175,6 +192,43 @@ export default async function HomePage() {
             <p className="text-[11px] sm:text-xs text-slate-500 font-medium leading-tight">
               Personnes touchées cette année
             </p>
+          </div>
+        </section>
+
+        {/* 5bis. Carte promotionnelle Espace Briefing & Guide Maladies */}
+        <section className="bg-gradient-to-br from-[#005c30] via-[#006e3a] to-[#004724] text-white rounded-3xl p-5 shadow-sm space-y-3 relative overflow-hidden">
+          <div className="flex items-start justify-between gap-3">
+            <div className="space-y-1">
+              <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-400 text-slate-950 uppercase tracking-wider">
+                Surveillance Communautaire
+              </span>
+              <h3 className="text-base sm:text-lg font-black tracking-tight text-white">
+                Guide des Maladies & Calendrier Vaccinal
+              </h3>
+              <p className="text-xs text-emerald-100 max-w-sm leading-relaxed">
+                Définitions simples des maladies à potentiel épidémique (Lassa, Choléra, Méningite, Mpox...), signes d'alerte et calendrier vaccinal officiel du Bénin (PEV).
+              </p>
+            </div>
+            <div className="w-11 h-11 rounded-2xl bg-white/10 backdrop-blur-xs flex items-center justify-center shrink-0 border border-white/20">
+              <BookOpen className="w-5 h-5 text-amber-300" />
+            </div>
+          </div>
+
+          <div className="pt-1 flex flex-wrap gap-2">
+            <Link
+              href="/briefing"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs shadow-md transition-all active:scale-95"
+            >
+              <span>Consulter le Guide & Vaccins</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+            <Link
+              href="/fiches/alerte/nouvelle"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white font-bold text-xs border border-white/20 transition-all"
+            >
+              <ShieldAlert className="w-3.5 h-3.5 text-amber-300" />
+              <span>Alerte Sanitaire</span>
+            </Link>
           </div>
         </section>
 

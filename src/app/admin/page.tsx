@@ -929,6 +929,13 @@ export default function AdminPage() {
 
           <div className="flex items-center gap-2 flex-wrap">
             <Link
+              href="/briefing"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-700 hover:bg-purple-600 text-white text-xs font-extrabold shadow-sm transition-all active:scale-95"
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+              <span>Guide SIMR & Vaccins</span>
+            </Link>
+            <Link
               href="/espace-ascq"
               className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold shadow-sm transition-all active:scale-95"
             >

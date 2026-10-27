@@ -1,5 +1,5 @@
 // Service Worker officiel ASCQ BÉNIN (PWA) - Mode Hors-Ligne Renforcé
-const CACHE_NAME = "ascq-benin-v3";
+const CACHE_NAME = "ascq-benin-v4";
 const STATIC_ASSETS = [
   "/",
   "/manifest.json",
@@ -9,6 +9,7 @@ const STATIC_ASSETS = [
   "/connexion",
   "/espace-ascq",
   "/espace-rc",
+  "/briefing",
   "/fiches",
   "/fiches/alerte/nouvelle",
   "/fiches/registre/nouvelle",

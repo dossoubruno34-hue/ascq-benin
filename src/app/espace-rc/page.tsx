@@ -210,6 +210,27 @@ export default function EspaceRelaisPage() {
         {/* ------------------------------------------------------------- */}
         {activeTab === "fiches" && (
           <section className="space-y-3.5">
+            {/* Guide des maladies et calendrier vaccinal pour le Relais */}
+            <div className="bg-gradient-to-r from-emerald-800 to-teal-900 text-white rounded-3xl p-4 shadow-sm flex items-center justify-between gap-3">
+              <div className="space-y-0.5 min-w-0">
+                <span className="text-[10px] font-black uppercase text-amber-300 tracking-wider">
+                  Outil de terrain SIMR & PEV
+                </span>
+                <h3 className="font-black text-sm text-white truncate">
+                  Guide Maladies & Calendrier Vaccinal
+                </h3>
+                <p className="text-[11px] text-emerald-100 line-clamp-1">
+                  Définitions simples, signes d'alerte et calendrier vaccinal officiel du Bénin.
+                </p>
+              </div>
+              <Link
+                href="/briefing"
+                className="px-3.5 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs shrink-0 shadow-md active:scale-95 transition-all"
+              >
+                Ouvrir le guide
+              </Link>
+            </div>
+
             <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm space-y-1">
               <h2 className="text-sm font-extrabold text-slate-900">
                 Surveillance à base communautaire

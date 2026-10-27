@@ -261,13 +261,22 @@ export default function MesFichesPage() {
             </p>
           </div>
 
-          <Link
-            href="/fiches/nouvelle"
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-[#005c30] hover:bg-[#004724] text-white font-extrabold text-xs shadow-md active:scale-95 transition-all shrink-0"
-          >
-            <Plus className="w-4 h-4 stroke-[3]" />
-            <span>Nouvelle fiche</span>
-          </Link>
+          <div className="flex items-center gap-2 shrink-0">
+            <Link
+              href="/briefing"
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-2xl bg-emerald-50 hover:bg-emerald-100 text-[#005c30] font-bold text-xs border border-emerald-200 transition-colors"
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              <span>Guide SIMR</span>
+            </Link>
+            <Link
+              href="/fiches/nouvelle"
+              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-[#005c30] hover:bg-[#004724] text-white font-extrabold text-xs shadow-md active:scale-95 transition-all"
+            >
+              <Plus className="w-4 h-4 stroke-[3]" />
+              <span>Nouvelle fiche</span>
+            </Link>
+          </div>
         </div>
 
         {/* Brouillons en attente */}

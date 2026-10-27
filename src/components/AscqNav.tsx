@@ -82,6 +82,7 @@ export default function AscqNav({ userProfile }: Props) {
 
   const navItems = [
     { href: "/espace-ascq", label: "Mon espace", icon: Home },
+    { href: "/briefing", label: "Guide SIMR & Vaccins", icon: BookOpen },
     { href: "/fiches", label: "Surveillance", icon: Activity },
     { href: "/espace-ascq/planning", label: "Planning", icon: Calendar },
     { href: "/espace-ascq/activites-menees", label: "Activités", icon: CheckSquare },
