@@ -8,7 +8,8 @@ export default function ServiceWorkerRegister() {
       navigator.serviceWorker
         .register("/sw.js")
         .then((registration) => {
-          console.log("Service Worker ASCQ BÉNIN enregistré avec succès :", registration.scope);
+          // Forcer la vérification d'une nouvelle version à chaque chargement
+          registration.update();
         })
         .catch((error) => {
           console.warn("Échec enregistrement Service Worker :", error);
