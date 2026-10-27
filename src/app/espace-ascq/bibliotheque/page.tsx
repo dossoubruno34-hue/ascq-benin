@@ -14,7 +14,8 @@ import {
   RefreshCw, 
   FolderOpen,
   Building,
-  CheckCircle2
+  CheckCircle2,
+  Plus
 } from "lucide-react";
 
 export default function BibliothequePage() {
@@ -106,14 +107,26 @@ export default function BibliothequePage() {
             </p>
           </div>
 
-          <button
-            onClick={loadData}
-            disabled={loading}
-            className="p-2 bg-white rounded-xl border border-slate-200 text-slate-600 hover:text-[#005c30] shadow-sm transition-all"
-            title="Rafraîchir"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-          </button>
+          <div className="flex items-center gap-2">
+            {userProfile && ["SUPER_ADMIN", "ADMINISTRATEUR", "REPRESENTANT_DEPARTEMENTAL", "ADMIN_DEPARTEMENTAL", "REPRESENTANT_COMMUNAL", "ADMIN_COMMUNAL"].includes(userProfile?.role_technique) && (
+              <Link
+                href="/admin?tab=bibliotheque"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#005c30] text-white text-xs font-bold hover:bg-[#004724] shadow-sm transition-all"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Ajouter un document</span>
+                <span className="sm:hidden">Ajouter</span>
+              </Link>
+            )}
+            <button
+              onClick={loadData}
+              disabled={loading}
+              className="p-2 bg-white rounded-xl border border-slate-200 text-slate-600 hover:text-[#005c30] shadow-sm transition-all"
+              title="Rafraîchir"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+            </button>
+          </div>
         </div>
 
         {/* Barre de recherche */}

@@ -165,10 +165,15 @@ export default function MonEspacePage() {
     setSaveMsg(null);
 
     try {
+      let cleanFinancement = sourceFinancement;
+      if (cleanFinancement === "LLF et FADEC Santé communautaire") {
+        cleanFinancement = "LLF_FADEC";
+      }
+
       const { data, error } = await supabase.rpc("mettre_a_jour_mon_espace", {
         p_telephone: telephone.trim(),
-        p_source_financement: sourceFinancement,
-        p_source_financement_autre: sourceFinancement === "AUTRE" ? sourceFinancementAutre.trim() : "",
+        p_source_financement: cleanFinancement,
+        p_source_financement_autre: cleanFinancement === "AUTRE" ? sourceFinancementAutre.trim() : "",
         p_nombre_rc: parseInt(nombreRc as any, 10) || 0,
       });
 
@@ -366,7 +371,9 @@ export default function MonEspacePage() {
                   <span>Source de financement</span>
                 </div>
                 <span className="font-bold text-slate-900">
-                  {espaceData?.source_financement || "LLF"}
+                  {espaceData?.source_financement === "LLF_FADEC"
+                    ? "LLF et FADEC Santé communautaire"
+                    : espaceData?.source_financement || "LLF"}
                   {espaceData?.source_financement_autre ? ` (${espaceData.source_financement_autre})` : ""}
                 </span>
               </div>
@@ -406,7 +413,7 @@ export default function MonEspacePage() {
                   className="w-full text-xs sm:text-sm rounded-xl border border-slate-200 bg-white px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#005c30]"
                 >
                   <option value="LLF">LLF</option>
-                  <option value="LLF et FADEC Santé communautaire">LLF et FADEC Santé communautaire</option>
+                  <option value="LLF_FADEC">LLF et FADEC Santé communautaire</option>
                   <option value="SRHR">SRHR</option>
                   <option value="AUTRE">Autre (préciser)</option>
                 </select>
