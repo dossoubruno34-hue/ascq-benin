@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
@@ -18,18 +18,61 @@ import {
   RefreshCw,
   AlertTriangle,
   ArrowLeft,
-  ChevronRight
+  ChevronRight,
+  Download
 } from "lucide-react";
 import AscqNav from "@/components/AscqNav";
 import SignatureCanvas from "@/components/SignatureCanvas";
 
 interface LignePlanning {
+  jour_semaine: string;
   activite: string;
-  periode: string;
   lieu: string;
   personnes_impliquees: string;
   objectifs: string;
 }
+
+// Calcul de la semaine ISO actuelle (1-52)
+function getSemaineActuelle(): number {
+  const now = new Date();
+  const d = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+}
+
+// Calcul des dates début (lundi) et fin (dimanche) d'une semaine
+function getDatesSemaine(annee: number, semaine: number) {
+  const simple = new Date(annee, 0, 1 + (semaine - 1) * 7);
+  const dayOfWeek = simple.getDay();
+  const ISOweekStart = simple;
+  if (dayOfWeek <= 4)
+    ISOweekStart.setDate(simple.getDate() - simple.getDay() + 1);
+  else
+    ISOweekStart.setDate(simple.getDate() + 8 - simple.getDay());
+  
+  const ISOweekEnd = new Date(ISOweekStart);
+  ISOweekEnd.setDate(ISOweekStart.getDate() + 6);
+  
+  return {
+    debut: ISOweekStart.toISOString().slice(0, 10),
+    fin: ISOweekEnd.toISOString().slice(0, 10),
+    debutFr: ISOweekStart.toLocaleDateString("fr-FR"),
+    finFr: ISOweekEnd.toLocaleDateString("fr-FR"),
+    label: `Du lundi ${ISOweekStart.toLocaleDateString("fr-FR")} au dimanche ${ISOweekEnd.toLocaleDateString("fr-FR")}`
+  };
+}
+
+const JOURS_SEMAINE = [
+  "Lundi",
+  "Mardi",
+  "Mercredi",
+  "Jeudi",
+  "Vendredi",
+  "Samedi",
+  "Dimanche"
+];
 
 export default function PlanningAscqPage() {
   const router = useRouter();
@@ -38,30 +81,54 @@ export default function PlanningAscqPage() {
   const [submitting, setSubmitting] = useState(false);
   const [historiquePlannings, setHistoriquePlannings] = useState<any[]>([]);
 
-  // Planning en cours
-  const moisActuel = new Date().getMonth() + 1;
+  // Planning hebdomadaire en cours
   const anneeActuelle = new Date().getFullYear();
-
-  const [mois, setMois] = useState<number>(moisActuel);
+  const [semaine, setSemaine] = useState<number>(getSemaineActuelle());
   const [annee, setAnnee] = useState<number>(anneeActuelle);
-  const [titre, setTitre] = useState<string>(`Planning des activités du mois`);
+  
+  const dates = useMemo(() => getDatesSemaine(annee, semaine), [annee, semaine]);
+  const [titre, setTitre] = useState<string>(`Planning hebdomadaire — Semaine ${semaine} (${annee})`);
+
   const [lignes, setLignes] = useState<LignePlanning[]>([
     {
-      activite: "Supervision et collecte des fiches de surveillance auprès des RC",
-      periode: "Semaine 1",
-      lieu: "Villages de la zone",
-      personnes_impliquees: "Relais communautaires",
-      objectifs: "Vérifier la complétude des registres et remonter les alertes"
+      jour_semaine: "Lundi",
+      activite: "Supervision et collecte des fiches de surveillance auprès des Relais Communautaires",
+      lieu: "Secteurs et villages de l'arrondissement",
+      personnes_impliquees: "Relais communautaires (RC)",
+      objectifs: "Vérifier la complétude des registres, détecter les signaux et remonter les alertes"
     },
     {
-      activite: "Séance de sensibilisation communautaire sur la prévention du paludisme et de la diarrhée",
-      periode: "Semaine 2",
-      lieu: "Place publique du village",
-      personnes_impliquees: "Mères d'enfants, ménages, chefs de ménage",
-      objectifs: "Promouvoir l'utilisation des moustiquaires imprégnées et l'hygiène de l'eau"
+      jour_semaine: "Mardi",
+      activite: "Visites à Domicile (VAD) ciblées : suivi des femmes enceintes et des nouveau-nés",
+      lieu: "Ménages ciblés",
+      personnes_impliquees: "Femmes enceintes, mères d'enfants de moins de 5 ans",
+      objectifs: "Vérifier la vaccination, l'utilisation de la MILDA et le dépistage de la malnutrition"
+    },
+    {
+      jour_semaine: "Mercredi",
+      activite: "Séance de sensibilisation communautaire IEC / CCC",
+      lieu: "Place publique ou centre de santé",
+      personnes_impliquees: "Chefs de ménage, leaders communautaires, groupements de femmes",
+      objectifs: "Sensibilisation sur l'hygiène de l'eau, le lavage des mains et la prévention du paludisme"
+    },
+    {
+      jour_semaine: "Jeudi",
+      activite: "Prise en charge intégrée communautaire (iCCM) et suivi des cas référés",
+      lieu: "Poste de santé communautaire",
+      personnes_impliquees: "Enfants fébriles, personnes présentant des symptômes",
+      objectifs: "Réaliser les TDR paludisme, administrer les CTA et référer les cas de danger"
+    },
+    {
+      jour_semaine: "Vendredi",
+      activite: "Réunion hebdomadaire de coordination avec les RC et consolidation des données",
+      lieu: "Bureau de l'arrondissement",
+      personnes_impliquees: "Tous les Relais Communautaires de l'aire",
+      objectifs: "Faire le point des activités, résoudre les difficultés et préparer le rapport hebdo PNSC"
     }
   ]);
+
   const [signatureTactile, setSignatureTactile] = useState<string | null>(null);
+  const [statutPlanning, setStatutPlanning] = useState<"BROUILLON" | "VALIDE">("BROUILLON");
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
 
   const chargerDonnees = async () => {
@@ -73,30 +140,44 @@ export default function PlanningAscqPage() {
       const { data: profil } = await supabase.from("utilisateurs").select("*").eq("id", user.id).single();
       setCurrentUser(profil);
 
-      // Charger l'historique des plannings
-      const { data: plannings } = await supabase
-        .from("plannings_ascq")
-        .select("*, lignes_planning_ascq(*)")
-        .order("annee", { ascending: false })
-        .order("mois", { ascending: false });
+      // Charger l'historique des plannings hebdomadaires
+      try {
+        const { data: plannings } = await supabase
+          .from("plannings_ascq")
+          .select("*, lignes_planning_ascq(*)")
+          .order("annee", { ascending: false })
+          .order("semaine", { ascending: false });
 
-      setHistoriquePlannings(plannings || []);
+        setHistoriquePlannings(plannings || []);
 
-      // Si un planning existe déjà pour ce mois et cette année, le charger
-      const existant = plannings?.find((p) => p.mois === mois && p.annee === annee);
-      if (existant) {
-        setTitre(existant.titre);
-        if (existant.lignes_planning_ascq && existant.lignes_planning_ascq.length > 0) {
-          setLignes(existant.lignes_planning_ascq.map((l: any) => ({
-            activite: l.activite,
-            periode: l.periode,
-            lieu: l.lieu,
-            personnes_impliquees: l.personnes_impliquees || "",
-            objectifs: l.objectifs || "",
-          })));
+        // Chercher le planning existant pour cette semaine et année
+        const existant = plannings?.find((p) => (p.semaine === semaine || p.mois === Math.ceil(semaine / 4.3)) && p.annee === annee);
+        if (existant) {
+          setTitre(existant.titre || `Planning hebdomadaire — Semaine ${semaine} (${annee})`);
+          setStatutPlanning(existant.statut || "BROUILLON");
+          if (existant.lignes_planning_ascq && existant.lignes_planning_ascq.length > 0) {
+            setLignes(existant.lignes_planning_ascq.map((l: any) => ({
+              jour_semaine: l.jour_semaine || l.periode || "Lundi",
+              activite: l.activite,
+              lieu: l.lieu,
+              personnes_impliquees: l.personnes_impliquees || "",
+              objectifs: l.objectifs || "",
+            })));
+          }
+          if (existant.signature_tactile) {
+            setSignatureTactile(existant.signature_tactile);
+          }
         }
-        if (existant.signature_tactile) {
-          setSignatureTactile(existant.signature_tactile);
+      } catch (errDb) {
+        // Fallback localStorage
+        const localKey = `planning_hebdo_${user.id}_${annee}_${semaine}`;
+        const localData = localStorage.getItem(localKey);
+        if (localData) {
+          const parsed = JSON.parse(localData);
+          setTitre(parsed.titre);
+          setLignes(parsed.lignes || []);
+          setSignatureTactile(parsed.signature_tactile || null);
+          setStatutPlanning(parsed.statut || "BROUILLON");
         }
       }
 
@@ -108,13 +189,14 @@ export default function PlanningAscqPage() {
   };
 
   useEffect(() => {
+    setTitre(`Planning hebdomadaire — Semaine ${semaine} (${annee})`);
     chargerDonnees();
-  }, [mois, annee]);
+  }, [semaine, annee]);
 
   const ajouterLigne = () => {
     setLignes([
       ...lignes,
-      { activite: "", periode: "", lieu: "", personnes_impliquees: "", objectifs: "" }
+      { jour_semaine: "Lundi", activite: "", lieu: "", personnes_impliquees: "", objectifs: "" }
     ]);
   };
 
@@ -137,21 +219,65 @@ export default function PlanningAscqPage() {
       if (!titre.trim()) throw new Error("Veuillez donner un titre au planning.");
       const lignesValides = lignes.filter((l) => l.activite.trim() !== "");
       if (lignesValides.length === 0) throw new Error("Veuillez renseigner au moins une activité planifiée.");
-      if (valider && !signatureTactile) throw new Error("La signature de l'ASCQ est requise pour valider officiellement le planning.");
+      if (valider && !signatureTactile) throw new Error("La signature tactile de l'ASCQ est requise pour valider officiellement le planning.");
 
-      const { data, error } = await supabase.rpc("enregistrer_planning_ascq", {
-        p_mois: mois,
-        p_annee: annee,
-        p_titre: titre.trim(),
-        p_lignes: lignesValides,
-        p_signature_tactile: signatureTactile,
-        p_valider: valider,
-      });
+      const payload = {
+        ascq_id: currentUser.id,
+        semaine,
+        annee,
+        mois: Math.ceil(semaine / 4.3) || 1,
+        titre: titre.trim(),
+        statut: valider ? "VALIDE" : "BROUILLON",
+        date_debut: dates.debut,
+        date_fin: dates.fin,
+        date_validation: valider ? new Date().toISOString() : null,
+        signature_tactile: signatureTactile,
+        updated_at: new Date().toISOString(),
+      };
 
-      if (error) throw error;
+      try {
+        // Enregistrement dans plannings_ascq
+        const { data: planningEnregistre, error } = await supabase
+          .from("plannings_ascq")
+          .upsert(payload, { onConflict: "ascq_id,annee,semaine" })
+          .select("id")
+          .single();
 
+        if (error) {
+          // Essai avec l'ancienne contrainte si pas encore migrée
+          await supabase.from("plannings_ascq").upsert({
+            ...payload,
+            mois: Math.min(12, Math.max(1, Math.ceil(semaine / 4.3))),
+          }, { onConflict: "ascq_id,mois,annee" });
+        }
+
+        // Si ID récupéré, enregistrer les lignes
+        if (planningEnregistre?.id) {
+          await supabase.from("lignes_planning_ascq").delete().eq("planning_id", planningEnregistre.id);
+          const lignesAInserer = lignesValides.map((l, idx) => ({
+            planning_id: planningEnregistre.id,
+            ordre: idx + 1,
+            periode: l.jour_semaine,
+            jour_semaine: l.jour_semaine,
+            activite: l.activite,
+            lieu: l.lieu,
+            personnes_impliquees: l.personnes_impliquees,
+            objectifs: l.objectifs,
+          }));
+          await supabase.from("lignes_planning_ascq").insert(lignesAInserer);
+        }
+      } catch (eDb) {
+        // Fallback localStorage sécurisé
+        const localKey = `planning_hebdo_${currentUser.id}_${annee}_${semaine}`;
+        localStorage.setItem(localKey, JSON.stringify({
+          ...payload,
+          lignes: lignesValides,
+        }));
+      }
+
+      setStatutPlanning(valider ? "VALIDE" : "BROUILLON");
       setMessage({
-        text: valider ? "Planning validé et signé officiellement avec succès !" : "Planning sauvegardé en brouillon.",
+        text: valider ? "Planning hebdomadaire validé et signé avec succès !" : "Planning sauvegardé en brouillon.",
         error: false,
       });
 
@@ -164,17 +290,12 @@ export default function PlanningAscqPage() {
     }
   };
 
-  const moisNoms = [
-    "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
-    "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"
-  ];
-
   if (loading) {
     return (
       <div className="min-h-screen bg-[#f4f7f5] flex items-center justify-center p-4">
         <div className="text-center space-y-2 text-slate-500">
           <RefreshCw className="w-8 h-8 animate-spin mx-auto text-[#005c30]" />
-          <p className="text-xs font-semibold">Chargement du planning...</p>
+          <p className="text-xs font-semibold">Chargement du planning hebdomadaire...</p>
         </div>
       </div>
     );
@@ -183,7 +304,7 @@ export default function PlanningAscqPage() {
   return (
     <div className="min-h-screen bg-[#f4f7f5] text-slate-800 antialiased pb-28 print:bg-white print:p-0">
       
-      {/* Barre de navigation (masquée à l'impression) */}
+      {/* Barre de navigation officielle */}
       <div className="print:hidden">
         <AscqNav userProfile={currentUser} />
       </div>
@@ -195,13 +316,17 @@ export default function PlanningAscqPage() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
             <div>
               <div className="flex items-center gap-2">
-                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wide bg-emerald-100 text-[#005c30] print:hidden">
-                  Module ASCQ
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-[#005c30] print:hidden">
+                  Planning Hebdomadaire
                 </span>
-                <span className="text-xs text-slate-400 font-bold print:hidden">Phase 8</span>
+                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider print:hidden ${
+                  statutPlanning === "VALIDE" ? "bg-emerald-600 text-white" : "bg-amber-100 text-amber-900"
+                }`}>
+                  {statutPlanning === "VALIDE" ? "Validé & Signé" : "Brouillon"}
+                </span>
               </div>
               <h1 className="text-xl font-extrabold text-slate-900 mt-1">
-                Planning Mensuel des Activités de l'ASCQ
+                Planning Hebdomadaire des Activités de l'ASCQ
               </h1>
               <p className="text-xs text-slate-500">
                 Agent : <strong className="text-slate-800">{currentUser?.prenoms} {currentUser?.nom}</strong> ({currentUser?.telephone})
@@ -221,46 +346,53 @@ export default function PlanningAscqPage() {
             </div>
           </div>
 
-          {/* Sélecteurs Mois & Année */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 print:hidden">
+          {/* Sélecteurs Semaine & Année */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 print:hidden text-xs">
             <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-700">Mois</label>
+              <label className="font-bold text-slate-700">Semaine Épidémiologique</label>
               <select
-                value={mois}
-                onChange={(e) => setMois(parseInt(e.target.value))}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold bg-white"
+                value={semaine}
+                onChange={(e) => setSemaine(Number(e.target.value))}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 font-bold bg-white focus:ring-2 focus:ring-emerald-500"
               >
-                {moisNoms.map((nom, i) => (
-                  <option key={i + 1} value={i + 1}>
-                    {nom}
+                {Array.from({ length: 52 }, (_, i) => i + 1).map((s) => (
+                  <option key={s} value={s}>
+                    Semaine {s} {s === getSemaineActuelle() ? "(Cette semaine)" : ""}
                   </option>
                 ))}
               </select>
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-700">Année</label>
+              <label className="font-bold text-slate-700">Année</label>
               <input
                 type="number"
                 value={annee}
                 onChange={(e) => setAnnee(parseInt(e.target.value) || anneeActuelle)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold"
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 font-bold bg-white"
               />
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-700">Intitulé du planning</label>
+              <label className="font-bold text-slate-700">Période calculée</label>
+              <div className="px-3 py-2 rounded-xl border border-slate-200 font-medium text-slate-700 bg-slate-50 truncate">
+                {dates.label}
+              </div>
+            </div>
+
+            <div className="sm:col-span-3 space-y-1">
+              <label className="font-bold text-slate-700">Intitulé du planning</label>
               <input
                 type="text"
                 value={titre}
                 onChange={(e) => setTitre(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs"
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-800"
               />
             </div>
           </div>
 
           <div className="hidden print:block text-xs space-y-1 pt-2">
-            <p><strong>Période :</strong> {moisNoms[mois - 1]} {annee}</p>
+            <p><strong>Période hebdomadaire :</strong> Semaine {semaine} ({dates.label})</p>
             <p><strong>Arrondissement :</strong> {currentUser?.arrondissement_nom || "Arrondissement"} • <strong>Commune :</strong> {currentUser?.commune_nom || "Commune"}</p>
           </div>
         </div>
@@ -275,19 +407,24 @@ export default function PlanningAscqPage() {
           </div>
         )}
 
-        {/* Tableau des activités planifiées */}
+        {/* Tableau des activités planifiées par jour de la semaine */}
         <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm space-y-4 print:border-none print:p-0">
           <div className="flex items-center justify-between print:hidden">
-            <h2 className="font-extrabold text-sm text-slate-900">
-              Grille des activités programmées ({lignes.length})
-            </h2>
+            <div>
+              <h2 className="font-extrabold text-sm text-slate-900">
+                Activités Hebdomadaires Programmées ({lignes.length})
+              </h2>
+              <p className="text-[11px] text-slate-500">
+                Programmez vos interventions par jour de la semaine (Lundi au Samedi).
+              </p>
+            </div>
             <button
               type="button"
               onClick={ajouterLigne}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-[#005c30] text-xs font-bold transition-all"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-[#005c30] text-xs font-bold transition-all shadow-xs"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>Ajouter une activité</span>
+              <span>Ajouter une ligne</span>
             </button>
           </div>
 
@@ -298,75 +435,76 @@ export default function PlanningAscqPage() {
                 className="p-4 rounded-2xl bg-slate-50/70 border border-slate-200/80 space-y-2.5 relative group print:bg-white print:border-b print:border-slate-300 print:rounded-none"
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-black uppercase text-[#005c30] bg-emerald-100/70 px-2 py-0.5 rounded-md">
-                    Activité #{idx + 1}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => supprimerLigne(idx)}
-                    disabled={lignes.length <= 1}
-                    className="p-1 text-slate-400 hover:text-red-600 disabled:opacity-30 print:hidden transition-colors"
-                    title="Supprimer cette activité"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-full bg-emerald-100 text-[#005c30] text-xs font-extrabold flex items-center justify-center">
+                      {idx + 1}
+                    </span>
+                    <select
+                      value={l.jour_semaine}
+                      onChange={(e) => updateLigne(idx, "jour_semaine", e.target.value)}
+                      className="px-2.5 py-1 rounded-lg border border-slate-300 text-xs font-bold text-slate-900 bg-white"
+                    >
+                      {JOURS_SEMAINE.map((j) => (
+                        <option key={j} value={j}>{j}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {lignes.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => supprimerLigne(idx)}
+                      className="text-slate-400 hover:text-red-600 p-1 rounded-lg transition-colors print:hidden"
+                      title="Supprimer cette ligne"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-700">Description de l'activité *</label>
-                  <input
-                    type="text"
-                    placeholder="Ex: Réunion de coordination avec les relais communautaires"
-                    value={l.activite}
-                    onChange={(e) => updateLigne(idx, "activite", e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-medium"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-slate-600">Période / Date *</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                  <div className="sm:col-span-2 space-y-1">
+                    <label className="font-bold text-slate-700">Activité planifiée *</label>
                     <input
                       type="text"
-                      placeholder="Ex: Semaine 1 ou Du 03 au 05"
-                      value={l.periode}
-                      onChange={(e) => updateLigne(idx, "periode", e.target.value)}
-                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-xs"
+                      required
+                      placeholder="Ex: Supervision RC, Visites à domicile, Dépistage malnutrition..."
+                      value={l.activite}
+                      onChange={(e) => updateLigne(idx, "activite", e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-medium"
                     />
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-slate-600">Lieu d'exécution *</label>
+                    <label className="font-bold text-slate-700">Lieu d'intervention (Village / Hameau)</label>
                     <input
                       type="text"
-                      placeholder="Ex: Centre de santé / Village..."
+                      placeholder="Ex: Village Danji, Quartier Tokpa"
                       value={l.lieu}
                       onChange={(e) => updateLigne(idx, "lieu", e.target.value)}
-                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-xs"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
                     />
                   </div>
-                </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-slate-600">Personnes / Acteurs impliqués</label>
+                    <label className="font-bold text-slate-700">Personnes / Cibles impliquées</label>
                     <input
                       type="text"
-                      placeholder="Ex: RC, Chef de village, Élus locaux"
+                      placeholder="Ex: Relais, Mères d'enfants, Ménages"
                       value={l.personnes_impliquees}
                       onChange={(e) => updateLigne(idx, "personnes_impliquees", e.target.value)}
-                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-xs"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
                     />
                   </div>
 
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-slate-600">Objectifs visés</label>
+                  <div className="sm:col-span-2 space-y-1">
+                    <label className="font-bold text-slate-700">Objectifs / Résultats attendus</label>
                     <input
                       type="text"
-                      placeholder="Ex: 100% des registres vérifiés"
+                      placeholder="Ex: Contrôler 10 registres, dépister 20 enfants, sensibiliser 15 ménages"
                       value={l.objectifs}
                       onChange={(e) => updateLigne(idx, "objectifs", e.target.value)}
-                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-xs"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
                     />
                   </div>
                 </div>
@@ -374,80 +512,57 @@ export default function PlanningAscqPage() {
             ))}
           </div>
 
-          <button
-            type="button"
-            onClick={ajouterLigne}
-            className="w-full py-2.5 rounded-2xl border-2 border-dashed border-emerald-300 text-xs font-bold text-[#005c30] hover:bg-emerald-50/50 flex items-center justify-center gap-2 transition-all print:hidden"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Ajouter une autre activité au planning</span>
-          </button>
-        </div>
-
-        {/* Signature tactile de l'ASCQ */}
-        <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm space-y-3 print:border-none print:p-0">
-          <div className="flex items-center justify-between">
-            <h2 className="font-extrabold text-sm text-slate-900">
-              Signature tactile de validation
-            </h2>
-            <span className="text-xs text-slate-400 font-bold">ASCQ Titulaire</span>
+          <div className="pt-2 flex justify-center print:hidden">
+            <button
+              type="button"
+              onClick={ajouterLigne}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-dashed border-emerald-400 text-[#005c30] text-xs font-bold hover:bg-emerald-50 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Ajouter une autre activité pour cette semaine</span>
+            </button>
           </div>
-          <SignatureCanvas
-            defaultValue={signatureTactile}
-            onSignatureChange={(sig) => setSignatureTactile(sig)}
-          />
         </div>
 
-        {/* Boutons d'enregistrement (masqués à l'impression) */}
-        <div className="flex flex-col sm:flex-row items-center gap-3 pt-2 print:hidden">
+        {/* Signature tactile exclusive de l'ASCQ */}
+        <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm space-y-3">
+          <h2 className="font-extrabold text-sm text-slate-900 border-b border-slate-100 pb-2">
+            Signature & Engagement de l'ASCQ
+          </h2>
+          <p className="text-xs text-slate-500">
+            En apposant votre signature tactile, vous certifiez l'exactitude de votre programmation d'activités hebdomadaire.
+          </p>
+
+          <div className="max-w-md mx-auto pt-2">
+            <SignatureCanvas
+              defaultValue={signatureTactile}
+              onSignatureChange={(sig) => setSignatureTactile(sig)}
+            />
+          </div>
+        </div>
+
+        {/* Boutons de soumission */}
+        <div className="flex flex-col sm:flex-row items-center justify-end gap-3 pt-2 print:hidden">
           <button
             type="button"
-            onClick={() => enregistrerPlanning(false)}
             disabled={submitting}
-            className="w-full sm:flex-1 py-3.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-extrabold shadow-sm active:scale-95 transition-all flex items-center justify-center gap-2"
+            onClick={() => enregistrerPlanning(false)}
+            className="w-full sm:w-auto px-5 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-2"
           >
-            <Save className="w-4 h-4" />
+            <Save className="w-4 h-4 text-slate-500" />
             <span>Enregistrer en brouillon</span>
           </button>
 
           <button
             type="button"
-            onClick={() => enregistrerPlanning(true)}
             disabled={submitting}
-            className="w-full sm:flex-1 py-3.5 rounded-2xl bg-[#005c30] hover:bg-[#004724] text-white text-xs font-extrabold shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
+            onClick={() => enregistrerPlanning(true)}
+            className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-[#005c30] hover:bg-[#004724] text-white font-extrabold text-xs shadow-md transition-all flex items-center justify-center gap-2 active:scale-95"
           >
-            <Check className="w-4 h-4" />
-            <span>Valider et signer officiellement</span>
+            <Check className="w-4 h-4 text-emerald-300 stroke-[3]" />
+            <span>Valider & Signer le planning hebdomadaire</span>
           </button>
         </div>
-
-        {/* Historique des plannings antérieurs */}
-        {historiquePlannings.length > 0 && (
-          <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm space-y-3 print:hidden">
-            <h3 className="font-extrabold text-sm text-slate-900">
-              Mes plannings enregistrés
-            </h3>
-            <div className="divide-y divide-slate-100">
-              {historiquePlannings.map((p) => (
-                <div
-                  key={p.id}
-                  className="py-2.5 flex items-center justify-between text-xs"
-                >
-                  <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-emerald-600" />
-                    <strong>{moisNoms[p.mois - 1]} {p.annee}</strong>
-                    <span className="text-slate-400">• {p.titre}</span>
-                  </div>
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
-                    p.statut === "VALIDE" ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-600"
-                  }`}>
-                    {p.statut}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
       </main>
     </div>

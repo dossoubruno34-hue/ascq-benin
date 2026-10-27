@@ -22,6 +22,7 @@ import {
   CheckSquare,
   ClipboardCheck,
   FileText,
+  BarChart3,
   ShieldCheck
 } from "lucide-react";
 
@@ -87,6 +88,7 @@ export default function AscqNav({ userProfile }: Props) {
     { href: "/espace-ascq/planning", label: "Planning", icon: Calendar },
     { href: "/espace-ascq/activites-menees", label: "Activités", icon: CheckSquare },
     { href: "/espace-ascq/suivi-relais", label: "Suivi RC", icon: ClipboardCheck },
+    { href: "/espace-ascq/rapport-hebdo-pnsc", label: "Suivi PNSC", icon: BarChart3 },
     { href: "/espace-ascq/rapport-mensuel", label: "Rapport mensuel", icon: FileText },
     { href: "/espace-ascq/relais", label: "Mes Relais", icon: Users },
     { href: "/espace-ascq/permutations", label: "Permutations", icon: ArrowLeftRight },

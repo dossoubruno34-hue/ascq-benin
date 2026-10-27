@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
@@ -9,6 +10,7 @@ import SignatureCanvas from "@/components/SignatureCanvas";
 import { sauvegarderBrouillonRapport, chargerBrouillonRapport } from "@/lib/offline-sync";
 import {
   FileText,
+  BarChart3,
   Calendar,
   AlertTriangle,
   CheckCircle2,
@@ -594,6 +596,21 @@ export default function RapportMensuelPage() {
         {/* EN-TÊTE ÉCRAN & COMMUTATION DES MODES (MASQUÉ À L'IMPRESSION) */}
         {/* ========================================================= */}
         <div className="print:hidden space-y-4 mb-6">
+          {/* Onglets de basculement entre les 2 types de rapports */}
+          <div className="bg-white rounded-2xl p-1.5 border border-slate-200/80 shadow-sm flex items-center gap-1">
+            <Link
+              href="/espace-ascq/rapport-hebdo-pnsc"
+              className="flex-1 py-2 px-3 text-center rounded-xl hover:bg-slate-100 text-slate-600 font-bold text-xs transition-colors flex items-center justify-center gap-2"
+            >
+              <BarChart3 className="w-4 h-4 text-emerald-700" />
+              <span>1. Suivi Hebdo PNSC</span>
+            </Link>
+            <div className="flex-1 py-2 px-3 text-center rounded-xl bg-[#005c30] text-white font-extrabold text-xs shadow-sm flex items-center justify-center gap-2">
+              <FileText className="w-4 h-4" />
+              <span>2. Rapport Mensuel d'Activité (RMA)</span>
+            </div>
+          </div>
+
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm">
             <div>
               <div className="flex items-center gap-2">
@@ -711,7 +728,7 @@ export default function RapportMensuelPage() {
                 }`}
               >
                 <Eye className="w-3.5 h-3.5" />
-                <span>Aperçu officiel (MCC)</span>
+                <span>Aperçu officiel (Imprimable / PDF)</span>
               </button>
             </div>
 
@@ -1750,43 +1767,37 @@ export default function RapportMensuelPage() {
               </div>
             </div>
 
-            {/* SIGNATURES OFFICIELLES (ASCQ & MÉDECIN COORDONNATEUR) */}
-            <div className="grid grid-cols-2 gap-8 pt-4 border-t-2 border-slate-900 text-xs">
-              <div>
-                <p className="font-bold uppercase text-slate-900 mb-1">
+            {/* SIGNATURE OFFICIELLE UNIQUE DE L'ASCQ */}
+            <div className="pt-4 border-t-2 border-slate-900 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <p className="font-extrabold uppercase text-slate-900 text-sm">
                   Signature & Engagement de l'ASCQ :
                 </p>
-                <p className="text-[10px] text-slate-500 mb-2">
-                  Fait à {currentUser?.commune_nom || "la commune"}, le {dateValidation ? new Date(dateValidation).toLocaleDateString("fr-FR") : new Date().toLocaleDateString("fr-FR")}
+                <p className="text-xs text-slate-600">
+                  Fait à <strong className="text-slate-900">{currentUser?.commune_nom || "la commune"}</strong>, le <strong className="text-slate-900">{dateValidation ? new Date(dateValidation).toLocaleDateString("fr-FR") : new Date().toLocaleDateString("fr-FR")}</strong>
                 </p>
-                {signatureTactile ? (
-                  <div className="border border-slate-300 rounded p-1 inline-block bg-white">
-                    <img
-                      src={signatureTactile}
-                      alt="Signature ASCQ"
-                      className="h-16 max-w-[200px] object-contain"
-                    />
-                  </div>
-                ) : (
-                  <div className="h-16 border border-dashed border-slate-300 rounded flex items-center justify-center text-slate-400 text-[10px]">
-                    Signature non enregistrée
-                  </div>
-                )}
-                <p className="font-black text-slate-900 uppercase mt-1">
-                  {currentUser ? `${currentUser.prenoms} ${currentUser.nom}` : "Bruno DOSSOU"}
+                <p className="text-[11px] text-slate-500 italic max-w-md">
+                  « Je soussigné(e), Agent de Santé Communautaire Qualifié (ASCQ), certifie sur l'honneur l'exactitude des informations et chiffres consignés dans le présent rapport. »
+                </p>
+                <p className="font-black text-slate-900 uppercase text-sm pt-1">
+                  {currentUser ? `${currentUser.prenoms} ${currentUser.nom}` : "ASCQ Bénin"}
                 </p>
               </div>
 
-              <div className="text-right">
-                <p className="font-bold uppercase text-slate-900 mb-1">
-                  Visa & Cachet du Médecin Coordonnateur :
-                </p>
-                <p className="text-[10px] text-slate-500 mb-2">
-                  Zone Sanitaire de {currentUser?.departement_nom || "la zone"}
-                </p>
-                <div className="h-20 border border-slate-300 rounded flex items-center justify-center text-slate-300 text-[10px] italic">
-                  Emplacement réservé au Médecin Coordonnateur (MCC)
-                </div>
+              <div className="shrink-0 sm:text-right">
+                {signatureTactile ? (
+                  <div className="border border-slate-300 rounded-xl p-2 inline-block bg-white shadow-2xs">
+                    <img
+                      src={signatureTactile}
+                      alt="Signature officielle de l'ASCQ"
+                      className="h-20 max-w-[240px] object-contain"
+                    />
+                  </div>
+                ) : (
+                  <div className="h-20 w-48 border border-dashed border-slate-300 rounded-xl flex items-center justify-center text-slate-400 text-xs italic bg-slate-50">
+                    Signature tactile non enregistrée
+                  </div>
+                )}
               </div>
             </div>
           </div>
