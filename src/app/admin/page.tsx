@@ -75,6 +75,10 @@ export default function AdminPage() {
   const [searchCompte, setSearchCompte] = useState("");
   const [filtreStatutCompte, setFiltreStatutCompte] = useState("EN_ATTENTE");
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const [vueSousOngletComptes, setVueSousOngletComptes] = useState<"validation" | "referentiel">("validation");
+  const [referentielAscq, setReferentielAscq] = useState<any[]>([]);
+  const [searchReferentiel, setSearchReferentiel] = useState("");
+  const [loadingReferentiel, setLoadingReferentiel] = useState(false);
 
   // Activités demandées
   const [activitesDemandees, setActivitesDemandees] = useState<any[]>([]);
@@ -259,12 +263,39 @@ export default function AdminPage() {
     initialiserAdmin();
   }, []);
 
+  // Charger le Registre National officiel
+  const chargerReferentielNational = async () => {
+    setLoadingReferentiel(true);
+    try {
+      const { data, error } = await supabase
+        .from("ascq_referentiel_national")
+        .select("*")
+        .order("departement")
+        .order("commune")
+        .order("nom_prenoms");
+      if (!error && data) {
+        setReferentielAscq(data);
+      }
+    } catch (e) {
+      console.error("Erreur referentiel:", e);
+    } finally {
+      setLoadingReferentiel(false);
+    }
+  };
+
   // Actions Comptes
-  const handleValiderCompte = async (id: string) => {
-    setActionLoadingId(id);
+  const handleValiderCompte = async (compte: any) => {
+    if (compte.poste === "ASCQ" && !compte.present_liste_nationale) {
+      const confirmer = confirm(
+        `⚠️ ALERTE REGISTRE NATIONAL :\n\nL'agent "${compte.nom} ${compte.prenoms}" n'apparaît pas dans la liste officielle consolidée des ASCQ du Bénin.\n\nSouhaitez-vous quand même valider ce compte ?`
+      );
+      if (!confirmer) return;
+    }
+
+    setActionLoadingId(compte.id);
     try {
       await supabase.rpc("changer_statut_compte", {
-        p_id: id,
+        p_id: compte.id,
         p_nouveau_statut: "VALIDE",
       });
       setToastMessage({ text: "Compte validé avec succès !", error: false });
@@ -273,6 +304,57 @@ export default function AdminPage() {
       setToastMessage({ text: err.message || "Erreur de validation", error: true });
     } finally {
       setActionLoadingId(null);
+    }
+  };
+
+  const handleAjouterAuReferentiel = async (compte: any) => {
+    const nomComplet = prompt(
+      "Confirmez ou ajustez le nom et prénoms officiel pour inscription au Registre National des ASCQ :",
+      `${compte.nom} ${compte.prenoms}`
+    );
+    if (!nomComplet) return;
+
+    try {
+      const { data, error } = await supabase.rpc("admin_ajouter_ascq_referentiel", {
+        p_nom_prenoms: nomComplet,
+        p_departement: compte.departement_nom || "NON DEFINI",
+        p_commune: compte.commune_nom || "NON DEFINIE",
+        p_arrondissement: compte.arrondissement_nom || "NON DEFINI",
+        p_date_prise_service: null,
+      });
+      if (error) throw error;
+      setToastMessage({ text: `L'agent "${nomComplet}" a été inscrit avec succès au Registre National Officiel !`, error: false });
+      await chargerComptes();
+      await chargerReferentielNational();
+    } catch (err: any) {
+      alert("Erreur ajout registre : " + err.message);
+    }
+  };
+
+  const handleAjouterNouveauASCQManuel = async () => {
+    const nomComplet = prompt("Nom et prénoms de l'ASCQ :");
+    if (!nomComplet) return;
+    const dep = prompt("Département (ex: ZOU, ATLANTIQUE, ALIBORI...) :");
+    if (!dep) return;
+    const com = prompt("Commune (ex: OUINHI, ABOMEY-CALAVI...) :");
+    if (!com) return;
+    const arr = prompt("Arrondissement / Poste d'affectation :") || "CENTRE";
+    const datePrise = prompt("Date de prise de service (AAAA-MM-JJ, optionnel) :") || null;
+
+    try {
+      const { data, error } = await supabase.rpc("admin_ajouter_ascq_referentiel", {
+        p_nom_prenoms: nomComplet,
+        p_departement: dep,
+        p_commune: com,
+        p_arrondissement: arr,
+        p_date_prise_service: datePrise && datePrise.match(/^\d{4}-\d{2}-\d{2}$/) ? datePrise : null,
+      });
+      if (error) throw error;
+      setToastMessage({ text: "ASCQ ajouté avec succès au Registre National !", error: false });
+      await chargerReferentielNational();
+      await chargerComptes();
+    } catch (err: any) {
+      alert("Erreur ajout : " + err.message);
     }
   };
 
@@ -709,122 +791,277 @@ export default function AdminPage() {
                 <Users className="w-5 h-5 text-emerald-600" />
                 <div>
                   <h2 className="font-extrabold text-sm sm:text-base text-slate-900">
-                    Gestion des Comptes ASCQ & Attributions
+                    Gestion des Comptes ASCQ & Registre National
                   </h2>
                   <p className="text-xs text-slate-500 font-medium">
-                    Validation des inscriptions, recherche et nomination des représentants.
+                    Contrôle de conformité avec la liste officielle consolidée des 411 ASCQ déployés au Bénin.
                   </p>
                 </div>
               </div>
 
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleExportAscq}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 text-white font-bold text-xs hover:bg-slate-800 shadow-sm"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Exporter CSV</span>
+                </button>
+              </div>
+            </div>
+
+            {/* SOUS-NAVIGATION DES VUES */}
+            <div className="flex border-b border-slate-200 gap-4">
               <button
                 type="button"
-                onClick={handleExportAscq}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 text-white font-bold text-xs hover:bg-slate-800 shadow-sm"
+                onClick={() => setVueSousOngletComptes("validation")}
+                className={`pb-2.5 text-xs font-bold transition-all border-b-2 flex items-center gap-1.5 ${
+                  vueSousOngletComptes === "validation"
+                    ? "border-emerald-600 text-emerald-800"
+                    : "border-transparent text-slate-500 hover:text-slate-800"
+                }`}
               >
-                <Download className="w-3.5 h-3.5" />
-                <span>Exporter la liste CSV</span>
+                <Users className="w-3.5 h-3.5" />
+                <span>Inscriptions sur l'application ({filteredComptes.length})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setVueSousOngletComptes("referentiel");
+                  if (referentielAscq.length === 0) chargerReferentielNational();
+                }}
+                className={`pb-2.5 text-xs font-bold transition-all border-b-2 flex items-center gap-1.5 ${
+                  vueSousOngletComptes === "referentiel"
+                    ? "border-emerald-600 text-emerald-800"
+                    : "border-transparent text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>Registre National Consolidé (411 ASCQ)</span>
               </button>
             </div>
 
-            {/* FILTRES & RECHERCHE */}
-            <div className="flex flex-col sm:flex-row items-center gap-2">
-              <div className="relative flex-1 w-full">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-                <input
-                  type="text"
-                  placeholder="Rechercher par nom, téléphone, commune..."
-                  value={searchCompte}
-                  onChange={(e) => setSearchCompte(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 bg-white rounded-xl border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-600"
-                />
-              </div>
-
-              <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 w-full sm:w-auto overflow-x-auto">
-                {["EN_ATTENTE", "VALIDE", "REJETE", "TOUS"].map((st) => (
-                  <button
-                    key={st}
-                    onClick={() => setFiltreStatutCompte(st)}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                      filtreStatutCompte === st
-                        ? "bg-[#005c30] text-white"
-                        : "text-slate-600 hover:text-slate-900"
-                    }`}
-                  >
-                    {st === "EN_ATTENTE" ? "En attente" : st === "VALIDE" ? "Validés" : st === "REJETE" ? "Rejetés" : "Tous"}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* LISTE DES COMPTES */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden divide-y divide-slate-100">
-              {filteredComptes.length === 0 ? (
-                <div className="p-8 text-center text-slate-400 text-xs">
-                  Aucun compte correspondant aux critères de recherche.
-                </div>
-              ) : (
-                filteredComptes.map((c) => (
-                  <div key={c.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50 transition-colors">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-extrabold text-sm text-slate-900 uppercase">
-                          {c.nom} {c.prenoms}
-                        </span>
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
-                            c.statut_compte === "VALIDE"
-                              ? "bg-emerald-100 text-emerald-800"
-                              : c.statut_compte === "EN_ATTENTE"
-                              ? "bg-amber-100 text-amber-800"
-                              : "bg-red-100 text-red-800"
-                          }`}
-                        >
-                          {c.statut_compte}
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-500 mt-0.5 font-medium">
-                        Tél : <span className="font-bold text-slate-700">{c.telephone}</span> • {c.commune_nom || c.communes?.nom || "Commune non assignée"} ({c.arrondissement_nom || c.arrondissements?.nom || "Arrondissement"}) • Financement : {c.source_financement || c.ascq_profils?.source_financement || "LLF"}
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-2 shrink-0">
-                      {c.statut_compte === "EN_ATTENTE" && (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => handleValiderCompte(c.id)}
-                            disabled={actionLoadingId === c.id}
-                            className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm flex items-center gap-1 active:scale-95 transition-all"
-                          >
-                            <Check className="w-3.5 h-3.5" />
-                            <span>Valider</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleRejeterCompte(c.id)}
-                            disabled={actionLoadingId === c.id}
-                            className="px-3 py-1.5 rounded-xl bg-red-100 hover:bg-red-200 text-red-800 font-bold text-xs flex items-center gap-1 active:scale-95 transition-all"
-                          >
-                            <XCircle className="w-3.5 h-3.5" />
-                            <span>Rejeter</span>
-                          </button>
-                        </>
-                      )}
-                      {c.statut_compte === "VALIDE" && (
-                        <button
-                          type="button"
-                          onClick={() => handleRejeterCompte(c.id)}
-                          className="px-2.5 py-1 text-slate-400 hover:text-red-600 text-xs font-semibold"
-                        >
-                          Suspendre
-                        </button>
-                      )}
-                    </div>
+            {/* VUE 1 : VALIDATION DES COMPTES D'INSCRIPTION */}
+            {vueSousOngletComptes === "validation" && (
+              <>
+                {/* FILTRES & RECHERCHE */}
+                <div className="flex flex-col sm:flex-row items-center gap-2">
+                  <div className="relative flex-1 w-full">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                    <input
+                      type="text"
+                      placeholder="Rechercher par nom, téléphone, commune..."
+                      value={searchCompte}
+                      onChange={(e) => setSearchCompte(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2 bg-white rounded-xl border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                    />
                   </div>
-                ))
-              )}
-            </div>
+
+                  <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 w-full sm:w-auto overflow-x-auto">
+                    {["EN_ATTENTE", "VALIDE", "REJETE", "TOUS"].map((st) => (
+                      <button
+                        key={st}
+                        onClick={() => setFiltreStatutCompte(st)}
+                        className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                          filtreStatutCompte === st
+                            ? "bg-[#005c30] text-white"
+                            : "text-slate-600 hover:text-slate-900"
+                        }`}
+                      >
+                        {st === "EN_ATTENTE" ? "En attente" : st === "VALIDE" ? "Validés" : st === "REJETE" ? "Rejetés" : "Tous"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* LISTE DES COMPTES */}
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden divide-y divide-slate-100">
+                  {filteredComptes.length === 0 ? (
+                    <div className="p-8 text-center text-slate-400 text-xs">
+                      Aucun compte correspondant aux critères de recherche.
+                    </div>
+                  ) : (
+                    filteredComptes.map((c) => (
+                      <div key={c.id} className="p-4 flex flex-col sm:flex-row sm:items-start justify-between gap-3 hover:bg-slate-50 transition-colors">
+                        <div className="flex-1 space-y-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-extrabold text-sm text-slate-900 uppercase">
+                              {c.nom} {c.prenoms}
+                            </span>
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                                c.statut_compte === "VALIDE"
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : c.statut_compte === "EN_ATTENTE"
+                                  ? "bg-amber-100 text-amber-800"
+                                  : "bg-red-100 text-red-800"
+                              }`}
+                            >
+                              {c.statut_compte}
+                            </span>
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">
+                              {c.poste}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-500 font-medium">
+                            Tél : <span className="font-bold text-slate-700">{c.telephone}</span> • {c.commune_nom || c.communes?.nom || "Commune non assignée"} ({c.arrondissement_nom || c.arrondissements?.nom || "Arrondissement"}) • Financement : {c.source_financement || c.ascq_profils?.source_financement || "LLF"}
+                          </p>
+
+                          {/* CONTRÔLE REGISTRE NATIONAL OFFICIEL */}
+                          {c.poste === "ASCQ" && (
+                            <div className="pt-1">
+                              {c.present_liste_nationale ? (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                  <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                  <span>{c.details_liste_nationale || "Inscrit sur la liste nationale"}</span>
+                                  {c.date_prise_service && (
+                                    <span className="text-[10px] text-emerald-600 font-semibold">
+                                      (Prise : {new Date(c.date_prise_service).toLocaleDateString("fr-FR")})
+                                    </span>
+                                  )}
+                                </span>
+                              ) : (
+                                <div className="inline-flex flex-wrap items-center gap-2 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-amber-50 text-amber-900 border border-amber-300">
+                                  <span className="flex items-center gap-1 text-amber-700">
+                                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                    <span>⚠️ Nom absent dans la liste nationale consolidée</span>
+                                  </span>
+                                  {c.statut_compte === "EN_ATTENTE" && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleAjouterAuReferentiel(c)}
+                                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-200 hover:bg-amber-300 text-amber-900 text-[10px] font-extrabold transition-colors"
+                                      title="Inscrire officiellement cet agent au registre national des ASCQ"
+                                    >
+                                      <Plus className="w-2.5 h-2.5" />
+                                      <span>Inscrire au registre</span>
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0 self-start sm:self-center">
+                          {c.statut_compte === "EN_ATTENTE" && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => handleValiderCompte(c)}
+                                disabled={actionLoadingId === c.id}
+                                className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm flex items-center gap-1 active:scale-95 transition-all"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                                <span>Valider</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleRejeterCompte(c.id)}
+                                disabled={actionLoadingId === c.id}
+                                className="px-3 py-1.5 rounded-xl bg-red-100 hover:bg-red-200 text-red-800 font-bold text-xs flex items-center gap-1 active:scale-95 transition-all"
+                              >
+                                <XCircle className="w-3.5 h-3.5" />
+                                <span>Rejeter</span>
+                              </button>
+                            </>
+                          )}
+                          {c.statut_compte === "VALIDE" && (
+                            <button
+                              type="button"
+                              onClick={() => handleRejeterCompte(c.id)}
+                              className="px-2.5 py-1 text-slate-400 hover:text-red-600 text-xs font-semibold"
+                            >
+                              Suspendre
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* VUE 2 : REGISTRE NATIONAL CONSOLIDÉ */}
+            {vueSousOngletComptes === "referentiel" && (
+              <div className="space-y-3">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
+                  <div className="relative flex-1 w-full">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                    <input
+                      type="text"
+                      placeholder="Rechercher dans le registre officiel (Nom, commune, département...)"
+                      value={searchReferentiel}
+                      onChange={(e) => setSearchReferentiel(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2 bg-white rounded-xl border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <button
+                      type="button"
+                      onClick={chargerReferentielNational}
+                      className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-1 shadow-sm"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      <span>Actualiser</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleAjouterNouveauASCQManuel}
+                      className="px-3 py-2 bg-[#005c30] text-white rounded-xl text-xs font-bold hover:bg-[#004a26] flex items-center gap-1 shadow-sm"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Ajouter un ASCQ officiel</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                  <div className="p-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between text-xs font-bold text-slate-600">
+                    <span>
+                      {loadingReferentiel
+                        ? "Chargement du registre..."
+                        : `${referentielAscq.filter(r => 
+                            `${r.nom_prenoms} ${r.commune} ${r.departement} ${r.arrondissement_poste}`.toLowerCase().includes(searchReferentiel.toLowerCase())
+                          ).length} ASCQ recensés sur la liste consolidée officielle`}
+                    </span>
+                    <span className="text-[11px] text-slate-400">Source : Ministère de la Santé / Coordination</span>
+                  </div>
+
+                  <div className="max-h-[500px] overflow-y-auto divide-y divide-slate-100">
+                    {referentielAscq
+                      .filter(r => 
+                        `${r.nom_prenoms} ${r.commune} ${r.departement} ${r.arrondissement_poste}`.toLowerCase().includes(searchReferentiel.toLowerCase())
+                      )
+                      .map((r, idx) => (
+                        <div key={r.id || idx} className="p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:bg-slate-50 text-xs">
+                          <div>
+                            <span className="font-black text-slate-900 block uppercase">
+                              {r.nom_prenoms}
+                            </span>
+                            <span className="text-slate-500 font-medium">
+                              {r.departement} &bull; <strong className="text-slate-700">{r.commune}</strong> ({r.arrondissement_poste})
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {r.date_prise_service && (
+                              <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[10px] font-bold">
+                                Prise de service : {new Date(r.date_prise_service).toLocaleDateString("fr-FR")}
+                              </span>
+                            )}
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                              Officiel
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
