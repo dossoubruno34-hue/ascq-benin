@@ -1,8 +1,11 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
+import AscqNav from "@/components/AscqNav";
 import { 
   GUIDE_MALADIES_SIMR, 
   CALENDRIER_VACCINAL_BENIN, 
@@ -27,15 +30,47 @@ import {
   Users,
   Flame,
   Globe2,
-  FileText
+  FileText,
+  Lock
 } from "lucide-react";
 
 export default function BriefingPage() {
+  const router = useRouter();
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
   const [activeTab, setActiveTab] = useState<
     "tous" | "epidemies" | "elimination" | "sante_publique" | "portee_internationale" | "vaccins"
   >("vaccins");
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // Vérification de sécurité : espace strictement réservé aux utilisateurs connectés à un compte
+  useEffect(() => {
+    async function verifierConnexion() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          router.replace("/connexion?redirect=/briefing");
+          return;
+        }
+
+        const { data: profil } = await supabase
+          .from("utilisateurs")
+          .select("id, nom, prenoms, poste, role_technique, photo_url")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        setCurrentUser(profil || { id: user.id });
+      } catch (e) {
+        router.replace("/connexion");
+      } finally {
+        setAuthLoading(false);
+      }
+    }
+
+    verifierConnexion();
+  }, [router]);
 
   // Filtrage intelligent selon l'onglet et le mot-clé
   const filteredMaladies = useMemo(() => {
@@ -58,60 +93,50 @@ export default function BriefingPage() {
     });
   }, [activeTab, searchQuery]);
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-[#f8faf9] flex items-center justify-center p-4">
+        <div className="text-center space-y-3">
+          <div className="w-10 h-10 border-4 border-[#005c30] border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <p className="font-bold text-xs sm:text-sm text-slate-700">
+            Vérification de l'accès sécurisé au Guide SIMR...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const retourLien = currentUser?.poste === "RC" ? "/espace-rc" : "/espace-ascq";
+
   return (
     <div className="min-h-screen bg-[#f8faf9] text-slate-800 antialiased pb-20">
       
-      {/* 1. En-tête officiel vert foncé */}
-      <header className="bg-[#005c30] text-white shadow-md print:hidden">
-        <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <Link href="/" className="flex items-center gap-2 hover:opacity-90 transition-opacity">
-              <div className="w-9 h-9 rounded-full bg-white p-1 flex items-center justify-center shrink-0 shadow-sm overflow-hidden">
-                <Image
-                  src="/logo-ascq.png"
-                  alt="Logo ASCQ Bénin"
-                  width={34}
-                  height={34}
-                  className="object-contain"
-                />
-              </div>
-              <div className="leading-tight">
-                <span className="font-extrabold text-sm sm:text-base tracking-tight text-white block">
-                  ASCQ Bénin
-                </span>
-                <span className="text-[11px] text-emerald-200 block">
-                  Ministère de la Santé
-                </span>
-              </div>
+      {/* 1. En-tête : AscqNav pour ASCQ / Cadres, ou header dédié pour RC */}
+      {currentUser?.poste === "RC" ? (
+        <header className="bg-[#005c30] text-white shadow-md print:hidden">
+          <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between gap-3">
+            <Link href={retourLien} className="flex items-center gap-2 text-white hover:text-emerald-200 transition-colors">
+              <ArrowLeft className="w-4 h-4" />
+              <span className="text-xs font-bold">Retour Espace RC</span>
             </Link>
-          </div>
-
-          <div className="flex items-center gap-2">
+            <h1 className="text-sm font-extrabold truncate">Guide SIMR & Calendrier Vaccinal</h1>
             <button
               onClick={() => window.print()}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-xs transition-colors"
-              title="Imprimer cette fiche ou l'enregistrer en PDF"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-xs"
             >
-              <Printer className="w-4 h-4" />
+              <Printer className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Imprimer</span>
             </button>
-            <Link
-              href="/"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white text-[#005c30] hover:bg-emerald-50 font-bold text-xs shadow-sm transition-all"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Accueil</span>
-            </Link>
           </div>
-        </div>
-
-        {/* Liseré tricolore béninois */}
-        <div className="h-1 w-full flex">
-          <span className="w-1/3 bg-[#008751]"></span>
-          <span className="w-1/3 bg-[#FCD116]"></span>
-          <span className="w-1/3 bg-[#E8112D]"></span>
-        </div>
-      </header>
+          <div className="h-1 w-full flex">
+            <span className="w-1/3 bg-[#008751]"></span>
+            <span className="w-1/3 bg-[#FCD116]"></span>
+            <span className="w-1/3 bg-[#E8112D]"></span>
+          </div>
+        </header>
+      ) : (
+        <AscqNav userProfile={currentUser} />
+      )}
 
       {/* 2. Titre et Bandeau du module */}
       <div className="bg-gradient-to-b from-[#005c30]/10 to-transparent pt-6 pb-4">
@@ -138,6 +163,14 @@ export default function BriefingPage() {
                 <ShieldAlert className="w-4 h-4" />
                 <span>Déclencher une alerte</span>
               </Link>
+              <button
+                onClick={() => window.print()}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white text-slate-700 hover:bg-slate-50 font-bold text-xs border border-slate-200 shadow-xs transition-colors"
+                title="Imprimer ce guide ou l'enregistrer en PDF"
+              >
+                <Printer className="w-3.5 h-3.5 text-slate-500" />
+                <span>Imprimer / PDF</span>
+              </button>
             </div>
           </div>
 
