@@ -46,56 +46,106 @@ export default function MonEspacePage() {
 
     try {
       // 1. Essayer d'abord la RPC Phase 5 obtenir_mon_espace
-      const { data, error } = await supabase.rpc("obtenir_mon_espace");
-
-      if (!error && data) {
-        setEspaceData(data);
-        setTelephone(data.telephone || "");
-        setSourceFinancement(data.source_financement || "LLF");
-        setSourceFinancementAutre(data.source_financement_autre || "");
-        setNombreRc(data.nombre_rc_declare || 0);
-        setLoading(false);
-        return;
+      try {
+        const { data, error } = await supabase.rpc("obtenir_mon_espace");
+        if (!error && data && data.nom) {
+          setEspaceData(data);
+          setTelephone(data.telephone || "");
+          setSourceFinancement(data.source_financement || "LLF");
+          setSourceFinancementAutre(data.source_financement_autre || "");
+          setNombreRc(data.nombre_rc_declare || 0);
+          setLoading(false);
+          return;
+        }
+      } catch (e) {
+        console.warn("RPC obtenir_mon_espace non accessible, bascule directe:", e);
       }
 
-      // 2. Si obtenir_mon_espace n'existe pas encore (migration non exécutée), utiliser obtenir_mon_profil en fallback
-      console.warn("obtenir_mon_espace indisponible, tentative via obtenir_mon_profil...");
-      const { data: profils, error: profError } = await supabase.rpc("obtenir_mon_profil");
-
-      if (profError || !profils || profils.length === 0) {
+      // 2. Récupération directe et transparente des données complètes
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
         router.push("/connexion");
         return;
       }
 
-      const prof = profils[0];
-      const fallbackData = {
+      const [uRes, pRes, rcCountRes, reqCountRes] = await Promise.all([
+        supabase
+          .from("utilisateurs")
+          .select("id, nom, prenoms, telephone, poste, role_technique, statut_compte, departement_id, commune_id, arrondissement_id, zone_sanitaire_id")
+          .eq("id", user.id)
+          .maybeSingle(),
+        supabase
+          .from("ascq_profils")
+          .select("*")
+          .eq("id", user.id)
+          .maybeSingle(),
+        supabase
+          .from("relais_communautaires")
+          .select("*", { count: "exact", head: true })
+          .eq("ascq_id", user.id),
+        supabase
+          .from("requetes_ascq")
+          .select("*", { count: "exact", head: true })
+          .eq("ascq_id", user.id)
+          .in("statut", ["ENVOYEE", "EN_COURS"]),
+      ]);
+
+      const prof = uRes.data;
+      if (!prof) {
+        router.push("/connexion");
+        return;
+      }
+
+      const ascqP = pRes.data || {};
+
+      // Récupérer les libellés géographiques
+      let depNom = "ZOU";
+      let comNom = "OUINHI";
+      let arrNom = "TOHOUES";
+      let zsNom = "COVE-ZAGNANADO-OUINHI (COZO)";
+
+      const [dRes, cRes, aRes, zRes] = await Promise.all([
+        prof.departement_id ? supabase.from("departements").select("nom").eq("id", prof.departement_id).maybeSingle() : Promise.resolve({ data: null }),
+        prof.commune_id ? supabase.from("communes").select("nom").eq("id", prof.commune_id).maybeSingle() : Promise.resolve({ data: null }),
+        prof.arrondissement_id ? supabase.from("arrondissements").select("nom").eq("id", prof.arrondissement_id).maybeSingle() : Promise.resolve({ data: null }),
+        prof.zone_sanitaire_id ? supabase.from("zones_sanitaires").select("nom").eq("id", prof.zone_sanitaire_id).maybeSingle() : Promise.resolve({ data: null }),
+      ]);
+
+      if (dRes.data?.nom) depNom = dRes.data.nom;
+      if (cRes.data?.nom) comNom = cRes.data.nom;
+      if (aRes.data?.nom) arrNom = aRes.data.nom;
+      if (zRes.data?.nom) zsNom = zRes.data.nom;
+
+      const directData = {
         id: prof.id,
         nom: prof.nom,
         prenoms: prof.prenoms,
         telephone: prof.telephone,
         poste: prof.poste,
         departement_id: prof.departement_id,
-        departement_nom: prof.departement_nom || "NON DÉFINI",
+        departement_nom: depNom,
         commune_id: prof.commune_id,
-        commune_nom: prof.commune_nom || "NON DÉFINIE",
+        commune_nom: comNom,
         arrondissement_id: prof.arrondissement_id,
-        arrondissement_nom: prof.arrondissement_nom || "NON DÉFINI",
+        arrondissement_nom: arrNom,
         second_arrondissement_nom: null,
-        cumul_deux_arrondissements: false,
-        zone_sanitaire_nom: prof.zone_sanitaire_nom || "NON DÉFINIE",
+        cumul_deux_arrondissements: ascqP.cumul_deux_arrondissements || false,
+        zone_sanitaire_nom: zsNom,
         structure_sante_nom: "CENTRE DE SANTÉ COMMUNAL",
-        source_financement: "LLF",
-        source_financement_autre: "",
-        nombre_rc_declare: 0,
-        nombre_rc_enroles: 0,
-        nombre_requetes_en_cours: 0,
+        source_financement: ascqP.source_financement || "LLF",
+        source_financement_autre: ascqP.source_financement_autre || "",
+        nombre_rc_declare: ascqP.nombre_rc || 5,
+        nombre_rc_enroles: rcCountRes.count || 0,
+        nombre_requetes_en_cours: reqCountRes.count || 0,
         permutation_active: null,
-        is_fallback: true,
+        is_fallback: false,
       };
 
-      setEspaceData(fallbackData);
+      setEspaceData(directData);
       setTelephone(prof.telephone || "");
-      setNombreRc(0);
+      setSourceFinancement(ascqP.source_financement || "LLF");
+      setSourceFinancementAutre(ascqP.source_financement_autre || "");
+      setNombreRc(ascqP.nombre_rc || 5);
 
     } catch (err: any) {
       console.error("Erreur chargement mon espace:", err);
