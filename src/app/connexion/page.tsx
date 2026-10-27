@@ -37,7 +37,7 @@ export default function ConnexionPage() {
           const userProfile = profils[0];
           if (userProfile.statut_compte === "VALIDE") {
             if (userProfile.role_technique === "SUPER_ADMIN" || userProfile.role_technique === "ADMINISTRATEUR") {
-              router.push("/admin/validation-comptes");
+              router.push("/admin");
             } else if (userProfile.poste === "RC") {
               router.push("/espace-rc");
             } else if (userProfile.poste === "ASCQ") {

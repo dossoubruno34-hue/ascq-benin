@@ -125,14 +125,35 @@ export default function AdminPage() {
         return;
       }
 
-      const { data: profil } = await supabase
-        .from("utilisateurs")
-        .select("*, departements(nom), communes(nom)")
-        .eq("id", user.id)
-        .single();
+      let profil: any = null;
+
+      // 1. Priorité à la fonction RPC obtenir_mon_profil (hermétique, sans récursion RLS)
+      try {
+        const { data: rpcData, error: rpcErr } = await supabase.rpc("obtenir_mon_profil");
+        if (!rpcErr && rpcData && rpcData.length > 0) {
+          profil = rpcData[0];
+        }
+      } catch (e) {
+        console.warn("RPC obtenir_mon_profil indisponible:", e);
+      }
+
+      // 2. Si non obtenu par RPC, tenter la requête directe
+      if (!profil) {
+        try {
+          const { data: directData } = await supabase
+            .from("utilisateurs")
+            .select("*, departements(nom), communes(nom)")
+            .eq("id", user.id)
+            .maybeSingle();
+          if (directData) profil = directData;
+        } catch (e) {
+          console.error("Erreur lecture profil directe:", e);
+        }
+      }
 
       if (!profil) {
-        router.push("/connexion");
+        console.warn("Profil introuvable pour l'utilisateur connecté");
+        setLoading(false);
         return;
       }
 
