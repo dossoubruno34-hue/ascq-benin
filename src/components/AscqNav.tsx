@@ -101,14 +101,22 @@ export default function AscqNav({ userProfile }: Props) {
         <div className="max-w-3xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <Link href="/" className="flex items-center gap-2.5 group">
-              <div className="w-8 h-8 rounded-full bg-white p-1 flex items-center justify-center shrink-0 shadow-sm overflow-hidden group-hover:scale-105 transition-transform">
-                <Image
-                  src="/logo-ascq.png"
-                  alt="Logo ASCQ Bénin"
-                  width={32}
-                  height={32}
-                  className="object-contain"
-                />
+              <div className="w-8 h-8 rounded-full bg-white p-0.5 flex items-center justify-center shrink-0 shadow-sm overflow-hidden group-hover:scale-105 transition-transform border border-emerald-400">
+                {userProfile?.photo_url ? (
+                  <img
+                    src={userProfile.photo_url}
+                    alt="Photo"
+                    className="w-full h-full object-cover rounded-full"
+                  />
+                ) : (
+                  <Image
+                    src="/logo-ascq.png"
+                    alt="Logo ASCQ Bénin"
+                    width={32}
+                    height={32}
+                    className="object-contain"
+                  />
+                )}
               </div>
               <div className="leading-tight">
                 <h1 className="font-extrabold text-sm sm:text-base tracking-tight text-white">

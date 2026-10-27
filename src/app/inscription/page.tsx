@@ -25,17 +25,17 @@ export default function InscriptionPage() {
   const [poste, setPoste] = useState("ASCQ");
   const [posteAutre, setPosteAutre] = useState("");
 
-  // Rôles et niveaux hiérarchiques
-  const isCadreDept = ["DDS", "CCD_CDLS_TP", "CSSPR", "CSPSMEMH", "REPRESENTANT_DEPARTEMENTAL"].includes(poste);
+  // Rôles et niveaux hiérarchiques (les Représentants s'inscrivent comme ASCQ puis sont nommés par l'Admin)
+  const isCadreDept = ["DDS", "CCD_CDLS_TP", "CSSPR", "CSPSMEMH"].includes(poste);
   const isCadreZone = ["MCZS", "RCSE", "C_RAMS"].includes(poste);
-  const isCadreCommune = ["MCC", "PF_CCLS_TP", "REPRESENTANT_COMMUNAL"].includes(poste);
+  const isCadreCommune = ["MCC", "PF_CCLS_TP"].includes(poste);
   const isTerrainAscq = poste === "ASCQ";
   const isAutre = poste === "AUTRE";
 
   const showZoneSanitaire = isCadreZone || isCadreCommune || isTerrainAscq || isAutre;
   const showCommune = isCadreCommune || isTerrainAscq || isAutre;
   const showArrondissement = isTerrainAscq || isAutre;
-  const showAscqProfil = isTerrainAscq || ["REPRESENTANT_COMMUNAL", "REPRESENTANT_DEPARTEMENTAL"].includes(poste);
+  const showAscqProfil = isTerrainAscq;
 
   // Localisation
   const [selectedDep, setSelectedDep] = useState("");
@@ -383,31 +383,19 @@ export default function InscriptionPage() {
                         setSelectedArr("");
                       }
                     }}
-                    className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
+                    className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-slate-800"
                   >
-                    <optgroup label="Terrain (Communautaire)">
-                      <option value="ASCQ">ASCQ (Agent de Santé Communautaire Qualifié)</option>
-                    </optgroup>
-                    <optgroup label="Niveau Communal">
-                      <option value="PF_CCLS_TP">PF CCLS-TP (Point Focal Santé Communale)</option>
-                      <option value="MCC">MCC (Médecin Coordonnateur de Commune)</option>
-                      <option value="REPRESENTANT_COMMUNAL">Représentant Communal des ASCQ</option>
-                    </optgroup>
-                    <optgroup label="Niveau Zone Sanitaire">
-                      <option value="MCZS">MCZS (Médecin Coordonnateur de Zone Sanitaire)</option>
-                      <option value="RCSE">RCSE (Responsable Cellule Surveillance Épidémiologique)</option>
-                      <option value="C_RAMS">C-RAMS (Chargé Registre & Audit Mortalité)</option>
-                    </optgroup>
-                    <optgroup label="Niveau Départemental">
-                      <option value="DDS">DDS (Directeur Départemental de la Santé)</option>
-                      <option value="CCD_CDLS_TP">CCD CDLS-TP (Coordination Dép. CDLS-TP)</option>
-                      <option value="CSSPR">CSSPR (Chef Service Santé Publique & Réponse)</option>
-                      <option value="CSPSMEMH">CSPSMEMH (Chef Service Pharmacie & Santé Mère-Enfant)</option>
-                      <option value="REPRESENTANT_DEPARTEMENTAL">Représentant Départemental des ASCQ</option>
-                    </optgroup>
-                    <optgroup label="Autre">
-                      <option value="AUTRE">Autre poste (à préciser)</option>
-                    </optgroup>
+                    <option value="ASCQ">ASCQ</option>
+                    <option value="PF_CCLS_TP">PF CCLS-TP</option>
+                    <option value="MCC">MCC</option>
+                    <option value="MCZS">MCZS</option>
+                    <option value="RCSE">RCSE</option>
+                    <option value="C_RAMS">C-RAMS</option>
+                    <option value="DDS">DDS</option>
+                    <option value="CCD_CDLS_TP">CCD CDLS-TP</option>
+                    <option value="CSSPR">CSSPR</option>
+                    <option value="CSPSMEMH">CSPSMEMH</option>
+                    <option value="AUTRE">AUTRE</option>
                   </select>
                 </div>
 

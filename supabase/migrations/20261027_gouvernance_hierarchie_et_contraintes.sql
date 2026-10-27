@@ -27,6 +27,9 @@ ALTER TABLE public.ascq_profils ADD CONSTRAINT ascq_profils_source_financement_c
         'AUTRE'
     ));
 
+-- Ajout de la colonne photo_url pour la photo de profil de chaque utilisateur inscrit
+ALTER TABLE public.utilisateurs ADD COLUMN IF NOT EXISTS photo_url TEXT;
+
 -- Élargissement des postes institutionnels reconnus
 ALTER TABLE public.utilisateurs DROP CONSTRAINT IF EXISTS utilisateurs_poste_check;
 ALTER TABLE public.utilisateurs ADD CONSTRAINT utilisateurs_poste_check 
@@ -982,3 +985,74 @@ GRANT EXECUTE ON FUNCTION public.inscrire_nouvel_agent TO authenticated;
 GRANT EXECUTE ON FUNCTION public.ascq_modifier_relais TO authenticated;
 GRANT EXECUTE ON FUNCTION public.ascq_changer_statut_rc TO authenticated;
 GRANT EXECUTE ON FUNCTION public.lister_mes_relais TO authenticated;
+
+-- ---------------------------------------------------------------------
+-- 13. GESTION DE LA PHOTO DE PROFIL POUR CHAQUE INSCRIT
+-- ---------------------------------------------------------------------
+
+-- A. Mise à jour de la photo de profil par l'utilisateur connecté
+DROP FUNCTION IF EXISTS public.mettre_a_jour_photo_profil CASCADE;
+
+CREATE OR REPLACE FUNCTION public.mettre_a_jour_photo_profil(p_photo_url TEXT)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+    IF auth.uid() IS NULL THEN
+        RAISE EXCEPTION 'Non authentifié. Veuillez vous connecter.';
+    END IF;
+
+    UPDATE public.utilisateurs
+    SET photo_url = p_photo_url,
+        updated_at = NOW()
+    WHERE id = auth.uid();
+
+    RETURN jsonb_build_object(
+        'success', true, 
+        'photo_url', p_photo_url, 
+        'message', 'Photo de profil mise à jour avec succès.'
+    );
+END;
+$$;
+
+-- B. Fonction obtenir_mon_profil intégrant la photo_url
+DROP FUNCTION IF EXISTS public.obtenir_mon_profil() CASCADE;
+
+CREATE OR REPLACE FUNCTION public.obtenir_mon_profil()
+RETURNS TABLE (
+    id UUID,
+    telephone TEXT,
+    nom TEXT,
+    prenoms TEXT,
+    poste TEXT,
+    role_technique TEXT,
+    statut_compte TEXT,
+    departement_id UUID,
+    commune_id UUID,
+    commune_nom TEXT,
+    arrondissement_nom TEXT,
+    photo_url TEXT
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    u.id, u.telephone, u.nom, u.prenoms, u.poste, u.role_technique, u.statut_compte,
+    u.departement_id, u.commune_id,
+    c.nom AS commune_nom,
+    a.nom AS arrondissement_nom,
+    u.photo_url
+  FROM public.utilisateurs u
+  LEFT JOIN public.communes c ON u.commune_id = c.id
+  LEFT JOIN public.arrondissements a ON u.arrondissement_id = a.id
+  WHERE u.id = auth.uid();
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.mettre_a_jour_photo_profil TO authenticated;
+GRANT EXECUTE ON FUNCTION public.obtenir_mon_profil TO authenticated;

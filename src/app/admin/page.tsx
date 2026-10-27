@@ -1235,11 +1235,21 @@ export default function AdminPage() {
                   ) : (
                     paginatedComptes.map((c) => (
                       <div key={c.id} className="p-4 flex flex-col sm:flex-row sm:items-start justify-between gap-3 hover:bg-slate-50 transition-colors">
-                        <div className="flex-1 space-y-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-extrabold text-sm text-slate-900 uppercase">
-                              {c.nom} {c.prenoms}
-                            </span>
+                        <div className="flex items-start gap-3 flex-1">
+                          {/* Photo de profil de l'agent */}
+                          <div className="w-10 h-10 rounded-full bg-slate-100 overflow-hidden border border-slate-200 shrink-0 flex items-center justify-center font-bold text-xs text-slate-700 shadow-sm mt-0.5">
+                            {c.photo_url ? (
+                              <img src={c.photo_url} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <span className="uppercase text-emerald-800">{c.prenoms?.[0] || ""}{c.nom?.[0] || ""}</span>
+                            )}
+                          </div>
+
+                          <div className="flex-1 space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-extrabold text-sm text-slate-900 uppercase">
+                                {c.nom} {c.prenoms}
+                              </span>
                             <span
                               className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
                                 c.statut_compte === "VALIDE"
@@ -1294,8 +1304,9 @@ export default function AdminPage() {
                             </div>
                           )}
                         </div>
+                      </div>
 
-                        <div className="flex items-center gap-2 shrink-0 self-start sm:self-center flex-wrap">
+                      <div className="flex items-center gap-2 shrink-0 self-start sm:self-center flex-wrap">
                           {/* 1. BOUTON SUPER ADMIN : NOMINATION & RESPONSABILITÉ */}
                           {currentUser?.role_technique === "SUPER_ADMIN" && (
                             <button
