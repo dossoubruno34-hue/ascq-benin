@@ -13,7 +13,7 @@
 -- ====================================================================
 
 -- ---------------------------------------------------------------------
--- 1. CORRECTION CONTRAINTE SOURCE DE FINANCEMENT
+-- 1. CORRECTION CONTRAINTES (SOURCE FINANCEMENT, POSTES, RÔLES TECHNIQUES)
 -- ---------------------------------------------------------------------
 ALTER TABLE public.ascq_profils DROP CONSTRAINT IF EXISTS ascq_profils_source_financement_check;
 ALTER TABLE public.ascq_profils ADD CONSTRAINT ascq_profils_source_financement_check 
@@ -25,6 +25,48 @@ ALTER TABLE public.ascq_profils ADD CONSTRAINT ascq_profils_source_financement_c
         'GAVI', 
         'FADEC', 
         'AUTRE'
+    ));
+
+-- Élargissement des postes institutionnels reconnus
+ALTER TABLE public.utilisateurs DROP CONSTRAINT IF EXISTS utilisateurs_poste_check;
+ALTER TABLE public.utilisateurs ADD CONSTRAINT utilisateurs_poste_check 
+    CHECK (poste IN (
+        'ASCQ', 
+        'RC', 
+        'DDS', 
+        'CCD_CDLS_TP', 
+        'CSSPR', 
+        'CSPSMEMH', 
+        'MCZS', 
+        'RCSE', 
+        'C_RAMS', 
+        'MCC', 
+        'PF_CCLS_TP', 
+        'REPRESENTANT_COMMUNAL', 
+        'REPRESENTANT_DEPARTEMENTAL', 
+        'ADMINISTRATEUR', 
+        'SUPER_ADMIN', 
+        'AUTRE'
+    ));
+
+-- Élargissement des rôles techniques système
+ALTER TABLE public.utilisateurs DROP CONSTRAINT IF EXISTS utilisateurs_role_technique_check;
+ALTER TABLE public.utilisateurs ADD CONSTRAINT utilisateurs_role_technique_check 
+    CHECK (role_technique IN (
+        'PUBLIC', 
+        'RELAIS', 
+        'UTILISATEUR',
+        'ASCQ_OPERATEUR', 
+        'GESTIONNAIRE_PERIMETRE', 
+        'ADMINISTRATEUR', 
+        'SUPER_ADMIN', 
+        'REPRESENTANT_DEPARTEMENTAL', 
+        'ADMIN_DEPARTEMENTAL', 
+        'CADRE_DEPARTEMENTAL', 
+        'CADRE_ZONE_SANITAIRE', 
+        'REPRESENTANT_COMMUNAL', 
+        'ADMIN_COMMUNAL', 
+        'CADRE_COMMUNAL'
     ));
 
 -- ---------------------------------------------------------------------
@@ -105,15 +147,28 @@ BEGIN
 
   -- Seul le Super Administrateur National peut modifier le rôle technique
   IF (OLD.role_technique IS DISTINCT FROM NEW.role_technique) THEN
-    IF NOT public.est_super_admin() THEN
+    -- Autoriser si le compte est en cours d'inscription (statut EN_ATTENTE)
+    IF (OLD.statut_compte = 'EN_ATTENTE' AND NEW.statut_compte = 'EN_ATTENTE') THEN
+      NULL;
+    ELSIF NOT public.est_super_admin() THEN
       RAISE EXCEPTION 'Interdit : seul le Super Administrateur National est habilité à nommer et modifier les rôles techniques.';
     END IF;
   END IF;
 
-  -- Seuls les administrateurs et gestionnaires autorisés peuvent modifier le statut de compte
+  -- Seuls les administrateurs et gestionnaires autorisés (ou l'ASCQ pour ses propres RC) peuvent modifier le statut de compte
   IF (OLD.statut_compte IS DISTINCT FROM NEW.statut_compte) THEN
-    IF NOT public.est_administrateur() THEN
-      RAISE EXCEPTION 'Interdit : la modification du statut de compte est strictement réservée aux administrateurs.';
+    IF public.est_administrateur() THEN
+      NULL;
+    -- Chaque ASCQ a le plein pouvoir de valider, activer ou suspendre le compte de son RC
+    ELSIF EXISTS (
+      SELECT 1 FROM public.relais_communautaires 
+      WHERE user_id = NEW.id AND ascq_id = auth.uid()
+    ) THEN
+      NULL;
+    ELSIF (OLD.statut_compte = 'EN_ATTENTE' AND NEW.statut_compte = 'EN_ATTENTE') THEN
+      NULL;
+    ELSE
+      RAISE EXCEPTION 'Interdit : la modification du statut de compte est strictement réservée aux administrateurs ou à l''ASCQ responsable du relais.';
     END IF;
   END IF;
 
@@ -586,3 +641,344 @@ GRANT EXECUTE ON FUNCTION public.admin_toggle_conseil_sante TO authenticated;
 GRANT EXECUTE ON FUNCTION public.admin_creer_document_bibliotheque TO authenticated;
 GRANT EXECUTE ON FUNCTION public.admin_supprimer_document_bibliotheque TO authenticated;
 GRANT EXECUTE ON FUNCTION public.admin_toggle_document_bibliotheque TO authenticated;
+
+-- ---------------------------------------------------------------------
+-- 10. INSCRIPTION MULTI-POSTES INSTITUTIONNELS (DDS, MCZS, MCC, PF, ASCQ)
+-- ---------------------------------------------------------------------
+DROP FUNCTION IF EXISTS public.inscrire_nouvel_agent(UUID, TEXT, TEXT, TEXT, TEXT, TEXT, UUID, UUID, UUID, UUID, UUID, TEXT, TEXT, INTEGER, BOOLEAN, BOOLEAN) CASCADE;
+DROP FUNCTION IF EXISTS public.inscrire_nouvel_agent CASCADE;
+
+CREATE OR REPLACE FUNCTION public.inscrire_nouvel_agent(
+    p_id UUID,
+    p_telephone TEXT,
+    p_nom TEXT,
+    p_prenoms TEXT,
+    p_poste TEXT,
+    p_poste_autre TEXT,
+    p_departement_id UUID,
+    p_zone_sanitaire_id UUID,
+    p_commune_id UUID,
+    p_arrondissement_id UUID,
+    p_second_arrondissement_id UUID,
+    p_source_financement TEXT,
+    p_source_financement_autre TEXT,
+    p_nombre_rc INTEGER,
+    p_afficher_annuaire BOOLEAN,
+    p_cumul_deux_arrondissements BOOLEAN
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_clean_phone TEXT;
+    v_role_initial TEXT;
+BEGIN
+    v_clean_phone := TRIM(p_telephone);
+
+    IF auth.uid() IS NOT NULL AND auth.uid() != p_id THEN
+        RAISE EXCEPTION 'Non autorisé : l''identifiant ne correspond pas à la session connectée.';
+    END IF;
+
+    -- Vérifier doublon sur compte déjà validé
+    IF EXISTS (
+        SELECT 1 FROM public.utilisateurs 
+        WHERE (id = p_id OR telephone = v_clean_phone) 
+          AND statut_compte IN ('VALIDE', 'SUSPENDU')
+    ) THEN
+        RAISE EXCEPTION 'Compte déjà existant et validé. Veuillez vous connecter ou contacter l''administrateur.';
+    END IF;
+
+    -- Déterminer le rôle technique initial selon le poste
+    v_role_initial := CASE
+        WHEN p_poste IN ('DDS', 'CCD_CDLS_TP', 'CSSPR', 'CSPSMEMH') THEN 'CADRE_DEPARTEMENTAL'
+        WHEN p_poste = 'REPRESENTANT_DEPARTEMENTAL' THEN 'REPRESENTANT_DEPARTEMENTAL'
+        WHEN p_poste IN ('MCZS', 'RCSE', 'C_RAMS') THEN 'CADRE_ZONE_SANITAIRE'
+        WHEN p_poste = 'MCC' THEN 'CADRE_COMMUNAL'
+        WHEN p_poste = 'PF_CCLS_TP' THEN 'ADMIN_COMMUNAL'
+        WHEN p_poste = 'REPRESENTANT_COMMUNAL' THEN 'REPRESENTANT_COMMUNAL'
+        WHEN p_poste = 'ASCQ' THEN 'ASCQ_OPERATEUR'
+        ELSE 'PUBLIC'
+    END;
+
+    IF EXISTS (SELECT 1 FROM public.utilisateurs WHERE id = p_id) THEN
+        UPDATE public.utilisateurs
+        SET telephone = v_clean_phone,
+            nom = UPPER(TRIM(p_nom)),
+            prenoms = TRIM(p_prenoms),
+            poste = p_poste,
+            poste_autre = p_poste_autre,
+            departement_id = p_departement_id,
+            zone_sanitaire_id = p_zone_sanitaire_id,
+            commune_id = p_commune_id,
+            arrondissement_id = p_arrondissement_id,
+            second_arrondissement_id = p_second_arrondissement_id,
+            statut_compte = 'EN_ATTENTE',
+            role_technique = v_role_initial,
+            updated_at = NOW()
+        WHERE id = p_id AND statut_compte IN ('EN_ATTENTE', 'REJETE');
+    ELSE
+        INSERT INTO public.utilisateurs (
+            id, telephone, nom, prenoms, poste, poste_autre,
+            role_technique, statut_compte,
+            departement_id, zone_sanitaire_id, commune_id, arrondissement_id, second_arrondissement_id
+        ) VALUES (
+            p_id, v_clean_phone, UPPER(TRIM(p_nom)), TRIM(p_prenoms), p_poste, p_poste_autre,
+            v_role_initial,
+            'EN_ATTENTE',
+            p_departement_id, p_zone_sanitaire_id, p_commune_id, p_arrondissement_id, p_second_arrondissement_id
+        );
+    END IF;
+
+    -- Enregistrer les paramètres de profil si le poste est un profil terrain ASCQ ou représentant
+    IF p_poste IN ('ASCQ', 'REPRESENTANT_COMMUNAL', 'REPRESENTANT_DEPARTEMENTAL') THEN
+        INSERT INTO public.ascq_profils (
+            id, source_financement, source_financement_autre,
+            nombre_rc, afficher_annuaire_public, cumul_deux_arrondissements
+        ) VALUES (
+            p_id, COALESCE(p_source_financement, 'LLF_FADEC'), p_source_financement_autre,
+            COALESCE(p_nombre_rc, 0), COALESCE(p_afficher_annuaire, false), COALESCE(p_cumul_deux_arrondissements, false)
+        )
+        ON CONFLICT (id) DO UPDATE SET
+            source_financement = EXCLUDED.source_financement,
+            source_financement_autre = EXCLUDED.source_financement_autre,
+            nombre_rc = EXCLUDED.nombre_rc,
+            afficher_annuaire_public = EXCLUDED.afficher_annuaire_public,
+            cumul_deux_arrondissements = EXCLUDED.cumul_deux_arrondissements;
+    END IF;
+
+    RETURN jsonb_build_object('success', true, 'id', p_id);
+END;
+$$;
+
+-- ---------------------------------------------------------------------
+-- 11. GESTION DES RELAIS COMMUNAUTAIRES (RC) PAR LEUR ASCQ DIRECT
+-- "Chaque ASCQ cré, valide, modifi le compte de son RC"
+-- ---------------------------------------------------------------------
+
+-- A. Modification de la fiche d'un RC par son ASCQ propriétaire
+DROP FUNCTION IF EXISTS public.ascq_modifier_relais CASCADE;
+
+CREATE OR REPLACE FUNCTION public.ascq_modifier_relais(
+    p_rc_id UUID,
+    p_nom TEXT,
+    p_prenoms TEXT,
+    p_telephone TEXT,
+    p_village_id UUID DEFAULT NULL,
+    p_village_nom TEXT DEFAULT NULL,
+    p_grappe INTEGER DEFAULT 1,
+    p_nom_grappe TEXT DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth, extensions
+AS $$
+DECLARE
+    v_ascq_id UUID;
+    v_clean_phone TEXT;
+    v_technical_email TEXT;
+    v_user_id UUID;
+    v_village_id UUID := p_village_id;
+    v_village_nom TEXT := p_village_nom;
+    v_ascq_arr UUID;
+BEGIN
+    v_ascq_id := auth.uid();
+    IF v_ascq_id IS NULL THEN
+        RAISE EXCEPTION 'Non authentifié. Veuillez vous connecter.';
+    END IF;
+
+    -- Vérifier que le relais appartient bien à cet ASCQ (ou Super Admin)
+    SELECT user_id INTO v_user_id
+    FROM public.relais_communautaires
+    WHERE id = p_rc_id AND (ascq_id = v_ascq_id OR public.est_super_admin());
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Accès refusé : Ce relais communautaire n''est pas rattaché à votre compte.';
+    END IF;
+
+    -- Récupérer l'arrondissement de l'ASCQ pour la gestion automatique de village
+    SELECT arrondissement_id INTO v_ascq_arr
+    FROM public.utilisateurs
+    WHERE id = v_ascq_id;
+
+    -- Nettoyage téléphone
+    v_clean_phone := regexp_replace(p_telephone, '\D', '', 'g');
+    IF LENGTH(v_clean_phone) < 8 THEN
+        RAISE EXCEPTION 'Le numéro de téléphone est invalide.';
+    END IF;
+    v_technical_email := 'tel_' || v_clean_phone || '@ascq.local';
+
+    -- Gestion du village
+    IF v_village_id IS NULL AND v_village_nom IS NOT NULL AND TRIM(v_village_nom) <> '' THEN
+        SELECT id INTO v_village_id 
+        FROM public.villages 
+        WHERE arrondissement_id = v_ascq_arr AND UPPER(nom) = UPPER(TRIM(v_village_nom))
+        LIMIT 1;
+
+        IF v_village_id IS NULL AND v_ascq_arr IS NOT NULL THEN
+            INSERT INTO public.villages (arrondissement_id, nom, code)
+            VALUES (v_ascq_arr, UPPER(TRIM(v_village_nom)), 'VIL-' || SUBSTRING(v_clean_phone FROM 5 FOR 4))
+            RETURNING id INTO v_village_id;
+        END IF;
+    ELSIF v_village_id IS NOT NULL AND (v_village_nom IS NULL OR v_village_nom = '') THEN
+        SELECT nom INTO v_village_nom FROM public.villages WHERE id = v_village_id;
+    END IF;
+
+    -- 1. Mise à jour dans relais_communautaires
+    UPDATE public.relais_communautaires
+    SET nom = UPPER(TRIM(p_nom)),
+        prenoms = TRIM(p_prenoms),
+        telephone = p_telephone,
+        village_id = v_village_id,
+        village_nom = COALESCE(v_village_nom, 'VILLAGE'),
+        grappe = p_grappe,
+        nom_grappe = p_nom_grappe,
+        updated_at = NOW()
+    WHERE id = p_rc_id;
+
+    -- 2. Mise à jour du compte utilisateur lié si présent
+    IF v_user_id IS NOT NULL THEN
+        UPDATE public.utilisateurs
+        SET nom = UPPER(TRIM(p_nom)),
+            prenoms = TRIM(p_prenoms),
+            telephone = p_telephone,
+            updated_at = NOW()
+        WHERE id = v_user_id;
+
+        -- Mise à jour dans auth.users
+        UPDATE auth.users
+        SET email = v_technical_email,
+            raw_user_meta_data = jsonb_build_object(
+                'nom', UPPER(TRIM(p_nom)), 
+                'prenoms', TRIM(p_prenoms), 
+                'telephone', p_telephone, 
+                'poste', 'RC'
+            ),
+            updated_at = NOW()
+        WHERE id = v_user_id;
+    END IF;
+
+    RETURN jsonb_build_object(
+        'success', true, 
+        'message', 'Fiche du relais communautaire modifiée avec succès.'
+    );
+END;
+$$;
+
+-- B. Validation / Activation / Suspension d'un RC par son ASCQ propriétaire
+DROP FUNCTION IF EXISTS public.ascq_changer_statut_rc CASCADE;
+
+CREATE OR REPLACE FUNCTION public.ascq_changer_statut_rc(
+    p_rc_id UUID,
+    p_nouveau_statut TEXT
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth, extensions
+AS $$
+DECLARE
+    v_ascq_id UUID;
+    v_user_id UUID;
+    v_statut_normalise TEXT;
+    v_statut_compte TEXT;
+BEGIN
+    v_ascq_id := auth.uid();
+    IF v_ascq_id IS NULL THEN
+        RAISE EXCEPTION 'Non authentifié. Veuillez vous connecter.';
+    END IF;
+
+    -- Vérifier que le relais appartient bien à cet ASCQ (ou Super Admin)
+    SELECT user_id INTO v_user_id
+    FROM public.relais_communautaires
+    WHERE id = p_rc_id AND (ascq_id = v_ascq_id OR public.est_super_admin());
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Accès refusé : Ce relais communautaire n''est pas rattaché à votre compte.';
+    END IF;
+
+    -- Normalisation du statut
+    IF UPPER(p_nouveau_statut) IN ('VALIDE', 'ACTIF', 'ACTIVER') THEN
+        v_statut_normalise := 'ACTIF';
+        v_statut_compte := 'VALIDE';
+    ELSIF UPPER(p_nouveau_statut) IN ('SUSPENDU', 'SUSPENDRE', 'INACTIF') THEN
+        v_statut_normalise := 'SUSPENDU';
+        v_statut_compte := 'SUSPENDU';
+    ELSE
+        RAISE EXCEPTION 'Statut non reconnu : utilisez ACTIF ou SUSPENDU.';
+    END IF;
+
+    -- 1. Mettre à jour relais_communautaires
+    UPDATE public.relais_communautaires
+    SET statut = v_statut_normalise,
+        updated_at = NOW()
+    WHERE id = p_rc_id;
+
+    -- 2. Mettre à jour utilisateurs si user_id existe
+    IF v_user_id IS NOT NULL THEN
+        UPDATE public.utilisateurs
+        SET statut_compte = v_statut_compte,
+            updated_at = NOW()
+        WHERE id = v_user_id;
+    END IF;
+
+    RETURN jsonb_build_object(
+        'success', true,
+        'statut', v_statut_normalise,
+        'message', 'Statut du relais communautaire mis à jour avec succès (' || v_statut_normalise || ').'
+    );
+END;
+$$;
+
+-- C. Rafraîchissement de la fonction de listage des RC
+DROP FUNCTION IF EXISTS public.lister_mes_relais CASCADE;
+
+CREATE OR REPLACE FUNCTION public.lister_mes_relais()
+RETURNS TABLE (
+    id UUID,
+    nom TEXT,
+    prenoms TEXT,
+    telephone TEXT,
+    village_id UUID,
+    village_nom TEXT,
+    grappe INTEGER,
+    nom_grappe TEXT,
+    code_temporaire_utilise BOOLEAN,
+    statut TEXT,
+    created_at TIMESTAMPTZ
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        rc.id,
+        rc.nom,
+        rc.prenoms,
+        rc.telephone,
+        rc.village_id,
+        rc.village_nom,
+        rc.grappe,
+        rc.nom_grappe,
+        rc.code_temporaire_utilise,
+        rc.statut,
+        rc.created_at
+    FROM public.relais_communautaires rc
+    WHERE rc.ascq_id = auth.uid()
+       OR (public.est_super_admin() AND rc.ascq_id IS NOT NULL)
+    ORDER BY rc.created_at DESC;
+END;
+$$;
+
+-- ---------------------------------------------------------------------
+-- 12. PERMISSIONS D'EXÉCUTION
+-- ---------------------------------------------------------------------
+GRANT EXECUTE ON FUNCTION public.inscrire_nouvel_agent TO anon;
+GRANT EXECUTE ON FUNCTION public.inscrire_nouvel_agent TO authenticated;
+GRANT EXECUTE ON FUNCTION public.ascq_modifier_relais TO authenticated;
+GRANT EXECUTE ON FUNCTION public.ascq_changer_statut_rc TO authenticated;
+GRANT EXECUTE ON FUNCTION public.lister_mes_relais TO authenticated;

@@ -20,7 +20,10 @@ import {
   X,
   ArrowLeft,
   Search,
-  Check
+  Check,
+  Edit3,
+  ShieldCheck,
+  Ban
 } from "lucide-react";
 
 interface Relais {
@@ -68,6 +71,21 @@ export default function GestionRelaisPage() {
 
   // État de réinitialisation
   const [resettingId, setResettingId] = useState<string | null>(null);
+
+  // Modale de modification d'un RC
+  const [editingRc, setEditingRc] = useState<Relais | null>(null);
+  const [editNom, setEditNom] = useState("");
+  const [editPrenoms, setEditPrenoms] = useState("");
+  const [editTelephone, setEditTelephone] = useState("");
+  const [editVillageId, setEditVillageId] = useState("");
+  const [editCustomVillageNom, setEditCustomVillageNom] = useState("");
+  const [editGrappe, setEditGrappe] = useState("1");
+  const [editNomGrappe, setEditNomGrappe] = useState("");
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState("");
+
+  // État de changement de statut
+  const [statusChangingId, setStatusChangingId] = useState<string | null>(null);
 
   // Charger le profil de l'ASCQ et la liste de ses RC
   const loadData = async () => {
@@ -211,6 +229,85 @@ export default function GestionRelaisPage() {
     const cleanPhone = codeModalData.telephone.replace(/\D/g, "");
     const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
     window.open(url, "_blank");
+  };
+
+  // Ouvrir la modale de modification
+  const handleOpenEdit = (rc: Relais) => {
+    setEditingRc(rc);
+    setEditNom(rc.nom);
+    setEditPrenoms(rc.prenoms);
+    setEditTelephone(rc.telephone);
+    const foundVillage = villages.find((v) => v.id === rc.village_id);
+    if (foundVillage) {
+      setEditVillageId(rc.village_id || "");
+      setEditCustomVillageNom("");
+    } else if (rc.village_nom) {
+      setEditVillageId("AUTRE");
+      setEditCustomVillageNom(rc.village_nom);
+    } else {
+      setEditVillageId("");
+      setEditCustomVillageNom("");
+    }
+    setEditGrappe(rc.grappe ? rc.grappe.toString() : "1");
+    setEditNomGrappe(rc.nom_grappe || "");
+    setEditError("");
+  };
+
+  // Soumission de la modification
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingRc) return;
+    setEditLoading(true);
+    setEditError("");
+
+    try {
+      const cleanPhone = editTelephone.trim();
+      const finalVillageNom = editVillageId === "AUTRE" ? editCustomVillageNom.trim() : "";
+
+      const { error } = await supabase.rpc("ascq_modifier_relais", {
+        p_rc_id: editingRc.id,
+        p_nom: editNom.trim(),
+        p_prenoms: editPrenoms.trim(),
+        p_telephone: cleanPhone,
+        p_village_id: editVillageId && editVillageId !== "AUTRE" ? editVillageId : null,
+        p_village_nom: finalVillageNom || null,
+        p_grappe: parseInt(editGrappe, 10) || 1,
+        p_nom_grappe: editNomGrappe.trim() || null,
+      });
+
+      if (error) throw error;
+
+      setEditingRc(null);
+      await loadData();
+    } catch (err: any) {
+      console.error("Erreur modification relais:", err);
+      setEditError(err.message || "Erreur lors de la modification du relais.");
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  // Valider, Activer ou Suspendre un RC
+  const handleChangeStatus = async (rc: Relais, newStatus: string) => {
+    const actionLabel = newStatus === "SUSPENDU" ? "suspendre" : "valider / activer";
+    if (!confirm(`Confirmez-vous vouloir ${actionLabel} le compte de ${rc.prenoms} ${rc.nom} ?`)) {
+      return;
+    }
+
+    setStatusChangingId(rc.id);
+    try {
+      const { error } = await supabase.rpc("ascq_changer_statut_rc", {
+        p_rc_id: rc.id,
+        p_nouveau_statut: newStatus,
+      });
+
+      if (error) throw error;
+      await loadData();
+    } catch (err: any) {
+      alert("Erreur lors de la mise à jour du statut : " + err.message);
+    } finally {
+      setStatusChangingId(null);
+    }
   };
 
   const filteredRelais = relaisList.filter((rc) => {
@@ -360,15 +457,20 @@ export default function GestionRelaisPage() {
                     </div>
                   </div>
 
-                  {/* Badge de statut du code */}
-                  <div>
-                    {rc.code_temporaire_utilise ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  {/* Badge de statut du compte */}
+                  <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                    {rc.statut === "SUSPENDU" ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                        <Ban className="w-3 h-3" />
+                        Compte suspendu
+                      </span>
+                    ) : rc.code_temporaire_utilise ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
                         <CheckCircle2 className="w-3 h-3" />
-                        Compte actif
+                        Compte validé & actif
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200 animate-pulse">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200 animate-pulse">
                         <Clock className="w-3 h-3" />
                         Code en attente
                       </span>
@@ -395,19 +497,50 @@ export default function GestionRelaisPage() {
                   </div>
                 </div>
 
-                {/* Actions de l'ASCQ */}
-                <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-xs">
-                  <span className="text-[11px] text-slate-400">
-                    Enrôlé le {new Date(rc.created_at).toLocaleDateString("fr-FR")}
-                  </span>
+                {/* Actions de l'ASCQ : Modifier, Valider/Suspendre, Code */}
+                <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {/* Bouton Modifier */}
+                    <button
+                      onClick={() => handleOpenEdit(rc)}
+                      className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-[11px] flex items-center gap-1 transition-all active:scale-95"
+                      title="Modifier la fiche du relais"
+                    >
+                      <Edit3 className="w-3.5 h-3.5 text-slate-600" />
+                      <span>Modifier</span>
+                    </button>
+
+                    {/* Bouton Valider / Activer ou Suspendre */}
+                    {rc.statut === "SUSPENDU" ? (
+                      <button
+                        onClick={() => handleChangeStatus(rc, "ACTIF")}
+                        disabled={statusChangingId === rc.id}
+                        className="px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-[11px] flex items-center gap-1 transition-all active:scale-95 disabled:opacity-50"
+                        title="Activer et valider le compte"
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
+                        <span>{statusChangingId === rc.id ? "Validation..." : "Activer / Valider"}</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleChangeStatus(rc, "SUSPENDU")}
+                        disabled={statusChangingId === rc.id}
+                        className="px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-[11px] flex items-center gap-1 transition-all active:scale-95 disabled:opacity-50"
+                        title="Suspendre temporairement ce compte"
+                      >
+                        <Ban className="w-3.5 h-3.5 text-rose-600" />
+                        <span>{statusChangingId === rc.id ? "Suspension..." : "Suspendre"}</span>
+                      </button>
+                    )}
+                  </div>
 
                   <button
                     onClick={() => handleResetCode(rc)}
                     disabled={resettingId === rc.id}
-                    className="font-bold text-[#005c30] hover:text-[#004724] hover:underline flex items-center gap-1 disabled:opacity-50"
+                    className="font-bold text-[#005c30] hover:text-[#004724] hover:underline flex items-center gap-1 text-[11px] disabled:opacity-50"
                   >
                     <RefreshCw className={`w-3.5 h-3.5 ${resettingId === rc.id ? "animate-spin" : ""}`} />
-                    <span>Réinitialiser le code d'accès</span>
+                    <span>Nouveau code</span>
                   </button>
                 </div>
               </div>
@@ -573,6 +706,174 @@ export default function GestionRelaisPage() {
                 >
                   <UserPlus className="w-4 h-4" />
                   <span>{enrollLoading ? "Enrôlement en cours..." : "Valider l'enrôlement"}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 2b. Modale : Modification d'un Relais Communautaire existant */}
+      {editingRc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-slate-100 text-slate-800 flex items-center justify-center font-bold">
+                  <Edit3 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h2 className="text-base font-extrabold text-slate-900 leading-tight">
+                    Modifier le Relais Communautaire
+                  </h2>
+                  <p className="text-[11px] text-slate-500">
+                    Mise à jour des informations d'identité et d'affectation
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setEditingRc(null)}
+                className="p-1 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {editError && (
+              <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>{editError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleEditSubmit} className="space-y-3.5">
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Nom *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editNom}
+                    onChange={(e) => setEditNom(e.target.value.toUpperCase())}
+                    placeholder="ex: KANHO"
+                    className="w-full text-xs sm:text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 uppercase font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#005c30]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Prénoms *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editPrenoms}
+                    onChange={(e) => setEditPrenoms(e.target.value)}
+                    placeholder="ex: Marcel"
+                    className="w-full text-xs sm:text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#005c30]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Numéro de téléphone *
+                </label>
+                <div className="relative">
+                  <input
+                    type="tel"
+                    required
+                    value={editTelephone}
+                    onChange={(e) => setEditTelephone(e.target.value)}
+                    placeholder="+229 01 97 00 00 00"
+                    className="w-full text-xs sm:text-sm rounded-xl border border-slate-200 bg-slate-50/50 pl-3 pr-8 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#005c30]"
+                  />
+                  <Phone className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Village de rattachement *
+                </label>
+                <select
+                  value={editVillageId}
+                  onChange={(e) => setEditVillageId(e.target.value)}
+                  required
+                  className="w-full text-xs sm:text-sm rounded-xl border border-slate-200 bg-white px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#005c30] text-slate-800"
+                >
+                  <option value="">Sélectionner un village</option>
+                  {villages.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.nom}
+                    </option>
+                  ))}
+                  <option value="AUTRE">+ Saisir un autre nom de village...</option>
+                </select>
+              </div>
+
+              {editVillageId === "AUTRE" && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Nom du village *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editCustomVillageNom}
+                    onChange={(e) => setEditCustomVillageNom(e.target.value.toUpperCase())}
+                    placeholder="Nom du village en majuscules"
+                    className="w-full text-xs sm:text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 uppercase font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#005c30]"
+                  />
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Grappe (numéro) *
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    required
+                    value={editGrappe}
+                    onChange={(e) => setEditGrappe(e.target.value)}
+                    className="w-full text-xs sm:text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 font-bold focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#005c30]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Nom de grappe (facultatif)
+                  </label>
+                  <input
+                    type="text"
+                    value={editNomGrappe}
+                    onChange={(e) => setEditNomGrappe(e.target.value)}
+                    placeholder="ex: Quartier Nord"
+                    className="w-full text-xs sm:text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#005c30]"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingRc(null)}
+                  className="w-1/3 py-3 px-3 rounded-xl font-bold text-xs text-slate-600 bg-slate-100 hover:bg-slate-200 transition-all"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={editLoading}
+                  className="w-2/3 py-3 px-4 rounded-xl font-bold text-sm text-white bg-[#005c30] hover:bg-[#004724] shadow-md transition-all active:scale-[0.98] disabled:opacity-60 flex items-center justify-center gap-2"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>{editLoading ? "Enregistrement..." : "Enregistrer"}</span>
                 </button>
               </div>
             </form>

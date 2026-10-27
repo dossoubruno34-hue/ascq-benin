@@ -25,6 +25,18 @@ export default function InscriptionPage() {
   const [poste, setPoste] = useState("ASCQ");
   const [posteAutre, setPosteAutre] = useState("");
 
+  // Rôles et niveaux hiérarchiques
+  const isCadreDept = ["DDS", "CCD_CDLS_TP", "CSSPR", "CSPSMEMH", "REPRESENTANT_DEPARTEMENTAL"].includes(poste);
+  const isCadreZone = ["MCZS", "RCSE", "C_RAMS"].includes(poste);
+  const isCadreCommune = ["MCC", "PF_CCLS_TP", "REPRESENTANT_COMMUNAL"].includes(poste);
+  const isTerrainAscq = poste === "ASCQ";
+  const isAutre = poste === "AUTRE";
+
+  const showZoneSanitaire = isCadreZone || isCadreCommune || isTerrainAscq || isAutre;
+  const showCommune = isCadreCommune || isTerrainAscq || isAutre;
+  const showArrondissement = isTerrainAscq || isAutre;
+  const showAscqProfil = isTerrainAscq || ["REPRESENTANT_COMMUNAL", "REPRESENTANT_DEPARTEMENTAL"].includes(poste);
+
   // Localisation
   const [selectedDep, setSelectedDep] = useState("");
   const [selectedZs, setSelectedZs] = useState("");
@@ -163,15 +175,15 @@ export default function InscriptionPage() {
         p_poste: poste,
         p_poste_autre: poste === "AUTRE" ? posteAutre.trim() : null,
         p_departement_id: selectedDep || null,
-        p_zone_sanitaire_id: selectedZs || null,
-        p_commune_id: selectedCom || null,
-        p_arrondissement_id: selectedArr || null,
-        p_second_arrondissement_id: cumulArrondissements ? selectedSecondArr || null : null,
-        p_source_financement: sourceFinancement,
-        p_source_financement_autre: sourceFinancement === "AUTRE" ? sourceFinancementAutre.trim() : null,
-        p_nombre_rc: Number(nombreRc) || 0,
-        p_afficher_annuaire: afficherAnnuaire,
-        p_cumul_deux_arrondissements: cumulArrondissements,
+        p_zone_sanitaire_id: showZoneSanitaire ? (selectedZs || null) : null,
+        p_commune_id: showCommune ? (selectedCom || null) : null,
+        p_arrondissement_id: showArrondissement ? (selectedArr || null) : null,
+        p_second_arrondissement_id: (isTerrainAscq && cumulArrondissements) ? (selectedSecondArr || null) : null,
+        p_source_financement: showAscqProfil ? sourceFinancement : "LLF_FADEC",
+        p_source_financement_autre: (showAscqProfil && sourceFinancement === "AUTRE") ? sourceFinancementAutre.trim() : null,
+        p_nombre_rc: showAscqProfil ? (Number(nombreRc) || 0) : 0,
+        p_afficher_annuaire: showAscqProfil ? afficherAnnuaire : false,
+        p_cumul_deux_arrondissements: isTerrainAscq ? cumulArrondissements : false,
       });
 
       if (rpcError) throw rpcError;
@@ -357,14 +369,45 @@ export default function InscriptionPage() {
                   </label>
                   <select
                     value={poste}
-                    onChange={(e) => setPoste(e.target.value)}
+                    onChange={(e) => {
+                      const newP = e.target.value;
+                      setPoste(newP);
+                      if (["DDS", "CCD_CDLS_TP", "CSSPR", "CSPSMEMH"].includes(newP)) {
+                        setSelectedZs("");
+                        setSelectedCom("");
+                        setSelectedArr("");
+                      } else if (["MCZS", "RCSE", "C_RAMS"].includes(newP)) {
+                        setSelectedCom("");
+                        setSelectedArr("");
+                      } else if (["MCC", "PF_CCLS_TP"].includes(newP)) {
+                        setSelectedArr("");
+                      }
+                    }}
                     className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
                   >
-                    <option value="ASCQ">ASCQ (Agent de Santé Communautaire Qualifié)</option>
-                    <option value="PF_CCLS_TP">Point Focal CCLS-TP</option>
-                    <option value="RCSE">RCSE</option>
-                    <option value="CCD_CNLS_TP">CCD CNLS-TP</option>
-                    <option value="AUTRE">Autre poste (à préciser)</option>
+                    <optgroup label="Terrain (Communautaire)">
+                      <option value="ASCQ">ASCQ (Agent de Santé Communautaire Qualifié)</option>
+                    </optgroup>
+                    <optgroup label="Niveau Communal">
+                      <option value="PF_CCLS_TP">PF CCLS-TP (Point Focal Santé Communale)</option>
+                      <option value="MCC">MCC (Médecin Coordonnateur de Commune)</option>
+                      <option value="REPRESENTANT_COMMUNAL">Représentant Communal des ASCQ</option>
+                    </optgroup>
+                    <optgroup label="Niveau Zone Sanitaire">
+                      <option value="MCZS">MCZS (Médecin Coordonnateur de Zone Sanitaire)</option>
+                      <option value="RCSE">RCSE (Responsable Cellule Surveillance Épidémiologique)</option>
+                      <option value="C_RAMS">C-RAMS (Chargé Registre & Audit Mortalité)</option>
+                    </optgroup>
+                    <optgroup label="Niveau Départemental">
+                      <option value="DDS">DDS (Directeur Départemental de la Santé)</option>
+                      <option value="CCD_CDLS_TP">CCD CDLS-TP (Coordination Dép. CDLS-TP)</option>
+                      <option value="CSSPR">CSSPR (Chef Service Santé Publique & Réponse)</option>
+                      <option value="CSPSMEMH">CSPSMEMH (Chef Service Pharmacie & Santé Mère-Enfant)</option>
+                      <option value="REPRESENTANT_DEPARTEMENTAL">Représentant Départemental des ASCQ</option>
+                    </optgroup>
+                    <optgroup label="Autre">
+                      <option value="AUTRE">Autre poste (à préciser)</option>
+                    </optgroup>
                   </select>
                 </div>
 
@@ -415,13 +458,13 @@ export default function InscriptionPage() {
                   </select>
                 </div>
 
-                {["ASCQ", "PF_CCLS_TP", "RCSE"].includes(poste) && (
+                {showZoneSanitaire && (
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Zone sanitaire *
+                      Zone sanitaire {isAutre ? "" : "*"}
                     </label>
                     <select
-                      required
+                      required={!isAutre}
                       value={selectedZs}
                       onChange={(e) => setSelectedZs(e.target.value)}
                       disabled={!selectedDep}
@@ -437,13 +480,13 @@ export default function InscriptionPage() {
                   </div>
                 )}
 
-                {["ASCQ", "PF_CCLS_TP"].includes(poste) && (
+                {showCommune && (
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Commune *
+                      Commune {isAutre ? "" : "*"}
                     </label>
                     <select
-                      required
+                      required={!isAutre}
                       value={selectedCom}
                       onChange={(e) => setSelectedCom(e.target.value)}
                       disabled={!selectedDep}
@@ -459,13 +502,13 @@ export default function InscriptionPage() {
                   </div>
                 )}
 
-                {poste === "ASCQ" && (
+                {showArrondissement && (
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Arrondissement principal *
+                      Arrondissement principal {isTerrainAscq ? "*" : ""}
                     </label>
                     <select
-                      required
+                      required={isTerrainAscq}
                       value={selectedArr}
                       onChange={(e) => setSelectedArr(e.target.value)}
                       disabled={!selectedCom}
@@ -482,7 +525,7 @@ export default function InscriptionPage() {
                 )}
               </div>
 
-              {poste === "ASCQ" && selectedCom && (
+              {isTerrainAscq && selectedCom && (
                 <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-3">
                   <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-800">
                     <input
@@ -521,7 +564,7 @@ export default function InscriptionPage() {
             </div>
 
             {/* Section 4 : Paramètres spécifiques ASCQ */}
-            {poste === "ASCQ" && (
+            {showAscqProfil && (
               <div className="space-y-4 pt-2">
                 <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-2">
                   4. Financement et Équipe de Relais
