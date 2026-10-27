@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import NetworkStatusIndicator from "@/components/NetworkStatusIndicator";
 import { 
   FileText, 
   Bell, 
@@ -142,13 +143,16 @@ export default function EspaceRelaisPage() {
             </div>
           </div>
 
-          <button
-            onClick={handleLogout}
-            className="p-2 rounded-xl text-white/80 hover:text-white hover:bg-white/10 transition-colors"
-            title="Se déconnecter"
-          >
-            <LogOut className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <NetworkStatusIndicator />
+            <button
+              onClick={handleLogout}
+              className="p-2 rounded-xl text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+              title="Se déconnecter"
+            >
+              <LogOut className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Bandeau tricolore béninois */}
@@ -222,9 +226,14 @@ export default function EspaceRelaisPage() {
                   <ClipboardList className="w-5 h-5" />
                 </div>
                 <div className="flex-1">
-                  <h3 className="font-bold text-slate-900 text-sm">
-                    Registre communautaire
-                  </h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-slate-900 text-sm">
+                      Registre communautaire
+                    </h3>
+                    <span className="text-[10px] font-black uppercase text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">
+                      Actif
+                    </span>
+                  </div>
                   <p className="text-xs text-slate-500 mt-0.5">
                     Suivi régulier des ménages, signaux d'événements et décompte des cas observés.
                   </p>
@@ -232,15 +241,18 @@ export default function EspaceRelaisPage() {
               </div>
 
               <div className="pt-2 flex items-center justify-between border-t border-slate-100">
-                <span className="text-[11px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded-lg">
-                  Phase 7 (À venir)
-                </span>
-                <button
-                  disabled
-                  className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-slate-100 text-slate-400 cursor-not-allowed"
+                <Link
+                  href="/fiches"
+                  className="text-xs font-bold text-slate-500 hover:text-slate-800 underline"
                 >
-                  Renseigner
-                </button>
+                  Voir mes saisies
+                </Link>
+                <Link
+                  href="/fiches/registre/nouvelle"
+                  className="px-4 py-2 rounded-xl text-xs font-extrabold bg-blue-700 hover:bg-blue-800 text-white shadow-sm active:scale-95 transition-all flex items-center gap-1.5"
+                >
+                  <span>Renseigner le registre</span>
+                </Link>
               </div>
             </div>
 
@@ -282,15 +294,20 @@ export default function EspaceRelaisPage() {
             </div>
 
             {/* Fiche 3 : Notification de décès */}
-            <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm space-y-3 hover:border-emerald-300 transition-all">
+            <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm space-y-3 hover:border-purple-300 transition-all">
               <div className="flex items-start gap-3">
                 <div className="w-10 h-10 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
                   <Skull className="w-5 h-5" />
                 </div>
                 <div className="flex-1">
-                  <h3 className="font-bold text-slate-900 text-sm">
-                    Notification de décès
-                  </h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-slate-900 text-sm">
+                      Notification de décès
+                    </h3>
+                    <span className="text-[10px] font-black uppercase text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full">
+                      Actif
+                    </span>
+                  </div>
                   <p className="text-xs text-slate-500 mt-0.5">
                     Notification des décès communautaires (néonatal, maternel ou autre).
                   </p>
@@ -298,15 +315,18 @@ export default function EspaceRelaisPage() {
               </div>
 
               <div className="pt-2 flex items-center justify-between border-t border-slate-100">
-                <span className="text-[11px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded-lg">
-                  Phase 7 (À venir)
-                </span>
-                <button
-                  disabled
-                  className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-slate-100 text-slate-400 cursor-not-allowed"
+                <Link
+                  href="/fiches"
+                  className="text-xs font-bold text-slate-500 hover:text-slate-800 underline"
                 >
-                  Renseigner
-                </button>
+                  Voir les déclarations
+                </Link>
+                <Link
+                  href="/fiches/deces/nouvelle"
+                  className="px-4 py-2 rounded-xl text-xs font-extrabold bg-purple-700 hover:bg-purple-800 text-white shadow-sm active:scale-95 transition-all flex items-center gap-1.5"
+                >
+                  <span>Déclarer un décès</span>
+                </Link>
               </div>
             </div>
           </section>

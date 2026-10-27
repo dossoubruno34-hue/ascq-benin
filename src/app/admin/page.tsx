@@ -79,6 +79,9 @@ export default function AdminPage() {
   const [referentielAscq, setReferentielAscq] = useState<any[]>([]);
   const [searchReferentiel, setSearchReferentiel] = useState("");
   const [loadingReferentiel, setLoadingReferentiel] = useState(false);
+  const [pageComptes, setPageComptes] = useState(1);
+  const [pageReferentiel, setPageReferentiel] = useState(1);
+  const ITEMS_PER_PAGE = 15;
 
   // Activités demandées
   const [activitesDemandees, setActivitesDemandees] = useState<any[]>([]);
@@ -572,6 +575,9 @@ export default function AdminPage() {
       return full.includes(searchCompte.toLowerCase());
     });
 
+  const totalPagesComptes = Math.ceil(filteredComptes.length / ITEMS_PER_PAGE) || 1;
+  const paginatedComptes = filteredComptes.slice((pageComptes - 1) * ITEMS_PER_PAGE, pageComptes * ITEMS_PER_PAGE);
+
   return (
     <div className="min-h-screen bg-slate-100 text-slate-800 flex flex-col antialiased">
       {/* 1. EN-TÊTE D'ADMINISTRATION DU SYSTÈME */}
@@ -896,14 +902,14 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                {/* LISTE DES COMPTES */}
+                {/* LISTE DES COMPTES (PAGINÉE) */}
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden divide-y divide-slate-100">
-                  {filteredComptes.length === 0 ? (
+                  {paginatedComptes.length === 0 ? (
                     <div className="p-8 text-center text-slate-400 text-xs">
                       Aucun compte correspondant aux critères de recherche.
                     </div>
                   ) : (
-                    filteredComptes.map((c) => (
+                    paginatedComptes.map((c) => (
                       <div key={c.id} className="p-4 flex flex-col sm:flex-row sm:items-start justify-between gap-3 hover:bg-slate-50 transition-colors">
                         <div className="flex-1 space-y-1">
                           <div className="flex items-center gap-2 flex-wrap">
@@ -1001,6 +1007,31 @@ export default function AdminPage() {
                       </div>
                     ))
                   )}
+
+                  {/* BARRE DE PAGINATION DES COMPTES */}
+                  {totalPagesComptes > 1 && (
+                    <div className="p-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs">
+                      <button
+                        type="button"
+                        disabled={pageComptes <= 1}
+                        onClick={() => setPageComptes(p => Math.max(1, p - 1))}
+                        className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-40 transition-colors"
+                      >
+                        &larr; Précédent
+                      </button>
+                      <span className="text-slate-500 font-semibold">
+                        Page <strong>{pageComptes}</strong> sur <strong>{totalPagesComptes}</strong> ({filteredComptes.length} comptes)
+                      </span>
+                      <button
+                        type="button"
+                        disabled={pageComptes >= totalPagesComptes}
+                        onClick={() => setPageComptes(p => Math.min(totalPagesComptes, p + 1))}
+                        className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-40 transition-colors"
+                      >
+                        Suivant &rarr;
+                      </button>
+                    </div>
+                  )}
                 </div>
               </>
             )}
@@ -1041,45 +1072,81 @@ export default function AdminPage() {
                 </div>
 
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                  <div className="p-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between text-xs font-bold text-slate-600">
-                    <span>
-                      {loadingReferentiel
-                        ? "Chargement du registre..."
-                        : `${referentielAscq.filter(r => 
-                            `${r.nom_prenoms} ${r.commune} ${r.departement} ${r.arrondissement_poste}`.toLowerCase().includes(searchReferentiel.toLowerCase())
-                          ).length} ASCQ recensés sur la liste consolidée officielle`}
-                    </span>
-                    <span className="text-[11px] text-slate-400">Source : Ministère de la Santé / Coordination</span>
-                  </div>
+                  {(() => {
+                    const filteredRef = referentielAscq.filter(r => 
+                      `${r.nom_prenoms} ${r.commune} ${r.departement} ${r.arrondissement_poste}`.toLowerCase().includes(searchReferentiel.toLowerCase())
+                    );
+                    const totalPagesRef = Math.ceil(filteredRef.length / 20) || 1;
+                    const paginatedRef = filteredRef.slice((pageReferentiel - 1) * 20, pageReferentiel * 20);
 
-                  <div className="max-h-[500px] overflow-y-auto divide-y divide-slate-100">
-                    {referentielAscq
-                      .filter(r => 
-                        `${r.nom_prenoms} ${r.commune} ${r.departement} ${r.arrondissement_poste}`.toLowerCase().includes(searchReferentiel.toLowerCase())
-                      )
-                      .map((r, idx) => (
-                        <div key={r.id || idx} className="p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:bg-slate-50 text-xs">
-                          <div>
-                            <span className="font-black text-slate-900 block uppercase">
-                              {r.nom_prenoms}
-                            </span>
-                            <span className="text-slate-500 font-medium">
-                              {r.departement} &bull; <strong className="text-slate-700">{r.commune}</strong> ({r.arrondissement_poste})
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {r.date_prise_service && (
-                              <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[10px] font-bold">
-                                Prise de service : {new Date(r.date_prise_service).toLocaleDateString("fr-FR")}
-                              </span>
-                            )}
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                              Officiel
-                            </span>
-                          </div>
+                    return (
+                      <>
+                        <div className="p-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between text-xs font-bold text-slate-600">
+                          <span>
+                            {loadingReferentiel
+                              ? "Chargement du registre..."
+                              : `${filteredRef.length} ASCQ recensés sur la liste consolidée officielle`}
+                          </span>
+                          <span className="text-[11px] text-slate-400">Source : Ministère de la Santé / Coordination</span>
                         </div>
-                      ))}
-                  </div>
+
+                        <div className="max-h-[500px] overflow-y-auto divide-y divide-slate-100">
+                          {paginatedRef.length === 0 ? (
+                            <div className="p-8 text-center text-slate-400 text-xs">
+                              Aucun ASCQ trouvé dans le registre officiel pour cette recherche.
+                            </div>
+                          ) : (
+                            paginatedRef.map((r, idx) => (
+                              <div key={r.id || idx} className="p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:bg-slate-50 text-xs">
+                                <div>
+                                  <span className="font-black text-slate-900 block uppercase">
+                                    {r.nom_prenoms}
+                                  </span>
+                                  <span className="text-slate-500 font-medium">
+                                    {r.departement} &bull; <strong className="text-slate-700">{r.commune}</strong> ({r.arrondissement_poste})
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  {r.date_prise_service && (
+                                    <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[10px] font-bold">
+                                      Prise de service : {new Date(r.date_prise_service).toLocaleDateString("fr-FR")}
+                                    </span>
+                                  )}
+                                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                    Officiel
+                                  </span>
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+
+                        {totalPagesRef > 1 && (
+                          <div className="p-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs">
+                            <button
+                              type="button"
+                              disabled={pageReferentiel <= 1}
+                              onClick={() => setPageReferentiel(p => Math.max(1, p - 1))}
+                              className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-40 transition-colors"
+                            >
+                              &larr; Précédent
+                            </button>
+                            <span className="text-slate-500 font-semibold">
+                              Page <strong>{pageReferentiel}</strong> sur <strong>{totalPagesRef}</strong> ({filteredRef.length} ASCQ)
+                            </span>
+                            <button
+                              type="button"
+                              disabled={pageReferentiel >= totalPagesRef}
+                              onClick={() => setPageReferentiel(p => Math.min(totalPagesRef, p + 1))}
+                              className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-40 transition-colors"
+                            >
+                              Suivant &rarr;
+                            </button>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
             )}

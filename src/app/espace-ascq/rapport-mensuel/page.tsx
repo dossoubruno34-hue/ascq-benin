@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import AscqNav from "@/components/AscqNav";
 import SignatureCanvas from "@/components/SignatureCanvas";
+import { sauvegarderBrouillonRapport, chargerBrouillonRapport } from "@/lib/offline-sync";
 import {
   FileText,
   Calendar,
@@ -722,6 +723,41 @@ export default function RapportMensuelPage() {
               <Printer className="w-4 h-4" />
               <span className="hidden sm:inline">Imprimer / PDF officiel</span>
               <span className="sm:hidden">Imprimer</span>
+            </button>
+          </div>
+
+          {/* BANDEAU PRÉ-REMPLISSAGE MAGIQUE ONE HEALTH (GAIN DE TEMPS MOBILE) */}
+          <div className="bg-gradient-to-r from-emerald-700 via-[#005c30] to-teal-800 text-white p-3.5 sm:p-4 rounded-2xl shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 border border-emerald-600/40">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 bg-white/20 rounded-xl backdrop-blur-sm shrink-0">
+                <Sparkles className="w-5 h-5 text-yellow-300" />
+              </div>
+              <div>
+                <h3 className="text-xs sm:text-sm font-black">
+                  Consolidation automatique One Health
+                </h3>
+                <p className="text-[11px] text-white/85">
+                  Agrège automatiquement les 17 pathologies et les décès depuis vos fiches d'alerte validées du mois.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={executerPreRemplissage}
+              disabled={prefilling || statut === "VALIDE"}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white text-emerald-900 font-black text-xs shadow-md hover:bg-emerald-50 active:scale-95 transition-all disabled:opacity-50 shrink-0"
+            >
+              {prefilling ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  <span>Calcul en cours...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Pré-remplir les données du mois</span>
+                </>
+              )}
             </button>
           </div>
 

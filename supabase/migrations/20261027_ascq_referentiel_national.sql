@@ -558,7 +558,7 @@ BEGIN
 END;
 $$;
 
--- 6. Mise à jour de lister_comptes_admin() pour inclure le contrôle automatique de liste nationale
+-- 6. Mise à jour de lister_comptes_admin() pour inclure le contrôle de liste nationale et le cloisonnement territorial
 DROP FUNCTION IF EXISTS public.lister_comptes_admin();
 CREATE OR REPLACE FUNCTION public.lister_comptes_admin()
 RETURNS TABLE (
@@ -584,10 +584,20 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
+DECLARE
+  v_caller_role TEXT;
+  v_caller_dep UUID;
+  v_caller_com UUID;
 BEGIN
   IF NOT public.est_administrateur() THEN
     RAISE EXCEPTION 'Accès refusé : privilèges administrateur requis.';
   END IF;
+
+  -- Déterminer le rôle et le territoire de l'administrateur appelant
+  SELECT role_technique, departement_id, commune_id 
+  INTO v_caller_role, v_caller_dep, v_caller_com
+  FROM public.utilisateurs
+  WHERE id = auth.uid();
 
   RETURN QUERY
   SELECT 
@@ -623,6 +633,18 @@ BEGIN
     ORDER BY (c.nom IS NOT NULL AND UPPER(c.nom) = r.commune) DESC
     LIMIT 1
   ) ref ON true
+  WHERE (
+    -- National : voit tous les comptes
+    v_caller_role IN ('SUPER_ADMIN', 'ADMINISTRATEUR')
+    -- Départemental : voit les comptes de son département
+    OR (v_caller_role = 'ADMIN_DEPARTEMENTAL' AND u.departement_id = v_caller_dep)
+    -- Communal : voit uniquement les comptes de sa commune
+    OR (v_caller_role = 'ADMIN_COMMUNAL' AND u.commune_id = v_caller_com)
+    -- Gestionnaire : son périmètre
+    OR (v_caller_role = 'GESTIONNAIRE_PERIMETRE' AND (u.commune_id = v_caller_com OR u.departement_id = v_caller_dep))
+    -- Sécurité de secours si non renseigné
+    OR v_caller_role IS NULL
+  )
   ORDER BY u.created_at DESC;
 END;
 $$;

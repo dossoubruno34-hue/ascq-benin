@@ -41,6 +41,8 @@ export default function MesFichesPage() {
   const [filtreStatut, setFiltreStatut] = useState<string>("TOUT");
   const [recherche, setRecherche] = useState("");
   const [brouillonsCount, setBrouillonsCount] = useState(0);
+  const [page, setPage] = useState(1);
+  const FICHES_PER_PAGE = 15;
 
   const chargerFiches = async () => {
     setLoading(true);
@@ -214,6 +216,9 @@ export default function MesFichesPage() {
     }
     return true;
   });
+
+  const totalPages = Math.ceil(fichesFiltrees.length / FICHES_PER_PAGE) || 1;
+  const paginatedFiches = fichesFiltrees.slice((page - 1) * FICHES_PER_PAGE, page * FICHES_PER_PAGE);
 
   return (
     <div className="min-h-screen bg-[#f4f7f5] text-slate-800 antialiased pb-24">
@@ -391,7 +396,7 @@ export default function MesFichesPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            {fichesFiltrees.map((f) => {
+            {paginatedFiches.map((f) => {
               const badgeBg = f.type === "ALR" ? "bg-emerald-50 text-[#005c30] border-emerald-100" :
                               f.type === "REG" ? "bg-blue-50 text-blue-700 border-blue-100" :
                               f.type === "DEC" ? "bg-purple-50 text-purple-700 border-purple-100" :
@@ -459,6 +464,31 @@ export default function MesFichesPage() {
                 </Link>
               );
             })}
+
+            {/* BARRE DE PAGINATION DES FICHES */}
+            {totalPages > 1 && (
+              <div className="bg-white rounded-2xl p-3 border border-slate-200/80 shadow-sm flex items-center justify-between text-xs mt-4">
+                <button
+                  type="button"
+                  disabled={page <= 1}
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-40 transition-colors"
+                >
+                  &larr; Précédent
+                </button>
+                <span className="text-slate-500 font-semibold">
+                  Page <strong>{page}</strong> sur <strong>{totalPages}</strong> ({fichesFiltrees.length} fiches)
+                </span>
+                <button
+                  type="button"
+                  disabled={page >= totalPages}
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-40 transition-colors"
+                >
+                  Suivant &rarr;
+                </button>
+              </div>
+            )}
           </div>
         )}
 

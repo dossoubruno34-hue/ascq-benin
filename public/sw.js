@@ -1,11 +1,18 @@
-// Service Worker officiel ASCQ BÉNIN (PWA)
-const CACHE_NAME = "ascq-benin-v1";
+// Service Worker officiel ASCQ BÉNIN (PWA) - Mode Hors-Ligne Renforcé
+const CACHE_NAME = "ascq-benin-v2";
 const STATIC_ASSETS = [
   "/",
   "/manifest.json",
   "/logo-ascq.png",
   "/icon-192.png",
-  "/icon-512.png"
+  "/icon-512.png",
+  "/connexion",
+  "/espace-ascq",
+  "/espace-rc",
+  "/fiches",
+  "/fiches/alerte/nouvelle",
+  "/fiches/registre/nouvelle",
+  "/fiches/deces/nouvelle"
 ];
 
 // Installation du Service Worker et mise en cache des assets statiques

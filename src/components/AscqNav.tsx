@@ -6,6 +6,7 @@ import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import NotificationsModal from "@/components/NotificationsModal";
+import NetworkStatusIndicator from "@/components/NetworkStatusIndicator";
 import { 
   Home, 
   Users, 
@@ -120,8 +121,10 @@ export default function AscqNav({ userProfile }: Props) {
             </Link>
           </div>
 
-          {/* Barre du haut : Enrôler un RC, Notifications, Déconnexion */}
+          {/* Barre du haut : Indicateur réseau, Enrôler un RC, Notifications, Déconnexion */}
           <div className="flex items-center gap-1.5 sm:gap-2">
+            <NetworkStatusIndicator />
+
             <Link
               href="/espace-ascq/relais"
               className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white text-[#005c30] font-bold text-xs shadow hover:bg-emerald-50 active:scale-95 transition-all"
