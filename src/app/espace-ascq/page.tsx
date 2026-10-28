@@ -24,9 +24,7 @@ import {
   ExternalLink,
   Camera,
   Trash2,
-  WifiOff,
-  Stethoscope,
-  HeartPulse
+  WifiOff
 } from "lucide-react";
 import { getCachedMonEspace, saveCachedMonEspace, saveCachedUserSession, getCachedUserSession } from "@/lib/offline-sync";
 
@@ -409,43 +407,6 @@ export default function MonEspacePage() {
             </div>
           </div>
         )}
-
-        {/* NOUVEAU MODULE : PRISE EN CHARGE DES CAS EN COMMUNAUTÉ (iCCM) */}
-        <div className="bg-gradient-to-br from-[#005c30] to-emerald-900 rounded-3xl p-5 text-white shadow-md space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="p-2 rounded-2xl bg-white/20 text-white backdrop-blur-sm">
-                <Stethoscope className="w-5 h-5" />
-              </span>
-              <div>
-                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-200 block">
-                  Soins & PCIME Communautaire
-                </span>
-                <h2 className="text-sm sm:text-base font-extrabold text-white">
-                  Prise en charge des cas en communauté (iCCM)
-                </h2>
-              </div>
-            </div>
-            <Link
-              href="/espace-ascq/consultations/nouvelle"
-              className="px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-900 font-black text-xs transition-colors shadow-sm"
-            >
-              + Nouveau cas
-            </Link>
-          </div>
-          <p className="text-xs text-white/80 leading-relaxed">
-            Consultez les enfants et adultes : diagnostic, TDR Paludisme, décision de prise en charge sur place (CTA, SRO/Zinc, Amoxi, etc.) ou référence immédiate au Centre de Santé avec fiche officielle imprimable.
-          </p>
-          <div className="flex items-center gap-2 pt-1">
-            <Link
-              href="/espace-ascq/consultations"
-              className="flex-1 py-2 px-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs text-center border border-white/20 transition-all flex items-center justify-center gap-1.5"
-            >
-              <HeartPulse className="w-4 h-4 text-emerald-300" />
-              <span>Consulter le Registre des Prises en Charge</span>
-            </Link>
-          </div>
-        </div>
 
         {/* Alerte si la migration n'a pas encore été exécutée */}
         {espaceData?.is_fallback && (

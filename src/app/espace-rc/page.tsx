@@ -28,8 +28,7 @@ import {
   Plus,
   Check,
   Trash2,
-  WifiOff,
-  Stethoscope
+  WifiOff
 } from "lucide-react";
 import { getCachedRcSpace, saveCachedRcSpace, saveCachedUserSession } from "@/lib/offline-sync";
 
@@ -306,43 +305,6 @@ export default function EspaceRelaisPage() {
               <p className="text-xs text-slate-500">
                 Vos saisies sont directement transmises à votre superviseur ASCQ.
               </p>
-            </div>
-
-            {/* MODULE OFFICIEL : Prise en charge des cas en communauté (iCCM) */}
-            <div className="bg-gradient-to-r from-emerald-950 to-[#005c30] text-white rounded-3xl p-5 border-2 border-emerald-400 shadow-md space-y-3">
-              <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-white/20 text-white flex items-center justify-center shrink-0">
-                  <Stethoscope className="w-5 h-5 stroke-[2.5]" />
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-black text-white text-sm">
-                      Prise en charge des cas en communauté
-                    </h3>
-                    <span className="text-[10px] font-black uppercase text-slate-900 bg-amber-400 px-2 py-0.5 rounded-full">
-                      iCCM
-                    </span>
-                  </div>
-                  <p className="text-xs text-emerald-100/90 mt-1 leading-relaxed">
-                    Consultation des malades : TDR Paludisme, décision de soins sur place (médicaments) ou référence immédiate au CS avec fiche officielle imprimable.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 pt-1 border-t border-white/20">
-                <Link
-                  href="/espace-ascq/consultations/nouvelle"
-                  className="flex-1 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs text-center transition-all shadow-sm"
-                >
-                  + Renseigner une consultation
-                </Link>
-                <Link
-                  href="/espace-ascq/consultations"
-                  className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs text-center border border-white/20 transition-all"
-                >
-                  Registre des cas
-                </Link>
-              </div>
             </div>
 
             {/* Fiche 1 : Registre communautaire */}

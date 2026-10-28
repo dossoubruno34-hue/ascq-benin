@@ -17,8 +17,7 @@ import {
   KeyRound,
   HelpCircle,
   Send,
-  WifiOff,
-  Zap
+  WifiOff
 } from "lucide-react";
 import { saveCachedUserSession, getCachedUserSession, isOnline } from "@/lib/offline-sync";
 
@@ -311,39 +310,6 @@ export default function ConnexionPage() {
             <p className="text-xs text-emerald-700">
               Bienvenue, {loginSuccess.prenoms} {loginSuccess.nom}. Redirection en cours...
             </p>
-          </div>
-        )}
-
-        {/* CARTE D'ACCÈS RAPIDE HORS-LIGNE SI SESSION LOCALE DISPONIBLE */}
-        {cachedUser && !loginSuccess && (
-          <div className="bg-gradient-to-r from-emerald-900 to-[#005c30] text-white rounded-3xl p-5 shadow-md space-y-3 border border-emerald-400/30">
-            <div className="flex items-center gap-2">
-              <span className="p-1.5 rounded-xl bg-amber-400 text-slate-900">
-                <Zap className="w-4 h-4 fill-current" />
-              </span>
-              <div>
-                <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-200 block">
-                  Session locale enregistrée (Mode Hors-Ligne)
-                </span>
-                <strong className="text-sm font-extrabold text-white">
-                  {cachedUser.prenoms} {cachedUser.nom} ({cachedUser.poste})
-                </strong>
-              </div>
-            </div>
-            <p className="text-xs text-emerald-100/90 leading-relaxed">
-              Vos accès et fiches sont disponibles sur cet appareil même sans réseau internet.
-            </p>
-            <button
-              type="button"
-              onClick={() => {
-                if (cachedUser.poste === "RC") router.push("/espace-rc");
-                else if (cachedUser.poste === "ASCQ" || cachedUser.role_technique === "SUPER_ADMIN") router.push("/espace-ascq");
-                else router.push("/espace-ascq");
-              }}
-              className="w-full py-2.5 px-4 rounded-xl bg-white text-[#005c30] font-black text-xs hover:bg-emerald-50 transition-all flex items-center justify-center gap-2 shadow-sm"
-            >
-              <span>⚡ Ouvrir mon espace de travail immédiatement</span>
-            </button>
           </div>
         )}
 

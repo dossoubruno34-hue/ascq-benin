@@ -188,37 +188,6 @@ export default async function HomePage() {
           </div>
         </section>
 
-        {/* Module Prise en charge des cas en communauté */}
-        <section className="bg-gradient-to-r from-emerald-950 to-[#005c30] text-white rounded-3xl p-5 shadow-sm space-y-2.5">
-          <div className="flex items-center gap-2.5">
-            <span className="p-2 rounded-xl bg-white/20 text-white">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-              </svg>
-            </span>
-            <div>
-              <span className="text-[10px] font-black uppercase tracking-wider text-amber-300 block">
-                Soins & Surveillance PCIME-C
-              </span>
-              <h2 className="text-sm font-extrabold text-white">
-                Prise en charge des cas en communauté
-              </h2>
-            </div>
-          </div>
-          <p className="text-xs text-emerald-100/90 leading-relaxed">
-            Module officiel réservé aux professionnels : diagnostic, TDR Paludisme, décision de soins sur place (intrants essentiels) ou référence au CS avec bulletin officiel imprimable.
-          </p>
-          <div className="pt-1">
-            <Link
-              href="/espace-ascq/consultations"
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs shadow transition-all active:scale-95"
-            >
-              <span>Accéder au module Prise en charge</span>
-              <span>→</span>
-            </Link>
-          </div>
-        </section>
-
         {/* 6. Carte « Conseils santé » */}
         <section className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/80 shadow-sm space-y-3">
           <h2 className="text-base font-bold text-slate-900">
