@@ -25,7 +25,8 @@ import {
   BarChart3,
   ShieldCheck,
   HeartPulse,
-  Crown
+  Crown,
+  Stethoscope
 } from "lucide-react";
 
 interface Props {
@@ -91,6 +92,7 @@ export default function AscqNav({ userProfile }: Props) {
 
   const navItems = [
     { href: "/espace-ascq", label: "Mon espace", icon: Home },
+    { href: "/espace-ascq/consultations", label: "Soins (iCCM)", icon: Stethoscope },
     { href: "/briefing", label: "Guide SIMR & Vaccins", icon: BookOpen },
     { href: "/fiches", label: "Surveillance", icon: Activity },
     { href: "/espace-ascq/references", label: "Références (CS/GUPS)", icon: HeartPulse },

@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import AscqNav from "@/components/AscqNav";
 import SignatureCanvas from "@/components/SignatureCanvas";
-import { sauvegarderBrouillonRapport, chargerBrouillonRapport } from "@/lib/offline-sync";
+import { sauvegarderBrouillonRapport, chargerBrouillonRapport, getCachedUserSession, getCachedMonEspace } from "@/lib/offline-sync";
 import {
   FileText,
   BarChart3,
@@ -176,36 +176,65 @@ export default function RapportMensuelPage() {
   const initialiserPage = async () => {
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      let user: any = null;
+      let profil: any = null;
+
+      if (navigator.onLine) {
+        try {
+          const { data } = await supabase.auth.getUser();
+          user = data?.user;
+        } catch {}
+      }
+
       if (!user) {
+        const cached = getCachedUserSession();
+        user = cached.user;
+        profil = cached.profile;
+      }
+
+      if (!user && !profil) {
+        const monEspace = getCachedMonEspace();
+        if (monEspace) profil = monEspace;
+      }
+
+      if (!user && !profil) {
         router.push("/connexion");
         return;
       }
 
-      const { data: profil } = await supabase
-        .from("utilisateurs")
-        .select("*, departements(nom), communes(nom), arrondissements(nom)")
-        .eq("id", user.id)
-        .single();
+      if (user && !profil) {
+        const { data } = await supabase
+          .from("utilisateurs")
+          .select("*, departements(nom), communes(nom), arrondissements(nom)")
+          .eq("id", user.id)
+          .maybeSingle();
+        profil = data;
+      }
 
       setCurrentUser(profil);
 
+      const uid = user?.id || profil?.id;
+
       // Charger l'historique des RMA de cet ASCQ
-      const { data: historique } = await supabase
-        .from("rapports_mensuels_ascq")
-        .select("id, numero_rapport, mois, annee, statut, echeance_date, est_en_retard, date_validation, created_at")
-        .eq("ascq_id", user.id)
-        .order("annee", { ascending: false })
-        .order("mois", { ascending: false });
+      if (uid) {
+        try {
+          const { data: historique } = await supabase
+            .from("rapports_mensuels_ascq")
+            .select("id, numero_rapport, mois, annee, statut, echeance_date, est_en_retard, date_validation, created_at")
+            .eq("ascq_id", uid)
+            .order("annee", { ascending: false })
+            .order("mois", { ascending: false });
 
-      if (historique) {
-        setHistoriqueRapports(historique);
+          if (historique) {
+            setHistoriqueRapports(historique);
+          }
+        } catch {}
+
+        // Charger le rapport du mois sélectionné
+        await chargerRapportDuMois(uid, mois, annee, profil);
       }
-
-      // Charger le rapport du mois sélectionné
-      await chargerRapportDuMois(user.id, mois, annee, profil);
     } catch (err) {
-      console.error("Erreur initialisation RMA:", err);
+      console.warn("Erreur initialisation RMA:", err);
     } finally {
       setLoading(false);
     }
@@ -377,9 +406,35 @@ export default function RapportMensuelPage() {
           }
         }
 
+        // Récupérer également les consultations et prises en charge iCCM du mois
+        try {
+          const { data: consultsMois } = await supabase
+            .from("consultations_communautaires")
+            .select("decision, tdr_paludisme, diagnostic_possible")
+            .eq("ascq_id", currentUser.id)
+            .gte("date_consultation", dateDebutMois)
+            .lte("date_consultation", dateFinMois);
+
+          if (consultsMois && consultsMois.length > 0) {
+            const nbPec = consultsMois.filter((c: any) => c.decision === "PRISE_EN_CHARGE_COMMUNAUTAIRE").length;
+            const nbPaluPos = consultsMois.filter((c: any) => c.tdr_paludisme === "POSITIF").length;
+            const nbPaluNeg = consultsMois.filter((c: any) => c.tdr_paludisme === "NEGATIF").length;
+            const nbDiarrhee = consultsMois.filter((c: any) => c.diagnostic_possible?.toLowerCase().includes("diarrh")).length;
+            const nbIra = consultsMois.filter((c: any) => c.diagnostic_possible?.toLowerCase().includes("pneumo") || c.diagnostic_possible?.toLowerCase().includes("respiratoire")).length;
+            const nbMalnut = consultsMois.filter((c: any) => c.diagnostic_possible?.toLowerCase().includes("malnut")).length;
+
+            setCasPrisEnChargeCommunaute(nbPec);
+            if (nbPaluPos > 0) setCasPaluTdrPositif(nbPaluPos);
+            if (nbPaluNeg > 0) setCasPaluTdrNegatif(nbPaluNeg);
+            if (nbDiarrhee > 0) setCasDiarrhee(nbDiarrhee);
+            if (nbIra > 0) setCasIra(nbIra);
+            if (nbMalnut > 0) setCasMalnutrition(nbMalnut);
+          }
+        } catch {}
+
         setDonneesSurveillance(newCounts);
         setMessage({
-          text: `Pré-remplissage effectué (calcul direct) pour ${MOIS_NOMS[mois - 1]} ${annee} : pathologies, alertes et références vers CS (${casReferesCs}) et GUPS (${casReferesGups}) synchronisées.`,
+          text: `Pré-remplissage effectué pour ${MOIS_NOMS[mois - 1]} ${annee} : alertes, références vers CS/GUPS et consultations iCCM synchronisées.`,
           error: false,
         });
       }

@@ -32,8 +32,10 @@ import {
   HelpCircle,
   Sparkles,
   HeartPulse,
-  Activity
+  Activity,
+  Stethoscope
 } from "lucide-react";
+import { getCachedUserSession, getCachedMonEspace } from "@/lib/offline-sync";
 
 // Calcul de la semaine ISO actuelle (1-52)
 function getSemaineActuelle(): number {
@@ -137,6 +139,24 @@ export default function RapportHebdoPnscPage() {
         p_date_fin: fin,
       });
 
+      // Récupérer également les données de consultations iCCM
+      let consultText = "";
+      try {
+        const { data: consData } = await supabase
+          .from("consultations_communautaires")
+          .select("decision, tdr_paludisme, diagnostic_possible")
+          .gte("date_consultation", debut)
+          .lte("date_consultation", fin);
+
+        if (consData && consData.length > 0) {
+          const totalCons = consData.length;
+          const pecCount = consData.filter((x: any) => x.decision === "PRISE_EN_CHARGE_COMMUNAUTAIRE").length;
+          const refCsCount = consData.filter((x: any) => x.decision === "REFERER_CS").length;
+          const tdrPosCount = consData.filter((x: any) => x.tdr_paludisme === "POSITIF").length;
+          consultText = `- Prises en charge iCCM : ${totalCons} consultations (${pecCount} traités sur place, ${refCsCount} référés au CS, ${tdrPosCount} TDR Palu +)`;
+        }
+      } catch {}
+
       if (!error && data) {
         setStatsTempsReel(data);
         if (forcerEcriture || activites.trim() === "") {
@@ -144,10 +164,11 @@ export default function RapportHebdoPnscPage() {
             `Surveillance communautaire & Activités Semaine ${semaine} :`,
             `- Alertes notifiées : ${data.total_alertes || 0} (${data.personnes_touchees || 0} personnes touchées, ${data.personnes_mortes_alertes || 0} décès)`,
             `- Références transmises : ${data.references_sante || 0} vers Centre de Santé, ${data.references_gups || 0} vers le GUPS (Protection Sociale)`,
+            consultText,
             `- Décès communautaires : ${data.total_deces_communautaires || 0} (Maternels : ${data.deces_maternels || 0}, Néonatals : ${data.deces_neonatals || 0})`,
             `- Événements au registre : ${data.total_registre || 0}`,
             `- Relais Communautaires actifs suivis : ${data.rc_actifs || 0}`
-          ].join("\n");
+          ].filter(Boolean).join("\n");
           setActivites(texteAuto);
         }
       }
@@ -161,26 +182,50 @@ export default function RapportHebdoPnscPage() {
   const chargerDonnees = async () => {
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      let user: any = null;
+      let profil: any = null;
+
+      if (navigator.onLine) {
+        try {
+          const { data } = await supabase.auth.getUser();
+          user = data?.user;
+        } catch {}
+      }
+
       if (!user) {
+        const cached = getCachedUserSession();
+        user = cached.user;
+        profil = cached.profile;
+      }
+
+      if (!user && !profil) {
+        const monEspace = getCachedMonEspace();
+        if (monEspace) profil = monEspace;
+      }
+
+      if (!user && !profil) {
         router.push("/connexion");
         return;
       }
 
-      const { data: profil } = await supabase
-        .from("utilisateurs")
-        .select("*")
-        .eq("id", user.id)
-        .single();
+      if (user && !profil) {
+        const { data } = await supabase
+          .from("utilisateurs")
+          .select("*")
+          .eq("id", user.id)
+          .maybeSingle();
+        profil = data;
+      }
 
       setCurrentUser(profil);
 
       // Charger le rapport existant pour cette semaine et cette année
       try {
+        const uid = user?.id || profil?.id;
         const { data: rpt } = await supabase
           .from("rapports_hebdo_pnsc")
           .select("*")
-          .eq("ascq_id", user.id)
+          .eq("ascq_id", uid)
           .eq("annee", annee)
           .eq("semaine", semaine)
           .maybeSingle();

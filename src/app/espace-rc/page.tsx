@@ -27,8 +27,10 @@ import {
   HeartPulse,
   Plus,
   Check,
-  Trash2
+  Trash2,
+  WifiOff
 } from "lucide-react";
+import { getCachedRcSpace, saveCachedRcSpace, saveCachedUserSession } from "@/lib/offline-sync";
 
 export default function EspaceRelaisPage() {
   const router = useRouter();
@@ -54,17 +56,37 @@ export default function EspaceRelaisPage() {
   const [pwdLoading, setPwdLoading] = useState(false);
   const [pwdMsg, setPwdMsg] = useState<{ text: string; error: boolean } | null>(null);
 
+  const [isOffline, setIsOffline] = useState(false);
+
   const loadProfile = async () => {
     setLoading(true);
+
+    // 1. Charger immédiatement le cache local du Relais s'il existe
+    const cached = getCachedRcSpace();
+    if (cached) {
+      setRcData(cached);
+      setLoading(false);
+    }
+
+    if (!navigator.onLine) {
+      setIsOffline(true);
+      setLoading(false);
+      return;
+    }
+
     try {
       const { data, error } = await supabase.rpc("obtenir_espace_rc");
       if (error) {
-        // Si non trouvé ou non connecté, renvoyer vers la connexion
+        if (cached) {
+          setIsOffline(true);
+          return;
+        }
         router.push("/connexion");
         return;
       }
 
       setRcData(data);
+      saveCachedRcSpace(data);
 
       // Si le code temporaire n'a pas encore été changé, forcer la redirection
       if (data && data.code_temporaire_utilise === false) {
@@ -72,8 +94,12 @@ export default function EspaceRelaisPage() {
       }
 
     } catch (err) {
-      console.error("Erreur chargement profil RC:", err);
-      router.push("/connexion");
+      console.warn("Erreur réseau chargement profil RC, maintien hors-ligne:", err);
+      if (cached) {
+        setIsOffline(true);
+      } else {
+        router.push("/connexion");
+      }
     } finally {
       setLoading(false);
     }
@@ -182,6 +208,18 @@ export default function EspaceRelaisPage() {
 
       {/* Contenu principal */}
       <main className="max-w-md sm:max-w-lg mx-auto px-4 pt-5 space-y-4">
+
+        {isOffline && (
+          <div className="p-3 bg-amber-500/15 border border-amber-500/30 rounded-2xl text-xs text-amber-950 flex items-start gap-2 shadow-sm">
+            <WifiOff className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <strong className="block text-amber-900 font-extrabold">Zone sans réseau internet</strong>
+              <p className="text-amber-800 text-[11px]">
+                Vous pouvez continuer à remplir vos fiches d'alertes, registres et références. Elles sont sauvegardées sur votre téléphone et seront envoyées automatiquement dès la reconnexion.
+              </p>
+            </div>
+          </div>
+        )}
         
         {/* Barre de navigation simple du RC (4 onglets prévus : fiches, planning, notifications, compte) */}
         <nav className="bg-white rounded-2xl p-1 shadow-sm border border-slate-200/80 flex items-center justify-between text-xs font-bold text-slate-600 gap-0.5">

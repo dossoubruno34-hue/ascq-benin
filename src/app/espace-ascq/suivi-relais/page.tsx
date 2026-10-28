@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import AscqNav from "@/components/AscqNav";
 import SignatureCanvas from "@/components/SignatureCanvas";
+import { getCachedUserSession, getCachedMonEspace } from "@/lib/offline-sync";
 
 interface RelaisPresence {
   relais_id: string;
@@ -44,8 +45,67 @@ interface RelaisPresence {
 
 interface MaterielInventaire {
   materiel_nom: string;
+  categorie?: string;
   etat: "BON_ETAT" | "DEGRADE" | "EN_PANNE" | "EPUISE";
   recommandations: string;
+}
+
+export const ARTICLES_OFFICIELS_RC = [
+  { nom: "Boîtes à images", cat: "Sensibilisation" },
+  { nom: "Tablette", cat: "Outils de travail" },
+  { nom: "Thermomètre", cat: "Équipement médical" },
+  { nom: "Sac", cat: "Transport" },
+  { nom: "Bottes", cat: "Protection" },
+  { nom: "Gilets d'identification", cat: "Visibilité" },
+  { nom: "Badge", cat: "Identification" },
+  { nom: "Seau plastique", cat: "Hygiène" },
+  { nom: "Lampe torche", cat: "Équipement" },
+  { nom: "Vélo / Barque", cat: "Mobilité" },
+  { nom: "Cuillère à café ou à soupe", cat: "Nutrition & Dosage" },
+  { nom: "Imperméable", cat: "Protection" },
+  { nom: "Serviette", cat: "Hygiène" },
+  { nom: "Savon", cat: "Hygiène" },
+  { nom: "Gobelet", cat: "Hygiène" },
+  { nom: "Caisse métallique", cat: "Stockage" },
+  { nom: "Préservatif", cat: "Santé reproductive" },
+  { nom: "Gel lubrifiant", cat: "Santé reproductive" },
+  { nom: "Cahier", cat: "Papeterie" },
+  { nom: "Bic", cat: "Papeterie" },
+  { nom: "Crayon", cat: "Papeterie" },
+  { nom: "Taille crayon", cat: "Papeterie" },
+];
+
+export const ARTICLES_SPECIFIQUES_ASCQ = [
+  { nom: "Tensiomètre", cat: "Matériel médical ASCQ" },
+  { nom: "SRO / ZINC", cat: "Médicaments & Intrants" },
+  { nom: "AMOXI (Amoxicilline)", cat: "Médicaments & Intrants" },
+  { nom: "PARA (Paracétamol)", cat: "Médicaments & Intrants" },
+  { nom: "CTA (Combinaison Thérapeutique à base d'Artémisinine)", cat: "Médicaments & Intrants" },
+  { nom: "ALBEN / MEBEN (Albendazole / Mébendazole)", cat: "Médicaments & Intrants" },
+  { nom: "AQUATABS", cat: "Hygiène & Eau" },
+  { nom: "FER et acide folique", cat: "Nutrition & Supplémentation" },
+  { nom: "Plumpy'Nut (Prompt Nut)", cat: "Nutrition d'urgence" },
+  { nom: "Enov'Mum+", cat: "Nutrition d'urgence" },
+  { nom: "Nutributter+", cat: "Nutrition d'urgence" },
+];
+
+function genererInventaireInitial(type: "RC" | "ASCQ"): MaterielInventaire[] {
+  const base = ARTICLES_OFFICIELS_RC.map((a) => ({
+    materiel_nom: a.nom,
+    categorie: a.cat,
+    etat: "BON_ETAT" as const,
+    recommandations: "",
+  }));
+  if (type === "ASCQ") {
+    const ascqItems = ARTICLES_SPECIFIQUES_ASCQ.map((a) => ({
+      materiel_nom: a.nom,
+      categorie: a.cat,
+      etat: "BON_ETAT" as const,
+      recommandations: "",
+    }));
+    return [...base, ...ascqItems];
+  }
+  return base;
 }
 
 export default function SuiviRelaisPage() {
@@ -90,15 +150,23 @@ export default function SuiviRelaisPage() {
   // Liste des RC pour la présence
   const [relaisPresences, setRelaisPresences] = useState<RelaisPresence[]>([]);
 
-  // Grille d'inventaire du matériel officiel
-  const [inventaireMateriel, setInventaireMateriel] = useState<MaterielInventaire[]>([
-    { materiel_nom: "Registres communautaires des alertes et rumeurs", etat: "BON_ETAT", recommandations: "" },
-    { materiel_nom: "Boîtes à images de sensibilisation iCCM", etat: "BON_ETAT", recommandations: "" },
-    { materiel_nom: "Tests de Diagnostic Rapide (TDR Paludisme)", etat: "BON_ETAT", recommandations: "" },
-    { materiel_nom: "Médicaments essentiels (ACT, SRO, Zinc, Amox)", etat: "BON_ETAT", recommandations: "" },
-    { materiel_nom: "Lampes torches / Équipement solaire", etat: "BON_ETAT", recommandations: "" },
-    { materiel_nom: "Sacoches et vestes d'identification", etat: "BON_ETAT", recommandations: "" },
-  ]);
+  // Grille d'inventaire du matériel officiel (22 articles RC ou 33 articles ASCQ)
+  const [typeInventaire, setTypeInventaire] = useState<"RC" | "ASCQ">("RC");
+  const [inventaireMateriel, setInventaireMateriel] = useState<MaterielInventaire[]>(() => genererInventaireInitial("RC"));
+  const [filtreCategorie, setFiltreCategorie] = useState<string>("TOUT");
+  const [rechercheMateriel, setRechercheMateriel] = useState<string>("");
+
+  const handleBasculerTypeInventaire = (type: "RC" | "ASCQ") => {
+    setTypeInventaire(type);
+    setInventaireMateriel((prev) => {
+      const nouveauBase = genererInventaireInitial(type);
+      // Conserver les états et recommandations déjà saisis
+      return nouveauBase.map((item) => {
+        const existant = prev.find((p) => p.materiel_nom === item.materiel_nom);
+        return existant ? { ...item, etat: existant.etat, recommandations: existant.recommandations } : item;
+      });
+    });
+  };
 
   const [pointsDiscutes, setPointsDiscutes] = useState("");
   const [decisionsPrises, setDecisionsPrises] = useState("");
@@ -108,25 +176,59 @@ export default function SuiviRelaisPage() {
   const chargerDonnees = async () => {
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { router.push("/connexion"); return; }
+      let user: any = null;
+      let profil: any = null;
 
-      const { data: profil } = await supabase.from("utilisateurs").select("*").eq("id", user.id).single();
+      if (navigator.onLine) {
+        try {
+          const { data } = await supabase.auth.getUser();
+          user = data?.user;
+        } catch {}
+      }
+
+      if (!user) {
+        const cached = getCachedUserSession();
+        user = cached.user;
+        profil = cached.profile;
+      }
+
+      if (!user && !profil) {
+        const monEspace = getCachedMonEspace();
+        if (monEspace) {
+          profil = monEspace;
+        }
+      }
+
+      if (!user && !profil) {
+        router.push("/connexion");
+        return;
+      }
+
+      if (user && !profil) {
+        const { data } = await supabase.from("utilisateurs").select("*").eq("id", user.id).maybeSingle();
+        profil = data;
+      }
+
       setCurrentUser(profil);
 
       // Charger les RC enrôlés par cet ASCQ
-      const { data: rcs } = await supabase
-        .from("relais_communautaires")
-        .select("*")
-        .eq("ascq_id", user.id)
-        .order("nom");
+      let rcs: any[] = [];
+      if (user?.id || profil?.id) {
+        const uid = user?.id || profil?.id;
+        const { data } = await supabase
+          .from("relais_communautaires")
+          .select("*")
+          .eq("ascq_id", uid)
+          .order("nom");
+        rcs = data || [];
+      }
 
       if (rcs && rcs.length > 0) {
         setListeRelais(rcs);
         setRelaisPresences(rcs.map((r) => ({
           relais_id: r.id,
           nom_complet: `${r.prenoms} ${r.nom}`,
-          village: r.village_nom,
+          village: r.village_nom || "Village",
           present: true,
           motif: "",
         })));
@@ -144,7 +246,7 @@ export default function SuiviRelaisPage() {
       setSeancesPassees(seances || []);
 
     } catch (err) {
-      console.error("Erreur chargement suivi relais:", err);
+      console.warn("Erreur chargement suivi relais, maintien local:", err);
     } finally {
       setLoading(false);
     }
@@ -768,42 +870,145 @@ export default function SuiviRelaisPage() {
               )}
             </div>
 
-            {/* Inventaire du matériel */}
-            <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm space-y-3.5">
-              <div>
-                <h2 className="font-extrabold text-sm text-slate-900">3. Inventaire & État du matériel des Relais</h2>
-                <p className="text-xs text-slate-500">Vérification de l'état des outils de travail</p>
+            {/* Inventaire officiel du matériel : RC (22 articles) ou ASCQ (33 articles) */}
+            <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h2 className="font-extrabold text-sm text-slate-900">
+                    3. Inventaire & Contrôle des Dotations de Terrain
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    Vérification de l'état du matériel, des équipements de protection et des intrants
+                  </p>
+                </div>
+
+                {/* SÉLECTEUR RC (22) vs ASCQ (33) */}
+                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-2xl border border-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => handleBasculerTypeInventaire("RC")}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all ${
+                      typeInventaire === "RC"
+                        ? "bg-[#005c30] text-white shadow-sm"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    📦 Relais (22 articles)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleBasculerTypeInventaire("ASCQ")}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all ${
+                      typeInventaire === "ASCQ"
+                        ? "bg-[#005c30] text-white shadow-sm"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    🩺 ASCQ (33 articles complets)
+                  </button>
+                </div>
               </div>
 
-              <div className="space-y-2.5">
-                {inventaireMateriel.map((mat, i) => (
-                  <div key={i} className="p-3 bg-slate-50/70 rounded-2xl border border-slate-200/70 space-y-2">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                      <strong className="text-xs text-slate-800 font-extrabold">{mat.materiel_nom}</strong>
-                      <select
-                        value={mat.etat}
-                        onChange={(e) => updateMaterielEtat(i, e.target.value as any)}
-                        className={`px-2.5 py-1 rounded-xl text-xs font-bold border ${
-                          mat.etat === "BON_ETAT" ? "bg-emerald-50 text-emerald-800 border-emerald-200" :
-                          mat.etat === "DEGRADE" ? "bg-amber-50 text-amber-800 border-amber-200" :
-                          "bg-red-50 text-red-800 border-red-200"
-                        }`}
-                      >
-                        <option value="BON_ETAT">Bon état</option>
-                        <option value="DEGRADE">Dégradé / Usé</option>
-                        <option value="EN_PANNE">En panne</option>
-                        <option value="EPUISE">Épuisé / Manquant</option>
-                      </select>
-                    </div>
-                    <input
-                      type="text"
-                      placeholder="Besoins de renouvellement ou observations..."
-                      value={mat.recommandations}
-                      onChange={(e) => updateMaterielRecommandation(i, e.target.value)}
-                      className="w-full px-2.5 py-1 rounded-xl border border-slate-200 bg-white text-xs"
-                    />
-                  </div>
-                ))}
+              {/* STATISTIQUES EN DIRECT DU MATÉRIEL */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+                <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-100">
+                  <span className="text-[10px] text-emerald-700 font-bold block">Bon état / Disponible</span>
+                  <strong className="text-base font-black text-emerald-800">
+                    {inventaireMateriel.filter((m) => m.etat === "BON_ETAT").length}
+                  </strong>
+                </div>
+                <div className="p-2.5 bg-amber-50 rounded-xl border border-amber-100">
+                  <span className="text-[10px] text-amber-700 font-bold block">Dégradé / Usé</span>
+                  <strong className="text-base font-black text-amber-800">
+                    {inventaireMateriel.filter((m) => m.etat === "DEGRADE").length}
+                  </strong>
+                </div>
+                <div className="p-2.5 bg-rose-50 rounded-xl border border-rose-100">
+                  <span className="text-[10px] text-rose-700 font-bold block">En panne</span>
+                  <strong className="text-base font-black text-rose-800">
+                    {inventaireMateriel.filter((m) => m.etat === "EN_PANNE").length}
+                  </strong>
+                </div>
+                <div className="p-2.5 bg-red-50 rounded-xl border border-red-100">
+                  <span className="text-[10px] text-red-700 font-bold block">Épuisé / Manquant</span>
+                  <strong className="text-base font-black text-red-800">
+                    {inventaireMateriel.filter((m) => m.etat === "EPUISE").length}
+                  </strong>
+                </div>
+              </div>
+
+              {/* BARRE DE RECHERCHE DANS LE MATÉRIEL */}
+              <div className="relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  placeholder="Rechercher un produit (ex: thermomètre, Plumpy'Nut, gilet, bottes, CTA...)"
+                  value={rechercheMateriel}
+                  onChange={(e) => setRechercheMateriel(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 bg-slate-50/50 text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#005c30]"
+                />
+              </div>
+
+              {/* LISTE DES ARTICLES DE L'INVENTAIRE */}
+              <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-1">
+                {inventaireMateriel
+                  .filter((mat) => {
+                    if (!rechercheMateriel.trim()) return true;
+                    const q = rechercheMateriel.toLowerCase();
+                    return (
+                      mat.materiel_nom.toLowerCase().includes(q) ||
+                      mat.categorie?.toLowerCase().includes(q)
+                    );
+                  })
+                  .map((mat, i) => {
+                    // Trouver l'index original dans inventaireMateriel pour la mise à jour
+                    const realIndex = inventaireMateriel.findIndex((m) => m.materiel_nom === mat.materiel_nom);
+                    return (
+                      <div key={mat.materiel_nom} className="p-3 bg-slate-50/80 rounded-2xl border border-slate-200/80 space-y-2 hover:border-slate-300 transition-all">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="w-6 h-6 rounded-lg bg-white border border-slate-200 text-slate-700 text-[11px] font-black flex items-center justify-center shrink-0">
+                              {realIndex + 1}
+                            </span>
+                            <div>
+                              <strong className="text-xs text-slate-900 font-extrabold block">
+                                {mat.materiel_nom}
+                              </strong>
+                              {mat.categorie && (
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                  {mat.categorie}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <select
+                            value={mat.etat}
+                            onChange={(e) => updateMaterielEtat(realIndex, e.target.value as any)}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${
+                              mat.etat === "BON_ETAT" ? "bg-emerald-50 text-emerald-800 border-emerald-300" :
+                              mat.etat === "DEGRADE" ? "bg-amber-50 text-amber-800 border-amber-300" :
+                              mat.etat === "EN_PANNE" ? "bg-rose-50 text-rose-800 border-rose-300" :
+                              "bg-red-50 text-red-800 border-red-300"
+                            }`}
+                          >
+                            <option value="BON_ETAT">✅ Bon état / Disponible</option>
+                            <option value="DEGRADE">⚠️ Dégradé / Usé</option>
+                            <option value="EN_PANNE">🔧 En panne</option>
+                            <option value="EPUISE">🛑 Épuisé / Manquant</option>
+                          </select>
+                        </div>
+
+                        <input
+                          type="text"
+                          placeholder="Recommandations, quantité en stock ou besoin de réapprovisionnement..."
+                          value={mat.recommandations}
+                          onChange={(e) => updateMaterielRecommandation(realIndex, e.target.value)}
+                          className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white text-xs placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-[#005c30]"
+                        />
+                      </div>
+                    );
+                  })}
               </div>
             </div>
 

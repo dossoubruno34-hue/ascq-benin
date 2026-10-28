@@ -16,8 +16,11 @@ import {
   EyeOff,
   KeyRound,
   HelpCircle,
-  Send
+  Send,
+  WifiOff,
+  Zap
 } from "lucide-react";
+import { saveCachedUserSession, getCachedUserSession, isOnline } from "@/lib/offline-sync";
 
 export default function ConnexionPage() {
   const router = useRouter();
@@ -79,24 +82,48 @@ export default function ConnexionPage() {
     }
   };
 
-  // Redirection automatique si déjà connecté
+  const [cachedUser, setCachedUser] = useState<any | null>(null);
+
+  // Redirection automatique ou proposition hors-ligne si déjà connecté
   useEffect(() => {
     async function checkCurrentSession() {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        const { data: profils } = await supabase.rpc("obtenir_mon_profil");
-        if (profils && profils.length > 0) {
-          const userProfile = profils[0];
-          if (userProfile.statut_compte === "VALIDE") {
-            if (userProfile.role_technique === "SUPER_ADMIN" || userProfile.role_technique === "ADMINISTRATEUR") {
-              router.push("/admin");
-            } else if (userProfile.poste === "RC") {
-              router.push("/espace-rc");
-            } else if (userProfile.poste === "ASCQ") {
-              router.push("/espace-ascq");
+      // 1. Vérifier le cache hors-ligne immédiatement
+      const { user: cUser, profile: cProfile } = getCachedUserSession();
+      if (cProfile && cProfile.statut_compte === "VALIDE") {
+        setCachedUser(cProfile);
+        // Si totalement hors-ligne, proposer ou rediriger directement
+        if (!navigator.onLine) {
+          if (cProfile.poste === "RC") {
+            router.push("/espace-rc");
+            return;
+          } else if (cProfile.poste === "ASCQ" || cProfile.role_technique === "SUPER_ADMIN") {
+            router.push("/espace-ascq");
+            return;
+          }
+        }
+      }
+
+      // 2. Si en ligne, vérifier session Supabase
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          const { data: profils } = await supabase.rpc("obtenir_mon_profil");
+          if (profils && profils.length > 0) {
+            const userProfile = profils[0];
+            saveCachedUserSession(session.user, userProfile);
+            if (userProfile.statut_compte === "VALIDE") {
+              if (userProfile.role_technique === "SUPER_ADMIN" || userProfile.role_technique === "ADMINISTRATEUR") {
+                router.push("/admin");
+              } else if (userProfile.poste === "RC") {
+                router.push("/espace-rc");
+              } else if (userProfile.poste === "ASCQ") {
+                router.push("/espace-ascq");
+              }
             }
           }
         }
+      } catch (e) {
+        console.warn("Échec vérification session en ligne, conservation du cache:", e);
       }
     }
     checkCurrentSession();
@@ -185,6 +212,7 @@ export default function ConnexionPage() {
       }
 
       // Compte validé !
+      saveCachedUserSession(authData?.user, userProfile);
       setLoginSuccess(userProfile);
 
       setTimeout(async () => {
@@ -283,6 +311,39 @@ export default function ConnexionPage() {
             <p className="text-xs text-emerald-700">
               Bienvenue, {loginSuccess.prenoms} {loginSuccess.nom}. Redirection en cours...
             </p>
+          </div>
+        )}
+
+        {/* CARTE D'ACCÈS RAPIDE HORS-LIGNE SI SESSION LOCALE DISPONIBLE */}
+        {cachedUser && !loginSuccess && (
+          <div className="bg-gradient-to-r from-emerald-900 to-[#005c30] text-white rounded-3xl p-5 shadow-md space-y-3 border border-emerald-400/30">
+            <div className="flex items-center gap-2">
+              <span className="p-1.5 rounded-xl bg-amber-400 text-slate-900">
+                <Zap className="w-4 h-4 fill-current" />
+              </span>
+              <div>
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-200 block">
+                  Session locale enregistrée (Mode Hors-Ligne)
+                </span>
+                <strong className="text-sm font-extrabold text-white">
+                  {cachedUser.prenoms} {cachedUser.nom} ({cachedUser.poste})
+                </strong>
+              </div>
+            </div>
+            <p className="text-xs text-emerald-100/90 leading-relaxed">
+              Vos accès et fiches sont disponibles sur cet appareil même sans réseau internet.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                if (cachedUser.poste === "RC") router.push("/espace-rc");
+                else if (cachedUser.poste === "ASCQ" || cachedUser.role_technique === "SUPER_ADMIN") router.push("/espace-ascq");
+                else router.push("/espace-ascq");
+              }}
+              className="w-full py-2.5 px-4 rounded-xl bg-white text-[#005c30] font-black text-xs hover:bg-emerald-50 transition-all flex items-center justify-center gap-2 shadow-sm"
+            >
+              <span>⚡ Ouvrir mon espace de travail immédiatement</span>
+            </button>
           </div>
         )}
 

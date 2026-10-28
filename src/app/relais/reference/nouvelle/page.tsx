@@ -28,6 +28,7 @@ import {
   MOTIFS_REFERENCES_GUPS,
   ONE_HEALTH_SECTEURS
 } from "@/lib/fiches";
+import { enqueueOfflineItem, getCachedRcSpace, getCachedUserSession } from "@/lib/offline-sync";
 
 export default function NouvelleReferenceCommunautairePage() {
   const router = useRouter();
@@ -67,31 +68,62 @@ export default function NouvelleReferenceCommunautairePage() {
     const init = async () => {
       setLoading(true);
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        let user: any = null;
+        let profil: any = null;
+
+        if (navigator.onLine) {
+          try {
+            const { data } = await supabase.auth.getUser();
+            user = data?.user;
+          } catch {}
+        }
+
         if (!user) {
+          const cachedSession = getCachedUserSession();
+          user = cachedSession.user;
+          profil = cachedSession.profile;
+        }
+
+        if (user && !profil) {
+          try {
+            const { data } = await supabase
+              .from("utilisateurs")
+              .select("*, departements(nom), communes(nom), arrondissements(nom)")
+              .eq("id", user.id)
+              .maybeSingle();
+            profil = data;
+          } catch {}
+        }
+
+        if (!user && !profil) {
+          const cachedRc = getCachedRcSpace();
+          if (cachedRc) {
+            profil = {
+              id: cachedRc.id,
+              nom: cachedRc.nom,
+              prenoms: cachedRc.prenoms,
+              poste: "RC",
+              village_nom: cachedRc.village_nom,
+              commune_nom: cachedRc.commune_nom
+            };
+          }
+        }
+
+        if (!user && !profil) {
           router.push("/connexion");
           return;
         }
-
-        const { data: profil } = await supabase
-          .from("utilisateurs")
-          .select("*, departements(nom), communes(nom), arrondissements(nom)")
-          .eq("id", user.id)
-          .maybeSingle();
 
         setCurrentUser(profil);
 
         // Si c'est un Relais Communautaire, récupérer son village et son ASCQ
         if (profil?.poste === "RC") {
-          const { data: rcData } = await supabase
-            .from("relais_communautaires")
-            .select("*")
-            .eq("user_id", user.id)
-            .maybeSingle();
-
-          if (rcData) {
-            setVillageNom(rcData.village_nom || "");
-            setDestinationNom(`Centre de Santé de ${rcData.village_nom || "la zone"}`);
+          const cachedRc = getCachedRcSpace();
+          if (cachedRc?.village_nom) {
+            setVillageNom(cachedRc.village_nom);
+            setDestinationNom(`Centre de Santé de ${cachedRc.village_nom}`);
+          } else {
+            setDestinationNom(`Centre de Santé le plus proche`);
           }
         } else {
           setDestinationNom(profil?.commune_nom ? `Centre de Santé Communal de ${profil.commune_nom}` : "Centre de Santé");
@@ -102,7 +134,7 @@ export default function NouvelleReferenceCommunautairePage() {
         setMotifLibelle(MOTIFS_REFERENCES_SANTE[0].nom);
 
       } catch (err) {
-        console.error("Erreur init nouvelle référence:", err);
+        console.warn("Erreur init nouvelle référence, bascule locale:", err);
       } finally {
         setLoading(false);
       }
@@ -233,20 +265,88 @@ export default function NouvelleReferenceCommunautairePage() {
           .select()
           .single();
 
-        if (insErr) throw insErr;
+        if (insErr) {
+          // Mode Hors-ligne sécurisé : sauvegarde locale
+          const offlinePayload = {
+            numero_reference: numeroDirect,
+            type_reference: typeReference,
+            destination_type: destinationType,
+            destination_nom: destinationNom.trim(),
+            motif_code: motifCode,
+            motif_libelle: motifLibelle,
+            motif_details: detailsComplets || null,
+            degre_urgence: degreUrgence,
+            one_health_concerne: oneHealthConcerne,
+            one_health_secteur: oneHealthConcerne ? oneHealthSecteur : null,
+            semaine_epidemio: semaine,
+            annee: annee,
+            village_nom: villageNom.trim() || "Communauté",
+            nom_patient: nomPatient.trim().toUpperCase(),
+            prenoms_patient: prenomsPatient.trim(),
+            sexe: sexe,
+            age_valeur: Number(ageValeur) || 1,
+            age_unite: ageUnite,
+            telephone_contact: telephoneContact.trim() || null,
+            nom_parent_tuteur: nomParentTuteur.trim() || null,
+            adresse_exacte: adresseExacte.trim() || null,
+            statut: currentUser?.poste === "RC" ? "EN_ATTENTE_ASCQ" : "VALIDEE",
+            relais_nom: currentUser ? `${currentUser.prenoms} ${currentUser.nom}` : "Relais Communautaire",
+            relais_telephone: currentUser?.telephone || "",
+            ascq_nom: currentUser?.poste === "ASCQ" ? `${currentUser.prenoms} ${currentUser.nom}` : "Superviseur ASCQ",
+          };
+          enqueueOfflineItem("REFERENCE", offlinePayload);
+        }
 
         setSuccessResult({
           numero_reference: numeroDirect,
           destination_nom: destinationNom,
           statut: currentUser?.poste === "RC" ? "EN_ATTENTE_ASCQ" : "VALIDEE",
+          isOffline: true,
         });
         return;
       }
 
       setSuccessResult(data);
     } catch (err: any) {
-      console.error("Erreur enregistrement référence:", err);
-      setErrorMsg(err.message || "Erreur lors de la création de la référence.");
+      console.warn("Erreur réseau enregistrement référence, bascule locale:", err);
+      const now = new Date();
+      const annee = now.getFullYear();
+      const semaine = Math.ceil((((now.getTime() - new Date(annee, 0, 1).getTime()) / 86400000) + 1) / 7);
+      const numeroDirect = `REF-${annee}-W${String(semaine).padStart(2, "0")}-${Math.floor(100 + Math.random() * 900)}`;
+      const offlinePayload = {
+        numero_reference: numeroDirect,
+        type_reference: typeReference,
+        destination_type: destinationType,
+        destination_nom: destinationNom.trim(),
+        motif_code: motifCode,
+        motif_libelle: motifLibelle,
+        motif_details: detailsComplets || null,
+        degre_urgence: degreUrgence,
+        one_health_concerne: oneHealthConcerne,
+        one_health_secteur: oneHealthConcerne ? oneHealthSecteur : null,
+        semaine_epidemio: semaine,
+        annee: annee,
+        village_nom: villageNom.trim() || "Communauté",
+        nom_patient: nomPatient.trim().toUpperCase(),
+        prenoms_patient: prenomsPatient.trim(),
+        sexe: sexe,
+        age_valeur: Number(ageValeur) || 1,
+        age_unite: ageUnite,
+        telephone_contact: telephoneContact.trim() || null,
+        nom_parent_tuteur: nomParentTuteur.trim() || null,
+        adresse_exacte: adresseExacte.trim() || null,
+        statut: currentUser?.poste === "RC" ? "EN_ATTENTE_ASCQ" : "VALIDEE",
+        relais_nom: currentUser ? `${currentUser.prenoms} ${currentUser.nom}` : "Relais Communautaire",
+        relais_telephone: currentUser?.telephone || "",
+        ascq_nom: currentUser?.poste === "ASCQ" ? `${currentUser.prenoms} ${currentUser.nom}` : "Superviseur ASCQ",
+      };
+      enqueueOfflineItem("REFERENCE", offlinePayload);
+      setSuccessResult({
+        numero_reference: numeroDirect,
+        destination_nom: destinationNom,
+        statut: currentUser?.poste === "RC" ? "EN_ATTENTE_ASCQ" : "VALIDEE",
+        isOffline: true,
+      });
     } finally {
       setSubmitting(false);
     }

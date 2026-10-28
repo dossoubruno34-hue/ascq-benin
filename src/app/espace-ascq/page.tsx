@@ -23,8 +23,12 @@ import {
   RefreshCw,
   ExternalLink,
   Camera,
-  Trash2
+  Trash2,
+  WifiOff,
+  Stethoscope,
+  HeartPulse
 } from "lucide-react";
+import { getCachedMonEspace, saveCachedMonEspace, saveCachedUserSession, getCachedUserSession } from "@/lib/offline-sync";
 
 export default function MonEspacePage() {
   const router = useRouter();
@@ -46,16 +50,38 @@ export default function MonEspacePage() {
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<{ text: string; error: boolean } | null>(null);
 
+  const [isOfflineMode, setIsOfflineMode] = useState(false);
+
   const loadEspaceData = async () => {
     setLoading(true);
     setLoadError("");
 
+    // 1. Charger immédiatement le cache local hors-ligne pour affichage instantané (0ms)
+    const cached = getCachedMonEspace();
+    if (cached) {
+      setEspaceData(cached);
+      setTelephone(cached.telephone || "");
+      setSourceFinancement(cached.source_financement || "LLF");
+      setSourceFinancementAutre(cached.source_financement_autre || "");
+      setNombreRc(cached.nombre_rc_declare || 5);
+      setPhotoUrl(cached.photo_url || null);
+      setLoading(false);
+    }
+
+    // Si l'appareil est hors-ligne, s'arrêter là sans faire de requête réseau
+    if (!navigator.onLine) {
+      setIsOfflineMode(true);
+      setLoading(false);
+      return;
+    }
+
     try {
-      // 1. Essayer d'abord la RPC Phase 5 obtenir_mon_espace
+      // 2. Essayer la RPC Phase 5 obtenir_mon_espace
       try {
         const { data, error } = await supabase.rpc("obtenir_mon_espace");
         if (!error && data && data.nom) {
           setEspaceData(data);
+          saveCachedMonEspace(data);
           setTelephone(data.telephone || "");
           setSourceFinancement(data.source_financement || "LLF");
           setSourceFinancementAutre(data.source_financement_autre || "");
@@ -68,9 +94,13 @@ export default function MonEspacePage() {
         console.warn("RPC obtenir_mon_espace non accessible, bascule directe:", e);
       }
 
-      // 2. Récupération directe et transparente des données complètes
+      // 3. Récupération directe et transparente des données complètes
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
+        if (cached) {
+          setIsOfflineMode(true);
+          return;
+        }
         router.push("/connexion");
         return;
       }
@@ -99,6 +129,10 @@ export default function MonEspacePage() {
 
       const prof = uRes.data;
       if (!prof) {
+        if (cached) {
+          setIsOfflineMode(true);
+          return;
+        }
         router.push("/connexion");
         return;
       }
@@ -150,6 +184,9 @@ export default function MonEspacePage() {
       };
 
       setEspaceData(directData);
+      saveCachedMonEspace(directData);
+      saveCachedUserSession(user, prof);
+
       setTelephone(prof.telephone || "");
       setSourceFinancement(ascqP.source_financement || "LLF");
       setSourceFinancementAutre(ascqP.source_financement_autre || "");
@@ -157,8 +194,12 @@ export default function MonEspacePage() {
       setPhotoUrl(prof.photo_url || null);
 
     } catch (err: any) {
-      console.error("Erreur chargement mon espace:", err);
-      setLoadError("Impossible de charger vos données. Veuillez vous reconnecter.");
+      console.warn("Erreur chargement mon espace, maintien du mode hors-ligne:", err);
+      if (cached) {
+        setIsOfflineMode(true);
+      } else {
+        setLoadError("Impossible de joindre le serveur. Vos données locales sont en cours de chargement.");
+      }
     } finally {
       setLoading(false);
     }
@@ -355,6 +396,56 @@ export default function MonEspacePage() {
             <span>{saveMsg.text}</span>
           </div>
         )}
+
+        {/* BANDEAU MODE HORS-LIGNE DÉTECTÉ */}
+        {isOfflineMode && (
+          <div className="p-3.5 bg-amber-500/15 border border-amber-500/30 rounded-2xl text-xs text-amber-950 flex items-start gap-2.5 shadow-sm">
+            <WifiOff className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            <div className="space-y-0.5">
+              <strong className="block text-amber-900 font-extrabold">Mode Hors-Ligne Actif (Zone Blanche)</strong>
+              <p className="text-amber-800 text-[11px] leading-relaxed">
+                Vos données sont chargées depuis la mémoire locale sécurisée de votre téléphone. Vous pouvez continuer à enregistrer vos consultations, alertes, plannings et références ; ils seront synchronisés dès le retour du réseau.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* NOUVEAU MODULE : PRISE EN CHARGE DES CAS EN COMMUNAUTÉ (iCCM) */}
+        <div className="bg-gradient-to-br from-[#005c30] to-emerald-900 rounded-3xl p-5 text-white shadow-md space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="p-2 rounded-2xl bg-white/20 text-white backdrop-blur-sm">
+                <Stethoscope className="w-5 h-5" />
+              </span>
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-200 block">
+                  Soins & PCIME Communautaire
+                </span>
+                <h2 className="text-sm sm:text-base font-extrabold text-white">
+                  Prise en charge des cas en communauté (iCCM)
+                </h2>
+              </div>
+            </div>
+            <Link
+              href="/espace-ascq/consultations/nouvelle"
+              className="px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-900 font-black text-xs transition-colors shadow-sm"
+            >
+              + Nouveau cas
+            </Link>
+          </div>
+          <p className="text-xs text-white/80 leading-relaxed">
+            Consultez les enfants et adultes : diagnostic, TDR Paludisme, décision de prise en charge sur place (CTA, SRO/Zinc, Amoxi, etc.) ou référence immédiate au Centre de Santé avec fiche officielle imprimable.
+          </p>
+          <div className="flex items-center gap-2 pt-1">
+            <Link
+              href="/espace-ascq/consultations"
+              className="flex-1 py-2 px-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs text-center border border-white/20 transition-all flex items-center justify-center gap-1.5"
+            >
+              <HeartPulse className="w-4 h-4 text-emerald-300" />
+              <span>Consulter le Registre des Prises en Charge</span>
+            </Link>
+          </div>
+        </div>
 
         {/* Alerte si la migration n'a pas encore été exécutée */}
         {espaceData?.is_fallback && (

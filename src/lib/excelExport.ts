@@ -952,3 +952,106 @@ export function exporterFicheReferenceExcel(ref: any) {
   const nomFichier = `Bulletin_Reference_${isGups ? 'GUPS' : 'CS'}_${numero}.xls`;
   telechargerFichierExcel(html, nomFichier);
 }
+
+// =====================================================================
+// EXPORT EXCEL DU REGISTRE DES PRISES EN CHARGE ET CONSULTATIONS (iCCM)
+// =====================================================================
+export function exporterRegistreConsultationsExcel(
+  consultations: any[],
+  agentNom: string = "ASCQ Bénin",
+  titrePeriode: string = "Toutes les dates"
+) {
+  const html = `
+  <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <style>
+      body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; color: #1e293b; }
+      table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
+      th { background-color: #005c30; color: white; border: 1px solid #003e20; padding: 8px; text-align: left; font-size: 11pt; }
+      td { border: 1px solid #cbd5e1; padding: 6px 8px; vertical-align: top; font-size: 10pt; }
+      .header-title { font-size: 15pt; font-weight: bold; color: #005c30; text-align: center; }
+      .sub-title { font-size: 11pt; font-weight: bold; color: #334155; text-align: center; }
+      .badge-pec { background-color: #dcfce7; color: #15803d; font-weight: bold; }
+      .badge-ref { background-color: #fef3c7; color: #b45309; font-weight: bold; }
+      .badge-pos { background-color: #fee2e2; color: #b91c1c; font-weight: bold; }
+      .footer-note { font-size: 9pt; color: #64748b; font-style: italic; }
+    </style>
+  </head>
+  <body>
+    <table>
+      <tr>
+        <td colspan="12" class="header-title">RÉPUBLIQUE DU BÉNIN • MINISTÈRE DE LA SANTÉ</td>
+      </tr>
+      <tr>
+        <td colspan="12" class="sub-title">REGISTRE DES PRISES EN CHARGE EN COMMUNAUTÉ (iCCM / PCIME-C)</td>
+      </tr>
+      <tr>
+        <td colspan="6"><strong>Agent :</strong> ${agentNom}</td>
+        <td colspan="6" style="text-align: right;"><strong>Période / Date :</strong> ${titrePeriode} • Exporté le ${new Date().toLocaleDateString('fr-BJ')}</td>
+      </tr>
+    </table>
+
+    <table>
+      <thead>
+        <tr>
+          <th>N°</th>
+          <th>Date</th>
+          <th>Village</th>
+          <th>Nom & Prénoms Patient</th>
+          <th>Âge</th>
+          <th>Sexe</th>
+          <th>Signe Principal</th>
+          <th>Signes Associés</th>
+          <th>TDR Paludisme</th>
+          <th>Diagnostic Possible</th>
+          <th>Décision Clinique</th>
+          <th>Produits Utilisés / 1er Geste Posé</th>
+          <th>RDV Contrôle / Destination</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${consultations.map((c, i) => {
+          const isPec = c.decision === 'PRISE_EN_CHARGE_COMMUNAUTAIRE';
+          const produitsStr = Array.isArray(c.produits_utilises)
+            ? c.produits_utilises.map((p: any) => `${p.nom || p.produit} (${p.quantite || p.posologie || '1'})`).join(', ')
+            : (c.produits_utilises || '-');
+
+          return `
+            <tr>
+              <td style="text-align: center; font-weight: bold;">${i + 1}</td>
+              <td>${c.date_consultation || '-'}</td>
+              <td><strong>${c.village || '-'}</strong></td>
+              <td><strong>${c.nom_patient}</strong> ${c.prenoms_patient}</td>
+              <td style="text-align: center;">${c.age_valeur} ${c.age_unite?.toLowerCase()}</td>
+              <td style="text-align: center;">${c.sexe}</td>
+              <td style="color: #005c30; font-weight: bold;">${c.signe_principal}</td>
+              <td>${Array.isArray(c.signes_secondaires) && c.signes_secondaires.length > 0 ? c.signes_secondaires.join(', ') : '-'}</td>
+              <td style="text-align: center;" class="${c.tdr_paludisme === 'POSITIF' ? 'badge-pos' : ''}">${c.tdr_paludisme || '-'}</td>
+              <td><strong>${c.diagnostic_possible}</strong></td>
+              <td class="${isPec ? 'badge-pec' : 'badge-ref'}">${isPec ? 'Prise en charge locale' : 'RÉFÉRÉ AU CS'}</td>
+              <td>${isPec ? produitsStr : (c.premier_geste_pose || '1er geste administré')}</td>
+              <td>${isPec ? (c.date_rendez_vous_suivi ? `RDV le ${c.date_rendez_vous_suivi}` : 'Conseils donnés') : (c.structure_cs_destination || 'Centre de Santé')}</td>
+            </tr>
+          `;
+        }).join('')}
+      </tbody>
+    </table>
+
+    <table>
+      <tr>
+        <td colspan="12" class="footer-note">
+          Total consultations enregistrées : <strong>${consultations.length}</strong> | 
+          Pris en charge sur place : <strong>${consultations.filter(x => x.decision === 'PRISE_EN_CHARGE_COMMUNAUTAIRE').length}</strong> | 
+          Référés au CS : <strong>${consultations.filter(x => x.decision === 'REFERER_CS').length}</strong> | 
+          TDR Paludisme Positifs : <strong>${consultations.filter(x => x.tdr_paludisme === 'POSITIF').length}</strong>
+        </td>
+      </tr>
+    </table>
+  </body>
+  </html>
+  `;
+
+  const dateStr = new Date().toISOString().split("T")[0];
+  telechargerFichierExcel(html, `Registre_Consultations_iCCM_${dateStr}.xls`);
+}
