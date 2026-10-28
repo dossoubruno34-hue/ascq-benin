@@ -758,3 +758,197 @@ export function exporterFicheSurveillanceIndividuelleExcel(fiche: any) {
   const nomFichier = `Fiche_Surveillance_${numero}_${typeCode}.xls`;
   telechargerFichierExcel(html, nomFichier);
 }
+
+// =====================================================================
+// EXPORT DU BULLETIN OFFICIEL DE RÉFÉRENCE COMMUNAUTAIRE (SANTÉ & GUPS)
+// =====================================================================
+export function exporterFicheReferenceExcel(ref: any) {
+  if (!ref) return;
+
+  const dateExport = new Date().toLocaleDateString("fr-FR");
+  const heureExport = new Date().toLocaleTimeString("fr-FR");
+
+  const numero = ref.numero_reference || "REF-000";
+  const isGups = ref.type_reference === "SOCIAL_GUPS" || ref.destination_type === "GUPS";
+  const typeTitre = isGups ? "BULLETIN DE RÉFÉRENCE SOCIALE — GUPS (PROTECTION SOCIALE)" : "BULLETIN DE RÉFÉRENCE MÉDICALE — CENTRE DE SANTÉ";
+
+  const html = `
+  <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <style>
+      body { font-family: 'Segoe UI', Calibri, Arial, sans-serif; font-size: 10pt; color: #222; }
+      .header-title { font-size: 12pt; font-weight: bold; color: #005c30; text-align: center; }
+      .header-sub { font-size: 9pt; font-weight: bold; color: #555; text-align: center; }
+      table { border-collapse: collapse; width: 100%; margin-top: 15px; }
+      th { background-color: ${isGups ? '#1e40af' : '#005c30'}; color: #ffffff; font-weight: bold; padding: 6px; border: 1px solid #333; font-size: 9pt; text-align: left; }
+      td { border: 1px solid #cccccc; padding: 6px 8px; font-size: 9pt; }
+      .label-cell { background-color: #f8fafc; font-weight: bold; width: 30%; color: #333; }
+      .val-cell { width: 70%; }
+      .urgence-evac { color: #b91c1c; font-weight: bold; background-color: #fef2f2; }
+      .volet-retour { background-color: #f0fdf4; border: 2px dashed #15803d; padding: 10px; margin-top: 15px; }
+    </style>
+  </head>
+  <body>
+    <div class="header-title">RÉPUBLIQUE DU BÉNIN</div>
+    <div class="header-sub">
+      ${isGups 
+        ? "MINISTÈRE DES AFFAIRES SOCIALES ET DE LA MICROFINANCE — DIRECTION GÉNÉRALE DE LA FAMILLE ET DES AFFAIRES SOCIALES"
+        : "MINISTÈRE DE LA SANTÉ — PROGRAMME NATIONAL DE SANTÉ COMMUNAUTAIRE (PNSC)"}
+    </div>
+    <div class="header-sub" style="color: ${isGups ? '#1e40af' : '#005c30'}; font-size: 11pt; margin-top: 5px;">
+      ${typeTitre} — N° ${numero}
+    </div>
+    
+    <div style="font-size: 8pt; text-align: right; color: #666; margin-top: 4px;">
+      Généré le ${dateExport} à ${heureExport}
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th colspan="2">1. STRUCTURE DESTINATAIRE & LOCALISATION</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="label-cell">Structure d'accueil réceptrice :</td>
+          <td class="val-cell" style="font-weight: bold; color: ${isGups ? '#1e40af' : '#005c30'}; font-size: 11pt;">
+            ${ref.destination_nom || (isGups ? "Guichet Unique de Protection Sociale (GUPS)" : "Centre de Santé le plus proche")}
+          </td>
+        </tr>
+        <tr>
+          <td class="label-cell">Degré d'urgence :</td>
+          <td class="val-cell ${ref.degre_urgence === 'EVACUATION_IMMEDIATE' ? 'urgence-evac' : ''}">
+            ${ref.degre_urgence === 'EVACUATION_IMMEDIATE' ? '🚨 ÉVACUATION IMMÉDIATE' : ref.degre_urgence === 'URGENTE' ? '⚠️ URGENT' : 'Normale (Consultation de routine)'}
+          </td>
+        </tr>
+        <tr>
+          <td class="label-cell">Village / Quartier de provenance :</td>
+          <td class="val-cell"><strong>${ref.village_nom || ref.village || "Non précisé"}</strong></td>
+        </tr>
+        <tr>
+          <td class="label-cell">Date et heure de la référence :</td>
+          <td class="val-cell">${ref.date_reference || dateExport} ${ref.heure_reference ? 'à ' + ref.heure_reference : ''}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <table>
+      <thead>
+        <tr>
+          <th colspan="2">2. IDENTITÉ DU BÉNÉFICIAIRE / PATIENT</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="label-cell">Nom & Prénoms :</td>
+          <td class="val-cell" style="font-weight: bold; font-size: 11pt;">${ref.nom_patient} ${ref.prenoms_patient}</td>
+        </tr>
+        <tr>
+          <td class="label-cell">Sexe & Âge :</td>
+          <td class="val-cell">
+            ${ref.sexe === 'M' ? 'Masculin' : 'Féminin'} • ${ref.age_valeur} ${ref.age_unite || 'ans'}
+          </td>
+        </tr>
+        <tr>
+          <td class="label-cell">Parent / Tuteur / Accompagnateur :</td>
+          <td class="val-cell">${ref.nom_parent_tuteur || "Non précisé"}</td>
+        </tr>
+        <tr>
+          <td class="label-cell">Téléphone de contact :</td>
+          <td class="val-cell"><strong>${ref.telephone_contact || "Aucun"}</strong></td>
+        </tr>
+        <tr>
+          <td class="label-cell">Adresse / Repère domicile :</td>
+          <td class="val-cell">${ref.adresse_exacte || "-"}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <table>
+      <thead>
+        <tr>
+          <th colspan="2">3. MOTIF OFFICIEL DE LA RÉFÉRENCE & CONSTAT DU TERRAIN</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="label-cell">Motif principal :</td>
+          <td class="val-cell" style="font-weight: bold; color: #b91c1c;">
+            ${ref.motif_libelle || ref.motif_code}
+          </td>
+        </tr>
+        <tr>
+          <td class="label-cell">Détails des signes / Situation sociale :</td>
+          <td class="val-cell">${ref.motif_details || "Aucun détail complémentaire renseigné."}</td>
+        </tr>
+        ${ref.one_health_concerne ? `
+        <tr>
+          <td class="label-cell">Approche One Health :</td>
+          <td class="val-cell" style="color: #047857; font-weight: bold;">
+            🌿 Cas impliquant l'approche One Health (Santé Animale / Zoonose ou Environnement)
+          </td>
+        </tr>
+        ` : ''}
+      </tbody>
+    </table>
+
+    <table>
+      <thead>
+        <tr>
+          <th colspan="2">4. AGENTS DE RÉFÉRENCE & VALIDATION DE TERRAIN</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="label-cell">Relais Communautaire (Déclarant) :</td>
+          <td class="val-cell"><strong>${ref.relais_nom}</strong> (Tél : ${ref.relais_telephone || "-"})</td>
+        </tr>
+        <tr>
+          <td class="label-cell">ASCQ Superviseur (Validateur) :</td>
+          <td class="val-cell"><strong>${ref.ascq_nom || "ASCQ Superviseur"}</strong></td>
+        </tr>
+        <tr>
+          <td class="label-cell">Statut de validation :</td>
+          <td class="val-cell" style="font-weight: bold; color: ${ref.statut === 'VALIDEE' ? '#15803d' : '#d97706'};">
+            ${ref.statut === 'VALIDEE' ? '✓ VALIDÉE PAR L’ASCQ' : ref.statut || 'EN ATTENTE'}
+          </td>
+        </tr>
+        ${ref.commentaire_ascq ? `
+        <tr>
+          <td class="label-cell">Commentaire ASCQ :</td>
+          <td class="val-cell" style="font-style: italic;">« ${ref.commentaire_ascq} »</td>
+        </tr>
+        ` : ''}
+      </tbody>
+    </table>
+
+    <table style="width: 100%; margin-top: 25px; border: 2px dashed #15803d; background-color: #f0fdf4;">
+      <tr>
+        <td colspan="2" style="background-color: #dcfce7; font-weight: bold; color: #166534; padding: 8px;">
+          VOLET RETOUR (À REMPLIR PAR LA STRUCTURE D'ACCUEIL : CS OU GUPS ET À RENVOYER À L'ASCQ)
+        </td>
+      </tr>
+      <tr>
+        <td style="width: 50%; padding: 10px; border: none; vertical-align: top;">
+          <strong>Date et heure d'arrivée au centre :</strong> ..../..../........ à ........h........<br /><br />
+          <strong>Diagnostic clinique ou mesure sociale retenue :</strong><br /><br />
+          ........................................................................................................<br /><br />
+          <strong>Nom et Titre de l'Agent Récepteur :</strong> ........................................
+        </td>
+        <td style="width: 50%; padding: 10px; border: none; vertical-align: top; text-align: right;">
+          <strong>Décision de prise en charge :</strong><br />
+          [ ] Traitement ambulatoire [ ] Hospitalisation [ ] Appui social GUPS<br /><br /><br />
+          <strong>Signature et Cachet officiel de la structure :</strong><br /><br /><br />
+          __________________________________________________
+        </td>
+      </tr>
+    </table>
+  </body>
+  </html>
+  `;
+
+  const nomFichier = `Bulletin_Reference_${isGups ? 'GUPS' : 'CS'}_${numero}.xls`;
+  telechargerFichierExcel(html, nomFichier);
+}

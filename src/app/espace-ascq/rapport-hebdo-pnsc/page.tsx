@@ -29,7 +29,10 @@ import {
   Clock, 
   RefreshCw,
   PlusCircle,
-  HelpCircle
+  HelpCircle,
+  Sparkles,
+  HeartPulse,
+  Activity
 } from "lucide-react";
 
 // Calcul de la semaine ISO actuelle (1-52)
@@ -119,8 +122,41 @@ export default function RapportHebdoPnscPage() {
   const [compilationRapports, setCompilationRapports] = useState<any[]>([]);
   const [loadingCompilation, setLoadingCompilation] = useState(false);
 
+  // Données consolidées en temps réel (alertes, décès, registre, références)
+  const [statsTempsReel, setStatsTempsReel] = useState<any | null>(null);
+  const [loadingStats, setLoadingStats] = useState(false);
+
   // Charger profil et données du rapport sélectionné
   const dates = useMemo(() => getDatesSemaine(annee, semaine), [annee, semaine]);
+
+  const chargerStatsTempsReel = async (debut: string, fin: string, forcerEcriture: boolean = false) => {
+    setLoadingStats(true);
+    try {
+      const { data, error } = await supabase.rpc("obtenir_statistiques_temps_reel_rapport", {
+        p_date_debut: debut,
+        p_date_fin: fin,
+      });
+
+      if (!error && data) {
+        setStatsTempsReel(data);
+        if (forcerEcriture || activites.trim() === "") {
+          const texteAuto = [
+            `Surveillance communautaire & Activités Semaine ${semaine} :`,
+            `- Alertes notifiées : ${data.total_alertes || 0} (${data.personnes_touchees || 0} personnes touchées, ${data.personnes_mortes_alertes || 0} décès)`,
+            `- Références transmises : ${data.references_sante || 0} vers Centre de Santé, ${data.references_gups || 0} vers le GUPS (Protection Sociale)`,
+            `- Décès communautaires : ${data.total_deces_communautaires || 0} (Maternels : ${data.deces_maternels || 0}, Néonatals : ${data.deces_neonatals || 0})`,
+            `- Événements au registre : ${data.total_registre || 0}`,
+            `- Relais Communautaires actifs suivis : ${data.rc_actifs || 0}`
+          ].join("\n");
+          setActivites(texteAuto);
+        }
+      }
+    } catch (e) {
+      console.warn("Erreur chargement stats temps réel:", e);
+    } finally {
+      setLoadingStats(false);
+    }
+  };
 
   const chargerDonnees = async () => {
     setLoading(true);
@@ -212,6 +248,9 @@ export default function RapportHebdoPnscPage() {
       if (profil?.commune_id) {
         chargerCompilation(profil.commune_id, annee, semaine);
       }
+
+      // Synchroniser les statistiques réelles de terrain de la semaine
+      await chargerStatsTempsReel(dates.debut, dates.fin, false);
     } catch (err) {
       console.error("Erreur chargement rapport hebdo:", err);
     } finally {
@@ -871,17 +910,59 @@ export default function RapportHebdoPnscPage() {
 
           {/* SECTION 6 : ACTIVITÉS, DIFFICULTÉS & SUGGESTIONS */}
           <section className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/90 shadow-sm space-y-4">
-            <h3 className="font-extrabold text-sm sm:text-base text-slate-900 border-b border-slate-100 pb-2">
-              6. Activités Réalisées, Difficultés & Suggestions
-            </h3>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-2">
+              <h3 className="font-extrabold text-sm sm:text-base text-slate-900">
+                6. Activités Réalisées, Difficultés & Suggestions
+              </h3>
+
+              <button
+                type="button"
+                onClick={() => chargerStatsTempsReel(dates.debut, dates.fin, true)}
+                disabled={loadingStats}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-[#005c30] font-bold text-xs border border-emerald-200 shadow-xs transition-colors self-start sm:self-auto"
+                title="Pré-remplir automatiquement les activités à partir de vos fiches et de celles de vos RC"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                <span>{loadingStats ? "Calcul..." : "⚡ Synchroniser fiches semaine"}</span>
+              </button>
+            </div>
+
+            {/* BANDEAU DES CHIFFRES TEMPS RÉEL DE LA SEMAINE */}
+            {statsTempsReel && (
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 p-3 bg-slate-50 rounded-2xl border border-slate-200 text-center text-xs">
+                <div>
+                  <span className="text-[10px] text-slate-500 font-bold block">Alertes notifiées</span>
+                  <strong className="text-sm font-black text-emerald-800">{statsTempsReel.total_alertes || 0}</strong>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-500 font-bold block">Personnes touchées</span>
+                  <strong className="text-sm font-black text-slate-900">{statsTempsReel.personnes_touchees || 0}</strong>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-500 font-bold block">Référées vers CS</span>
+                  <strong className="text-sm font-black text-blue-700">{statsTempsReel.references_sante || 0}</strong>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-500 font-bold block">Référées vers GUPS</span>
+                  <strong className="text-sm font-black text-purple-700">{statsTempsReel.references_gups || 0}</strong>
+                </div>
+                <div className="col-span-2 sm:col-span-1">
+                  <span className="text-[10px] text-slate-500 font-bold block">Décès déclarés</span>
+                  <strong className="text-sm font-black text-red-600">{statsTempsReel.total_deces_communautaires || 0}</strong>
+                </div>
+              </div>
+            )}
 
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Activités réalisées durant la semaine *
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-slate-700">
+                    Activités réalisées durant la semaine *
+                  </label>
+                  <span className="text-[10px] text-slate-400 font-medium">Modifiable avant validation</span>
+                </div>
                 <textarea
-                  rows={3}
+                  rows={4}
                   required
                   value={activites}
                   onChange={(e) => setActivites(e.target.value)}

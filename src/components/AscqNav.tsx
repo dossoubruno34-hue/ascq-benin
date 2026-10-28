@@ -23,7 +23,9 @@ import {
   ClipboardCheck,
   FileText,
   BarChart3,
-  ShieldCheck
+  ShieldCheck,
+  HeartPulse,
+  Crown
 } from "lucide-react";
 
 interface Props {
@@ -73,24 +75,32 @@ export default function AscqNav({ userProfile }: Props) {
     chargerNonLues();
   }, [userProfile]);
 
+  const isRepresentant = [
+    "REPRESENTANT_COMMUNAL",
+    "REPRESENTANT_DEPARTEMENTAL",
+    "PF_CCLS_TP",
+    "ADMIN_COMMUNAL",
+    "ADMIN_DEPARTEMENTAL",
+    "GESTIONNAIRE_PERIMETRE"
+  ].includes(userProfile?.role_nomination || userProfile?.role_technique || userProfile?.poste || detectedRole || "");
+
   const isAdmin = [
     "SUPER_ADMIN",
-    "ADMINISTRATEUR",
-    "GESTIONNAIRE_PERIMETRE",
-    "ADMIN_COMMUNAL",
-    "ADMIN_DEPARTEMENTAL"
-  ].includes(detectedRole || "");
+    "ADMINISTRATEUR"
+  ].includes(detectedRole || userProfile?.role_technique || "");
 
   const navItems = [
     { href: "/espace-ascq", label: "Mon espace", icon: Home },
     { href: "/briefing", label: "Guide SIMR & Vaccins", icon: BookOpen },
     { href: "/fiches", label: "Surveillance", icon: Activity },
+    { href: "/espace-ascq/references", label: "Références (CS/GUPS)", icon: HeartPulse },
     { href: "/espace-ascq/planning", label: "Planning", icon: Calendar },
     { href: "/espace-ascq/activites-menees", label: "Activités", icon: CheckSquare },
     { href: "/espace-ascq/suivi-relais", label: "Suivi RC", icon: ClipboardCheck },
     { href: "/espace-ascq/rapport-hebdo-pnsc", label: "Suivi PNSC", icon: BarChart3 },
     { href: "/espace-ascq/rapport-mensuel", label: "Rapport mensuel", icon: FileText },
     { href: "/espace-ascq/relais", label: "Mes Relais", icon: Users },
+    ...(isRepresentant ? [{ href: "/perimetre", label: "Périmètre", icon: Crown }] : []),
     { href: "/espace-ascq/permutations", label: "Permutations", icon: ArrowLeftRight },
     { href: "/espace-ascq/requetes", label: "Requêtes", icon: MessageSquareText },
     { href: "/espace-ascq/bibliotheque", label: "Bibliothèque", icon: BookOpen },
@@ -122,9 +132,29 @@ export default function AscqNav({ userProfile }: Props) {
                 )}
               </div>
               <div className="leading-tight">
-                <h1 className="font-extrabold text-sm sm:text-base tracking-tight text-white">
-                  ASCQ Bénin
-                </h1>
+                <div className="flex items-center gap-1.5">
+                  <h1 className="font-extrabold text-sm sm:text-base tracking-tight text-white">
+                    ASCQ Bénin
+                  </h1>
+                  {isRepresentant && (
+                    <Link
+                      href="/perimetre"
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 font-black text-[10px] shadow hover:bg-amber-300 transition-all"
+                      title="Accéder à votre Espace Périmètre et Supervision Territoriale"
+                    >
+                      <Crown className="w-3 h-3 text-amber-900" />
+                      <span>
+                        {userProfile?.poste === "REPRESENTANT_COMMUNAL" || userProfile?.role_technique === "ADMIN_COMMUNAL"
+                          ? "Représentant Communal"
+                          : userProfile?.poste === "REPRESENTANT_DEPARTEMENTAL" || userProfile?.role_technique === "ADMIN_DEPARTEMENTAL"
+                          ? "Représentant Dép."
+                          : userProfile?.poste === "PF_CCLS_TP"
+                          ? "PF CCLS-TP"
+                          : "Périmètre"}
+                      </span>
+                    </Link>
+                  )}
+                </div>
                 <p className="text-[11px] text-white/80">
                   {userProfile ? `${userProfile.prenoms} ${userProfile.nom}` : "Espace ASCQ"}
                 </p>

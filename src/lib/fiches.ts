@@ -351,3 +351,47 @@ export function supprimerBrouillonAlerte(localId: string): void {
     console.error("Erreur suppression brouillon:", err);
   }
 }
+
+// ---------------------------------------------------------------------
+// RÉFÉRENTIELS OFFICIELS : RÉFÉRENCES COMMUNAUTAIRES (SANTÉ & GUPS)
+// ---------------------------------------------------------------------
+
+export interface MotifReferenceRef {
+  code: string;
+  nom: string;
+  description: string;
+  urgence: "NORMALE" | "URGENTE" | "EVACUATION_IMMEDIATE";
+  oneHealth?: boolean;
+}
+
+export const MOTIFS_REFERENCES_SANTE: MotifReferenceRef[] = [
+  { code: "PALU_GRAVE", nom: "Paludisme grave / Fièvre persistante", description: "Fièvre élevée avec léthargie, convulsions ou refus de s'alimenter", urgence: "URGENTE", oneHealth: false },
+  { code: "DIARRHEE_SEV", nom: "Diarrhée aiguë avec déshydratation sévère", description: "Selles liquides abondantes, pli cutané persistant, yeux enfoncés", urgence: "URGENTE", oneHealth: false },
+  { code: "IRA_PNEUMO", nom: "Infection Respiratoire Aiguë / Suspicion Pneumonie", description: "Toux avec tirage sous-costal et respiration rapide sifflante", urgence: "URGENTE", oneHealth: false },
+  { code: "MALNUTRITION", nom: "Malnutrition aiguë sévère (MAS)", description: "Émaciement visible extrême, œdèmes bilatéraux des membres inférieurs", urgence: "NORMALE", oneHealth: false },
+  { code: "GROSSESSE_DANGER", nom: "Femme enceinte : Signes de danger / Travail", description: "Saignement vaginal, maux de tête violents, fièvre, début de travail", urgence: "EVACUATION_IMMEDIATE", oneHealth: false },
+  { code: "NOUVEAU_NE", nom: "Nouveau-né malade / Danger néonatal", description: "Refus de téter, léthargie, hypothermie ou coloration anormale", urgence: "EVACUATION_IMMEDIATE", oneHealth: false },
+  { code: "MORSURE_RAGE", nom: "Morsure de chien / Suspicion Rage", description: "Morsure ou griffure par un animal suspect (protocole post-exposition)", urgence: "URGENTE", oneHealth: true },
+  { code: "MORSURE_SERPENT", nom: "Morsure de serpent / Piqûre vénimeuse", description: "Envenimation nécessitant l'administration rapide de sérum", urgence: "EVACUATION_IMMEDIATE", oneHealth: false },
+  { code: "TRAUMATISME", nom: "Traumatisme / Accident / Brûlure grave", description: "Plaie profonde, fracture suspectée, hémorragie ou brûlure étendue", urgence: "EVACUATION_IMMEDIATE", oneHealth: false },
+  { code: "AUTRE_SANTE", nom: "Autre problème de santé nécessitant un avis médical", description: "Toute autre affection requérant un diagnostic au Centre de Santé", urgence: "NORMALE", oneHealth: false },
+];
+
+export const MOTIFS_REFERENCES_GUPS: MotifReferenceRef[] = [
+  { code: "VBG_VIOLENCE", nom: "Violences Basées sur le Genre (VBG) / Violences conjugales", description: "Femme ou fille victime d'agression physique, sexuelle ou psychologique", urgence: "URGENTE" },
+  { code: "MALTRAITANCE_ENFANT", nom: "Protection de l'enfant : Maltraitance / Travail forcé", description: "Enfant exploité, battu, non scolarisé ou en détresse manifeste", urgence: "URGENTE" },
+  { code: "ENFANT_RUE_ABANDON", nom: "Enfant abandonné / Enfant en situation de rue", description: "Mineur sans tuteur légal, orphelin non pris en charge dans la communauté", urgence: "URGENTE" },
+  { code: "HANDICAP_VULNERABLE", nom: "Personne en situation de handicap sans assistance", description: "Incapacité sévère sans soutien familial ni matériel adapté", urgence: "NORMALE" },
+  { code: "EXTREME_INDIGENCE", nom: "Extrême indigence / Famine / Précarité absolue", description: "Famille incapable de subvenir aux besoins minimaux de nutrition et de survie", urgence: "NORMALE" },
+  { code: "GROSSESSE_PRECOCE", nom: "Grossesse précoce non accompagnée / Fille-mère rejetée", description: "Adolescente enceinte isolée sans soutien social ni prise en charge", urgence: "NORMALE" },
+  { code: "PERSONNE_AGEE", nom: "Personne âgée isolée en grande détresse", description: "Aîné sans soutien familial vivant dans des conditions d'abandon", urgence: "NORMALE" },
+  { code: "RUPTURE_SOINS_SOCIAL", nom: "Rupture de soins vitaux pour motif économique", description: "Malade chronique ou enfant indigent privé de soins par manque de moyens", urgence: "URGENTE" },
+  { code: "AUTRE_GUPS", nom: "Autre vulnérabilité sociale relevant du GUPS", description: "Cas social spécifique nécessitant l'appui de l'Assistant Social communal", urgence: "NORMALE" },
+];
+
+export const ONE_HEALTH_SECTEURS = [
+  { code: "SANTE_HUMAINE", nom: "Santé Humaine", icone: "🧑‍⚕️", description: "Affections communautaires et maladies humaines transmissibles" },
+  { code: "SANTE_ANIMALE_ZOONOSE", nom: "Santé Animale & Zoonoses", icone: "🐾", description: "Maladies transmissibles de l'animal à l'homme (rage, charbon, grippe aviaire)" },
+  { code: "ENVIRONNEMENT_EAU_SALUBRITE", nom: "Santé Environnementale", icone: "🌿", description: "Points d'eau souillés, décharges, inondations et insalubrité" },
+];
+

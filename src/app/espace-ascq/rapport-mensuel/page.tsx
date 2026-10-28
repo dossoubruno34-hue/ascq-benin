@@ -353,9 +353,33 @@ export default function RapportMensuelPage() {
         newCounts["deces_maternel"] = (deces || []).filter((d) => d.type_deces_code === 1).length;
         newCounts["deces_neonatal"] = (deces || []).filter((d) => d.type_deces_code === 2).length;
 
+        // Récupérer également les références Santé et GUPS du mois
+        const dateDebutMois = `${annee}-${String(mois).padStart(2, "0")}-01`;
+        const dernierJour = new Date(annee, mois, 0).getDate();
+        const dateFinMois = `${annee}-${String(mois).padStart(2, "0")}-${String(dernierJour).padStart(2, "0")}`;
+
+        const { data: refsMois } = await supabase
+          .from("references_communautaires")
+          .select("type_reference, motif_code, one_health_concerne")
+          .eq("ascq_id", currentUser.id)
+          .gte("date_reference", dateDebutMois)
+          .lte("date_reference", dateFinMois);
+
+        if (refsMois && refsMois.length > 0) {
+          const nbSante = refsMois.filter(r => r.type_reference === "SANTE").length;
+          const nbGups = refsMois.filter(r => r.type_reference === "SOCIAL_GUPS").length;
+          const nbMorsures = refsMois.filter(r => r.motif_code && r.motif_code.includes("MORSURE")).length;
+
+          setCasReferesCs(nbSante);
+          setCasReferesGups(nbGups);
+          if (nbMorsures > 0) {
+            setSanteAnimale(prev => ({ ...prev, morsures_chiens: Math.max(prev.morsures_chiens, nbMorsures) }));
+          }
+        }
+
         setDonneesSurveillance(newCounts);
         setMessage({
-          text: `Pré-remplissage effectué (calcul direct) pour ${MOIS_NOMS[mois - 1]} ${annee}.`,
+          text: `Pré-remplissage effectué (calcul direct) pour ${MOIS_NOMS[mois - 1]} ${annee} : pathologies, alertes et références vers CS (${casReferesCs}) et GUPS (${casReferesGups}) synchronisées.`,
           error: false,
         });
       }

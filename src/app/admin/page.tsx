@@ -264,8 +264,18 @@ export default function AdminPage() {
         "REPRESENTANT_COMMUNAL",
         "ADMIN_COMMUNAL",
         "CADRE_COMMUNAL",
+        "PF_CCLS_TP",
       ];
-      if (!allowedRoles.includes(profil.role_technique)) {
+      
+      const isAllowed = 
+        allowedRoles.includes(profil.role_technique) ||
+        allowedRoles.includes(profil.poste) ||
+        allowedRoles.includes(profil.role_nomination) ||
+        profil.poste === "REPRESENTANT_COMMUNAL" ||
+        profil.poste === "REPRESENTANT_DEPARTEMENTAL" ||
+        profil.poste === "PF_CCLS_TP";
+
+      if (!isAllowed) {
         alert("Accès réservé aux administrateurs, représentants et cadres territoriaux.");
         router.push("/espace-ascq");
         return;

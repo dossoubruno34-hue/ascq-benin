@@ -109,27 +109,55 @@ export default function ConnexionPage() {
     setPendingAccount(null);
     setLoginSuccess(null);
 
-    const cleanPhone = telephone.replace(/\D/g, "");
-    if (cleanPhone.length < 8) {
+    const rawDigits = telephone.replace(/\D/g, "");
+    if (rawDigits.length < 8) {
       setErrorMsg("Veuillez saisir un numéro de téléphone valide.");
       setLoading(false);
       return;
     }
 
-    const technicalEmail = `tel_${cleanPhone}@ascq.local`;
+    // Gestion intelligente des formats béninois (+229, 01, 8 chiffres ou 10 chiffres)
+    const nationalDigits = rawDigits.startsWith("229") ? rawDigits.substring(3) : rawDigits;
+    const candidateEmails = [
+      `tel_${rawDigits}@ascq.local`,
+      `tel_${nationalDigits}@ascq.local`,
+      nationalDigits.startsWith("01") ? `tel_${nationalDigits.substring(2)}@ascq.local` : `tel_01${nationalDigits}@ascq.local`,
+      `tel_229${nationalDigits}@ascq.local`
+    ];
+    const uniqueEmails = Array.from(new Set(candidateEmails));
 
     try {
-      // 1. Authentification Supabase
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: technicalEmail,
-        password: motDePasse,
-      });
+      // 1. Authentification Supabase avec tentative sur les formats de téléphone
+      let authData: any = null;
+      let lastAuthError: any = null;
 
-      if (authError) {
-        if (authError.message.includes("Invalid login credentials")) {
-          throw new Error("Numéro de téléphone ou mot de passe incorrect. Vérifiez vos identifiants.");
+      for (const emailAttempt of uniqueEmails) {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: emailAttempt,
+          password: motDePasse,
+        });
+
+        if (!error && data?.user) {
+          authData = data;
+          lastAuthError = null;
+          break;
+        } else {
+          lastAuthError = error;
+          // Si l'erreur est un mauvais mot de passe avéré, inutile d'essayer d'autres emails si le compte a été trouvé
+          if (error?.message?.includes("Invalid login credentials") && !error?.message?.includes("schema")) {
+            // Continuer pour tester un autre format au cas où
+          }
         }
-        throw authError;
+      }
+
+      if (lastAuthError && !authData) {
+        if (lastAuthError.message?.toLowerCase().includes("database error querying schema")) {
+          throw new Error("Erreur de synchronisation du compte. Demandez à votre superviseur ASCQ de cliquer sur 'Réinitialiser le code d'accès' dans son espace Relais.");
+        }
+        if (lastAuthError.message?.includes("Invalid login credentials")) {
+          throw new Error("Numéro de téléphone ou mot de passe incorrect. Vérifiez vos identifiants ou votre code temporaire.");
+        }
+        throw lastAuthError;
       }
 
       // 2. Récupérer le profil via RPC (sans aucun problème de politique RLS récursive)
@@ -160,13 +188,29 @@ export default function ConnexionPage() {
       setLoginSuccess(userProfile);
 
       setTimeout(async () => {
-        if (userProfile.poste === "ASCQ") {
-          // L'ASCQ (même Super Admin) arrive sur son espace complet avec tous ses modules
+        const isCadreOuRepresentant = [
+          "REPRESENTANT_COMMUNAL",
+          "REPRESENTANT_DEPARTEMENTAL",
+          "PF_CCLS_TP",
+          "MCC",
+          "MCZS",
+          "RCSE",
+          "C_RAMS",
+          "DDS",
+          "ADMIN_COMMUNAL",
+          "ADMIN_DEPARTEMENTAL"
+        ].includes(userProfile.poste) || [
+          "ADMIN_COMMUNAL",
+          "ADMIN_DEPARTEMENTAL"
+        ].includes(userProfile.role_technique);
+
+        if (userProfile.poste === "ASCQ" || isCadreOuRepresentant) {
+          // L'ASCQ et les représentants territoriaux arrivent sur leur espace de travail complet
           router.push("/espace-ascq");
         } else if (userProfile.role_technique === "SUPER_ADMIN" || userProfile.role_technique === "ADMINISTRATEUR") {
           router.push("/admin");
         } else if (userProfile.poste === "RC") {
-          // Vérifier si le RC a déjà défini son mot de passe
+          // Vérifier si le RC a déjà défini son mot de passe personnel
           const { data: rcData } = await supabase
             .from("relais_communautaires")
             .select("code_temporaire_utilise")
@@ -179,7 +223,7 @@ export default function ConnexionPage() {
             router.push("/espace-rc");
           }
         } else {
-          router.push("/");
+          router.push("/espace-ascq");
         }
       }, 1200);
 
