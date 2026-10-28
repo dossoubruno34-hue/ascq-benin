@@ -13,7 +13,9 @@ import {
   FileSpreadsheet, 
   ChevronRight, 
   Sparkles,
-  Lock
+  Lock,
+  Stethoscope,
+  HeartPulse
 } from "lucide-react";
 
 export default function NouvelleFicheSelecteurPage() {
@@ -82,8 +84,79 @@ export default function NouvelleFicheSelecteurPage() {
           </p>
         </div>
 
-        {/* Grille des 5 fiches officielles */}
+        {/* Grille des fiches officielles */}
         <div className="space-y-3">
+
+          {/* NOUVEAU MODULE OFFICIEL : Prise en charge des cas en communauté (iCCM) */}
+          <Link
+            href="/espace-ascq/consultations/nouvelle"
+            className="block group bg-gradient-to-r from-emerald-950 to-[#005c30] text-white rounded-3xl p-5 border-2 border-emerald-400 shadow-lg hover:shadow-xl transition-all relative overflow-hidden"
+          >
+            <div className="absolute top-0 right-0 bg-amber-400 text-slate-900 text-[10px] font-black uppercase px-3 py-1 rounded-bl-xl tracking-wider">
+              Soins & PCIME-C
+            </div>
+
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-white/20 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform backdrop-blur-sm">
+                <Stethoscope className="w-6 h-6 stroke-[2.5]" />
+              </div>
+
+              <div className="flex-1 pr-6">
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-mono font-extrabold text-amber-300 bg-black/20 px-2 py-0.5 rounded-md">
+                    iCCM / PCIME
+                  </span>
+                  <span className="text-xs font-bold text-emerald-200">
+                    ASCQ (Consultation)
+                  </span>
+                </div>
+                <h3 className="text-base font-black text-white mt-1">
+                  Prise en charge des cas en communauté
+                </h3>
+                <p className="text-xs text-emerald-100/90 mt-1 leading-relaxed">
+                  Consultation des enfants et adultes : diagnostic, TDR Paludisme, décision de prise en charge sur place (CTA, SRO/Zinc, Amoxi, etc.) ou référence immédiate au CS avec fiche imprimable.
+                </p>
+
+                <div className="mt-3.5 inline-flex items-center gap-2 text-xs font-black text-amber-300 group-hover:translate-x-1 transition-transform">
+                  <span>Ouvrir la consultation</span>
+                  <ChevronRight className="w-4 h-4" />
+                </div>
+              </div>
+            </div>
+          </Link>
+
+          {/* RÉFÉRENCE COMMUNAUTAIRE CS / GUPS */}
+          <Link
+            href="/relais/reference/nouvelle"
+            className="block group bg-white rounded-3xl p-5 border-2 border-rose-300 shadow-sm hover:border-rose-400 hover:shadow-md transition-all relative overflow-hidden"
+          >
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                <HeartPulse className="w-6 h-6 stroke-[2.5]" />
+              </div>
+
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-mono font-extrabold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-md">
+                    Code REF
+                  </span>
+                  <span className="text-xs font-bold text-slate-400">
+                    RC & ASCQ
+                  </span>
+                </div>
+                <h3 className="text-base font-extrabold text-slate-900 mt-1">
+                  Bulletin officiel de référence (CS / GUPS)
+                </h3>
+                <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                  Référer un cas de maladie grave vers le Centre de Santé ou un cas de détresse sociale vers le GUPS avec volet aller et volet retour détachable imprimable.
+                </p>
+                <div className="mt-3.5 inline-flex items-center gap-2 text-xs font-extrabold text-rose-700 group-hover:translate-x-1 transition-transform">
+                  <span>Établir une référence</span>
+                  <ChevronRight className="w-4 h-4" />
+                </div>
+              </div>
+            </div>
+          </Link>
           
           {/* 1. FICHE PILOTE ACTIVE : Notification d'alerte (ALR) */}
           <Link

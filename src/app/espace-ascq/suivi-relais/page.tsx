@@ -50,7 +50,7 @@ interface MaterielInventaire {
   recommandations: string;
 }
 
-export const ARTICLES_OFFICIELS_RC = [
+const ARTICLES_OFFICIELS_RC = [
   { nom: "Boîtes à images", cat: "Sensibilisation" },
   { nom: "Tablette", cat: "Outils de travail" },
   { nom: "Thermomètre", cat: "Équipement médical" },
@@ -75,7 +75,7 @@ export const ARTICLES_OFFICIELS_RC = [
   { nom: "Taille crayon", cat: "Papeterie" },
 ];
 
-export const ARTICLES_SPECIFIQUES_ASCQ = [
+const ARTICLES_SPECIFIQUES_ASCQ = [
   { nom: "Tensiomètre", cat: "Matériel médical ASCQ" },
   { nom: "SRO / ZINC", cat: "Médicaments & Intrants" },
   { nom: "AMOXI (Amoxicilline)", cat: "Médicaments & Intrants" },

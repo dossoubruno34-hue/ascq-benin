@@ -28,7 +28,9 @@ import {
   ExternalLink,
   ShieldCheck,
   Phone,
-  Activity
+  Activity,
+  Stethoscope,
+  HeartPulse
 } from "lucide-react";
 import AscqNav from "@/components/AscqNav";
 import { recupererBrouillonsAlertes, corrigerAccents } from "@/lib/fiches";
@@ -369,6 +371,43 @@ export default function MesFichesPage() {
                 <Download className="w-3.5 h-3.5" />
                 <span>Exporter Registre (Excel)</span>
               </button>
+            </div>
+          </div>
+        </div>
+
+        {/* NOUVEAU MODULE OFFICIEL : PRISE EN CHARGE DES CAS EN COMMUNAUTÉ (iCCM) */}
+        <div className="bg-gradient-to-r from-emerald-950 to-[#005c30] text-white rounded-3xl p-5 border-2 border-emerald-400 shadow-md space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-white/20 text-white flex items-center justify-center shrink-0 backdrop-blur-sm shadow-inner">
+                <Stethoscope className="w-6 h-6 stroke-[2.5]" />
+              </div>
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-amber-300 block">
+                  Soins Cliniques & PCIME-C
+                </span>
+                <h3 className="text-base font-black text-white">
+                  Prise en charge des cas en communauté
+                </h3>
+                <p className="text-xs text-emerald-100/90 mt-0.5">
+                  Diagnostic des cas, TDR Paludisme, décision de prise en charge sur place (CTA, SRO/Zinc, Amoxi, etc.) ou référence au CS avec fiche officielle imprimable.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <Link
+                href="/espace-ascq/consultations/nouvelle"
+                className="px-4 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-900 font-black text-xs transition-colors shadow-sm"
+              >
+                + Nouvelle prise en charge
+              </Link>
+              <Link
+                href="/espace-ascq/consultations"
+                className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs border border-white/20 transition-all"
+              >
+                Registre iCCM
+              </Link>
             </div>
           </div>
         </div>
