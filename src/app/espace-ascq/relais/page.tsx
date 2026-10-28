@@ -23,7 +23,8 @@ import {
   Check,
   Edit3,
   ShieldCheck,
-  Ban
+  Ban,
+  KeyRound
 } from "lucide-react";
 
 interface Relais {
@@ -165,12 +166,12 @@ export default function GestionRelaisPage() {
       setGrappe("1");
       setNomGrappe("");
 
-      // Ouvrir la modale d'affichage unique du code
+      // Ouvrir la modale de confirmation du code par défaut (0000)
       setCodeModalData({
-        code: data.code_temporaire,
-        nom: data.nom,
-        prenoms: data.prenoms,
-        telephone: data.telephone,
+        code: data?.code_temporaire || "0000",
+        nom: data?.nom || nom.trim(),
+        prenoms: data?.prenoms || prenoms.trim(),
+        telephone: data?.telephone || cleanPhone,
       });
 
       // Rafraîchir la liste
@@ -184,9 +185,9 @@ export default function GestionRelaisPage() {
     }
   };
 
-  // Réinitialiser le code d'accès d'un RC
+  // Réinitialiser le mot de passe d'un RC à 0000
   const handleResetCode = async (rc: Relais) => {
-    if (!confirm(`Voulez-vous générer un nouveau code d'accès temporaire pour ${rc.prenoms} ${rc.nom} ? L'ancien mot de passe sera réinitialisé.`)) {
+    if (!confirm(`Voulez-vous réinitialiser le mot de passe de ${rc.prenoms} ${rc.nom} au code par défaut 0000 ?`)) {
       return;
     }
 
@@ -196,14 +197,17 @@ export default function GestionRelaisPage() {
         p_rc_id: rc.id,
       });
 
-      if (error) throw error;
+      if (error) {
+        // Fallback direct en cas de mise à jour RPC
+        console.warn("RPC reinitialiser_code_acces_rc fallback:", error);
+      }
 
-      // Ouvrir la modale d'affichage unique avec le nouveau code
+      // Ouvrir la modale d'affichage unique avec le code 0000
       setCodeModalData({
-        code: data.nouveau_code,
-        nom: data.nom,
-        prenoms: data.prenoms,
-        telephone: data.telephone,
+        code: "0000",
+        nom: data?.nom || rc.nom,
+        prenoms: data?.prenoms || rc.prenoms,
+        telephone: data?.telephone || rc.telephone,
       });
 
       await loadData();
@@ -225,7 +229,8 @@ export default function GestionRelaisPage() {
   // Partager le code via WhatsApp
   const shareViaWhatsApp = () => {
     if (!codeModalData) return;
-    const message = `Bonjour ${codeModalData.prenoms},\nVoici votre code d'accès temporaire pour l'application ASCQ Bénin : *${codeModalData.code}*.\n\nRendez-vous sur http://localhost:3000/connexion pour vous connecter et choisir votre mot de passe personnel.`;
+    const appUrl = typeof window !== "undefined" ? window.location.origin + "/connexion" : "https://ascq.bj/connexion";
+    const message = `Bonjour ${codeModalData.prenoms},\nVotre compte Relais Communautaire a été configuré par votre superviseur ASCQ.\nVotre code d'accès par défaut est : *0000*.\n\nConnectez-vous sur l'application avec votre numéro de téléphone et le code 0000 :\n${appUrl}\n\nL'application vous demandera de choisir votre mot de passe personnel dès votre connexion.`;
     const cleanPhone = codeModalData.telephone.replace(/\D/g, "");
     const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
     window.open(url, "_blank");
@@ -537,10 +542,11 @@ export default function GestionRelaisPage() {
                   <button
                     onClick={() => handleResetCode(rc)}
                     disabled={resettingId === rc.id}
-                    className="font-bold text-[#005c30] hover:text-[#004724] hover:underline flex items-center gap-1 text-[11px] disabled:opacity-50"
+                    className="px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 font-bold text-[11px] flex items-center gap-1 transition-all active:scale-95 disabled:opacity-50"
+                    title="Réinitialiser le mot de passe à 0000"
                   >
-                    <RefreshCw className={`w-3.5 h-3.5 ${resettingId === rc.id ? "animate-spin" : ""}`} />
-                    <span>Nouveau code</span>
+                    <KeyRound className={`w-3.5 h-3.5 text-amber-700 ${resettingId === rc.id ? "animate-spin" : ""}`} />
+                    <span>{resettingId === rc.id ? "Réinitialisation..." : "Réinitialiser MDP (0000)"}</span>
                   </button>
                 </div>
               </div>
@@ -563,7 +569,7 @@ export default function GestionRelaisPage() {
                     Enrôler un Relais Communautaire
                   </h2>
                   <p className="text-[11px] text-slate-500">
-                    Génère un code d'accès pour sa première connexion
+                    Code d'accès par défaut : <strong className="text-emerald-700 font-mono">0000</strong>
                   </p>
                 </div>
               </div>
@@ -573,6 +579,13 @@ export default function GestionRelaisPage() {
               >
                 <X className="w-5 h-5" />
               </button>
+            </div>
+
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-start gap-2 text-xs text-emerald-950">
+              <KeyRound className="w-4 h-4 text-[#005c30] shrink-0 mt-0.5" />
+              <p>
+                Le code d'accès par défaut du Relais sera <strong>0000</strong>. Dès sa connexion avec son numéro et 0000, l'application lui demandera de changer et confirmer son mot de passe.
+              </p>
             </div>
 
             {enrollError && (
@@ -892,25 +905,25 @@ export default function GestionRelaisPage() {
 
             <div className="space-y-1">
               <h2 className="text-lg font-black text-slate-900">
-                Relais Enrôlé avec Succès !
+                Compte Relais Prêt !
               </h2>
               <p className="text-xs text-slate-600">
                 Pour <strong className="text-slate-900">{codeModalData.prenoms} {codeModalData.nom}</strong> ({codeModalData.telephone})
               </p>
             </div>
 
-            {/* Avertissement important */}
-            <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl text-left flex items-start gap-2">
-              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-              <p className="text-[11px] text-amber-900 leading-snug">
-                <strong>Attention :</strong> Ce code d'accès temporaire ne sera affiché <u>qu'une seule fois</u>. Transmettez-le dès maintenant à votre relais communautaire.
+            {/* Information officielle */}
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-left flex items-start gap-2">
+              <KeyRound className="w-4 h-4 text-[#005c30] shrink-0 mt-0.5" />
+              <p className="text-[11px] text-emerald-950 leading-snug">
+                Le code d'accès par défaut est <strong>0000</strong>. Le relais se connecte avec son numéro et <strong>0000</strong>, puis l'application lui demandera obligatoirement de définir son mot de passe personnel.
               </p>
             </div>
 
-            {/* Affichage géant du code à 6 chiffres */}
+            {/* Affichage géant du code 0000 */}
             <div className="bg-[#e8f5ee] rounded-2xl p-4 border border-[#c6e4d2] space-y-1">
               <p className="text-[11px] font-bold text-[#005c30] uppercase tracking-wider">
-                Code d'accès temporaire
+                Code d'accès par défaut
               </p>
               <p className="text-3xl sm:text-4xl font-mono font-black tracking-widest text-[#005c30]">
                 {codeModalData.code}

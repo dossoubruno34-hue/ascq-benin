@@ -60,20 +60,71 @@ export default function ConnexionPage() {
         p_nom: oubliNom.trim() || null,
       });
 
-      if (error) {
-        // En cas d'absence de la fonction SQL, insertion de secours dans notifications
+      if (!error && data?.message) {
+        setOubliSuccessMsg(data.message);
+        return;
+      }
+
+      // 2. Repli intelligent avec lookup du profil
+      const { data: userLookup } = await supabase
+        .from("utilisateurs")
+        .select("id, nom, prenoms, poste, commune_id, telephone")
+        .or(`telephone.ilike.%${cleanTel}%`)
+        .maybeSingle();
+
+      if (userLookup?.poste === "RC") {
+        // Retrouver l'ASCQ superviseur
+        const { data: rcInfo } = await supabase
+          .from("relais_communautaires")
+          .select("ascq_id")
+          .eq("user_id", userLookup.id)
+          .maybeSingle();
+
         await supabase.from("notifications").insert({
-          destinataire_id: null,
-          titre: "Demande réinitialisation mot de passe",
-          message: `L'agent ${oubliNom || "Non précisé"} (${cleanTel}) a oublié son mot de passe et demande une réinitialisation.`,
+          destinataire_id: rcInfo?.ascq_id || null,
+          titre: "Alerte : Mot de passe oublié (Relais Communautaire)",
+          message: `Votre Relais Communautaire ${userLookup.prenoms} ${userLookup.nom} (${cleanTel}) a oublié son mot de passe. Veuillez le réinitialiser à 0000 dans votre onglet Relais.`,
           type: "URGENT",
           lu: false,
         });
-      }
 
-      setOubliSuccessMsg(
-        `Votre demande pour le numéro ${cleanTel} a été transmise avec succès à l'Administrateur National. Vos nouveaux identifiants vous seront communiqués. Pour une urgence immédiate, contactez la coordination au 01 69 03 14 63.`
-      );
+        setOubliSuccessMsg(
+          `Votre demande a été transmise avec succès à votre superviseur ASCQ. Votre code d'accès sera réinitialisé à 0000 afin que vous puissiez vous reconnecter et définir votre mot de passe.`
+        );
+      } else if (userLookup?.poste === "ASCQ") {
+        // Retrouver le représentant communal
+        const { data: repCommunal } = await supabase
+          .from("utilisateurs")
+          .select("id")
+          .eq("commune_id", userLookup.commune_id)
+          .in("role_technique", ["REPRESENTANT_COMMUNAL", "ADMIN_COMMUNAL", "SUPER_ADMIN"])
+          .limit(1)
+          .maybeSingle();
+
+        await supabase.from("notifications").insert({
+          destinataire_id: repCommunal?.id || null,
+          titre: "Alerte : Mot de passe oublié (ASCQ)",
+          message: `L'ASCQ ${userLookup.prenoms} ${userLookup.nom} (${cleanTel}) a oublié son mot de passe et demande une réinitialisation à 000000 par le Représentant Communal.`,
+          type: "URGENT",
+          lu: false,
+        });
+
+        setOubliSuccessMsg(
+          `Votre alerte a été transmise avec succès au Représentant Communal de votre commune. Votre code d'accès sera réinitialisé à 000000. Vous pourrez ensuite vous connecter avec 000000 et le modifier.`
+        );
+      } else {
+        await supabase.from("notifications").insert({
+          destinataire_id: null,
+          titre: "Demande réinitialisation mot de passe",
+          message: `L'agent ${oubliNom || cleanTel} demande une réinitialisation de mot de passe.`,
+          type: "URGENT",
+          lu: false,
+        });
+
+        setOubliSuccessMsg(
+          `Votre demande pour le numéro ${cleanTel} a été transmise aux administrateurs. Pour une urgence immédiate, contactez la coordination au 01 69 03 14 63.`
+        );
+      }
     } catch (err: any) {
       setOubliErrorMsg(err.message || "Erreur lors de la transmission de la demande.");
     } finally {
@@ -232,6 +283,11 @@ export default function ConnexionPage() {
         ].includes(userProfile.role_technique);
 
         if (userProfile.poste === "ASCQ" || isCadreOuRepresentant) {
+          // Si l'ASCQ s'est connecté avec le mot de passe temporaire '000000', le diriger vers le changement de mot de passe
+          if (motDePasse === "000000") {
+            router.push("/relais/premiere-connexion");
+            return;
+          }
           // L'ASCQ et les représentants territoriaux arrivent sur leur espace de travail complet
           router.push("/espace-ascq");
         } else if (userProfile.role_technique === "SUPER_ADMIN" || userProfile.role_technique === "ADMINISTRATEUR") {
@@ -244,7 +300,7 @@ export default function ConnexionPage() {
             .eq("user_id", userProfile.id)
             .maybeSingle();
 
-          if (rcData && rcData.code_temporaire_utilise === false) {
+          if (motDePasse === "0000" || (rcData && rcData.code_temporaire_utilise === false)) {
             router.push("/relais/premiere-connexion");
           } else {
             router.push("/espace-rc");

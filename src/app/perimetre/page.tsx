@@ -29,7 +29,8 @@ import {
   Save,
   Check,
   HelpCircle,
-  FileText
+  FileText,
+  MessageCircle
 } from "lucide-react";
 import { exporterCompilationCommunaleExcel } from "@/lib/excelExport";
 
@@ -293,8 +294,8 @@ export default function PerimetreSupervisionPage() {
     const found = ascqs.find(a => a.telephone?.replace(/\D/g, "").includes(cleanTel));
     if (found) {
       setRechercheMdpResult(found);
-      setNouveauMdpGenere("Benin2026!");
-      setMotifAssistance(`Réinitialisation d'urgence par le Représentant Communal pour ${found.nom} ${found.prenoms}`);
+      setNouveauMdpGenere("000000");
+      setMotifAssistance(`Réinitialisation de mot de passe à 000000 par le Représentant Communal pour ${found.nom} ${found.prenoms}`);
     } else {
       alert("Aucun agent trouvé avec ce numéro dans votre périmètre communal.");
     }
@@ -304,19 +305,27 @@ export default function PerimetreSupervisionPage() {
     if (!rechercheMdpResult) return;
     setAssistanceLoading(true);
     try {
+      const codeFinal = nouveauMdpGenere.trim() || "000000";
       const { data, error } = await supabase.rpc("admin_reinitialiser_mot_de_passe", {
         p_target_user_id: rechercheMdpResult.id,
-        p_nouveau_mot_de_passe: nouveauMdpGenere,
+        p_nouveau_mot_de_passe: codeFinal,
         p_motif: motifAssistance,
       });
 
-      if (error) throw error;
+      if (error) {
+        // Essayer l'autre RPC
+        const { error: err2 } = await supabase.rpc("reinitialiser_mot_de_passe_ascq_a_zeros", {
+          p_ascq_id: rechercheMdpResult.id,
+          p_motif: motifAssistance,
+        });
+        if (err2) throw error;
+      }
 
-      alert(`✅ Succès ! Le mot de passe de ${rechercheMdpResult.prenoms} ${rechercheMdpResult.nom} a été réinitialisé à : ${nouveauMdpGenere}\n\nVeuillez lui communiquer ce mot de passe afin qu'il puisse se connecter immédiatement.`);
+      alert(`✅ Succès ! Le mot de passe de ${rechercheMdpResult.prenoms} ${rechercheMdpResult.nom} a été réinitialisé à : ${codeFinal}\n\nL'ASCQ peut maintenant se connecter avec son numéro et le code ${codeFinal}, puis modifier son mot de passe personnel à son niveau.`);
       setRechercheMdpResult(null);
       setSearchMdpTel("");
     } catch (err: any) {
-      alert("Erreur lors de la réinitialisation : " + (err.message || "La fonction admin_reinitialiser_mot_de_passe doit être appliquée en SQL."));
+      alert("Erreur lors de la réinitialisation : " + (err.message || "Vérifiez que la fonction SQL est bien active dans Supabase."));
     } finally {
       setAssistanceLoading(false);
     }
@@ -517,7 +526,23 @@ export default function PerimetreSupervisionPage() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSearchMdpTel(ascq.telephone || "");
+                          setRechercheMdpResult(ascq);
+                          setNouveauMdpGenere("000000");
+                          setMotifAssistance(`Réinitialisation suite à mot de passe oublié pour ${ascq.prenoms} ${ascq.nom}`);
+                          setActiveTab("assistance_mdp");
+                        }}
+                        className="px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 font-bold text-xs flex items-center gap-1 transition-all active:scale-95"
+                        title="Réinitialiser le mot de passe de cet ASCQ à 000000"
+                      >
+                        <KeyRound className="w-3.5 h-3.5 text-amber-700" />
+                        <span>Reset (000000)</span>
+                      </button>
+
                       <button
                         type="button"
                         onClick={() => inspecterDossierAscq(ascq)}
@@ -739,11 +764,14 @@ export default function PerimetreSupervisionPage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div>
-                    <label className="font-bold text-slate-700 block text-[11px] mb-1">Nouveau mot de passe provisoire</label>
+                    <label className="font-bold text-slate-700 block text-[11px] mb-1">
+                      Code officiel par défaut (000000)
+                    </label>
                     <input
                       type="text"
                       value={nouveauMdpGenere}
                       onChange={(e) => setNouveauMdpGenere(e.target.value)}
+                      placeholder="000000"
                       className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white font-mono font-bold text-xs"
                     />
                   </div>
@@ -758,15 +786,31 @@ export default function PerimetreSupervisionPage() {
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  disabled={assistanceLoading}
-                  onClick={executerResetMdp}
-                  className="w-full py-2.5 rounded-xl bg-[#005c30] hover:bg-[#004724] text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-1.5"
-                >
-                  <KeyRound className="w-4 h-4" />
-                  <span>{assistanceLoading ? "Réinitialisation en cours..." : "Valider la réinitialisation du mot de passe"}</span>
-                </button>
+                <div className="space-y-2 pt-1">
+                  <button
+                    type="button"
+                    disabled={assistanceLoading}
+                    onClick={executerResetMdp}
+                    className="w-full py-2.5 rounded-xl bg-[#005c30] hover:bg-[#004724] text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-1.5"
+                  >
+                    <KeyRound className="w-4 h-4" />
+                    <span>{assistanceLoading ? "Réinitialisation en cours..." : "Valider la réinitialisation du mot de passe à 000000"}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const cleanPhone = rechercheMdpResult.telephone.replace(/\D/g, "");
+                      const appUrl = typeof window !== "undefined" ? window.location.origin + "/connexion" : "https://ascq.bj/connexion";
+                      const message = `Bonjour ${rechercheMdpResult.prenoms},\nVotre mot de passe a été réinitialisé par votre Représentant Communal.\nVotre code d'accès temporaire est : *${nouveauMdpGenere || "000000"}*.\n\nConnectez-vous sur l'application avec votre numéro et le code 000000 pour définir votre mot de passe personnel :\n${appUrl}`;
+                      window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`, "_blank");
+                    }}
+                    className="w-full py-2.5 px-4 rounded-xl font-bold text-xs text-white bg-[#25D366] hover:bg-[#1fb855] transition-all flex items-center justify-center gap-1.5 active:scale-95 shadow-sm"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    <span>Transmettre les instructions par WhatsApp</span>
+                  </button>
+                </div>
               </div>
             )}
           </div>

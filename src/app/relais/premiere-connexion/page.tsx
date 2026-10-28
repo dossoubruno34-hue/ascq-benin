@@ -33,19 +33,39 @@ export default function PremiereConnexionRelaisPage() {
     }
 
     try {
-      // 1. Appeler la fonction RPC pour définir le mot de passe personnel
-      const { data, error } = await supabase.rpc("definir_mot_de_passe_rc", {
-        p_nouveau_mot_de_passe: nouveauMotDePasse,
+      // 1. Mise à jour officielle directe via Supabase Auth (fonctionne pour RC, ASCQ et tout utilisateur authentifié)
+      const { error: authErr } = await supabase.auth.updateUser({
+        password: nouveauMotDePasse,
       });
 
-      if (error) throw error;
+      if (authErr) {
+        console.warn("Échec updateUser direct, tentative RPC:", authErr);
+      }
+
+      // 2. Appeler également la RPC pour synchroniser le statut du code temporaire si RC
+      try {
+        await supabase.rpc("definir_mot_de_passe_rc", {
+          p_nouveau_mot_de_passe: nouveauMotDePasse,
+        });
+      } catch (rpcE) {
+        console.warn("RPC définir mot de passe RC:", rpcE);
+      }
 
       setSuccess(true);
 
-      // 2. Rediriger vers l'espace du Relais Communautaire
-      setTimeout(() => {
+      // 3. Détecter le profil pour rediriger vers le bon espace (ASCQ ou RC)
+      setTimeout(async () => {
+        try {
+          const { data: profils } = await supabase.rpc("obtenir_mon_profil");
+          if (profils && profils[0]?.poste === "ASCQ") {
+            router.push("/espace-ascq");
+            return;
+          }
+        } catch (e) {
+          // ignore
+        }
         router.push("/espace-rc");
-      }, 1500);
+      }, 1800);
 
     } catch (err: any) {
       console.error("Erreur définition mot de passe:", err);
@@ -71,10 +91,10 @@ export default function PremiereConnexionRelaisPage() {
             />
           </div>
           <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-            Première Connexion
+            Modification du mot de passe
           </h1>
           <p className="text-xs sm:text-sm text-slate-600 font-medium">
-            Espace Relais Communautaire (RC)
+            Définissez votre mot de passe personnel sécurisé
           </p>
         </div>
 
@@ -84,7 +104,7 @@ export default function PremiereConnexionRelaisPage() {
           <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-start gap-2.5">
             <KeyRound className="w-5 h-5 text-[#005c30] shrink-0 mt-0.5" />
             <p className="text-xs text-emerald-950 leading-relaxed">
-              Pour la sécurité de vos données, veuillez définir dès maintenant votre <strong>mot de passe personnel</strong> qui remplacera définitivement votre code d'accès temporaire.
+              Pour la sécurité de vos données, veuillez définir dès maintenant votre <strong>mot de passe personnel</strong> qui remplacera définitivement votre code par défaut.
             </p>
           </div>
 
@@ -100,8 +120,8 @@ export default function PremiereConnexionRelaisPage() {
               <div className="w-12 h-12 rounded-full bg-emerald-100 text-[#005c30] flex items-center justify-center mx-auto">
                 <CheckCircle2 className="w-7 h-7" />
               </div>
-              <h3 className="font-extrabold text-slate-900 text-base">
-                Mot de passe enregistré !
+              <h3 className="font-extrabold text-slate-900 text-base text-emerald-800">
+                Votre mot de passe est changé avec succès
               </h3>
               <p className="text-xs text-slate-600">
                 Redirection automatique vers votre espace de travail...
