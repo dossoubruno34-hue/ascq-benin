@@ -206,12 +206,13 @@ function NouvelleInvestigationContent() {
 
   if (successResult) {
     const typeObj = TYPES_ALERTES_OFFICIELS.find((t) => t.code === typeAlerteCode);
+    const { semaine: calculatedWeek, annee: calculatedYear } = getEpidemiologicalWeek(new Date(dateInvestigation));
     const ficheInvExport = {
       numero: successResult.numero_investigation,
       type: "INV",
       titre: `Investigation : ${typeObj?.nom || "Événement Sanitaire"}`,
-      semaine: semaineEpidemio,
-      annee: annee,
+      semaine: successResult.semaine_epidemio || calculatedWeek,
+      annee: successResult.annee || calculatedYear,
       date: dateInvestigation,
       village: villageNom,
       impact: `${totalCas} cas investigué(s) • ${totalDeces} décès`,
