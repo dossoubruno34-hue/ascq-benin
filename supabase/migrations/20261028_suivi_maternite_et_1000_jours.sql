@@ -6,8 +6,8 @@
 -- 1. TABLE : SUIVI DES FEMMES ENCEINTES & MATERNITÉ
 CREATE TABLE IF NOT EXISTS public.suivi_femmes_enceintes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    ascq_id UUID REFERENCES public.profils(id) ON DELETE SET NULL,
-    relais_id UUID REFERENCES public.profils(id) ON DELETE SET NULL,
+    ascq_id UUID REFERENCES public.utilisateurs(id) ON DELETE SET NULL,
+    relais_id UUID REFERENCES public.utilisateurs(id) ON DELETE SET NULL,
     nom TEXT NOT NULL,
     prenoms TEXT NOT NULL,
     age INT,
@@ -58,8 +58,8 @@ CREATE INDEX IF NOT EXISTS idx_suivi_femmes_statut ON public.suivi_femmes_encein
 -- 2. TABLE : SUIVI DES ENFANTS 0-59 MOIS (1 000 PREMIERS JOURS)
 CREATE TABLE IF NOT EXISTS public.suivi_enfants_1000_jours (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    ascq_id UUID REFERENCES public.profils(id) ON DELETE SET NULL,
-    relais_id UUID REFERENCES public.profils(id) ON DELETE SET NULL,
+    ascq_id UUID REFERENCES public.utilisateurs(id) ON DELETE SET NULL,
+    relais_id UUID REFERENCES public.utilisateurs(id) ON DELETE SET NULL,
     mere_suivi_id UUID REFERENCES public.suivi_femmes_enceintes(id) ON DELETE SET NULL,
     
     nom TEXT NOT NULL,
