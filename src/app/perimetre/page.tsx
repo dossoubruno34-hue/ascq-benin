@@ -104,32 +104,56 @@ export default function PerimetreSupervisionPage() {
         return;
       }
 
-      // Vérifier si l'utilisateur possède une casquette de représentant ou admin
-      const isRepresentant = [
+      // Vérifier si l'utilisateur possède un rôle hiérarchique, de cadre ou de représentant
+      const ALL_CADRE_ROLES = [
         "SUPER_ADMIN",
         "ADMINISTRATEUR",
         "REPRESENTANT_DEPARTEMENTAL",
         "ADMIN_DEPARTEMENTAL",
+        "CADRE_DEPARTEMENTAL",
+        "DDS",
+        "CCD_CDLS_TP",
+        "CSSPR",
+        "CSPSMEMH",
+        "CADRE_ZONE_SANITAIRE",
+        "MCZS",
+        "RCSE",
         "REPRESENTANT_COMMUNAL",
         "ADMIN_COMMUNAL",
+        "CADRE_COMMUNAL",
         "PF_CCLS_TP",
-      ].includes(profil.role_technique) ||
-      [
-        "REPRESENTANT_COMMUNAL",
-        "REPRESENTANT_DEPARTEMENTAL",
-        "PF_CCLS_TP"
-      ].includes(profil.poste) ||
-      Boolean(profil.role_nomination);
+        "MCC",
+        "C_RAMS",
+        "GESTIONNAIRE_PERIMETRE"
+      ];
 
-      if (!isRepresentant) {
-        alert("Cet espace est réservé aux Représentants Communaux, Départementaux et Cadres hiérarchiques.");
+      const role = profil.role_technique || "";
+      const poste = profil.poste || "";
+      const nomination = profil.role_nomination || "";
+
+      const isAuthorized = ALL_CADRE_ROLES.includes(role) || 
+                           ALL_CADRE_ROLES.includes(poste) || 
+                           ALL_CADRE_ROLES.includes(nomination) || 
+                           Boolean(profil.role_nomination);
+
+      if (!isAuthorized) {
+        alert("Cet espace est réservé aux Représentants, Cadres hiérarchiques (Commune, Zone, Département) et Administrateurs.");
         router.push("/espace-ascq");
         return;
       }
 
       setCurrentUser(profil);
 
-      // Charger les arrondissements de sa commune
+      // Déterminer le niveau territorial
+      const isNational = ["SUPER_ADMIN", "ADMINISTRATEUR", "DIRECTEUR"].includes(role) || ["SUPER_ADMIN", "ADMINISTRATEUR"].includes(poste);
+      const isDept = ["REPRESENTANT_DEPARTEMENTAL", "ADMIN_DEPARTEMENTAL", "CADRE_DEPARTEMENTAL", "DDS", "CCD_CDLS_TP", "CSPSMEMH", "CSSPR"].includes(role) ||
+                     ["REPRESENTANT_DEPARTEMENTAL", "CADRE_DEPARTEMENTAL", "DDS", "CCD_CDLS_TP", "CSPSMEMH", "CSSPR"].includes(poste) ||
+                     nomination === "REPRESENTANT_DEPARTEMENTAL" || nomination === "CADRE_DEPARTEMENTAL";
+      const isZone = ["CADRE_ZONE_SANITAIRE", "MCZS", "RCSE"].includes(role) ||
+                     ["CADRE_ZONE_SANITAIRE", "MCZS", "RCSE"].includes(poste) ||
+                     nomination === "CADRE_ZONE_SANITAIRE";
+
+      // Charger les arrondissements de son territoire
       if (profil.commune_id) {
         const { data: arrs } = await supabase
           .from("arrondissements")
@@ -137,30 +161,43 @@ export default function PerimetreSupervisionPage() {
           .eq("commune_id", profil.commune_id)
           .order("nom");
         setListeArrondissements(arrs || []);
+      } else if (profil.departement_id) {
+        const { data: arrs } = await supabase
+          .from("arrondissements")
+          .select("id, nom, commune_id, communes(nom, departement_id)")
+          .order("nom");
+        const filteredArrs = (arrs || []).filter((a: any) => a.communes?.departement_id === profil.departement_id);
+        setListeArrondissements(filteredArrs);
+      } else {
+        const { data: arrs } = await supabase
+          .from("arrondissements")
+          .select("id, nom")
+          .order("nom")
+          .limit(100);
+        setListeArrondissements(arrs || []);
       }
 
-      // Charger les ASCQ de son périmètre
+      // Charger les agents de son périmètre
       let query = supabase
         .from("utilisateurs")
         .select("*, departements(nom), communes(nom), arrondissements(nom)")
         .order("nom", { ascending: true });
 
-      if (profil.role_technique === "SUPER_ADMIN" || profil.role_technique === "ADMINISTRATEUR") {
+      if (isNational) {
         // Accès national
-      } else if (
-        profil.role_technique === "REPRESENTANT_DEPARTEMENTAL" ||
-        profil.role_technique === "ADMIN_DEPARTEMENTAL" ||
-        profil.poste === "REPRESENTANT_DEPARTEMENTAL"
-      ) {
+      } else if (isDept && profil.departement_id) {
         // Scoper au département
-        if (profil.departement_id) query = query.eq("departement_id", profil.departement_id);
-      } else {
-        // Représentant communal ou PF CCLS-TP : scoper à la commune
-        if (profil.commune_id) query = query.eq("commune_id", profil.commune_id);
+        query = query.eq("departement_id", profil.departement_id);
+      } else if (isZone && profil.zone_sanitaire_id) {
+        // Scoper à la zone sanitaire
+        query = query.eq("zone_sanitaire_id", profil.zone_sanitaire_id);
+      } else if (profil.commune_id) {
+        // Scoper à la commune
+        query = query.eq("commune_id", profil.commune_id);
       }
 
       const { data: usersData } = await query;
-      setAscqs((usersData || []).filter(u => u.poste === "ASCQ" || u.poste === "PF_CCLS_TP" || u.poste === "REPRESENTANT_COMMUNAL"));
+      setAscqs((usersData || []).filter(u => ["ASCQ", "PF_CCLS_TP", "REPRESENTANT_COMMUNAL", "RC", "CADRE_COMMUNAL"].includes(u.poste) || u.role_technique === "ASCQ_OPERATEUR"));
 
       // Charger la compilation communale
       if (profil.commune_id) {

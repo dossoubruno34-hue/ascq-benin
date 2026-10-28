@@ -75,19 +75,31 @@ const DIAGNOSTICS_POSSIBLES = [
   "Autre affection bénigne"
 ];
 
-// 4. Intrants et produits officiels de prise en charge communautaire ASCQ (11 produits officiels)
+// 4. Intrants et produits officiels de prise en charge communautaire ASCQ (11 produits officiels + Enveloppement humide + Autre)
 const PRODUITS_OFFICIELS_ASCQ = [
   { id: "cta", nom: "CTA (ACT - Artéméther/Luméfantrine)", unite: "comprimés", dosageDefaut: "6 comprimés (selon poids)" },
   { id: "sro", nom: "SRO (Sels de Réhydratation Orale)", unite: "sachets", dosageDefaut: "2 sachets dans 2L d'eau propre" },
   { id: "zinc", nom: "ZINC (Comprimés dispersibles 20mg)", unite: "comprimés", dosageDefaut: "1 cp/jour pendant 10 jours" },
   { id: "amoxi", nom: "AMOXI (Amoxicilline 250mg dispersible)", unite: "comprimés", dosageDefaut: "2 cp 2x/jour pendant 5 jours" },
   { id: "para", nom: "PARA (Paracétamol)", unite: "comprimés/sirop", dosageDefaut: "1 dose toutes les 6h si fièvre" },
+  { id: "enveloppement_humide", nom: "Enveloppement humide (linges tièdes)", unite: "procédure", dosageDefaut: "Linges humides tièdes appliqués 15-20 min pour faire baisser la fièvre" },
   { id: "alben", nom: "ALBEN / MEBEN (Albendazole / Mébendazole)", unite: "comprimés", dosageDefaut: "1 dose unique" },
   { id: "aquatab", nom: "AQUATABS (Purification d'eau)", unite: "comprimés", dosageDefaut: "1 cp pour 20L d'eau" },
   { id: "fer_folique", nom: "FER et acide folique", unite: "comprimés", dosageDefaut: "1 cp/jour" },
   { id: "plumpy", nom: "Plumpy'Nut (Prompt Nut - ATPE)", unite: "sachets", dosageDefaut: "2 à 3 sachets par jour" },
   { id: "enov_mum", nom: "Enov'Mum+", unite: "sachets", dosageDefaut: "1 sachet par jour" },
-  { id: "nutributter", nom: "Nutributter+", unite: "sachets", dosageDefaut: "1 sachet par jour" }
+  { id: "nutributter", nom: "Nutributter+", unite: "sachets", dosageDefaut: "1 sachet par jour" },
+  { id: "autre_produit", nom: "Autre geste / soin (à préciser)", unite: "libre", dosageDefaut: "Selon besoin clinique" }
+];
+
+// Suggestions rapides de premiers gestes avant référence
+const SUGGESTIONS_PREMIERS_GESTES = [
+  "Enveloppement humide (linges humides tièdes pour faire baisser la fièvre)",
+  "Première dose de Paracétamol administrée pour faire baisser la fièvre",
+  "SRO par cuillerée / Réhydratation orale immédiate",
+  "Position Latérale de Sécurité (PLS)",
+  "Libération des voies respiratoires",
+  "Autre geste (à préciser)"
 ];
 
 // 5. Thèmes de sensibilisation
@@ -118,6 +130,9 @@ export default function NouvelleConsultationPage() {
   const [nomParentTuteur, setNomParentTuteur] = useState("");
   const [telephoneContact, setTelephoneContact] = useState("");
 
+  // Détection patient de plus de 5 ans (> 5 ans ou > 59 mois)
+  const isPlusDe5Ans = (ageUnite === "ANS" && Number(ageValeur) > 5) || (ageUnite === "MOIS" && Number(ageValeur) > 59);
+
   // Étape 2 : Signes & Dépistage
   const [signePrincipal, setSignePrincipal] = useState(SIGNES_PRINCIPAUX[0]);
   const [signePrincipalAutre, setSignePrincipalAutre] = useState("");
@@ -139,9 +154,17 @@ export default function NouvelleConsultationPage() {
   });
 
   // Si Référé au Centre de Santé
-  const [premierGestePose, setPremierGestePose] = useState("Première dose de Paracétamol administrée pour faire baisser la fièvre");
+  const [premierGestePose, setPremierGestePose] = useState("Enveloppement humide (linges humides tièdes pour faire baisser la fièvre)");
+  const [premierGesteAutre, setPremierGesteAutre] = useState("");
   const [structureCsDestination, setStructureCsDestination] = useState("Centre de Santé de l'Arrondissement");
   const [observations, setObservations] = useState("");
+
+  // Pour tout patient de plus de 5 ans, orienter et basculer systématiquement vers la référence au CS
+  useEffect(() => {
+    if (isPlusDe5Ans) {
+      setDecision("REFERER_CS");
+    }
+  }, [ageValeur, ageUnite, isPlusDe5Ans]);
 
   useEffect(() => {
     const init = async () => {
@@ -270,6 +293,10 @@ export default function NouvelleConsultationPage() {
       ? diagnosticAutre.trim()
       : diagnosticPossible;
 
+    const gesteFinal = premierGestePose.includes("Autre") && premierGesteAutre.trim()
+      ? `Autre: ${premierGesteAutre.trim()}`
+      : premierGestePose;
+
     const payload = {
       ascq_id: currentUser?.id || null,
       ascq_nom: currentUser ? `${currentUser.prenoms} ${currentUser.nom}` : "ASCQ Bénin",
@@ -289,7 +316,7 @@ export default function NouvelleConsultationPage() {
       produits_utilises: decision === "PRISE_EN_CHARGE_COMMUNAUTAIRE" ? produitsChoisis : [],
       theme_sensibilisation: decision === "PRISE_EN_CHARGE_COMMUNAUTAIRE" ? themeSensibilisation : null,
       date_rendez_vous_suivi: decision === "PRISE_EN_CHARGE_COMMUNAUTAIRE" ? dateRdvSuivi : null,
-      premier_geste_pose: decision === "REFERER_CS" ? premierGestePose.trim() : null,
+      premier_geste_pose: decision === "REFERER_CS" ? gesteFinal.trim() : null,
       structure_cs_destination: decision === "REFERER_CS" ? structureCsDestination.trim() : null,
       observations: observations.trim() || null,
       date_consultation: new Date().toISOString().split("T")[0],
@@ -311,7 +338,7 @@ export default function NouvelleConsultationPage() {
           destination_nom: structureCsDestination.trim(),
           motif_code: "MOTIF_CLINIQUE",
           motif_libelle: `${diagnosticFinal} (${signeFinal})`,
-          motif_details: `Signe principal: ${signeFinal}. Signes de gravité: ${signesSecondaires.join(", ") || "Aucun"}. TDR: ${tdrPaludisme}. 1er geste administré: ${premierGestePose}`,
+          motif_details: `Signe principal: ${signeFinal}. Signes de gravité: ${signesSecondaires.join(", ") || "Aucun"}. TDR: ${tdrPaludisme}. 1er geste administré: ${gesteFinal}`,
           degre_urgence: signesSecondaires.length > 0 ? "TRES_URGENT" : "URGENT",
           one_health_concerne: false,
           semaine_epidemio: semaine,
@@ -560,6 +587,28 @@ export default function NouvelleConsultationPage() {
           <p className="text-xs text-slate-500">
             Enregistrez les soins dispensés au niveau communautaire ou référez le cas vers le Centre de Santé avec le bulletin officiel.
           </p>
+
+          {/* LIAISONS INTELLIGENTES */}
+          <div className="pt-2 border-t border-slate-100 flex items-center gap-2 overflow-x-auto scrollbar-none text-[11px]">
+            <Link
+              href="/espace-ascq/maternite-enfance"
+              className="px-2.5 py-1 rounded-xl bg-pink-50 border border-pink-200 text-pink-900 font-bold hover:bg-pink-100 transition-all flex items-center gap-1 shrink-0"
+            >
+              <span>👶 Maternité & 1000 Jours</span>
+            </Link>
+            <Link
+              href="/espace-ascq/references"
+              className="px-2.5 py-1 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 font-bold hover:bg-amber-100 transition-all flex items-center gap-1 shrink-0"
+            >
+              <span>🏥 Références CS/GUPS</span>
+            </Link>
+            <Link
+              href="/briefing"
+              className="px-2.5 py-1 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 font-bold hover:bg-blue-100 transition-all flex items-center gap-1 shrink-0"
+            >
+              <span>📖 Guide SIMR & Vaccins</span>
+            </Link>
+          </div>
         </div>
 
         {errorMsg && (
@@ -848,11 +897,42 @@ export default function NouvelleConsultationPage() {
               </h2>
             </div>
 
+            {/* DIRECTIVE OFFICIELLE PATIENT DE PLUS DE 5 ANS */}
+            {isPlusDe5Ans && (
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-400 text-amber-950 text-xs shadow-sm space-y-2">
+                <div className="flex items-center gap-2 font-black text-amber-900 text-sm">
+                  <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
+                  <span>Directive Nationale : Patient de plus de 5 ans ({ageValeur} {ageUnite.toLowerCase()})</span>
+                </div>
+                <p className="leading-relaxed text-amber-900 font-medium">
+                  Au Bénin, la prise en charge curative médicamenteuse en communauté (iCCM) est <strong>strictement réservée aux enfants de moins de 5 ans</strong>.
+                </p>
+                <div className="bg-white/80 p-3 rounded-xl border border-amber-200 text-amber-950 space-y-1.5">
+                  <p className="font-extrabold text-amber-950">
+                    Pour toute personne de plus de 5 ans présentant le moindre signe plus ou moins grave :
+                  </p>
+                  <ul className="list-disc list-inside space-y-1 text-[11px]">
+                    <li><strong>Conseils & Orientations :</strong> rassurer la famille et dispenser les conseils d'hygiène et de prévention.</li>
+                    <li><strong>Premiers gestes de secours :</strong> administrer les premiers soins de confort (ex : <strong>Enveloppement humide</strong> avec linges tièdes si fièvre, hydratation).</li>
+                    <li><strong>RÉFÉRENCE SYSTÉMATIQUE :</strong> diriger systématiquement le patient vers le Centre de Santé le plus proche avec un bulletin officiel.</li>
+                  </ul>
+                </div>
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-200/80 text-amber-950 font-black text-[11px]">
+                  <span>⚡ Référence au Centre de Santé activée et recommandée</span>
+                </div>
+              </div>
+            )}
+
             {/* COMMUTATEUR DÉCISION */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                 type="button"
-                onClick={() => setDecision("PRISE_EN_CHARGE_COMMUNAUTAIRE")}
+                onClick={() => {
+                  if (isPlusDe5Ans) {
+                    alert("Rappel : Pour les patients de plus de 5 ans, la directive officielle recommande la référence systématique au Centre de Santé après conseils et premiers gestes.");
+                  }
+                  setDecision("PRISE_EN_CHARGE_COMMUNAUTAIRE");
+                }}
                 className={`p-4 rounded-2xl text-left border-2 transition-all space-y-1 ${
                   decision === "PRISE_EN_CHARGE_COMMUNAUTAIRE"
                     ? "bg-emerald-50/70 border-[#005c30] shadow-sm"
@@ -871,7 +951,9 @@ export default function NouvelleConsultationPage() {
                   )}
                 </div>
                 <p className="text-[11px] text-slate-500 leading-tight">
-                  Traitement sur place par l'ASCQ (CTA, SRO, Zinc, Amox, conseils nutritionnels) et suivi à domicile.
+                  {isPlusDe5Ans 
+                    ? "Réservé aux conseils, orientations et gestes de confort (directive nationale)."
+                    : "Traitement sur place par l'ASCQ (CTA, SRO, Zinc, Amox, conseils nutritionnels) et suivi à domicile."}
                 </p>
               </button>
 
@@ -896,7 +978,9 @@ export default function NouvelleConsultationPage() {
                   )}
                 </div>
                 <p className="text-[11px] text-slate-500 leading-tight">
-                  Premier geste d'urgence administré et établissement du bulletin officiel de référence imprimable.
+                  {isPlusDe5Ans 
+                    ? "Systématique > 5 ans : premier geste posé (ex: enveloppement humide) et bulletin de référence imprimable."
+                    : "Premier geste d'urgence administré et établissement du bulletin officiel de référence imprimable."}
                 </p>
               </button>
             </div>
@@ -992,16 +1076,55 @@ export default function NouvelleConsultationPage() {
                     1er Geste posé avant référence *
                   </label>
                   <p className="text-[11px] text-amber-800 mb-1.5">
-                    Ex : Première dose de Paracétamol administrée, SRO par cuillerée, position latérale de sécurité...
+                    Sélectionnez un geste rapide ci-dessous ou décrivez les soins d'urgence apportés (ex : enveloppement humide en cas de fièvre) :
                   </p>
+
+                  {/* Boutons d'accès rapide aux 1ers gestes */}
+                  <div className="flex flex-wrap gap-1.5 mb-2.5">
+                    {SUGGESTIONS_PREMIERS_GESTES.map((geste, gIdx) => {
+                      const isSel = premierGestePose === geste;
+                      return (
+                        <button
+                          key={gIdx}
+                          type="button"
+                          onClick={() => setPremierGestePose(geste)}
+                          className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all text-left ${
+                            isSel
+                              ? "bg-amber-600 text-white shadow-sm ring-2 ring-amber-700 font-black"
+                              : "bg-white border border-amber-300 text-amber-900 hover:bg-amber-100"
+                          }`}
+                        >
+                          {geste.startsWith("Enveloppement") ? "💧 " : geste.startsWith("Première dose") ? "💊 " : geste.startsWith("SRO") ? "🥤 " : geste.startsWith("Position") ? "🛡️ " : "✏️ "}
+                          {geste}
+                        </button>
+                      );
+                    })}
+                  </div>
+
                   <textarea
                     rows={2}
                     required
                     placeholder="Préciser les premiers soins ou gestes de secours administrés avant le départ..."
                     value={premierGestePose}
                     onChange={(e) => setPremierGestePose(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-amber-300 bg-white text-xs"
+                    className="w-full px-3 py-2 rounded-xl border border-amber-300 bg-white text-xs font-medium"
                   />
+
+                  {premierGestePose.includes("Autre") && (
+                    <div className="mt-2 p-3 bg-amber-100/60 rounded-xl border border-amber-300">
+                      <label className="block text-[11px] font-bold text-amber-950 mb-1">
+                        Si autre geste, précisez le soin administré ou l'orientation apportée *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Ex : Conseils diététiques, enveloppement spécifique, immobilisation d'un membre..."
+                        value={premierGesteAutre}
+                        onChange={(e) => setPremierGesteAutre(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl border border-amber-400 bg-white text-xs font-semibold"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div>

@@ -26,7 +26,11 @@ import {
   Trash2,
   WifiOff,
   Baby,
-  Stethoscope
+  Stethoscope,
+  HeartPulse,
+  Calendar,
+  BarChart3,
+  ChevronRight
 } from "lucide-react";
 import { getCachedMonEspace, saveCachedMonEspace, saveCachedUserSession, getCachedUserSession } from "@/lib/offline-sync";
 
@@ -753,7 +757,135 @@ export default function MonEspacePage() {
           )}
         </section>
 
-        {/* 3. Cartes d'accès rapide : Requêtes & Permutation */}
+        {/* 3. PÔLES D'ACTIVITÉS ET SOINS COMMUNAUTAIRES (LIAISONS INTELLIGENTES) */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between px-1">
+            <h2 className="text-xs font-black uppercase tracking-wider text-slate-500">
+              Pôles Métiers & Soins Communautaires
+            </h2>
+            <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+              Accès directs
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {/* Prise en charge des cas iCCM */}
+            <Link
+              href="/espace-ascq/consultations"
+              className="bg-white rounded-3xl p-4 border border-slate-200/90 shadow-sm hover:border-emerald-400 hover:shadow-md transition-all group flex items-start justify-between"
+            >
+              <div className="space-y-1">
+                <div className="w-9 h-9 rounded-2xl bg-emerald-50 text-[#005c30] flex items-center justify-center group-hover:scale-105 transition-transform">
+                  <Stethoscope className="w-5 h-5" />
+                </div>
+                <h3 className="font-black text-slate-900 text-xs sm:text-sm pt-1">
+                  Prise en charge iCCM
+                </h3>
+                <p className="text-[11px] text-slate-500 leading-tight">
+                  Consultation, premier geste posé, protocoles & traitement
+                </p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-[#005c30] group-hover:translate-x-0.5 transition-all mt-1" />
+            </Link>
+
+            {/* Maternité & 1000 Jours */}
+            <Link
+              href="/espace-ascq/maternite-enfance"
+              className="bg-white rounded-3xl p-4 border border-slate-200/90 shadow-sm hover:border-pink-300 hover:shadow-md transition-all group flex items-start justify-between"
+            >
+              <div className="space-y-1">
+                <div className="w-9 h-9 rounded-2xl bg-pink-50 text-pink-700 flex items-center justify-center group-hover:scale-105 transition-transform">
+                  <Baby className="w-5 h-5" />
+                </div>
+                <h3 className="font-black text-slate-900 text-xs sm:text-sm pt-1">
+                  Maternité & 1000 Jours
+                </h3>
+                <p className="text-[11px] text-slate-500 leading-tight">
+                  Femmes enceintes, CPN, Enov'Mum, enfants 0-59 mois & vaccins
+                </p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-pink-600 group-hover:translate-x-0.5 transition-all mt-1" />
+            </Link>
+
+            {/* Références CS & GUPS */}
+            <Link
+              href="/espace-ascq/references"
+              className="bg-white rounded-3xl p-4 border border-slate-200/90 shadow-sm hover:border-amber-400 hover:shadow-md transition-all group flex items-start justify-between"
+            >
+              <div className="space-y-1">
+                <div className="w-9 h-9 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center group-hover:scale-105 transition-transform">
+                  <HeartPulse className="w-5 h-5" />
+                </div>
+                <h3 className="font-black text-slate-900 text-xs sm:text-sm pt-1">
+                  Références CS & GUPS
+                </h3>
+                <p className="text-[11px] text-slate-500 leading-tight">
+                  Évacuation médicale, cas sociaux, approche One Health
+                </p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-amber-600 group-hover:translate-x-0.5 transition-all mt-1" />
+            </Link>
+
+            {/* Suivi PNSC Hebdo */}
+            <Link
+              href="/espace-ascq/rapport-hebdo-pnsc"
+              className="bg-white rounded-3xl p-4 border border-slate-200/90 shadow-sm hover:border-emerald-400 hover:shadow-md transition-all group flex items-start justify-between"
+            >
+              <div className="space-y-1">
+                <div className="w-9 h-9 rounded-2xl bg-emerald-50 text-emerald-800 flex items-center justify-center group-hover:scale-105 transition-transform">
+                  <BarChart3 className="w-5 h-5" />
+                </div>
+                <h3 className="font-black text-slate-900 text-xs sm:text-sm pt-1">
+                  Suivi PNSC Hebdo
+                </h3>
+                <p className="text-[11px] text-slate-500 leading-tight">
+                  Transmission du rapport hebdomadaire et consolidation SNIS
+                </p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-emerald-700 group-hover:translate-x-0.5 transition-all mt-1" />
+            </Link>
+
+            {/* Mes Relais Communautaires */}
+            <Link
+              href="/espace-ascq/relais"
+              className="bg-white rounded-3xl p-4 border border-slate-200/90 shadow-sm hover:border-teal-400 hover:shadow-md transition-all group flex items-start justify-between"
+            >
+              <div className="space-y-1">
+                <div className="w-9 h-9 rounded-2xl bg-teal-50 text-teal-800 flex items-center justify-center group-hover:scale-105 transition-transform">
+                  <Users className="w-5 h-5" />
+                </div>
+                <h3 className="font-black text-slate-900 text-xs sm:text-sm pt-1">
+                  Mes Relais (RC)
+                </h3>
+                <p className="text-[11px] text-slate-500 leading-tight">
+                  Validation des inscriptions, affectation village, réinitialisation PIN
+                </p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-teal-700 group-hover:translate-x-0.5 transition-all mt-1" />
+            </Link>
+
+            {/* Planning & Activités */}
+            <Link
+              href="/espace-ascq/planning"
+              className="bg-white rounded-3xl p-4 border border-slate-200/90 shadow-sm hover:border-blue-400 hover:shadow-md transition-all group flex items-start justify-between"
+            >
+              <div className="space-y-1">
+                <div className="w-9 h-9 rounded-2xl bg-blue-50 text-blue-700 flex items-center justify-center group-hover:scale-105 transition-transform">
+                  <Calendar className="w-5 h-5" />
+                </div>
+                <h3 className="font-black text-slate-900 text-xs sm:text-sm pt-1">
+                  Planning & Activités
+                </h3>
+                <p className="text-[11px] text-slate-500 leading-tight">
+                  Planification mensuelle terrain, suivi groupé des RC
+                </p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-blue-600 group-hover:translate-x-0.5 transition-all mt-1" />
+            </Link>
+          </div>
+        </div>
+
+        {/* 4. Cartes d'accès secondaire : Requêtes & Permutation */}
         <div className="grid grid-cols-2 gap-3">
           
           {/* Suivi des Requêtes */}

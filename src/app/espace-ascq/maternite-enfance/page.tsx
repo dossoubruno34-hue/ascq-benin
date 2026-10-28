@@ -31,7 +31,9 @@ import {
   Apple,
   Pill,
   Syringe,
-  AlertCircle
+  AlertCircle,
+  Edit3,
+  Trash2
 } from "lucide-react";
 
 interface FemmeEnceinte {
@@ -156,6 +158,272 @@ export default function MaterniteEnfancePage() {
     creerFicheEnfant: true
   });
 
+  // Modal Édition Femme Enceinte
+  const [showModalEditFemme, setShowModalEditFemme] = useState(false);
+  const [selectedFemmeToEdit, setSelectedFemmeToEdit] = useState<FemmeEnceinte | null>(null);
+  const [editFormFemme, setEditFormFemme] = useState({
+    nom: "",
+    prenoms: "",
+    age: "24",
+    telephone: "",
+    telephone_conjoint: "",
+    village_nom: "",
+    date_ddr: "",
+    date_dpa: "",
+    statut_grossesse: "EN_COURS" as "EN_COURS" | "ACCOUCHEE" | "REFEREE_URGENCE" | "FAUSSE_COUCHE",
+    cpn_effectuees: [] as string[],
+    tpi_sp_doses: 0,
+    fer_acide_folique: true,
+    enov_mum: false,
+    mild_distribuee: true,
+    vaccin_td_doses: 1,
+    plan_accouchement_etabli: true,
+    notes_ascq: ""
+  });
+
+  // Modal Édition Enfant 1000 Jours
+  const [showModalEditEnfant, setShowModalEditEnfant] = useState(false);
+  const [selectedEnfantToEdit, setSelectedEnfantToEdit] = useState<Enfant1000Jours | null>(null);
+  const [editFormEnfant, setEditFormEnfant] = useState({
+    nom: "",
+    prenoms: "",
+    sexe: "M" as "M" | "F",
+    date_naissance: "",
+    poids_naissance_kg: "3.2",
+    nom_mere: "",
+    telephone_parent: "",
+    village_nom: "",
+    allaitement_exclusif_6m: true,
+    vitamine_a_doses: 0,
+    vermifuge_doses: 0,
+    produits_nutritionnels: [] as string[],
+    dernier_pb_mm: "135",
+    statut_nutritionnel: "NORMAL" as "NORMAL" | "MAM" | "MAS" | "NON_EVALUE",
+    presence_oedemes: false,
+    vaccins_recus: {} as Record<string, string>,
+    notes_ascq: ""
+  });
+
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
+
+  const viderDonneesLocales = () => {
+    if (confirm("Voulez-vous réinitialiser le cache local et effacer les fiches de test ?")) {
+      localStorage.removeItem("ascq_suivi_femmes");
+      localStorage.removeItem("ascq_suivi_enfants");
+      setFemmes([]);
+      setEnfants([]);
+      setToastMsg("Données locales nettoyées à zéro.");
+      setTimeout(() => setToastMsg(null), 3000);
+    }
+  };
+
+  const ouvrirModalEditFemme = (femme: FemmeEnceinte) => {
+    setSelectedFemmeToEdit(femme);
+    setEditFormFemme({
+      nom: femme.nom,
+      prenoms: femme.prenoms,
+      age: femme.age ? String(femme.age) : "24",
+      telephone: femme.telephone || "",
+      telephone_conjoint: femme.telephone_conjoint || "",
+      village_nom: femme.village_nom,
+      date_ddr: femme.date_ddr || "",
+      date_dpa: femme.date_dpa || "",
+      statut_grossesse: femme.statut_grossesse,
+      cpn_effectuees: femme.cpn_effectuees || [],
+      tpi_sp_doses: Number(femme.tpi_sp_doses) || 0,
+      fer_acide_folique: femme.fer_acide_folique,
+      enov_mum: femme.enov_mum,
+      mild_distribuee: femme.mild_distribuee,
+      vaccin_td_doses: Number(femme.vaccin_td_doses) || 1,
+      plan_accouchement_etabli: femme.plan_accouchement_etabli,
+      notes_ascq: femme.notes_ascq || ""
+    });
+    setShowModalEditFemme(true);
+  };
+
+  const handleSauvegarderEditFemme = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedFemmeToEdit) return;
+
+    const { dpa, sa } = calculerDpaEtSa(editFormFemme.date_ddr);
+    const finalDpa = editFormFemme.date_dpa || dpa;
+
+    const updatedFemme: FemmeEnceinte = {
+      ...selectedFemmeToEdit,
+      nom: editFormFemme.nom.trim().toUpperCase(),
+      prenoms: editFormFemme.prenoms.trim(),
+      age: Number(editFormFemme.age) || undefined,
+      telephone: editFormFemme.telephone.trim() || undefined,
+      telephone_conjoint: editFormFemme.telephone_conjoint.trim() || undefined,
+      village_nom: editFormFemme.village_nom.trim(),
+      date_ddr: editFormFemme.date_ddr || undefined,
+      date_dpa: finalDpa || undefined,
+      terme_sa: sa || selectedFemmeToEdit.terme_sa,
+      statut_grossesse: editFormFemme.statut_grossesse,
+      cpn_effectuees: editFormFemme.cpn_effectuees,
+      tpi_sp_doses: Number(editFormFemme.tpi_sp_doses),
+      fer_acide_folique: editFormFemme.fer_acide_folique,
+      enov_mum: editFormFemme.enov_mum,
+      mild_distribuee: editFormFemme.mild_distribuee,
+      vaccin_td_doses: Number(editFormFemme.vaccin_td_doses),
+      plan_accouchement_etabli: editFormFemme.plan_accouchement_etabli,
+      notes_ascq: editFormFemme.notes_ascq.trim() || undefined
+    };
+
+    const nextList = femmes.map(f => f.id === selectedFemmeToEdit.id ? updatedFemme : f);
+    setFemmes(nextList);
+    localStorage.setItem("ascq_suivi_femmes", JSON.stringify(nextList));
+
+    try {
+      await supabase.from("suivi_femmes_enceintes").update({
+        nom: updatedFemme.nom,
+        prenoms: updatedFemme.prenoms,
+        age: updatedFemme.age,
+        telephone: updatedFemme.telephone,
+        telephone_conjoint: updatedFemme.telephone_conjoint,
+        village_nom: updatedFemme.village_nom,
+        date_ddr: updatedFemme.date_ddr,
+        date_dpa: updatedFemme.date_dpa,
+        terme_sa: updatedFemme.terme_sa,
+        statut_grossesse: updatedFemme.statut_grossesse,
+        cpn_effectuees: updatedFemme.cpn_effectuees,
+        tpi_sp_doses: updatedFemme.tpi_sp_doses,
+        fer_acide_folique: updatedFemme.fer_acide_folique,
+        enov_mum: updatedFemme.enov_mum,
+        mild_distribuee: updatedFemme.mild_distribuee,
+        vaccin_td_doses: updatedFemme.vaccin_td_doses,
+        plan_accouchement_etabli: updatedFemme.plan_accouchement_etabli,
+        notes_ascq: updatedFemme.notes_ascq,
+        updated_at: new Date().toISOString()
+      }).eq("id", selectedFemmeToEdit.id);
+    } catch (e) {
+      console.warn("Mise à jour en ligne différée");
+    }
+
+    setShowModalEditFemme(false);
+    setSelectedFemmeToEdit(null);
+    setToastMsg(`Fiche de ${updatedFemme.nom} ${updatedFemme.prenoms} mise à jour avec succès.`);
+    setTimeout(() => setToastMsg(null), 3000);
+  };
+
+  const supprimerFemme = async (id: string) => {
+    if (!confirm("Êtes-vous sûr de vouloir supprimer cette fiche de suivi ?")) return;
+    const nextList = femmes.filter(f => f.id !== id);
+    setFemmes(nextList);
+    localStorage.setItem("ascq_suivi_femmes", JSON.stringify(nextList));
+    try {
+      await supabase.from("suivi_femmes_enceintes").delete().eq("id", id);
+    } catch (e) {}
+    setToastMsg("Fiche supprimée.");
+    setTimeout(() => setToastMsg(null), 3000);
+  };
+
+  const ouvrirModalEditEnfant = (enfant: Enfant1000Jours) => {
+    setSelectedEnfantToEdit(enfant);
+    setEditFormEnfant({
+      nom: enfant.nom,
+      prenoms: enfant.prenoms,
+      sexe: enfant.sexe,
+      date_naissance: enfant.date_naissance,
+      poids_naissance_kg: enfant.poids_naissance_kg ? String(enfant.poids_naissance_kg) : "3.2",
+      nom_mere: enfant.nom_mere || "",
+      telephone_parent: enfant.telephone_parent || "",
+      village_nom: enfant.village_nom,
+      allaitement_exclusif_6m: enfant.allaitement_exclusif_6m,
+      vitamine_a_doses: Number(enfant.vitamine_a_doses) || 0,
+      vermifuge_doses: Number(enfant.vermifuge_doses) || 0,
+      produits_nutritionnels: enfant.produits_nutritionnels || [],
+      dernier_pb_mm: enfant.dernier_pb_mm ? String(enfant.dernier_pb_mm) : "135",
+      statut_nutritionnel: enfant.statut_nutritionnel || "NORMAL",
+      presence_oedemes: Boolean(enfant.presence_oedemes),
+      vaccins_recus: enfant.vaccins_recus || {},
+      notes_ascq: enfant.notes_ascq || ""
+    });
+    setShowModalEditEnfant(true);
+  };
+
+  const handleSauvegarderEditEnfant = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedEnfantToEdit) return;
+
+    const pbNum = Number(editFormEnfant.dernier_pb_mm);
+    let statutCalcule = editFormEnfant.statut_nutritionnel;
+    if (editFormEnfant.presence_oedemes || (pbNum > 0 && pbNum < 115)) {
+      statutCalcule = "MAS";
+    } else if (pbNum >= 115 && pbNum < 125) {
+      statutCalcule = "MAM";
+    } else if (pbNum >= 125) {
+      statutCalcule = "NORMAL";
+    }
+
+    const updatedEnfant: Enfant1000Jours = {
+      ...selectedEnfantToEdit,
+      nom: editFormEnfant.nom.trim().toUpperCase(),
+      prenoms: editFormEnfant.prenoms.trim(),
+      sexe: editFormEnfant.sexe,
+      date_naissance: editFormEnfant.date_naissance,
+      poids_naissance_kg: Number(editFormEnfant.poids_naissance_kg) || undefined,
+      nom_mere: editFormEnfant.nom_mere.trim() || undefined,
+      telephone_parent: editFormEnfant.telephone_parent.trim() || undefined,
+      village_nom: editFormEnfant.village_nom.trim(),
+      allaitement_exclusif_6m: editFormEnfant.allaitement_exclusif_6m,
+      vitamine_a_doses: Number(editFormEnfant.vitamine_a_doses),
+      vermifuge_doses: Number(editFormEnfant.vermifuge_doses),
+      produits_nutritionnels: editFormEnfant.produits_nutritionnels,
+      dernier_pb_mm: pbNum || undefined,
+      statut_nutritionnel: statutCalcule,
+      presence_oedemes: editFormEnfant.presence_oedemes,
+      vaccins_recus: editFormEnfant.vaccins_recus,
+      notes_ascq: editFormEnfant.notes_ascq.trim() || undefined
+    };
+
+    const nextList = enfants.map(enf => enf.id === selectedEnfantToEdit.id ? updatedEnfant : enf);
+    setEnfants(nextList);
+    localStorage.setItem("ascq_suivi_enfants", JSON.stringify(nextList));
+
+    try {
+      await supabase.from("suivi_enfants_1000_jours").update({
+        nom: updatedEnfant.nom,
+        prenoms: updatedEnfant.prenoms,
+        sexe: updatedEnfant.sexe,
+        date_naissance: updatedEnfant.date_naissance,
+        poids_naissance_kg: updatedEnfant.poids_naissance_kg,
+        nom_mere: updatedEnfant.nom_mere,
+        telephone_parent: updatedEnfant.telephone_parent,
+        village_nom: updatedEnfant.village_nom,
+        allaitement_exclusif_6m: updatedEnfant.allaitement_exclusif_6m,
+        vitamine_a_doses: updatedEnfant.vitamine_a_doses,
+        vermifuge_doses: updatedEnfant.vermifuge_doses,
+        produits_nutritionnels: updatedEnfant.produits_nutritionnels,
+        dernier_pb_mm: updatedEnfant.dernier_pb_mm,
+        statut_nutritionnel: updatedEnfant.statut_nutritionnel,
+        presence_oedemes: updatedEnfant.presence_oedemes,
+        vaccins_recus: updatedEnfant.vaccins_recus,
+        notes_ascq: updatedEnfant.notes_ascq,
+        updated_at: new Date().toISOString()
+      }).eq("id", selectedEnfantToEdit.id);
+    } catch (e) {
+      console.warn("Mise à jour en ligne différée");
+    }
+
+    setShowModalEditEnfant(false);
+    setSelectedEnfantToEdit(null);
+    setToastMsg(`Fiche de ${updatedEnfant.nom} ${updatedEnfant.prenoms} mise à jour avec succès.`);
+    setTimeout(() => setToastMsg(null), 3000);
+  };
+
+  const supprimerEnfant = async (id: string) => {
+    if (!confirm("Êtes-vous sûr de vouloir supprimer cette fiche d'enfant ?")) return;
+    const nextList = enfants.filter(enf => enf.id !== id);
+    setEnfants(nextList);
+    localStorage.setItem("ascq_suivi_enfants", JSON.stringify(nextList));
+    try {
+      await supabase.from("suivi_enfants_1000_jours").delete().eq("id", id);
+    } catch (e) {}
+    setToastMsg("Fiche supprimée.");
+    setTimeout(() => setToastMsg(null), 3000);
+  };
+
   // Calcul DPA automatique (Règle de Naegele : DDR + 9 mois + 7 jours = DDR + 280 jours)
   const calculerDpaEtSa = (ddrStr: string) => {
     if (!ddrStr) return { dpa: "", sa: 0 };
@@ -198,58 +466,17 @@ export default function MaterniteEnfancePage() {
         console.warn("Table suivi_femmes_enceintes inaccessible en ligne, lecture cache local");
       }
 
-      // Si base vide ou hors-ligne, lire localStorage ou initialiser avec données réalistes
+      // Si base vide ou hors-ligne, lire localStorage sans données fictives forcées
       if (loadedFemmes.length === 0) {
         const localFemmes = localStorage.getItem("ascq_suivi_femmes");
         if (localFemmes) {
-          loadedFemmes = JSON.parse(localFemmes);
-        } else {
-          // Exemple réaliste pour démonstration immédiate
-          loadedFemmes = [
-            {
-              id: "femme-1",
-              nom: "ADANDE",
-              prenoms: "Pascaline",
-              age: 23,
-              telephone: "+229 97 00 12 34",
-              telephone_conjoint: "+229 96 11 22 33",
-              village_nom: "Gbedji",
-              date_ddr: new Date(Date.now() - 250 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-              date_dpa: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-              terme_sa: 36,
-              statut_grossesse: "EN_COURS",
-              cpn_effectuees: ["CPN1", "CPN2", "CPN3", "CPN4"],
-              tpi_sp_doses: 3,
-              fer_acide_folique: true,
-              enov_mum: true,
-              mild_distribuee: true,
-              vaccin_td_doses: 2,
-              plan_accouchement_etabli: true,
-              notes_ascq: "Grossesse bien suivie. Terme prévu dans 4 semaines. Plan accouchement CS OK."
-            },
-            {
-              id: "femme-2",
-              nom: "HOUNGBO",
-              prenoms: "Christelle",
-              age: 28,
-              telephone: "+229 61 23 45 67",
-              telephone_conjoint: "+229 95 88 77 66",
-              village_nom: "Togoudo",
-              date_ddr: new Date(Date.now() - 275 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-              date_dpa: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-              terme_sa: 39,
-              statut_grossesse: "EN_COURS",
-              cpn_effectuees: ["CPN1", "CPN2", "CPN3"],
-              tpi_sp_doses: 3,
-              fer_acide_folique: true,
-              enov_mum: false,
-              mild_distribuee: true,
-              vaccin_td_doses: 2,
-              plan_accouchement_etabli: true,
-              notes_ascq: "DPA imminente ! Sensibilisée sur le départ rapide vers la maternité au premier signe."
-            }
-          ];
-          localStorage.setItem("ascq_suivi_femmes", JSON.stringify(loadedFemmes));
+          try {
+            const parsed = JSON.parse(localFemmes);
+            // Éliminer les anciens mock d'exemples s'ils existaient
+            loadedFemmes = parsed.filter((f: any) => f.id !== "femme-1" && f.id !== "femme-2");
+          } catch (e) {
+            loadedFemmes = [];
+          }
         }
       }
       setFemmes(loadedFemmes);
@@ -272,69 +499,13 @@ export default function MaterniteEnfancePage() {
       if (loadedEnfants.length === 0) {
         const localEnfants = localStorage.getItem("ascq_suivi_enfants");
         if (localEnfants) {
-          loadedEnfants = JSON.parse(localEnfants);
-        } else {
-          loadedEnfants = [
-            {
-              id: "enfant-1",
-              nom: "SOSSOU",
-              prenoms: "Akim",
-              sexe: "M",
-              date_naissance: new Date(Date.now() - 70 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-              poids_naissance_kg: 3.3,
-              nom_mere: "SOSSOU Justine",
-              telephone_parent: "+229 97 12 34 56",
-              village_nom: "Gbedji",
-              allaitement_exclusif_6m: true,
-              vitamine_a_doses: 0,
-              vermifuge_doses: 0,
-              produits_nutritionnels: ["Nutributter+"],
-              dernier_pb_mm: 132,
-              statut_nutritionnel: "NORMAL",
-              presence_oedemes: false,
-              vaccins_recus: {
-                "BCG": "Fait",
-                "HepB_naiss": "Fait",
-                "VPO_0": "Fait",
-                "Penta_1": "Fait",
-                "VPO_1": "Fait",
-                "Pneumo_1": "Fait",
-                "Rota_1": "Fait"
-              },
-              est_zero_dose: false,
-              est_retard_vaccinal: false,
-              notes_ascq: "Bonne croissance. Prochaine vaccination à 10 semaines."
-            },
-            {
-              id: "enfant-2",
-              nom: "DOSSOU",
-              prenoms: "Fadila",
-              sexe: "F",
-              date_naissance: new Date(Date.now() - 210 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-              poids_naissance_kg: 2.8,
-              nom_mere: "DOSSOU Reine",
-              telephone_parent: "+229 95 00 11 22",
-              village_nom: "Akpakpa",
-              allaitement_exclusif_6m: true,
-              vitamine_a_doses: 1,
-              vermifuge_doses: 0,
-              produits_nutritionnels: ["Nutributter+"],
-              dernier_pb_mm: 122,
-              statut_nutritionnel: "MAM",
-              presence_oedemes: false,
-              vaccins_recus: {
-                "BCG": "Fait",
-                "HepB_naiss": "Fait",
-                "VPO_0": "Fait",
-                "Penta_1": "Fait",
-                "Penta_2": "Fait"
-              },
-              est_zero_dose: false,
-              est_retard_vaccinal: true,
-              notes_ascq: "PB à 122mm (Jaune / MAM). Supplémentation Nutributter+ remise. Retard Penta 3 à ratisser."
-            }
-          ];
-          localStorage.setItem("ascq_suivi_enfants", JSON.stringify(loadedEnfants));
+          try {
+            const parsed = JSON.parse(localEnfants);
+            // Éliminer les anciens mock d'exemples s'ils existaient
+            loadedEnfants = parsed.filter((enf: any) => enf.id !== "enfant-1" && enf.id !== "enfant-2");
+          } catch (e) {
+            loadedEnfants = [];
+          }
         }
       }
       setEnfants(loadedEnfants);
@@ -829,6 +1000,53 @@ export default function MaterniteEnfancePage() {
           </div>
         </div>
 
+        {/* TOAST MESSAGE */}
+        {toastMsg && (
+          <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-2xl text-xs text-emerald-950 font-bold flex items-center justify-between shadow-sm">
+            <span>✅ {toastMsg}</span>
+            <button onClick={() => setToastMsg(null)} className="text-emerald-700 hover:text-emerald-900">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        {/* LIAISONS INTELLIGENTES & NETTOYAGE */}
+        <div className="flex items-center justify-between gap-2 overflow-x-auto pb-1 text-xs">
+          <div className="flex items-center gap-1.5 shrink-0">
+            <Link
+              href="/espace-ascq/consultations"
+              className="px-2.5 py-1 rounded-xl bg-white border border-slate-200 text-slate-700 hover:border-emerald-500 font-bold flex items-center gap-1 shrink-0 shadow-2xs"
+            >
+              <Stethoscope className="w-3.5 h-3.5 text-[#005c30]" />
+              <span>Prise en charge iCCM</span>
+            </Link>
+            <Link
+              href="/espace-ascq/references"
+              className="px-2.5 py-1 rounded-xl bg-white border border-slate-200 text-slate-700 hover:border-emerald-500 font-bold flex items-center gap-1 shrink-0 shadow-2xs"
+            >
+              <Heart className="w-3.5 h-3.5 text-amber-600" />
+              <span>Références CS/GUPS</span>
+            </Link>
+            <Link
+              href="/briefing"
+              className="px-2.5 py-1 rounded-xl bg-white border border-slate-200 text-slate-700 hover:border-emerald-500 font-bold flex items-center gap-1 shrink-0 shadow-2xs"
+            >
+              <Calendar className="w-3.5 h-3.5 text-blue-600" />
+              <span>Guide SIMR & Vaccins</span>
+            </Link>
+          </div>
+
+          <button
+            type="button"
+            onClick={viderDonneesLocales}
+            className="px-2.5 py-1 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-bold text-[11px] shrink-0 transition-all flex items-center gap-1"
+            title="Effacer les données de test locales"
+          >
+            <Trash2 className="w-3 h-3 text-red-600" />
+            <span>Nettoyer cache à zéro</span>
+          </button>
+        </div>
+
         {/* Onglets de navigation principale */}
         <div className="bg-white p-1.5 rounded-2xl border border-slate-200/90 shadow-sm flex items-center gap-1.5">
           <button
@@ -1096,24 +1314,43 @@ export default function MaterniteEnfancePage() {
                     )}
 
                     {/* Ligne 3 : Actions */}
-                    <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-                      <div className="flex items-center gap-2 text-xs">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-slate-100">
+                      <div className="flex items-center gap-1.5 flex-wrap text-xs">
                         {femme.telephone && (
                           <a
                             href={`https://wa.me/${femme.telephone.replace(/[^0-9]/g, "")}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-800 font-bold hover:bg-emerald-100"
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-50 text-emerald-800 font-bold hover:bg-emerald-100"
                           >
                             <span>WhatsApp</span>
                           </a>
                         )}
                         <Link
                           href={`/espace-ascq/references?type=cs&nom=${encodeURIComponent(femme.nom + " " + femme.prenoms)}&village=${encodeURIComponent(femme.village_nom)}`}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-100 text-slate-700 font-bold hover:bg-slate-200"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 text-slate-700 font-bold hover:bg-slate-200"
                         >
                           <span>Référer CS</span>
                         </Link>
+
+                        <button
+                          type="button"
+                          onClick={() => ouvrirModalEditFemme(femme)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-blue-50 text-blue-800 font-bold hover:bg-blue-100 transition-all border border-blue-200"
+                          title="Modifier les informations de la fiche"
+                        >
+                          <Edit3 className="w-3.5 h-3.5 text-blue-600" />
+                          <span>Modifier fiche</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => supprimerFemme(femme.id)}
+                          className="p-1.5 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all"
+                          title="Supprimer la fiche"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
 
                       {/* Bouton Clôture accouchement */}
@@ -1129,7 +1366,7 @@ export default function MaterniteEnfancePage() {
                             }));
                             setShowModalAccouchement(true);
                           }}
-                          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#005c30] text-white font-black text-xs hover:bg-[#004724] shadow-xs active:scale-95 transition-all"
+                          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#005c30] text-white font-black text-xs hover:bg-[#004724] shadow-xs active:scale-95 transition-all shrink-0"
                         >
                           <Baby className="w-3.5 h-3.5" />
                           <span>Enregistrer Accouchement</span>
@@ -1299,30 +1536,47 @@ export default function MaterniteEnfancePage() {
                     </div>
 
                     {/* Actions rapides */}
-                    <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-                      <div className="flex items-center gap-2 text-xs">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-slate-100">
+                      <div className="flex items-center gap-1.5 flex-wrap text-xs">
                         {enfant.telephone_parent && (
                           <a
                             href={`https://wa.me/${enfant.telephone_parent.replace(/[^0-9]/g, "")}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-800 font-bold hover:bg-emerald-100"
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-50 text-emerald-800 font-bold hover:bg-emerald-100"
                           >
-                            <span>WhatsApp Parent</span>
+                            <span>WhatsApp</span>
                           </a>
                         )}
                         <Link
                           href={`/espace-ascq/consultations?enfantId=${enfant.id}&nom=${encodeURIComponent(enfant.nom + " " + enfant.prenoms)}`}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-100 text-slate-700 font-bold hover:bg-slate-200"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 text-slate-700 font-bold hover:bg-slate-200"
                         >
                           <Stethoscope className="w-3.5 h-3.5" />
                           <span>Prise en charge</span>
                         </Link>
+                        <button
+                          type="button"
+                          onClick={() => ouvrirModalEditEnfant(enfant)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-blue-50 text-blue-800 font-bold hover:bg-blue-100 transition-all border border-blue-200"
+                          title="Modifier les informations de la fiche"
+                        >
+                          <Edit3 className="w-3.5 h-3.5 text-blue-600" />
+                          <span>Modifier fiche</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => supprimerEnfant(enfant.id)}
+                          className="p-1.5 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all"
+                          title="Supprimer la fiche"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
 
                       <Link
                         href={`/espace-ascq/references?type=cs&nom=${encodeURIComponent(enfant.nom + " " + enfant.prenoms)}&village=${encodeURIComponent(enfant.village_nom)}&motif=${encodeURIComponent("Suivi croissance / vaccin " + enfant.statut_nutritionnel)}`}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 font-bold text-xs hover:bg-rose-100"
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 font-bold text-xs hover:bg-rose-100 shrink-0"
                       >
                         <span>Référer CS</span>
                       </Link>
@@ -1427,7 +1681,519 @@ export default function MaterniteEnfancePage() {
       </main>
 
       {/* ========================================================= */}
-      {/* MODAL 1 : ENREGISTRER UNE FEMME ENCEINTE                  */}
+      {/* MODAL 4 : MODIFIER UNE FEMME ENCEINTE */}
+      {showModalEditFemme && selectedFemmeToEdit && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-5 sm:p-6 shadow-2xl space-y-4 my-8 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <Edit3 className="w-5 h-5 text-blue-600" />
+                <h3 className="font-black text-slate-900 text-base">
+                  Modifier Fiche : {selectedFemmeToEdit.nom} {selectedFemmeToEdit.prenoms}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowModalEditFemme(false)}
+                className="p-1 rounded-xl text-slate-400 hover:bg-slate-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSauvegarderEditFemme} className="space-y-3.5 text-xs">
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Nom *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editFormFemme.nom}
+                    onChange={(e) => setEditFormFemme({ ...editFormFemme, nom: e.target.value })}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white text-slate-800 font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Prénoms *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editFormFemme.prenoms}
+                    onChange={(e) => setEditFormFemme({ ...editFormFemme, prenoms: e.target.value })}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white text-slate-800 font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2.5">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Âge</label>
+                  <input
+                    type="number"
+                    value={editFormFemme.age}
+                    onChange={(e) => setEditFormFemme({ ...editFormFemme, age: e.target.value })}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white text-slate-800"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="font-bold text-slate-700 block mb-1">Village / Quartier *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editFormFemme.village_nom}
+                    onChange={(e) => setEditFormFemme({ ...editFormFemme, village_nom: e.target.value })}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white text-slate-800"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Téléphone Femme</label>
+                  <input
+                    type="tel"
+                    value={editFormFemme.telephone}
+                    onChange={(e) => setEditFormFemme({ ...editFormFemme, telephone: e.target.value })}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white text-slate-800"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Téléphone Conjoint</label>
+                  <input
+                    type="tel"
+                    value={editFormFemme.telephone_conjoint}
+                    onChange={(e) => setEditFormFemme({ ...editFormFemme, telephone_conjoint: e.target.value })}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white text-slate-800"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5 bg-purple-50/50 p-3 rounded-2xl border border-purple-100">
+                <div>
+                  <label className="font-bold text-purple-950 block mb-1">Date DDR</label>
+                  <input
+                    type="date"
+                    value={editFormFemme.date_ddr}
+                    onChange={(e) => {
+                      const ddr = e.target.value;
+                      const { dpa } = calculerDpaEtSa(ddr);
+                      setEditFormFemme({ ...editFormFemme, date_ddr: ddr, date_dpa: dpa || editFormFemme.date_dpa });
+                    }}
+                    className="w-full p-2 rounded-xl border border-purple-200 bg-white text-slate-800 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-purple-950 block mb-1">DPA calculée</label>
+                  <input
+                    type="date"
+                    value={editFormFemme.date_dpa}
+                    onChange={(e) => setEditFormFemme({ ...editFormFemme, date_dpa: e.target.value })}
+                    className="w-full p-2 rounded-xl border border-purple-200 bg-white text-slate-800 text-xs font-bold"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Statut de la grossesse</label>
+                <select
+                  value={editFormFemme.statut_grossesse}
+                  onChange={(e) => setEditFormFemme({ ...editFormFemme, statut_grossesse: e.target.value as any })}
+                  className="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 font-bold"
+                >
+                  <option value="EN_COURS">Grossesse en cours</option>
+                  <option value="ACCOUCHEE">Accouchée</option>
+                  <option value="REFEREE_URGENCE">Référée d'urgence au Centre de Santé</option>
+                  <option value="FAUSSE_COUCHE">Fausse couche / Interruption</option>
+                </select>
+              </div>
+
+              {/* CPN Effectuées */}
+              <div>
+                <label className="font-bold text-slate-700 block mb-1.5">Consultations Prénatales (CPN) faites :</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {["CPN1", "CPN2", "CPN3", "CPN4", "CPN5", "CPN6", "CPN7", "CPN8"].map((cpn) => {
+                    const active = editFormFemme.cpn_effectuees.includes(cpn);
+                    return (
+                      <button
+                        key={cpn}
+                        type="button"
+                        onClick={() => {
+                          const nextCpn = active 
+                            ? editFormFemme.cpn_effectuees.filter(c => c !== cpn)
+                            : [...editFormFemme.cpn_effectuees, cpn];
+                          setEditFormFemme({ ...editFormFemme, cpn_effectuees: nextCpn });
+                        }}
+                        className={`px-3 py-1.5 rounded-xl font-black text-xs transition-all ${
+                          active
+                            ? "bg-purple-700 text-white shadow-xs"
+                            : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                        }`}
+                      >
+                        {cpn} {active ? "✓" : "+"}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Interventions reçues */}
+              <div className="grid grid-cols-2 gap-2 bg-slate-50 p-3 rounded-2xl border border-slate-200">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Doses TPI / SP (Paludisme)</label>
+                  <select
+                    value={editFormFemme.tpi_sp_doses}
+                    onChange={(e) => setEditFormFemme({ ...editFormFemme, tpi_sp_doses: Number(e.target.value) })}
+                    className="w-full p-2 rounded-xl border border-slate-200 bg-white"
+                  >
+                    {[0, 1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n} dose(s)</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Vaccin Td (Tétanos)</label>
+                  <select
+                    value={editFormFemme.vaccin_td_doses}
+                    onChange={(e) => setEditFormFemme({ ...editFormFemme, vaccin_td_doses: Number(e.target.value) })}
+                    className="w-full p-2 rounded-xl border border-slate-200 bg-white"
+                  >
+                    {[0, 1, 2, 3, 4, 5].map(n => <option key={n} value={n}>Td {n}</option>)}
+                  </select>
+                </div>
+
+                <div className="col-span-2 space-y-1.5 pt-1">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editFormFemme.fer_acide_folique}
+                      onChange={(e) => setEditFormFemme({ ...editFormFemme, fer_acide_folique: e.target.checked })}
+                      className="rounded text-[#005c30]"
+                    />
+                    <span className="font-bold text-slate-700">Fer et Acide Folique reçus</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editFormFemme.enov_mum}
+                      onChange={(e) => setEditFormFemme({ ...editFormFemme, enov_mum: e.target.checked })}
+                      className="rounded text-[#005c30]"
+                    />
+                    <span className="font-bold text-amber-900">Supplémentation Enov'Mum+ reçue</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editFormFemme.mild_distribuee}
+                      onChange={(e) => setEditFormFemme({ ...editFormFemme, mild_distribuee: e.target.checked })}
+                      className="rounded text-[#005c30]"
+                    />
+                    <span className="font-bold text-teal-900">Moustiquaire imprégnée (MILD) remise</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editFormFemme.plan_accouchement_etabli}
+                      onChange={(e) => setEditFormFemme({ ...editFormFemme, plan_accouchement_etabli: e.target.checked })}
+                      className="rounded text-[#005c30]"
+                    />
+                    <span className="font-bold text-slate-700">Plan d'accouchement sécurisé établi</span>
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Notes et observations ASCQ</label>
+                <textarea
+                  rows={2}
+                  value={editFormFemme.notes_ascq}
+                  onChange={(e) => setEditFormFemme({ ...editFormFemme, notes_ascq: e.target.value })}
+                  placeholder="Remarques particulières..."
+                  className="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white text-slate-800"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowModalEditFemme(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 font-bold hover:bg-slate-200"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-[#005c30] text-white font-bold hover:bg-[#004724] shadow-sm flex items-center gap-1.5"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>Enregistrer les modifications</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 5 : MODIFIER UN ENFANT 1000 JOURS */}
+      {showModalEditEnfant && selectedEnfantToEdit && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-5 sm:p-6 shadow-2xl space-y-4 my-8 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <Edit3 className="w-5 h-5 text-blue-600" />
+                <h3 className="font-black text-slate-900 text-base">
+                  Modifier Fiche : {selectedEnfantToEdit.nom} {selectedEnfantToEdit.prenoms}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowModalEditEnfant(false)}
+                className="p-1 rounded-xl text-slate-400 hover:bg-slate-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSauvegarderEditEnfant} className="space-y-3.5 text-xs">
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Nom *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editFormEnfant.nom}
+                    onChange={(e) => setEditFormEnfant({ ...editFormEnfant, nom: e.target.value })}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white text-slate-800 font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Prénoms *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editFormEnfant.prenoms}
+                    onChange={(e) => setEditFormEnfant({ ...editFormEnfant, prenoms: e.target.value })}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white text-slate-800 font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2.5">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Sexe *</label>
+                  <select
+                    value={editFormEnfant.sexe}
+                    onChange={(e) => setEditFormEnfant({ ...editFormEnfant, sexe: e.target.value as "M" | "F" })}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white text-slate-800 font-bold"
+                  >
+                    <option value="M">Masculin (M)</option>
+                    <option value="F">Féminin (F)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Date Naissance *</label>
+                  <input
+                    type="date"
+                    required
+                    value={editFormEnfant.date_naissance}
+                    onChange={(e) => setEditFormEnfant({ ...editFormEnfant, date_naissance: e.target.value })}
+                    className="w-full p-2 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white text-slate-800 font-bold text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Poids naiss. (kg)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={editFormEnfant.poids_naissance_kg}
+                    onChange={(e) => setEditFormEnfant({ ...editFormEnfant, poids_naissance_kg: e.target.value })}
+                    className="w-full p-2 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white text-slate-800"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Nom de la Mère</label>
+                  <input
+                    type="text"
+                    value={editFormEnfant.nom_mere}
+                    onChange={(e) => setEditFormEnfant({ ...editFormEnfant, nom_mere: e.target.value })}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white text-slate-800"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Téléphone Parent</label>
+                  <input
+                    type="tel"
+                    value={editFormEnfant.telephone_parent}
+                    onChange={(e) => setEditFormEnfant({ ...editFormEnfant, telephone_parent: e.target.value })}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white text-slate-800"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Village de résidence *</label>
+                <input
+                  type="text"
+                  required
+                  value={editFormEnfant.village_nom}
+                  onChange={(e) => setEditFormEnfant({ ...editFormEnfant, village_nom: e.target.value })}
+                  className="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white text-slate-800"
+                />
+              </div>
+
+              {/* Nutrition & Dépistage */}
+              <div className="bg-emerald-50/60 p-3 rounded-2xl border border-emerald-200 space-y-2">
+                <span className="font-black text-emerald-950 uppercase text-[10px] block">
+                  Surveillance Nutritionnelle (1 000 Jours)
+                </span>
+
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">Périmètre Brachial PB (mm)</label>
+                    <input
+                      type="number"
+                      value={editFormEnfant.dernier_pb_mm}
+                      onChange={(e) => setEditFormEnfant({ ...editFormEnfant, dernier_pb_mm: e.target.value })}
+                      placeholder="Ex: 130"
+                      className="w-full p-2 rounded-xl border border-emerald-200 bg-white font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">Statut Nutritionnel</label>
+                    <select
+                      value={editFormEnfant.statut_nutritionnel}
+                      onChange={(e) => setEditFormEnfant({ ...editFormEnfant, statut_nutritionnel: e.target.value as any })}
+                      className="w-full p-2 rounded-xl border border-emerald-200 bg-white font-bold"
+                    >
+                      <option value="NORMAL">🟢 Normal (Vert &ge; 125mm)</option>
+                      <option value="MAM">🟡 MAM Modérée (Jaune 115-124mm)</option>
+                      <option value="MAS">🔴 MAS Sévère (Rouge &lt; 115mm ou œdèmes)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4 pt-1">
+                  <label className="flex items-center gap-2 cursor-pointer font-bold text-emerald-950">
+                    <input
+                      type="checkbox"
+                      checked={editFormEnfant.allaitement_exclusif_6m}
+                      onChange={(e) => setEditFormEnfant({ ...editFormEnfant, allaitement_exclusif_6m: e.target.checked })}
+                      className="rounded text-[#005c30]"
+                    />
+                    <span>Allaitement Maternel Exclusif (AME 6m)</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer font-bold text-red-900">
+                    <input
+                      type="checkbox"
+                      checked={editFormEnfant.presence_oedemes}
+                      onChange={(e) => setEditFormEnfant({ ...editFormEnfant, presence_oedemes: e.target.checked })}
+                      className="rounded text-red-600"
+                    />
+                    <span>Présence d'œdèmes bilatéraux</span>
+                  </label>
+                </div>
+
+                {/* Produits nutritionnels reçus */}
+                <div className="pt-2">
+                  <label className="font-bold text-slate-700 block mb-1">Produits nutritionnels remis :</label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {["Nutributter+", "Plumpy'Nut", "Prompt Nut", "Enov'Mum"].map((pName) => {
+                      const sel = editFormEnfant.produits_nutritionnels.includes(pName);
+                      return (
+                        <button
+                          key={pName}
+                          type="button"
+                          onClick={() => {
+                            const next = sel 
+                              ? editFormEnfant.produits_nutritionnels.filter(x => x !== pName)
+                              : [...editFormEnfant.produits_nutritionnels, pName];
+                            setEditFormEnfant({ ...editFormEnfant, produits_nutritionnels: next });
+                          }}
+                          className={`px-2.5 py-1 rounded-xl text-xs font-bold transition-all ${
+                            sel ? "bg-emerald-700 text-white" : "bg-white border border-emerald-200 text-emerald-900"
+                          }`}
+                        >
+                          {pName} {sel ? "✓" : "+"}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Grille Vaccinale PEV Bénin */}
+              <div className="bg-blue-50/50 p-3 rounded-2xl border border-blue-100 space-y-1.5">
+                <span className="font-black text-blue-950 uppercase text-[10px] block">
+                  Vaccins Reçus (Cocher les doses administrées selon le carnet)
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    "BCG", "HepB_naiss", "VPO_0", 
+                    "Penta_1", "Penta_2", "Penta_3", 
+                    "VPO_1", "VPO_2", "VPO_3", 
+                    "Pneumo_1", "Pneumo_2", "Pneumo_3", 
+                    "Rota_1", "Rota_2", "Rota_3", 
+                    "VPI_1", "VPI_2", 
+                    "VAR_1", "VAR_2", "VAA", "MenA"
+                  ].map((vKey) => {
+                    const isFait = Boolean(editFormEnfant.vaccins_recus[vKey]);
+                    return (
+                      <button
+                        key={vKey}
+                        type="button"
+                        onClick={() => {
+                          const nextVaccins = { ...editFormEnfant.vaccins_recus };
+                          if (isFait) {
+                            delete nextVaccins[vKey];
+                          } else {
+                            nextVaccins[vKey] = "Fait";
+                          }
+                          setEditFormEnfant({ ...editFormEnfant, vaccins_recus: nextVaccins });
+                        }}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                          isFait 
+                            ? "bg-blue-700 text-white shadow-2xs" 
+                            : "bg-white border border-blue-200 text-blue-900 hover:bg-blue-50"
+                        }`}
+                      >
+                        {vKey} {isFait ? "✓" : ""}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Notes et observations ASCQ</label>
+                <textarea
+                  rows={2}
+                  value={editFormEnfant.notes_ascq}
+                  onChange={(e) => setEditFormEnfant({ ...editFormEnfant, notes_ascq: e.target.value })}
+                  placeholder="Remarques particulières..."
+                  className="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white text-slate-800"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowModalEditEnfant(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 font-bold hover:bg-slate-200"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-[#005c30] text-white font-bold hover:bg-[#004724] shadow-sm flex items-center gap-1.5"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>Enregistrer les modifications</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
       {/* ========================================================= */}
       {showModalFemme && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
