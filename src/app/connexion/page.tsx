@@ -204,27 +204,33 @@ export default function ConnexionPage() {
     const uniqueEmails = Array.from(new Set(candidateEmails));
 
     try {
-      // 1. Authentification Supabase avec tentative sur les formats de téléphone
+      // 1. Authentification Supabase avec tentative sur les formats de téléphone et formats de mot de passe (y compris code 4 chiffres)
       let authData: any = null;
       let lastAuthError: any = null;
 
-      for (const emailAttempt of uniqueEmails) {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: emailAttempt,
-          password: motDePasse,
-        });
+      const candidatePasswords = [motDePasse];
+      if (motDePasse.length === 4) {
+        candidatePasswords.push(motDePasse.padStart(6, "0"));
+        candidatePasswords.push(motDePasse.padEnd(6, "0"));
+      }
+      const uniquePasswords = Array.from(new Set(candidatePasswords));
 
-        if (!error && data?.user) {
-          authData = data;
-          lastAuthError = null;
-          break;
-        } else {
-          lastAuthError = error;
-          // Si l'erreur est un mauvais mot de passe avéré, inutile d'essayer d'autres emails si le compte a été trouvé
-          if (error?.message?.includes("Invalid login credentials") && !error?.message?.includes("schema")) {
-            // Continuer pour tester un autre format au cas où
+      for (const emailAttempt of uniqueEmails) {
+        for (const pwdAttempt of uniquePasswords) {
+          const { data, error } = await supabase.auth.signInWithPassword({
+            email: emailAttempt,
+            password: pwdAttempt,
+          });
+
+          if (!error && data?.user) {
+            authData = data;
+            lastAuthError = null;
+            break;
+          } else {
+            lastAuthError = error;
           }
         }
+        if (authData) break;
       }
 
       if (lastAuthError && !authData) {

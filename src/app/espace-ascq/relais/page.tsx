@@ -88,6 +88,17 @@ export default function GestionRelaisPage() {
   // État de changement de statut
   const [statusChangingId, setStatusChangingId] = useState<string | null>(null);
 
+  // Relais Communautaires en attente de validation et d'affectation par l'ASCQ
+  const [relaisEnAttente, setRelaisEnAttente] = useState<any[]>([]);
+  const [selectedRcToValidate, setSelectedRcToValidate] = useState<any | null>(null);
+  const [isValidateModalOpen, setIsValidateModalOpen] = useState(false);
+  const [validateVillageNom, setValidateVillageNom] = useState("");
+  const [validateGrappe, setValidateGrappe] = useState("1");
+  const [validateNomGrappe, setValidateNomGrappe] = useState("");
+  const [validateLoading, setValidateLoading] = useState(false);
+  const [validateError, setValidateError] = useState("");
+  const [villagesMemoire, setVillagesMemoire] = useState<string[]>([]);
+
   // Charger le profil de l'ASCQ et la liste de ses RC
   const loadData = async () => {
     setLoading(true);
@@ -122,6 +133,45 @@ export default function GestionRelaisPage() {
       const { data: rcs, error: rcError } = await supabase.rpc("lister_mes_relais");
       if (rcError) throw rcError;
       setRelaisList(rcs || []);
+
+      // 4. Charger la mémoire des villages de l'arrondissement (conservés et proposés)
+      let memList: string[] = [];
+      const cachedVillages = localStorage.getItem("ascq_villages_memoire");
+      if (cachedVillages) {
+        try { memList = JSON.parse(cachedVillages); } catch (e) {}
+      }
+
+      try {
+        const { data: vMem } = await supabase.rpc("lister_villages_arrondissement_ascq");
+        if (vMem) {
+          const names = vMem.map((v: any) => v.nom).filter(Boolean);
+          const combined = Array.from(new Set([...memList, ...names]));
+          setVillagesMemoire(combined);
+          localStorage.setItem("ascq_villages_memoire", JSON.stringify(combined));
+        } else {
+          setVillagesMemoire(memList);
+        }
+      } catch (e) {
+        setVillagesMemoire(memList);
+      }
+
+      // 5. Charger les Relais Communautaires auto-inscrits en attente de validation
+      try {
+        const { data: enAttente, error: attError } = await supabase.rpc("lister_relais_en_attente_ascq");
+        if (!attError && enAttente) {
+          setRelaisEnAttente(enAttente);
+        } else {
+          const { data: directUsers } = await supabase
+            .from("utilisateurs")
+            .select("id, nom, prenoms, telephone, arrondissement_id, created_at")
+            .eq("poste", "RC")
+            .eq("statut_compte", "EN_ATTENTE")
+            .eq("arrondissement_id", currentProfile.arrondissement_id);
+          setRelaisEnAttente(directUsers || []);
+        }
+      } catch (e) {
+        console.warn("Erreur chargement relais en attente:", e);
+      }
 
     } catch (err) {
       console.error("Erreur chargement données relais:", err);
@@ -315,6 +365,63 @@ export default function GestionRelaisPage() {
     }
   };
 
+  // Ouvrir la modale de validation et affectation d'un RC auto-inscrit
+  const handleOpenValidate = (rcEnAttente: any) => {
+    setSelectedRcToValidate(rcEnAttente);
+    setValidateVillageNom("");
+    setValidateGrappe("1");
+    setValidateNomGrappe("");
+    setValidateError("");
+    setIsValidateModalOpen(true);
+  };
+
+  // Valider le compte et affecter dans un village (gardé en mémoire pour les prochaines fois)
+  const handleValiderEtAffecterSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedRcToValidate) return;
+
+    const cleanVillage = validateVillageNom.trim();
+    if (!cleanVillage) {
+      setValidateError("Veuillez saisir ou choisir le nom du village d'intervention.");
+      return;
+    }
+
+    setValidateLoading(true);
+    setValidateError("");
+
+    try {
+      // 1. Mémoriser immédiatement le village dans la mémoire locale pour les propositions futures
+      const nextMem = Array.from(new Set([...villagesMemoire, cleanVillage]));
+      setVillagesMemoire(nextMem);
+      localStorage.setItem("ascq_villages_memoire", JSON.stringify(nextMem));
+
+      // 2. Appel RPC de validation et affectation
+      const { data, error } = await supabase.rpc("ascq_valider_et_affecter_relais", {
+        p_rc_id: selectedRcToValidate.rc_id || selectedRcToValidate.id || null,
+        p_user_id: selectedRcToValidate.user_id || selectedRcToValidate.id,
+        p_village_nom: cleanVillage,
+        p_grappe: parseInt(validateGrappe, 10) || 1,
+        p_nom_grappe: validateNomGrappe.trim() || null,
+      });
+
+      if (error) throw error;
+
+      // 3. Fermer et rafraîchir
+      setIsValidateModalOpen(false);
+      setSelectedRcToValidate(null);
+      setValidateVillageNom("");
+      setValidateGrappe("1");
+      setValidateNomGrappe("");
+
+      await loadData();
+    } catch (err: any) {
+      console.error("Erreur validation relais:", err);
+      setValidateError(err.message || "Erreur lors de la validation du relais.");
+    } finally {
+      setValidateLoading(false);
+    }
+  };
+
   const filteredRelais = relaisList.filter((rc) => {
     const q = searchTerm.toLowerCase();
     return (
@@ -381,6 +488,67 @@ export default function GestionRelaisPage() {
             </p>
           </div>
         </div>
+
+        {/* SECTION : RELAIS AUTO-INSCRITS EN ATTENTE DE VALIDATION ET AFFECTATION */}
+        {relaisEnAttente.length > 0 && (
+          <div className="bg-amber-50/90 border-2 border-amber-300 rounded-3xl p-4 sm:p-5 shadow-sm space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-amber-950 font-black text-xs sm:text-sm">
+                <span className="p-1.5 rounded-xl bg-amber-500 text-white">
+                  <UserPlus className="w-4 h-4" />
+                </span>
+                <span>Relais auto-inscrits en attente de validation ({relaisEnAttente.length})</span>
+              </div>
+              <span className="text-[10px] font-black uppercase tracking-wider bg-amber-200/80 text-amber-900 px-2.5 py-0.5 rounded-full">
+                Action requise
+              </span>
+            </div>
+
+            <p className="text-xs text-amber-900 leading-relaxed">
+              Ces relais se sont inscrits dans votre arrondissement. Veuillez valider leur inscription et les affecter à leur village d'intervention pour activer leur compte.
+            </p>
+
+            <div className="space-y-2.5 pt-1">
+              {relaisEnAttente.map((rcAtt) => (
+                <div
+                  key={rcAtt.rc_id || rcAtt.user_id || rcAtt.id}
+                  className="bg-white rounded-2xl p-3.5 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs hover:border-emerald-400 transition-all"
+                >
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="font-black text-slate-900 text-sm uppercase">
+                        {rcAtt.nom} {rcAtt.prenoms}
+                      </span>
+                      <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded">
+                        En attente
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-slate-600 flex-wrap">
+                      <div className="flex items-center gap-1 font-mono font-bold text-slate-800">
+                        <Phone className="w-3.5 h-3.5 text-slate-400" />
+                        <span>{rcAtt.telephone}</span>
+                      </div>
+                      {rcAtt.arrondissement_nom && (
+                        <span className="text-slate-500">
+                          • Arrondissement : <strong>{rcAtt.arrondissement_nom}</strong>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleOpenValidate(rcAtt)}
+                    className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-[#005c30] text-white font-bold text-xs hover:bg-[#004724] shadow-xs active:scale-95 transition-all self-start sm:self-auto shrink-0"
+                  >
+                    <CheckCircle2 className="w-4 h-4 text-emerald-300" />
+                    <span>Valider & Affecter au village</span>
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Barre de recherche et actions */}
         <div className="flex items-center gap-2">
@@ -964,6 +1132,149 @@ export default function GestionRelaisPage() {
                 J'ai bien noté le code (Fermer)
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 4. Modale : Valider et Affecter un Relais Communautaire auto-inscrit */}
+      {isValidateModalOpen && selectedRcToValidate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+            
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="p-2 rounded-xl bg-emerald-100 text-[#005c30]">
+                  <CheckCircle2 className="w-5 h-5" />
+                </span>
+                <div>
+                  <h2 className="text-base font-black text-slate-900 leading-tight">
+                    Valider et Affecter le Relais
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    Arrondissement de rattachement
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsValidateModalOpen(false);
+                  setSelectedRcToValidate(null);
+                }}
+                className="p-1 rounded-xl text-slate-400 hover:bg-slate-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Identité du relais */}
+            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-1">
+              <p className="text-xs font-black text-slate-900 uppercase">
+                {selectedRcToValidate.nom} {selectedRcToValidate.prenoms}
+              </p>
+              <div className="flex items-center gap-2 text-xs text-slate-600 font-mono">
+                <Phone className="w-3.5 h-3.5 text-slate-400" />
+                <span>{selectedRcToValidate.telephone}</span>
+              </div>
+            </div>
+
+            {validateError && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                <span>{validateError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleValiderEtAffecterSubmit} className="space-y-4 text-xs">
+              
+              {/* Village d'intervention (Saisie libre avec propositions mémorisées) */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-slate-700 block">
+                    Village d'intervention *
+                  </label>
+                  <span className="text-[10px] text-emerald-700 font-semibold">
+                    (Mémorisation automatique)
+                  </span>
+                </div>
+
+                <div className="relative">
+                  <input
+                    type="text"
+                    required
+                    list="villages-memoire-list"
+                    value={validateVillageNom}
+                    onChange={(e) => setValidateVillageNom(e.target.value)}
+                    placeholder="Saisissez ou choisissez un village..."
+                    className="w-full text-xs sm:text-sm pl-3.5 pr-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#005c30] font-semibold text-slate-800"
+                  />
+                  <datalist id="villages-memoire-list">
+                    {villagesMemoire.map((vNom, vIdx) => (
+                      <option key={vIdx} value={vNom} />
+                    ))}
+                  </datalist>
+                </div>
+
+                <p className="text-[11px] text-slate-500 italic">
+                  Vous pouvez saisir manuellement un nouveau village. Il sera automatiquement conservé en mémoire pour vos prochaines affectations.
+                </p>
+              </div>
+
+              {/* Grappe & Nom de grappe */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    Numéro de grappe *
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    required
+                    value={validateGrappe}
+                    onChange={(e) => setValidateGrappe(e.target.value)}
+                    className="w-full text-xs sm:text-sm p-2.5 rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white text-slate-800 font-bold"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    Nom de grappe (Optionnel)
+                  </label>
+                  <input
+                    type="text"
+                    value={validateNomGrappe}
+                    onChange={(e) => setValidateNomGrappe(e.target.value)}
+                    placeholder="Ex: Grappe Nord"
+                    className="w-full text-xs sm:text-sm p-2.5 rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white text-slate-800"
+                  />
+                </div>
+              </div>
+
+              {/* Boutons d'action */}
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsValidateModalOpen(false);
+                    setSelectedRcToValidate(null);
+                  }}
+                  className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={validateLoading}
+                  className="px-5 py-2.5 rounded-xl bg-[#005c30] hover:bg-[#004724] text-white font-bold flex items-center gap-1.5 shadow-sm active:scale-95 transition-all disabled:opacity-50"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>{validateLoading ? "Validation en cours..." : "Valider et Activer"}</span>
+                </button>
+              </div>
+
+            </form>
+
           </div>
         </div>
       )}

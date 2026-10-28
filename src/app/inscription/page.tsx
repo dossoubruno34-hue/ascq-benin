@@ -30,11 +30,12 @@ export default function InscriptionPage() {
   const isCadreZone = ["MCZS", "RCSE", "C_RAMS"].includes(poste);
   const isCadreCommune = ["MCC", "PF_CCLS_TP"].includes(poste);
   const isTerrainAscq = poste === "ASCQ";
+  const isTerrainRc = poste === "RC";
   const isAutre = poste === "AUTRE";
 
-  const showZoneSanitaire = isCadreZone || isCadreCommune || isTerrainAscq || isAutre;
-  const showCommune = isCadreCommune || isTerrainAscq || isAutre;
-  const showArrondissement = isTerrainAscq || isAutre;
+  const showZoneSanitaire = isCadreZone || isCadreCommune || isTerrainAscq || isTerrainRc || isAutre;
+  const showCommune = isCadreCommune || isTerrainAscq || isTerrainRc || isAutre;
+  const showArrondissement = isTerrainAscq || isTerrainRc || isAutre;
   const showAscqProfil = isTerrainAscq;
 
   // Localisation
@@ -139,19 +140,33 @@ export default function InscriptionPage() {
       return;
     }
 
-    if (motDePasse.length < 6) {
-      setErrorMsg("Le mot de passe doit comporter au moins 6 caractères.");
-      setLoading(false);
-      return;
+    if (isTerrainRc) {
+      if (motDePasse.length !== 4 || !/^\d{4}$/.test(motDePasse)) {
+        setErrorMsg("Le mot de passe pour le Relais Communautaire doit comporter exactement 4 chiffres (ex: 1234).");
+        setLoading(false);
+        return;
+      }
+      if (!selectedArr) {
+        setErrorMsg("Veuillez sélectionner l'arrondissement pour votre rattachement en tant que Relais Communautaire.");
+        setLoading(false);
+        return;
+      }
+    } else {
+      if (motDePasse.length < 6) {
+        setErrorMsg("Le mot de passe doit comporter au moins 6 caractères.");
+        setLoading(false);
+        return;
+      }
     }
 
     const technicalEmail = `tel_${cleanPhone}@ascq.local`;
+    const technicalPassword = isTerrainRc ? motDePasse.padStart(6, '0') : motDePasse;
 
     try {
       // 1. Inscription dans Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: technicalEmail,
-        password: motDePasse,
+        password: technicalPassword,
       });
 
       if (authError) {
@@ -234,13 +249,21 @@ export default function InscriptionPage() {
             <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-xs sm:text-sm text-amber-900 text-left space-y-2">
               <div className="flex items-center gap-2 font-bold text-amber-950">
                 <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0" />
-                <span>Statut du compte : En attente de validation</span>
+                <span>
+                  {poste === "RC" 
+                    ? "Statut : Transmis à l'ASCQ de votre arrondissement" 
+                    : "Statut du compte : En attente de validation"}
+                </span>
               </div>
               <p>
-                Votre demande a bien été enregistrée. Elle est visible dans l'espace administration pour être validée par votre responsable communal ou départemental.
+                {poste === "RC"
+                  ? "Votre demande a bien été enregistrée. L'ASCQ de votre arrondissement a été automatiquement notifié pour valider votre compte et vous affecter à votre village d'intervention."
+                  : "Votre demande a bien été enregistrée. Elle est visible dans l'espace administration pour être validée par votre responsable communal ou départemental."}
               </p>
               <p className="font-semibold text-slate-800 pt-1">
-                Dès validation, vous pourrez vous connecter directement avec votre numéro de téléphone et votre mot de passe.
+                {poste === "RC"
+                  ? `Dès validation par votre ASCQ, vous pourrez vous connecter directement avec votre numéro ${telephone} et votre code à 4 chiffres.`
+                  : "Dès validation, vous pourrez vous connecter directement avec votre numéro de téléphone et votre mot de passe."}
               </p>
             </div>
             <div className="pt-4 flex flex-col sm:flex-row gap-3 justify-center">
@@ -329,7 +352,7 @@ export default function InscriptionPage() {
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Mot de passe *
+                    {isTerrainRc ? "Code d'accès secret à 4 chiffres (Mot de passe) *" : "Mot de passe *"}
                   </label>
                   <div className="relative">
                     <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 text-sm">
@@ -338,11 +361,21 @@ export default function InscriptionPage() {
                     <input
                       type={showPassword ? "text" : "password"}
                       required
-                      minLength={6}
+                      maxLength={isTerrainRc ? 4 : undefined}
+                      minLength={isTerrainRc ? 4 : 6}
+                      inputMode={isTerrainRc ? "numeric" : "text"}
+                      pattern={isTerrainRc ? "[0-9]{4}" : undefined}
                       value={motDePasse}
-                      onChange={(e) => setMotDePasse(e.target.value)}
-                      placeholder="6 caractères minimum"
-                      className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 pl-10 pr-10 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (isTerrainRc) {
+                          setMotDePasse(val.replace(/\D/g, "").slice(0, 4));
+                        } else {
+                          setMotDePasse(val);
+                        }
+                      }}
+                      placeholder={isTerrainRc ? "Ex: 1234" : "6 caractères minimum"}
+                      className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 pl-10 pr-10 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
                     />
                     <button
                       type="button"
@@ -352,6 +385,11 @@ export default function InscriptionPage() {
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    {isTerrainRc 
+                      ? "Code PIN à 4 chiffres que vous utiliserez pour vous connecter avec votre numéro." 
+                      : "Utilisez au moins 6 caractères pour sécuriser votre compte."}
+                  </p>
                 </div>
               </div>
             </div>
@@ -372,6 +410,9 @@ export default function InscriptionPage() {
                     onChange={(e) => {
                       const newP = e.target.value;
                       setPoste(newP);
+                      if (newP === "RC") {
+                        setNombreRc(0);
+                      }
                       if (["DDS", "CCD_CDLS_TP", "CSSPR", "CSPSMEMH"].includes(newP)) {
                         setSelectedZs("");
                         setSelectedCom("");
@@ -385,7 +426,8 @@ export default function InscriptionPage() {
                     }}
                     className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-slate-800"
                   >
-                    <option value="ASCQ">ASCQ</option>
+                    <option value="ASCQ">Agent de Santé Communautaire Qualifié (ASCQ)</option>
+                    <option value="RC">Relais Communautaire (RC)</option>
                     <option value="PF_CCLS_TP">PF CCLS-TP</option>
                     <option value="MCC">MCC</option>
                     <option value="MCZS">MCZS</option>
@@ -398,6 +440,17 @@ export default function InscriptionPage() {
                     <option value="AUTRE">AUTRE</option>
                   </select>
                 </div>
+
+                {isTerrainRc && (
+                  <div className="sm:col-span-2 p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs text-emerald-950 space-y-1">
+                    <p className="font-extrabold text-emerald-900">
+                      ℹ️ Inscription d'un Relais Communautaire (RC)
+                    </p>
+                    <p className="text-[11px] leading-relaxed text-emerald-800">
+                      Renseignez votre département, zone sanitaire, commune et arrondissement. Dès validation par l'ASCQ de votre arrondissement, votre compte sera affecté à votre village d'intervention et actif pour la connexion.
+                    </p>
+                  </div>
+                )}
 
                 {poste === "AUTRE" && (
                   <div className="sm:col-span-2">

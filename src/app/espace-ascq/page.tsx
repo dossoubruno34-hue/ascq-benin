@@ -51,6 +51,23 @@ export default function MonEspacePage() {
   const [saveMsg, setSaveMsg] = useState<{ text: string; error: boolean } | null>(null);
 
   const [isOfflineMode, setIsOfflineMode] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [derniereSynchro, setDerniereSynchro] = useState<string | null>(null);
+
+  const handleSynchroniserEspace = async () => {
+    setIsSyncing(true);
+    try {
+      await loadEspaceData();
+      const heureStr = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+      setDerniereSynchro(heureStr);
+      setSaveMsg({ text: `Espace synchronisé avec succès à ${heureStr} !`, error: false });
+      setTimeout(() => setSaveMsg(null), 3500);
+    } catch (e: any) {
+      setSaveMsg({ text: "Erreur lors de la synchronisation.", error: true });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   const loadEspaceData = async () => {
     setLoading(true);
@@ -363,6 +380,46 @@ export default function MonEspacePage() {
 
       <main className="max-w-2xl mx-auto px-4 pt-5 space-y-4">
         
+        {/* 0. Point "Synchronisé" officiel pour synchroniser */}
+        <div className="flex items-center justify-between bg-white px-4 py-3 rounded-2xl border border-slate-200/90 shadow-sm">
+          <div className="flex items-center gap-2.5">
+            <span className="relative flex h-3 w-3">
+              {isSyncing ? (
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+              ) : isOfflineMode ? (
+                <span className="inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+              ) : (
+                <span className="inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+              )}
+              <span className={`relative inline-flex rounded-full h-3 w-3 ${isSyncing ? "bg-amber-500" : isOfflineMode ? "bg-amber-500" : "bg-emerald-500"}`}></span>
+            </span>
+            <div className="leading-tight">
+              <span className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                <span>{isSyncing ? "Synchronisation en cours..." : isOfflineMode ? "Mode Hors-Ligne (Données locales)" : "Synchronisé"}</span>
+                {!isSyncing && !isOfflineMode && (
+                  <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 font-bold">
+                    ✓ En ligne
+                  </span>
+                )}
+              </span>
+              <span className="text-[10px] text-slate-400 font-medium block">
+                {derniereSynchro ? `Dernière synchronisation : ${derniereSynchro}` : "Cliquez sur Synchroniser pour actualiser"}
+              </span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleSynchroniserEspace}
+            disabled={isSyncing}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#005c30] text-white font-black text-xs hover:bg-[#004724] active:scale-95 transition-all shadow-xs disabled:opacity-50"
+            title="Cliquer pour synchroniser maintenant"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? "animate-spin" : ""}`} />
+            <span>Synchroniser</span>
+          </button>
+        </div>
+
         {/* Titre et statut */}
         <div className="flex items-center justify-between">
           <div>
@@ -373,14 +430,6 @@ export default function MonEspacePage() {
               Agent de Santé Communautaire Qualifié (ASCQ)
             </p>
           </div>
-
-          <button
-            onClick={loadEspaceData}
-            className="p-2 bg-white rounded-xl border border-slate-200 text-slate-600 hover:text-[#005c30] shadow-sm transition-all"
-            title="Rafraîchir"
-          >
-            <RefreshCw className="w-4 h-4" />
-          </button>
         </div>
 
         {/* Message de succès ou d'erreur de sauvegarde */}
