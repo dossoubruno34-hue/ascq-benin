@@ -27,6 +27,147 @@ export interface VaccinEtape {
   observations: string;
 }
 
+export interface LigneGrilleVaccinale {
+  nom: string;
+  nomComplet: string;
+  categorie: "VACCIN" | "PREVENTION" | "NUTRITION";
+  couleurLigne?: "PALUDISME" | "TPIN" | "VITAMINE_A" | "FIEVRE_JAUNE" | "STANDARD";
+  doses: {
+    naissance?: string;
+    s6?: string;
+    s10?: string;
+    s14?: string;
+    m6?: string;
+    m7?: string;
+    m8?: string;
+    m9?: string;
+    m12?: string;
+    m15?: string;
+    m18?: string;
+    m22?: string;
+    m24?: string;
+  };
+}
+
+export const COLONNES_AGES_CALENDRIER = [
+  { id: "naissance", label: "Naissance", short: "Naiss." },
+  { id: "s6", label: "6 semaines", short: "6 sem" },
+  { id: "s10", label: "10 semaines", short: "10 sem" },
+  { id: "s14", label: "14 semaines", short: "14 sem" },
+  { id: "m6", label: "6 mois", short: "6 m" },
+  { id: "m7", label: "7 mois", short: "7 m" },
+  { id: "m8", label: "8 mois", short: "8 m" },
+  { id: "m9", label: "9 mois", short: "9 m" },
+  { id: "m12", label: "12 mois", short: "12 m" },
+  { id: "m15", label: "15 mois", short: "15 m" },
+  { id: "m18", label: "18 mois", short: "18 m" },
+  { id: "m22", label: "22 mois", short: "22 m" },
+  { id: "m24", label: "24 mois", short: "24 m" },
+];
+
+export const LIGNES_GRILLE_OFFICIELLE_UNICEF: LigneGrilleVaccinale[] = [
+  {
+    nom: "BCG",
+    nomComplet: "Bacille de Calmette et Guérin (Tuberculose formes graves)",
+    categorie: "VACCIN",
+    doses: { naissance: "①" },
+  },
+  {
+    nom: "Dose de Naissance HepB",
+    nomComplet: "Hépatite B monovalente (à administrer dans les 24h de vie)",
+    categorie: "VACCIN",
+    doses: { naissance: "①" },
+  },
+  {
+    nom: "Polio orale (VPO)",
+    nomComplet: "Vaccin Poliomyélitique Oral (Gouttes)",
+    categorie: "VACCIN",
+    doses: { naissance: "⓪", s6: "①", s10: "②", s14: "③" },
+  },
+  {
+    nom: "DTP-HepB-Hib (penta)",
+    nomComplet: "Pentavalent (Diphtérie, Tétanos, Coqueluche, Hépatite B, Hib)",
+    categorie: "VACCIN",
+    doses: { s6: "①", s10: "②", s14: "③" },
+  },
+  {
+    nom: "Pneumocoque conj. (VPC)",
+    nomComplet: "Vaccin Pneumococcique Conjugué (Pneumonie, Méningite)",
+    categorie: "VACCIN",
+    doses: { s6: "①", s10: "②", s14: "③" },
+  },
+  {
+    nom: "Rotavirus",
+    nomComplet: "Vaccin anti-Rotavirus (Diarrhées aiguës sévères)",
+    categorie: "VACCIN",
+    doses: { s6: "①", s10: "②" },
+  },
+  {
+    nom: "Polio inactivé (VPI)",
+    nomComplet: "Vaccin Poliomyélitique Inactivé injectable",
+    categorie: "VACCIN",
+    doses: { s14: "①" },
+  },
+  {
+    nom: "SP-IPTi",
+    nomComplet: "Sulfadoxine-Pyriméthamine (Traitement Préventif Intermittent)",
+    categorie: "PREVENTION",
+    doses: { s10: "①", s14: "②", m9: "③" },
+  },
+  {
+    nom: "Rougeole-Rubéole (RR)",
+    nomComplet: "Vaccin combiné Rougeole et Rubéole",
+    categorie: "VACCIN",
+    doses: { m9: "①", m15: "②" },
+  },
+  {
+    nom: "Fièvre jaune (VAA)",
+    nomComplet: "Vaccin Anti-Amaril (protection conférée à vie)",
+    categorie: "VACCIN",
+    couleurLigne: "FIEVRE_JAUNE",
+    doses: { m9: "①" },
+  },
+  {
+    nom: "Paludisme (VAP)",
+    nomComplet: "Vaccin antipaludique pédiatrique (RTS,S ou R21)",
+    categorie: "VACCIN",
+    couleurLigne: "PALUDISME",
+    doses: { m6: "①", m7: "②", m9: "③", m18: "④" },
+  },
+  {
+    nom: "TPIn+",
+    nomComplet: "Traitement Préventif Intermittent du nourrisson plus",
+    categorie: "PREVENTION",
+    couleurLigne: "TPIN",
+    doses: { s10: "①", s14: "②", m6: "③", m9: "④", m12: "⑤", m15: "⑥", m18: "⑦", m22: "⑧", m24: "⑨" },
+  },
+  {
+    nom: "Vitamine A",
+    nomComplet: "Supplémentation semestrielle en Vitamine A (100 000 / 200 000 UI)",
+    categorie: "NUTRITION",
+    couleurLigne: "VITAMINE_A",
+    doses: { m6: "①", m12: "②", m18: "③", m24: "④" },
+  },
+  {
+    nom: "Surveillance de la croissance",
+    nomComplet: "Suivi mensuel de la courbe de poids et Périmètre Brachial",
+    categorie: "NUTRITION",
+    doses: { m12: "①", m18: "②" },
+  },
+  {
+    nom: "Vermifuges",
+    nomComplet: "Déparasitage semestriel (Albendazole ou Mébendazole)",
+    categorie: "PREVENTION",
+    doses: { m12: "①", m18: "②", m24: "③" },
+  },
+  {
+    nom: "Distribution de MILD",
+    nomComplet: "Moustiquaire Imprégnée d'Insecticide à Longue Durée d'Action",
+    categorie: "PREVENTION",
+    doses: { naissance: "①" },
+  },
+];
+
 // ---------------------------------------------------------------------
 // 1. CALENDRIER VACCINAL EN VIGUEUR AU BÉNIN (PEV / MINISTÈRE DE LA SANTÉ)
 // ---------------------------------------------------------------------

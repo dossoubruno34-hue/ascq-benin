@@ -9,6 +9,8 @@ import AscqNav from "@/components/AscqNav";
 import { 
   GUIDE_MALADIES_SIMR, 
   CALENDRIER_VACCINAL_BENIN, 
+  COLONNES_AGES_CALENDRIER,
+  LIGNES_GRILLE_OFFICIELLE_UNICEF,
   MaladieSimr 
 } from "@/data/guideMaladiesEtVaccins";
 import { 
@@ -44,6 +46,7 @@ export default function BriefingPage() {
   >("vaccins");
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [vueVaccinMode, setVueVaccinMode] = useState<"grille" | "detail">("grille");
 
   // Vérification de sécurité : espace strictement réservé aux utilisateurs connectés à un compte
   useEffect(() => {
@@ -278,25 +281,219 @@ export default function BriefingPage() {
             <div className="bg-white rounded-3xl p-5 sm:p-6 border border-emerald-200 shadow-sm relative overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-50 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none"></div>
               
-              <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
-                  <Syringe className="w-5 h-5" />
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
+                    <Syringe className="w-5 h-5" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] font-black tracking-wider uppercase px-2.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800">
+                      Programme Élargi de Vaccination (PEV Bénin) & UNICEF
+                    </span>
+                    <h2 className="text-lg sm:text-xl font-black text-slate-900">
+                      Calendrier Vaccinal de Routine & Supplémentation Nutritionnelle
+                    </h2>
+                    <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                      {CALENDRIER_VACCINAL_BENIN.introduction}
+                    </p>
+                  </div>
                 </div>
-                <div className="space-y-1.5">
-                  <span className="text-[10px] font-black tracking-wider uppercase px-2.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800">
-                    Programme Élargi de Vaccination (PEV Bénin)
-                  </span>
-                  <h2 className="text-lg sm:text-xl font-black text-slate-900">
-                    Calendrier Vaccinal de Routine en Vigueur au Bénin
-                  </h2>
-                  <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-                    {CALENDRIER_VACCINAL_BENIN.introduction}
-                  </p>
-                </div>
+
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold text-xs hover:bg-emerald-100 transition-colors shrink-0 print:hidden shadow-xs"
+                >
+                  <Printer className="w-4 h-4 text-emerald-600" />
+                  <span>Imprimer le Calendrier</span>
+                </button>
+              </div>
+
+              {/* Sélecteur de vue : Grille officielle UNICEF vs Vue chronologique */}
+              <div className="mt-5 pt-4 border-t border-slate-100 flex items-center gap-2 print:hidden">
+                <button
+                  type="button"
+                  onClick={() => setVueVaccinMode("grille")}
+                  className={`flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${
+                    vueVaccinMode === "grille"
+                      ? "bg-[#005c30] text-white shadow-sm ring-2 ring-[#005c30]/20"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span>Grille Synthétique Officielle (UNICEF / PEV)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setVueVaccinMode("detail")}
+                  className={`flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${
+                    vueVaccinMode === "detail"
+                      ? "bg-[#005c30] text-white shadow-sm ring-2 ring-[#005c30]/20"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  <Clock className="w-4 h-4" />
+                  <span>Vue Détaillée Chronologique (Étapes)</span>
+                </button>
               </div>
             </div>
 
-            {/* Tableau chronologique du nourrisson et jeune enfant */}
+            {/* ========================================================= */}
+            {/* VUE 1 : GRILLE SYNTHÉTIQUE OFFICIELLE UNICEF / PEV BÉNIN  */}
+            {/* ========================================================= */}
+            {vueVaccinMode === "grille" && (
+              <div className="bg-white rounded-3xl border border-slate-200/90 shadow-sm overflow-hidden space-y-4">
+                <div className="p-4 sm:p-5 bg-gradient-to-r from-emerald-50 via-teal-50 to-white border-b border-emerald-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-lg bg-emerald-600 text-white">
+                      <Baby className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h3 className="font-black text-sm sm:text-base text-emerald-950">
+                        Grille Intégrée PEV / Nutrition / Santé de l'Enfant (0 à 24 mois)
+                      </h3>
+                      <p className="text-[11px] text-emerald-800">
+                        13 tranches d'âge • 16 lignes de vaccins et interventions prioritaires
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-extrabold text-emerald-900 bg-emerald-100/90 border border-emerald-200 px-3 py-1 rounded-full uppercase tracking-wider self-start sm:self-auto">
+                    Norme Nationale Bénin
+                  </span>
+                </div>
+
+                {/* Tableau à défilement horizontal */}
+                <div className="overflow-x-auto px-2 sm:px-4 pb-2">
+                  <table className="w-full min-w-[980px] border-collapse text-xs border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+                    <thead>
+                      <tr className="bg-slate-800 text-white text-[11px] font-bold">
+                        <th className="p-2.5 text-left sticky left-0 z-20 bg-slate-900 min-w-[210px] border-r border-slate-700 shadow-sm">
+                          Vaccins & Interventions
+                        </th>
+                        {COLONNES_AGES_CALENDRIER.map((col) => (
+                          <th
+                            key={col.id}
+                            className="p-2 text-center border-l border-slate-700 min-w-[58px]"
+                            title={col.label}
+                          >
+                            <span className="block text-slate-100 font-extrabold text-[11px]">
+                              {col.short}
+                            </span>
+                            <span className="block text-[9px] text-slate-400 font-medium whitespace-nowrap">
+                              {col.id.startsWith("s") ? "Semaine" : col.id.startsWith("m") ? "Mois" : "Vie"}
+                            </span>
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 text-slate-800">
+                      {LIGNES_GRILLE_OFFICIELLE_UNICEF.map((ligne, lIdx) => {
+                        // Couleurs de fond de ligne
+                        const bgLigne = 
+                          ligne.couleurLigne === "PALUDISME" ? "bg-amber-100/80 hover:bg-amber-100 text-amber-950 font-medium" :
+                          ligne.couleurLigne === "TPIN" ? "bg-emerald-100/90 hover:bg-emerald-100 text-emerald-950 font-medium" :
+                          ligne.couleurLigne === "VITAMINE_A" ? "bg-cyan-100/80 hover:bg-cyan-100 text-cyan-950 font-medium" :
+                          ligne.couleurLigne === "FIEVRE_JAUNE" ? "bg-yellow-100/80 hover:bg-yellow-100 text-yellow-950 font-medium" :
+                          lIdx % 2 === 0 ? "bg-white hover:bg-slate-50" : "bg-slate-50/60 hover:bg-slate-100/70";
+
+                        const pillColor = 
+                          ligne.couleurLigne === "PALUDISME" ? "bg-amber-500 text-white ring-2 ring-amber-300" :
+                          ligne.couleurLigne === "TPIN" ? "bg-emerald-700 text-white ring-2 ring-emerald-300" :
+                          ligne.couleurLigne === "VITAMINE_A" ? "bg-cyan-600 text-white ring-2 ring-cyan-200" :
+                          ligne.couleurLigne === "FIEVRE_JAUNE" ? "bg-yellow-500 text-slate-950 ring-2 ring-yellow-200 font-black" :
+                          "bg-blue-600 text-white ring-2 ring-blue-200";
+
+                        return (
+                          <tr key={lIdx} className={`${bgLigne} transition-colors border-b border-slate-200`}>
+                            {/* Nom du vaccin / intervention (sticky à gauche) */}
+                            <td className="p-2 sm:p-2.5 sticky left-0 z-10 bg-inherit border-r border-slate-200 shadow-xs">
+                              <div className="leading-tight">
+                                <span className="font-black text-xs block">
+                                  {ligne.nom}
+                                </span>
+                                <span className="text-[10px] text-slate-500 block truncate max-w-[200px]" title={ligne.nomComplet}>
+                                  {ligne.nomComplet}
+                                </span>
+                              </div>
+                            </td>
+
+                            {/* Doses par colonne d'âge */}
+                            {COLONNES_AGES_CALENDRIER.map((col) => {
+                              const dose = (ligne.doses as any)[col.id];
+                              return (
+                                <td
+                                  key={col.id}
+                                  className="p-1.5 text-center border-l border-slate-200 align-middle"
+                                >
+                                  {dose ? (
+                                    <span
+                                      className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-black shadow-xs ${pillColor}`}
+                                      title={`${ligne.nom} - ${col.label} (${dose})`}
+                                    >
+                                      {dose}
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-300 text-xs font-light">·</span>
+                                  )}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Légende officielle UNICEF & Ministère */}
+                <div className="p-4 sm:p-5 bg-slate-50 border-t border-slate-200 space-y-3 text-xs text-slate-700">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-black text-slate-900 uppercase text-[10px] tracking-wider">
+                        Légende officielle :
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-100 text-amber-900 font-bold border border-amber-300">
+                        <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                        VAP (Paludisme 4 doses)
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-950 font-bold border border-emerald-300">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-700"></span>
+                        TPIn+ (SP 9 passages)
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyan-100 text-cyan-950 font-bold border border-cyan-300">
+                        <span className="w-2.5 h-2.5 rounded-full bg-cyan-600"></span>
+                        Vitamine A (4 doses)
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-yellow-100 text-yellow-950 font-bold border border-yellow-300">
+                        <span className="w-2.5 h-2.5 rounded-full bg-yellow-500"></span>
+                        VAA (Fièvre jaune)
+                      </span>
+                    </div>
+
+                    {/* Logo UNICEF / Ministère */}
+                    <div className="flex items-center gap-2 text-right">
+                      <div className="leading-tight">
+                        <span className="text-[11px] font-black text-[#005c30] block">
+                          Direction de la Vaccination (PEV)
+                        </span>
+                        <span className="text-[10px] font-bold text-sky-700 block tracking-tight">
+                          unicef | for every child
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <p className="text-[11px] text-slate-500 italic leading-relaxed">
+                    Les pastilles chiffrées (① à ⑨) indiquent l'ordre chronologique des doses prescrites. Tout enfant zéro-dose ou en retard vaccinal doit être activement ratissé par le Relais Communautaire et orienté sans délai vers le centre de santé le plus proche.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* ========================================================= */}
+            {/* VUE 2 : TABLEAU DÉTAILLÉ DU NOURRISSON (0 à 18 mois)      */}
+            {/* ========================================================= */}
+            {vueVaccinMode === "detail" && (
             <div className="bg-white rounded-3xl border border-slate-200/90 shadow-sm overflow-hidden">
               <div className="p-4 sm:p-5 bg-gradient-to-r from-emerald-50 via-teal-50 to-white border-b border-emerald-100 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
@@ -362,6 +559,7 @@ export default function BriefingPage() {
                 ))}
               </div>
             </div>
+            )}
 
             {/* Autres cibles prioritaires du PEV Bénin (Jeunes filles HPV & Femmes enceintes Td) */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

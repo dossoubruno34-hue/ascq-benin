@@ -24,7 +24,9 @@ import {
   ExternalLink,
   Camera,
   Trash2,
-  WifiOff
+  WifiOff,
+  Baby,
+  Stethoscope
 } from "lucide-react";
 import { getCachedMonEspace, saveCachedMonEspace, saveCachedUserSession, getCachedUserSession } from "@/lib/offline-sync";
 
