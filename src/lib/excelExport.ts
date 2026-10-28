@@ -451,3 +451,310 @@ export function exporterCompilationCommunaleExcel(
   const nomFichier = `Compilation_Communale_PNSC_${communeNom}_Semaine${semaine}_${annee}.xls`;
   telechargerFichierExcel(html, nomFichier);
 }
+
+// =====================================================================
+// EXPORT DU REGISTRE COMPLET DES FICHES DE SURVEILLANCE ÉPIDÉMIOLOGIQUE
+// =====================================================================
+export function exporterRegistreSurveillanceExcel(fiches: any[], filtreType: string = "TOUT") {
+  if (!fiches || fiches.length === 0) {
+    alert("Aucune fiche de surveillance à exporter.");
+    return;
+  }
+
+  const dateExport = new Date().toLocaleDateString("fr-FR");
+  const heureExport = new Date().toLocaleTimeString("fr-FR");
+
+  const html = `
+  <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <style>
+      body { font-family: 'Segoe UI', Calibri, Arial, sans-serif; font-size: 10pt; color: #222; }
+      .header-title { font-size: 14pt; font-weight: bold; color: #005c30; text-align: center; }
+      .header-sub { font-size: 10pt; font-weight: bold; color: #555; text-align: center; }
+      .tricolor { height: 4px; background: #008751; }
+      table { border-collapse: collapse; width: 100%; margin-top: 15px; }
+      th { background-color: #005c30; color: #ffffff; font-weight: bold; padding: 8px 6px; border: 1px solid #004724; font-size: 9pt; text-align: center; }
+      td { border: 1px solid #cccccc; padding: 6px; font-size: 9pt; vertical-align: middle; }
+      tr:nth-child(even) { background-color: #f9fbf9; }
+      .center { text-align: center; }
+      .badge-alr { background-color: #e8f5e9; color: #2e7d32; font-weight: bold; text-align: center; }
+      .badge-dec { background-color: #f3e5f5; color: #7b1fa2; font-weight: bold; text-align: center; }
+      .badge-reg { background-color: #e3f2fd; color: #1565c0; font-weight: bold; text-align: center; }
+      .badge-inv { background-color: #fff8e1; color: #f57f17; font-weight: bold; text-align: center; }
+      .badge-rap { background-color: #ede7f6; color: #4527a0; font-weight: bold; text-align: center; }
+      .prioritaire { color: #c62828; font-weight: bold; }
+    </style>
+  </head>
+  <body>
+    <div class="header-title">RÉPUBLIQUE DU BÉNIN — MINISTÈRE DE LA SANTÉ</div>
+    <div class="header-sub">DIRECTION NATIONALE DE LA SANTÉ PUBLIQUE — SURVEILLANCE ÉPIDÉMIOLOGIQUE SIMR</div>
+    <div class="header-sub">REGISTRE GÉNÉRAL DES FICHES DE SURVEILLANCE COMMUNAUTAIRE</div>
+    <div style="text-align: center; font-size: 9pt; color: #666; margin-top: 5px;">
+      Exporté le ${dateExport} à ${heureExport} • Filtre appliqué : <strong>${filtreType}</strong> • Total : <strong>${fiches.length} fiche(s)</strong>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>N° Fiche</th>
+          <th>Type</th>
+          <th>Titre / Pathologie / Événement</th>
+          <th>Semaine</th>
+          <th>Année</th>
+          <th>Date</th>
+          <th>Village / Quartier</th>
+          <th>Commune / Zone</th>
+          <th>Notificateur / Enquêteur</th>
+          <th>Impact (Cas / Décès)</th>
+          <th>Priorité</th>
+          <th>Statut</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${fiches.map((f) => {
+          const typeClass = f.type === "ALR" ? "badge-alr" :
+                            f.type === "DEC" ? "badge-dec" :
+                            f.type === "REG" ? "badge-reg" :
+                            f.type === "INV" ? "badge-inv" : "badge-rap";
+          const typeLibelle = f.type === "ALR" ? "Alerte SIMR" :
+                              f.type === "DEC" ? "Décès Communautaire" :
+                              f.type === "REG" ? "Registre Rumeurs" :
+                              f.type === "INV" ? "Investigation" : "Rapport Hebdo";
+          return `
+          <tr>
+            <td class="center" style="font-family: monospace; font-weight: bold;">${f.numero || "-"}</td>
+            <td class="${typeClass}">${typeLibelle}</td>
+            <td><strong>${f.titre || "-"}</strong></td>
+            <td class="center">${f.semaine ? "Semaine " + f.semaine : "-"}</td>
+            <td class="center">${f.annee || "-"}</td>
+            <td class="center">${f.date || "-"}</td>
+            <td>${f.village || "-"}</td>
+            <td>${f.commune || "-"}</td>
+            <td>${f.notificateur || "-"}</td>
+            <td>${f.impact || "-"}</td>
+            <td class="center ${f.estPrioritaire ? "prioritaire" : ""}">
+              ${f.estPrioritaire ? "OUI (Prioritaire)" : "Normale"}
+            </td>
+            <td class="center" style="font-weight: bold;">${f.resultat || f.statut || "-"}</td>
+          </tr>
+          `;
+        }).join("")}
+      </tbody>
+    </table>
+
+    <div style="margin-top: 25px; font-size: 8pt; color: #777; text-align: center;">
+      Document extrait de l'application officielle ASCQ Bénin — Système d'Information Sanitaire Communautaire (PNSC)
+    </div>
+  </body>
+  </html>
+  `;
+
+  const nomFichier = `Registre_Surveillance_SIMR_Benin_${filtreType}_${new Date().toISOString().slice(0, 10)}.xls`;
+  telechargerFichierExcel(html, nomFichier);
+}
+
+// =====================================================================
+// EXPORT D'UNE FICHE INDIVIDUELLE DE SURVEILLANCE EN FICHIER EXCEL (.XLS)
+// =====================================================================
+export function exporterFicheSurveillanceIndividuelleExcel(fiche: any) {
+  if (!fiche) return;
+
+  const dateExport = new Date().toLocaleDateString("fr-FR");
+  const heureExport = new Date().toLocaleTimeString("fr-FR");
+
+  // Normalisation des champs quelle que soit la source (vue unifiée ou objet RPC complet)
+  const numero = fiche.numero || fiche.numero_alerte || fiche.numero_deces || fiche.numero_registre || fiche.numero_investigation || fiche.numero_rapport || "SIMR-000";
+  const typeCode = fiche.type || (fiche.numero_alerte ? "ALR" : fiche.numero_deces ? "DEC" : fiche.numero_registre ? "REG" : fiche.numero_investigation ? "INV" : fiche.numero_rapport ? "RAP" : "SIMR");
+  const typeLibelle = typeCode === "ALR" ? "Alerte Épidémiologique SIMR" :
+                      typeCode === "DEC" ? "Notification de Décès Communautaire" :
+                      typeCode === "REG" ? "Registre des Alertes & Rumeurs" :
+                      typeCode === "INV" ? "Investigation d'Événement Sanitaire" :
+                      typeCode === "RAP" ? "Rapport Hebdomadaire de Surveillance" : "Fiche de Surveillance Sanitaire";
+  
+  const titre = fiche.titre || fiche.type_alerte_nom || fiche.type_deces_nom || fiche.type_nom || "Événement Sanitaire";
+  const semaine = fiche.semaine || fiche.semaine_epidemio || fiche.rawData?.semaine_epidemio || "N/A";
+  const annee = fiche.annee || fiche.rawData?.annee || new Date().getFullYear();
+  const dateEvent = fiche.date || fiche.date_notification || fiche.date_deces || fiche.date_survenue || fiche.date_investigation || fiche.date_debut_semaine || dateExport;
+  
+  const departement = fiche.departement || fiche.departement_nom || fiche.rawData?.departement_nom || "Non précisé";
+  const commune = fiche.commune || fiche.commune_nom || fiche.rawData?.commune_nom || "Non précisée";
+  const arrondissement = fiche.arrondissement || fiche.arrondissement_nom || fiche.rawData?.arrondissement_nom || "Non précisé";
+  const village = fiche.village || fiche.village_nom || fiche.rawData?.village_nom || "Non précisé";
+  
+  const estPrioritaire = Boolean(fiche.estPrioritaire || fiche.est_prioritaire);
+  const impact = fiche.impact || (fiche.nb_personnes_touchees !== undefined ? `${fiche.nb_personnes_touchees} touché(s) • ${fiche.nb_personnes_mortes ?? fiche.nb_personnes_decedees ?? 0} décès` : "Non spécifié");
+  const statut = fiche.resultat || fiche.resultat_verification || fiche.statut || "ENREGISTRÉE";
+  
+  const notificateur = fiche.notificateur || (fiche.notificateur_nom_complet ? `${fiche.notificateur_titre || 'ASCQ'} : ${fiche.notificateur_nom_complet}` : (fiche.relais_nom_complet || fiche.rapporteur_nom || "Agent PNSC"));
+  const notificateurTel = fiche.notificateur_telephone || fiche.relais_telephone || fiche.rawData?.notificateur_telephone || "-";
+  
+  const casNom = fiche.cas_prive ? `${fiche.cas_prive.nom} ${fiche.cas_prive.prenoms}` : (fiche.nomCas ? `${fiche.nomCas} ${fiche.prenomsCas || ''}` : "Confidentiel / Non applicable");
+  const casSexeAge = (fiche.sexe ? (fiche.sexe === 'M' ? 'Masculin' : 'Féminin') : '') + (fiche.age_valeur ? ` • ${fiche.age_valeur} ${fiche.age_unite || 'ans'}` : '');
+  
+  const symptomes = fiche.symptomes_noms && fiche.symptomes_noms.length > 0 
+    ? fiche.symptomes_noms.join(", ") 
+    : (fiche.rawData?.symptomes_noms?.join(", ") || "-");
+    
+  const mesures = fiche.mesures_prises || fiche.rawData?.mesures_prises || fiche.rawData?.actions_recommandees || fiche.rawData?.actions_menees || "-";
+  const commentaireVerif = fiche.commentaire_verification || fiche.rawData?.commentaire_verification || null;
+
+  const html = `
+  <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <style>
+      body { font-family: 'Segoe UI', Calibri, Arial, sans-serif; font-size: 10pt; color: #222; }
+      .header-title { font-size: 13pt; font-weight: bold; color: #005c30; text-align: center; }
+      .header-sub { font-size: 9pt; font-weight: bold; color: #555; text-align: center; }
+      table { border-collapse: collapse; width: 100%; margin-top: 15px; }
+      th { background-color: #005c30; color: #ffffff; font-weight: bold; padding: 6px; border: 1px solid #004724; font-size: 9pt; text-align: left; }
+      td { border: 1px solid #cccccc; padding: 6px 8px; font-size: 9pt; }
+      .label-cell { background-color: #f4f7f5; font-weight: bold; width: 30%; color: #333; }
+      .val-cell { width: 70%; }
+      .box-alert { border: 2px solid #005c30; padding: 10px; margin-top: 10px; }
+      .prio-high { color: #c62828; font-weight: bold; background-color: #ffebee; }
+      .prio-normal { color: #2e7d32; font-weight: bold; }
+    </style>
+  </head>
+  <body>
+    <div class="header-title">RÉPUBLIQUE DU BÉNIN — MINISTÈRE DE LA SANTÉ</div>
+    <div class="header-sub">DIRECTION NATIONALE DE LA SANTÉ PUBLIQUE (DNSP) — PROGRAMME NATIONAL DE SANTÉ COMMUNAUTAIRE</div>
+    <div class="header-sub">SURVEILLANCE INTÉGRÉE DES MALADIES ET DE LA RIPOSTE (SIMR BÉNIN)</div>
+    <div class="header-sub" style="color: #005c30; font-size: 10pt; margin-top: 4px;">
+      FICHE OFFICIELLE : ${typeLibelle.toUpperCase()} — N° ${numero}
+    </div>
+    
+    <div style="font-size: 8pt; text-align: right; color: #666; margin-top: 6px;">
+      Document officiel généré le ${dateExport} à ${heureExport}
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th colspan="2">1. IDENTIFICATION DE L'ÉVÉNEMENT & LOCALISATION ADMINISTRATIVE</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="label-cell">Numéro d'enregistrement officiel :</td>
+          <td class="val-cell" style="font-family: monospace; font-weight: bold; font-size: 11pt; color: #005c30;">${numero}</td>
+        </tr>
+        <tr>
+          <td class="label-cell">Nature du document :</td>
+          <td class="val-cell"><strong>${typeLibelle}</strong></td>
+        </tr>
+        <tr>
+          <td class="label-cell">Titre / Pathologie / Cause :</td>
+          <td class="val-cell" style="font-weight: bold; color: #005c30; font-size: 10pt;">${titre}</td>
+        </tr>
+        <tr>
+          <td class="label-cell">Période épidémiologique :</td>
+          <td class="val-cell">Semaine <strong>${semaine}</strong> • Année <strong>${annee}</strong></td>
+        </tr>
+        <tr>
+          <td class="label-cell">Date de l'événement / notification :</td>
+          <td class="val-cell">${dateEvent}</td>
+        </tr>
+        <tr>
+          <td class="label-cell">Département & Commune :</td>
+          <td class="val-cell">${departement} • ${commune}</td>
+        </tr>
+        <tr>
+          <td class="label-cell">Arrondissement & Village / Quartier :</td>
+          <td class="val-cell">${arrondissement} • <strong>${village}</strong></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <table>
+      <thead>
+        <tr>
+          <th colspan="2">2. SITUATION SANITAIRE, IMPACT & DONNÉES CLINIQUES</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="label-cell">Niveau de Priorité Épidémiologique :</td>
+          <td class="val-cell ${estPrioritaire ? 'prio-high' : 'prio-normal'}">
+            ${estPrioritaire ? "⚠️ ALERTE PRIORITAIRE À POTENTIEL ÉPIDÉMIQUE — RIPOSTE IMMÉDIATE" : "Surveillance épidémiologique de routine"}
+          </td>
+        </tr>
+        <tr>
+          <td class="label-cell">Bilan d'impact sanitaire :</td>
+          <td class="val-cell" style="font-weight: bold; font-size: 10pt;">${impact}</td>
+        </tr>
+        ${casNom !== "Confidentiel / Non applicable" ? `
+        <tr>
+          <td class="label-cell">Identité du cas (si applicable) :</td>
+          <td class="val-cell"><strong>${casNom}</strong> (${casSexeAge || "Non précisé"})</td>
+        </tr>
+        ` : ""}
+        ${symptomes !== "-" ? `
+        <tr>
+          <td class="label-cell">Signes & symptômes constatés :</td>
+          <td class="val-cell">${symptomes}</td>
+        </tr>
+        ` : ""}
+        <tr>
+          <td class="label-cell">Mesures immédiates prises :</td>
+          <td class="val-cell">${mesures}</td>
+        </tr>
+        <tr>
+          <td class="label-cell">Statut & Résultat de vérification :</td>
+          <td class="val-cell" style="font-weight: bold; color: #005c30;">${statut}</td>
+        </tr>
+        ${commentaireVerif ? `
+        <tr>
+          <td class="label-cell">Commentaire du superviseur :</td>
+          <td class="val-cell" style="font-style: italic;">« ${commentaireVerif} »</td>
+        </tr>
+        ` : ""}
+      </tbody>
+    </table>
+
+    <table>
+      <thead>
+        <tr>
+          <th colspan="2">3. DÉCLARATION, TRAÇABILITÉ & ENGAGEMENT OFFICIEL</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="label-cell">Agent Notificateur / Déclarant :</td>
+          <td class="val-cell"><strong>${notificateur}</strong></td>
+        </tr>
+        <tr>
+          <td class="label-cell">Contact téléphonique de l'agent :</td>
+          <td class="val-cell">${notificateurTel}</td>
+        </tr>
+        <tr>
+          <td class="label-cell">Cadre de Conformité PNSC :</td>
+          <td class="val-cell" style="font-style: italic;">
+            Fiche enregistrée conformément aux directives de la Politique Nationale de Santé Communautaire (PNSC) et du guide SIMR du Ministère de la Santé de la République du Bénin.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <table style="width: 100%; margin-top: 35px; border: none;">
+      <tr>
+        <td style="width: 50%; border: none; text-align: left; vertical-align: top;">
+          <strong>L'ASCQ Déclarant / Superviseur :</strong><br />
+          <span style="font-size: 8pt; color: #555;">Signature et date :</span><br /><br /><br />
+          ___________________________________________
+        </td>
+        <td style="width: 50%; border: none; text-align: right; vertical-align: top;">
+          <strong>Le Médecin Coordonnateur de Zone (MCZS) :</strong><br />
+          <span style="font-size: 8pt; color: #555;">Cachet officiel de la Zone Sanitaire :</span><br /><br /><br />
+          ___________________________________________
+        </td>
+      </tr>
+    </table>
+  </body>
+  </html>
+  `;
+
+  const nomFichier = `Fiche_Surveillance_${numero}_${typeCode}.xls`;
+  telechargerFichierExcel(html, nomFichier);
+}

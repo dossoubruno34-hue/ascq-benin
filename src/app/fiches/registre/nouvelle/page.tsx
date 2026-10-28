@@ -15,9 +15,12 @@ import {
   CheckCircle2,
   Activity,
   Skull,
-  User
+  User,
+  Printer,
+  Download
 } from "lucide-react";
 import { REGISTRE_TYPES_OFFICIELS } from "@/lib/fiches";
+import { exporterFicheSurveillanceIndividuelleExcel } from "@/lib/excelExport";
 
 export default function NouveauRegistrePage() {
   const router = useRouter();
@@ -144,6 +147,21 @@ export default function NouveauRegistrePage() {
   };
 
   if (successResult) {
+    const typeObj = REGISTRE_TYPES_OFFICIELS.find((t) => t.code === typeCode);
+    const ficheRegExport = {
+      numero: successResult.numero_registre,
+      type: "REG",
+      titre: `Signalement Registre : ${typeObj?.nom || "Alerte/Rumeur"}`,
+      semaine: null,
+      annee: new Date().getFullYear(),
+      date: dateSurvenue,
+      village: villageNom,
+      impact: `${nbPersonnesTouchees} touché(s) • ${nbPersonnesDecedees} décès`,
+      notificateur: userProfile?.nom_complet || "Relais Communautaire",
+      notificateurTel: userProfile?.telephone || "-",
+      statut: "ENREGISTRÉE"
+    };
+
     return (
       <div className="min-h-screen bg-[#f4f7f5] text-slate-800 p-4 flex items-center justify-center">
         <div className="max-w-md w-full bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xl text-center space-y-4">
@@ -161,6 +179,27 @@ export default function NouveauRegistrePage() {
             <p className="text-xs text-slate-500">
               Le signalement est consigné et disponible pour consultation et validation par l'ASCQ superviseur.
             </p>
+          </div>
+
+          {/* BOUTONS D'IMPRESSION & TÉLÉCHARGEMENT DIRECTS */}
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="py-2.5 px-3 rounded-2xl bg-blue-50 hover:bg-blue-100 text-blue-800 font-bold text-xs border border-blue-200 flex items-center justify-center gap-1.5 transition-colors"
+            >
+              <Printer className="w-4 h-4" />
+              <span>Imprimer (A4)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => exporterFicheSurveillanceIndividuelleExcel(ficheRegExport)}
+              className="py-2.5 px-3 rounded-2xl bg-[#005c30] hover:bg-[#004724] text-white font-bold text-xs shadow-sm flex items-center justify-center gap-1.5 transition-all"
+            >
+              <Download className="w-4 h-4" />
+              <span>Télécharger Excel</span>
+            </button>
           </div>
 
           <div className="pt-2 flex flex-col gap-2">

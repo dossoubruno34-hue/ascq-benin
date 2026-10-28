@@ -20,9 +20,12 @@ import {
   RefreshCw,
   AlertCircle,
   Phone,
-  Check
+  Check,
+  Printer,
+  Download
 } from "lucide-react";
 import { corrigerAccents, getNomTypeAlerte } from "@/lib/fiches";
+import { exporterFicheSurveillanceIndividuelleExcel } from "@/lib/excelExport";
 
 export default function DetailAlertePage() {
   const params = useParams();
@@ -136,10 +139,10 @@ export default function DetailAlertePage() {
   const isPrioritaire = alerte.est_prioritaire;
 
   return (
-    <div className="min-h-screen bg-[#f4f7f5] text-slate-800 antialiased pb-24">
+    <div className="min-h-screen bg-[#f4f7f5] text-slate-800 antialiased pb-24 print:bg-white print:p-0 print:pb-0">
       
-      {/* 1. En-tête officiel */}
-      <header className="bg-[#005c30] text-white sticky top-0 z-30 shadow-md">
+      {/* 1. En-tête officiel - masqué à l'impression */}
+      <header className="bg-[#005c30] text-white sticky top-0 z-30 shadow-md print:hidden">
         <div className="max-w-xl mx-auto px-4 h-16 flex items-center justify-between">
           <Link
             href="/fiches"
@@ -163,7 +166,52 @@ export default function DetailAlertePage() {
         </div>
       </header>
 
-      <main className="max-w-xl mx-auto px-4 pt-5 space-y-4">
+      <main className="max-w-xl mx-auto px-4 pt-5 space-y-4 print:max-w-none print:px-0 print:pt-0">
+        
+        {/* EN-TÊTE OFFICIEL RÉPUBLIQUE DU BÉNIN POUR L'IMPRESSION A4 */}
+        <div className="hidden print:block text-center border-b-2 border-black pb-4 mb-4">
+          <div className="flex items-center justify-center gap-2 mb-1">
+            <span className="w-8 h-1 bg-[#008751]"></span>
+            <span className="w-8 h-1 bg-[#FCD116]"></span>
+            <span className="w-8 h-1 bg-[#E8112D]"></span>
+          </div>
+          <h1 className="text-base font-black uppercase text-black">RÉPUBLIQUE DU BÉNIN</h1>
+          <h2 className="text-xs font-bold uppercase text-slate-800">Ministère de la Santé — Direction Nationale de la Santé Publique</h2>
+          <h3 className="text-xs font-extrabold text-[#005c30]">Système Intégré de Surveillance des Maladies et de la Riposte (SIMR Bénin)</h3>
+          <p className="text-[11px] font-mono font-bold mt-1 text-slate-700">
+            FICHE OFFICIELLE D'ALERTE ÉPIDÉMIOLOGIQUE — N° {alerte.numero_alerte}
+          </p>
+        </div>
+
+        {/* BARRE D'ACTION ÉCRAN : IMPRESSION & TÉLÉCHARGEMENT EXCEL */}
+        <div className="bg-white rounded-2xl p-3 border border-slate-200/80 shadow-sm flex items-center justify-between gap-2 print:hidden">
+          <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+            <FileText className="w-4 h-4 text-[#005c30]" />
+            <span>Fiche SIMR</span>
+          </span>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-[#005c30] font-bold text-xs border border-emerald-200 shadow-sm transition-all"
+              title="Imprimer cette fiche au format officiel A4"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>Imprimer (A4)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => exporterFicheSurveillanceIndividuelleExcel(alerte)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#005c30] hover:bg-[#004724] text-white font-bold text-xs shadow-sm active:scale-95 transition-all"
+              title="Télécharger cette fiche en format Excel"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Télécharger (Excel)</span>
+            </button>
+          </div>
+        </div>
         
         {/* En-tête de la fiche d'alerte */}
         <div className={`p-5 rounded-3xl border shadow-sm space-y-3 ${
@@ -483,7 +531,7 @@ export default function DetailAlertePage() {
               )}
             </div>
           ) : (
-            <form onSubmit={handleVerifier} className="space-y-3">
+            <form onSubmit={handleVerifier} className="space-y-3 print:hidden">
               <p className="text-xs text-slate-500">
                 En tant qu'ASCQ superviseur, confirmez si cette alerte est avérée après vos vérifications d'usage.
               </p>
@@ -552,6 +600,21 @@ export default function DetailAlertePage() {
               </button>
             </form>
           )}
+        </div>
+
+        {/* CADRE OFFICIEL DE SIGNATURES RÉPUBLIQUE DU BÉNIN POUR L'IMPRESSION A4 */}
+        <div className="hidden print:grid grid-cols-2 gap-8 pt-6 mt-6 border-t-2 border-black text-xs">
+          <div>
+            <p className="font-bold text-slate-900">L'ASCQ Déclarant / Superviseur :</p>
+            <p className="text-slate-600 mt-1">{alerte.notificateur_titre} : {alerte.notificateur_nom_complet}</p>
+            <div className="mt-8 border-b border-black w-48"></div>
+            <p className="text-[10px] text-slate-400 mt-1">Signature et date</p>
+          </div>
+          <div className="text-right">
+            <p className="font-bold text-slate-900">Visa du Médecin Coordonnateur (MCZS / DNSP) :</p>
+            <div className="mt-10 border-b border-black w-48 ml-auto"></div>
+            <p className="text-[10px] text-slate-400 mt-1">Cachet officiel</p>
+          </div>
         </div>
 
       </main>

@@ -22,9 +22,12 @@ import {
   Flame, 
   Info,
   CheckCircle2,
-  Lock
+  Lock,
+  Printer,
+  Download
 } from "lucide-react";
 import SignatureCanvas from "@/components/SignatureCanvas";
+import { exporterFicheSurveillanceIndividuelleExcel } from "@/lib/excelExport";
 import { 
   TYPES_ALERTES_OFFICIELS, 
   SYMPTOMES_OFFICIELS, 
@@ -384,6 +387,43 @@ export default function NouvelleAlertePage() {
                 <span>Alerte à potentiel épidémique prioritaire transmise d'urgence.</span>
               </div>
             )}
+          </div>
+
+          {/* BOUTONS D'IMPRESSION & TÉLÉCHARGEMENT DIRECTS */}
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="py-2.5 px-3 rounded-2xl bg-emerald-50 hover:bg-emerald-100 text-[#005c30] font-bold text-xs border border-emerald-200 flex items-center justify-center gap-1.5 transition-colors"
+            >
+              <Printer className="w-4 h-4" />
+              <span>Imprimer (A4)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                const ficheAlrExport = {
+                  numero: successResult.numero_alerte,
+                  type: "ALR",
+                  titre: `Alerte Épidémiologique SIMR`,
+                  semaine: successResult.semaine_epidemio,
+                  annee: successResult.annee,
+                  date: new Date().toISOString().split("T")[0],
+                  village: villageNom,
+                  impact: `${nbPersonnesTouchees} touché(s) • ${nbPersonnesMortes} décès`,
+                  estPrioritaire: successResult.est_prioritaire,
+                  notificateur: userProfile?.nom_complet || "ASCQ Déclarant",
+                  notificateurTel: userProfile?.telephone || "-",
+                  statut: "EN_ATTENTE"
+                };
+                exporterFicheSurveillanceIndividuelleExcel(ficheAlrExport);
+              }}
+              className="py-2.5 px-3 rounded-2xl bg-[#005c30] hover:bg-[#004724] text-white font-bold text-xs shadow-sm flex items-center justify-center gap-1.5 transition-all"
+            >
+              <Download className="w-4 h-4" />
+              <span>Télécharger Excel</span>
+            </button>
           </div>
 
           <div className="pt-2 flex flex-col gap-2">

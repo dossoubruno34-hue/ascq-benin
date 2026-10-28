@@ -20,3 +20,25 @@ body {
   margin: 0;
   padding: 0;
 }
+
+@media print {
+  @page {
+    margin: 10mm;
+    size: A4 portrait;
+  }
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+  /* Empêche les coupures malheureuses dans les tableaux et fiches */
+  table, tr, td, th, .print-avoid-break {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+}

@@ -15,10 +15,13 @@ import {
   Activity,
   Users,
   CheckCircle2,
-  XCircle
+  XCircle,
+  Printer,
+  Download
 } from "lucide-react";
 import SignatureCanvas from "@/components/SignatureCanvas";
 import { TYPES_ALERTES_OFFICIELS, getEpidemiologicalWeek } from "@/lib/fiches";
+import { exporterFicheSurveillanceIndividuelleExcel } from "@/lib/excelExport";
 
 export const dynamic = "force-dynamic";
 
@@ -202,6 +205,21 @@ function NouvelleInvestigationContent() {
   };
 
   if (successResult) {
+    const typeObj = TYPES_ALERTES_OFFICIELS.find((t) => t.code === typeAlerteCode);
+    const ficheInvExport = {
+      numero: successResult.numero_investigation,
+      type: "INV",
+      titre: `Investigation : ${typeObj?.nom || "Événement Sanitaire"}`,
+      semaine: semaineEpidemio,
+      annee: annee,
+      date: dateInvestigation,
+      village: villageNom,
+      impact: `${totalCas} cas investigué(s) • ${totalDeces} décès`,
+      notificateur: userProfile?.nom_complet || "Investigateur ASCQ",
+      notificateurTel: userProfile?.telephone || "-",
+      statut: evenementAvere ? "AVEREE" : "NON_AVEREE"
+    };
+
     return (
       <div className="min-h-screen bg-[#f4f7f5] text-slate-800 p-4 flex items-center justify-center">
         <div className="max-w-md w-full bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xl text-center space-y-4">
@@ -219,6 +237,27 @@ function NouvelleInvestigationContent() {
             <p className="text-xs text-slate-500">
               La fiche officielle d'investigation a été clôturée et les indicateurs consolidés.
             </p>
+          </div>
+
+          {/* BOUTONS D'IMPRESSION & TÉLÉCHARGEMENT DIRECTS */}
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="py-2.5 px-3 rounded-2xl bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs border border-amber-200 flex items-center justify-center gap-1.5 transition-colors"
+            >
+              <Printer className="w-4 h-4" />
+              <span>Imprimer (A4)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => exporterFicheSurveillanceIndividuelleExcel(ficheInvExport)}
+              className="py-2.5 px-3 rounded-2xl bg-[#005c30] hover:bg-[#004724] text-white font-bold text-xs shadow-sm flex items-center justify-center gap-1.5 transition-all"
+            >
+              <Download className="w-4 h-4" />
+              <span>Télécharger Excel</span>
+            </button>
           </div>
 
           <div className="pt-2 flex flex-col gap-2">

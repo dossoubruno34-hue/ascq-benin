@@ -15,10 +15,13 @@ import {
   Sparkles, 
   CheckCircle2, 
   RefreshCw,
-  Info
+  Info,
+  Printer,
+  Download
 } from "lucide-react";
 import SignatureCanvas from "@/components/SignatureCanvas";
 import { getEpidemiologicalWeek, calculerDatesSemaine } from "@/lib/fiches";
+import { exporterFicheSurveillanceIndividuelleExcel } from "@/lib/excelExport";
 
 export default function NouveauRapportHebdoPage() {
   const router = useRouter();
@@ -213,6 +216,20 @@ export default function NouveauRapportHebdoPage() {
   };
 
   if (successResult) {
+    const ficheRapExport = {
+      numero: successResult.numero_rapport,
+      type: "RAP",
+      titre: `Rapport Hebdomadaire Semaine ${semaine} (${annee})`,
+      semaine: semaine,
+      annee: annee,
+      date: dateDebut,
+      village: villageNom,
+      impact: `${alertesDetectees} alertes • ${decesMaternels + decesNeonatals + decesInfantiles + decesPlus5Ans} décès`,
+      notificateur: userProfile?.nom_complet || "Rapporteur ASCQ",
+      notificateurTel: userProfile?.telephone || "-",
+      statut: "TRANSMIS"
+    };
+
     return (
       <div className="min-h-screen bg-[#f4f7f5] text-slate-800 p-4 flex items-center justify-center">
         <div className="max-w-md w-full bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xl text-center space-y-4">
@@ -230,6 +247,27 @@ export default function NouveauRapportHebdoPage() {
             <p className="text-xs text-slate-500">
               Le rapport de la Semaine {semaine} ({annee}) a été validé et intégré aux statistiques nationales.
             </p>
+          </div>
+
+          {/* BOUTONS D'IMPRESSION & TÉLÉCHARGEMENT DIRECTS */}
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="py-2.5 px-3 rounded-2xl bg-indigo-50 hover:bg-indigo-100 text-indigo-900 font-bold text-xs border border-indigo-200 flex items-center justify-center gap-1.5 transition-colors"
+            >
+              <Printer className="w-4 h-4" />
+              <span>Imprimer (A4)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => exporterFicheSurveillanceIndividuelleExcel(ficheRapExport)}
+              className="py-2.5 px-3 rounded-2xl bg-[#005c30] hover:bg-[#004724] text-white font-bold text-xs shadow-sm flex items-center justify-center gap-1.5 transition-all"
+            >
+              <Download className="w-4 h-4" />
+              <span>Télécharger Excel</span>
+            </button>
           </div>
 
           <div className="pt-2 flex flex-col gap-2">

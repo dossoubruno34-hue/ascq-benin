@@ -16,9 +16,12 @@ import {
   Lock,
   Phone,
   Clock,
-  ChevronRight
+  ChevronRight,
+  Printer,
+  Download
 } from "lucide-react";
 import SignatureCanvas from "@/components/SignatureCanvas";
+import { exporterFicheSurveillanceIndividuelleExcel } from "@/lib/excelExport";
 import { 
   DECES_TYPES_OFFICIELS, 
   DECES_LIEUX_OFFICIELS, 
@@ -207,6 +210,20 @@ export default function NouveauDecesPage() {
   };
 
   if (successResult) {
+    const ficheDecesExport = {
+      numero: successResult.numero_deces,
+      type: "DEC",
+      titre: `Décès Communautaire : ${nomDefunt} ${prenomsDefunt}`,
+      semaine: successResult.semaine_epidemio,
+      annee: successResult.annee,
+      date: dateDeces,
+      village: villageNom,
+      impact: `1 décès (${ageValeur} ${ageUnite}, sexe ${sexe})`,
+      notificateur: userProfile?.nom_complet || "ASCQ",
+      notificateurTel: userProfile?.telephone || "-",
+      statut: "ENREGISTRÉE"
+    };
+
     return (
       <div className="min-h-screen bg-[#f4f7f5] text-slate-800 p-4 flex items-center justify-center">
         <div className="max-w-md w-full bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xl text-center space-y-4">
@@ -224,6 +241,27 @@ export default function NouveauDecesPage() {
             <p className="text-xs text-slate-500">
               La notification officielle est enregistrée pour autopsie verbale sous supervision médicale.
             </p>
+          </div>
+
+          {/* BOUTONS D'IMPRESSION & TÉLÉCHARGEMENT DIRECTS */}
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="py-2.5 px-3 rounded-2xl bg-purple-50 hover:bg-purple-100 text-purple-800 font-bold text-xs border border-purple-200 flex items-center justify-center gap-1.5 transition-colors"
+            >
+              <Printer className="w-4 h-4" />
+              <span>Imprimer (A4)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => exporterFicheSurveillanceIndividuelleExcel(ficheDecesExport)}
+              className="py-2.5 px-3 rounded-2xl bg-[#005c30] hover:bg-[#004724] text-white font-bold text-xs shadow-sm flex items-center justify-center gap-1.5 transition-all"
+            >
+              <Download className="w-4 h-4" />
+              <span>Télécharger Excel</span>
+            </button>
           </div>
 
           <div className="pt-2 flex flex-col gap-2">
