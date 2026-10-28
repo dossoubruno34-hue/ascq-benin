@@ -23,7 +23,7 @@ BEGIN
             updated_at
         )
         SELECT 
-            u.id::text,
+            gen_random_uuid(),
             u.id,
             jsonb_build_object('sub', u.id::text, 'email', u.email),
             'email',
@@ -148,28 +148,27 @@ BEGIN
         );
 
         -- CRITIQUE : Créer la ligne d'identité dans auth.identities pour éviter l'erreur GoTrue
-        INSERT INTO auth.identities (
-            id,
-            user_id,
-            identity_data,
-            provider,
-            provider_id,
-            last_sign_in_at,
-            created_at,
-            updated_at
-        ) VALUES (
-            v_user_id::text,
-            v_user_id,
-            jsonb_build_object('sub', v_user_id::text, 'email', v_technical_email),
-            'email',
-            v_user_id::text,
-            NOW(),
-            NOW(),
-            NOW()
-        )
-        ON CONFLICT (provider, provider_id) DO UPDATE SET
-            identity_data = EXCLUDED.identity_data,
-            updated_at = NOW();
+        IF NOT EXISTS (SELECT 1 FROM auth.identities WHERE user_id = v_user_id AND provider = 'email') THEN
+            INSERT INTO auth.identities (
+                id,
+                user_id,
+                identity_data,
+                provider,
+                provider_id,
+                last_sign_in_at,
+                created_at,
+                updated_at
+            ) VALUES (
+                gen_random_uuid(),
+                v_user_id,
+                jsonb_build_object('sub', v_user_id::text, 'email', v_technical_email),
+                'email',
+                v_user_id::text,
+                NOW(),
+                NOW(),
+                NOW()
+            );
+        END IF;
 
     ELSE
         UPDATE auth.users
@@ -179,28 +178,32 @@ BEGIN
         WHERE id = v_user_id;
 
         -- S'assurer que l'identité existe
-        INSERT INTO auth.identities (
-            id,
-            user_id,
-            identity_data,
-            provider,
-            provider_id,
-            last_sign_in_at,
-            created_at,
-            updated_at
-        ) VALUES (
-            v_user_id::text,
-            v_user_id,
-            jsonb_build_object('sub', v_user_id::text, 'email', v_technical_email),
-            'email',
-            v_user_id::text,
-            NOW(),
-            NOW(),
-            NOW()
-        )
-        ON CONFLICT (provider, provider_id) DO UPDATE SET
-            identity_data = EXCLUDED.identity_data,
-            updated_at = NOW();
+        IF NOT EXISTS (SELECT 1 FROM auth.identities WHERE user_id = v_user_id AND provider = 'email') THEN
+            INSERT INTO auth.identities (
+                id,
+                user_id,
+                identity_data,
+                provider,
+                provider_id,
+                last_sign_in_at,
+                created_at,
+                updated_at
+            ) VALUES (
+                gen_random_uuid(),
+                v_user_id,
+                jsonb_build_object('sub', v_user_id::text, 'email', v_technical_email),
+                'email',
+                v_user_id::text,
+                NOW(),
+                NOW(),
+                NOW()
+            );
+        ELSE
+            UPDATE auth.identities
+            SET identity_data = jsonb_build_object('sub', v_user_id::text, 'email', v_technical_email),
+                updated_at = NOW()
+            WHERE user_id = v_user_id AND provider = 'email';
+        END IF;
     END IF;
 
     -- 6. Créer ou mettre à jour dans public.utilisateurs
