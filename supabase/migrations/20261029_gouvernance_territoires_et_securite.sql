@@ -6,10 +6,14 @@
 -- =====================================================================
 
 -- ---------------------------------------------------------------------
--- 0. FONCTIONS SECURISEES : est_administrateur (Support 0 argument et 1 argument UUID)
+-- 0. FONCTIONS SECURISEES : est_administrateur (Support 0 argument et 1 argument UUID distincts)
 -- ---------------------------------------------------------------------
 
-CREATE OR REPLACE FUNCTION public.est_administrateur(p_user_id UUID DEFAULT auth.uid())
+-- Supprimer la variante avec paramètre par défaut pour éliminer définitivement l'erreur 42725 ("not unique")
+DROP FUNCTION IF EXISTS public.est_administrateur(UUID);
+
+-- 1. Version sans argument (utilisée partout dans les politiques RLS et triggers)
+CREATE OR REPLACE FUNCTION public.est_administrateur()
 RETURNS BOOLEAN
 LANGUAGE sql
 SECURITY DEFINER
@@ -18,7 +22,7 @@ SET search_path = public
 AS $$
     SELECT EXISTS (
         SELECT 1 FROM public.utilisateurs
-        WHERE id = COALESCE(p_user_id, auth.uid())
+        WHERE id = auth.uid()
           AND (
               role_technique IN ('SUPER_ADMIN', 'ADMINISTRATEUR')
               OR poste IN ('SUPER_ADMIN', 'ADMINISTRATEUR')
@@ -27,18 +31,27 @@ AS $$
     );
 $$;
 
-CREATE OR REPLACE FUNCTION public.est_administrateur()
+-- 2. Version avec 1 argument UUID obligatoire (sans valeur par défaut, évitant toute collision)
+CREATE OR REPLACE FUNCTION public.est_administrateur(p_user_id UUID)
 RETURNS BOOLEAN
 LANGUAGE sql
 SECURITY DEFINER
 STABLE
 SET search_path = public
 AS $$
-    SELECT public.est_administrateur(auth.uid());
+    SELECT EXISTS (
+        SELECT 1 FROM public.utilisateurs
+        WHERE id = p_user_id
+          AND (
+              role_technique IN ('SUPER_ADMIN', 'ADMINISTRATEUR')
+              OR poste IN ('SUPER_ADMIN', 'ADMINISTRATEUR')
+              OR telephone IN ('0169031463', '69031463', '+2290169031463', '+22969031463')
+          )
+    );
 $$;
 
-GRANT EXECUTE ON FUNCTION public.est_administrateur(UUID) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.est_administrateur() TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.est_administrateur(UUID) TO anon, authenticated;
 
 -- ---------------------------------------------------------------------
 -- 1. FONCTION UNIQUE DETERMINANTE : 
