@@ -65,6 +65,8 @@ export default function RapportMensuelPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [prefilling, setPrefilling] = useState(false);
+  const [consolidating, setConsolidating] = useState(false);
+  const [consolidationRc, setConsolidationRc] = useState<any | null>(null);
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
 
   // Vue courante : "formulaire" ou "apercu_imprimable"
@@ -432,9 +434,29 @@ export default function RapportMensuelPage() {
           }
         } catch {}
 
+        // Consolidation automatique des activités des Relais Communautaires (RC)
+        try {
+          const { data: rcConsol } = await supabase.rpc("obtenir_consolidation_mensuelle_relais", {
+            p_ascq_id: currentUser.id,
+            p_annee: annee,
+            p_mois: mois,
+          });
+
+          if (rcConsol && rcConsol.success) {
+            setConsolidationRc(rcConsol);
+            if (rcConsol.rc_actifs > 0) setRcActifs(prev => Math.max(prev, rcConsol.rc_actifs));
+            if (rcConsol.total_vad > 0) setMenagesVisites(prev => (prev || 0) + rcConsol.total_vad);
+            if (rcConsol.total_femmes_suivies > 0) setFemmesEnceintes(prev => (prev || 0) + rcConsol.total_femmes_suivies);
+            if (rcConsol.total_enfants_suivis > 0) setEnfants05Ans(prev => (prev || 0) + rcConsol.total_enfants_suivis);
+            if (rcConsol.total_referees > 0) setCasReferesCs(prev => (prev || 0) + rcConsol.total_referees);
+          }
+        } catch (e) {
+          console.warn("Erreur consolidation RC mensuelle:", e);
+        }
+
         setDonneesSurveillance(newCounts);
         setMessage({
-          text: `Pré-remplissage effectué pour ${MOIS_NOMS[mois - 1]} ${annee} : alertes, références vers CS/GUPS et consultations iCCM synchronisées.`,
+          text: `Pré-remplissage effectué pour ${MOIS_NOMS[mois - 1]} ${annee} : alertes, décès, références, consultations iCCM et activités des RC intégrées !`,
           error: false,
         });
       }
@@ -446,6 +468,42 @@ export default function RapportMensuelPage() {
       });
     } finally {
       setPrefilling(false);
+    }
+  };
+
+  // Consolidation manuelle explicite des activités des RC
+  const consoliderActivitesRcDirect = async () => {
+    if (!currentUser?.id) return;
+    setConsolidating(true);
+    try {
+      const { data, error } = await supabase.rpc("obtenir_consolidation_mensuelle_relais", {
+        p_ascq_id: currentUser.id,
+        p_annee: annee,
+        p_mois: mois,
+      });
+
+      if (error) throw error;
+
+      if (data && data.success) {
+        setConsolidationRc(data);
+        if (data.rc_actifs > 0) setRcActifs(data.rc_actifs);
+        if (data.total_vad > 0) setMenagesVisites(prev => (prev || 0) + data.total_vad);
+        if (data.total_femmes_suivies > 0) setFemmesEnceintes(prev => (prev || 0) + data.total_femmes_suivies);
+        if (data.total_enfants_suivis > 0) setEnfants05Ans(prev => (prev || 0) + data.total_enfants_suivis);
+        if (data.total_referees > 0) setCasReferesCs(prev => (prev || 0) + data.total_referees);
+
+        setMessage({
+          text: `⚡ Activités des RC consolidées pour ${MOIS_NOMS[mois - 1]} ${annee} : ${data.rc_actifs} RC actifs, ${data.total_vad} VAD, ${data.total_causeries} causeries, ${data.total_femmes_suivies} femmes suivies, ${data.total_enfants_suivis} enfants suivis. Chiffres intégrés avec succès !`,
+          error: false,
+        });
+      }
+    } catch (err: any) {
+      setMessage({
+        text: "Erreur consolidation des activités des RC : " + (err.message || "erreur"),
+        error: true,
+      });
+    } finally {
+      setConsolidating(false);
     }
   };
 
@@ -881,6 +939,72 @@ export default function RapportMensuelPage() {
         {/* ========================================================= */}
         {modeVue === "formulaire" && (
           <div className="space-y-6 print:hidden">
+
+            {/* CARTE DE COMPTABILISATION AUTOMATIQUE DES ACTIVITÉS DES RELAIS COMMUNAUTAIRES (RC) */}
+            <div className="bg-gradient-to-br from-emerald-50 via-teal-50/40 to-white p-5 rounded-3xl border-2 border-emerald-300 shadow-sm space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-2xl bg-[#005c30] text-white flex items-center justify-center font-black shrink-0">
+                    <Users className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-black text-slate-900">
+                        Activités des Relais Communautaires (RC) du mois
+                      </h3>
+                      <span className="text-[10px] font-black uppercase text-[#005c30] bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300">
+                        Comptabilisation Automatique
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Intègre en un clic les plannings et rapports hebdomadaires validés de vos Relais dans ce rapport mensuel.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={consoliderActivitesRcDirect}
+                  disabled={consolidating || statut === "VALIDE"}
+                  className="px-4 py-2.5 rounded-xl bg-[#005c30] hover:bg-[#004724] text-white font-black text-xs shadow-md active:scale-95 transition-all flex items-center justify-center gap-2 shrink-0 disabled:opacity-50"
+                >
+                  <Sparkles className="w-4 h-4 text-yellow-300" />
+                  <span>{consolidating ? "Consolidation en cours..." : "⚡ Intégrer les activités des RC"}</span>
+                </button>
+              </div>
+
+              {consolidationRc && (
+                <div className="pt-2 border-t border-emerald-100">
+                  <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 text-center text-xs">
+                    <div className="bg-white p-2.5 rounded-xl border border-emerald-100">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold block">RC Actifs</span>
+                      <span className="font-black text-[#005c30] text-sm">{consolidationRc.rc_actifs ?? 0}</span>
+                    </div>
+                    <div className="bg-white p-2.5 rounded-xl border border-emerald-100">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold block">VAD Ménages</span>
+                      <span className="font-black text-[#005c30] text-sm">{consolidationRc.total_vad ?? 0}</span>
+                    </div>
+                    <div className="bg-white p-2.5 rounded-xl border border-emerald-100">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Causeries</span>
+                      <span className="font-black text-[#005c30] text-sm">{consolidationRc.total_causeries ?? 0}</span>
+                    </div>
+                    <div className="bg-white p-2.5 rounded-xl border border-emerald-100">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Salubrité</span>
+                      <span className="font-black text-[#005c30] text-sm">{consolidationRc.total_salubrite ?? 0}</span>
+                    </div>
+                    <div className="bg-white p-2.5 rounded-xl border border-emerald-100">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Femmes CPN</span>
+                      <span className="font-black text-[#005c30] text-sm">{consolidationRc.total_femmes_suivies ?? 0}</span>
+                    </div>
+                    <div className="bg-white p-2.5 rounded-xl border border-emerald-100">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Enfants PEV</span>
+                      <span className="font-black text-[#005c30] text-sm">{consolidationRc.total_enfants_suivis ?? 0}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* SECTION 1 : EFFECTIFS DES RELAIS COMMUNAUTAIRES */}
             <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
               <div className="flex items-center gap-2 pb-2 border-b border-slate-100">

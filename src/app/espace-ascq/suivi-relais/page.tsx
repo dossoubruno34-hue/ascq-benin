@@ -116,8 +116,25 @@ export default function SuiviRelaisPage() {
   const [seancesPassees, setSeancesPassees] = useState<any[]>([]);
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
 
-  // Basculement entre les 2 modes
-  const [modeVue, setModeVue] = useState<"fiches_rc" | "seance_suivi">("fiches_rc");
+  // Basculement entre les 3 modes de supervision
+  const [modeVue, setModeVue] = useState<"plannings_rapports_rc" | "fiches_rc" | "seance_suivi">("plannings_rapports_rc");
+
+  // Semaine épidémiologique & Année pour la consultation des RC
+  const now = new Date();
+  const dUtc = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+  const dayNum = dUtc.getUTCDay() || 7;
+  dUtc.setUTCDate(dUtc.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(dUtc.getUTCFullYear(), 0, 1));
+  const semCourante = Math.ceil(((dUtc.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+
+  const [semaineFiltre, setSemaineFiltre] = useState<number>(semCourante);
+  const [anneeFiltre, setAnneeFiltre] = useState<number>(dUtc.getUTCFullYear());
+  const [planningsRcMap, setPlanningsRcMap] = useState<Record<string, any>>({});
+  const [rapportsRcMap, setRapportsRcMap] = useState<Record<string, any>>({});
+  const [loadingHebdo, setLoadingHebdo] = useState<boolean>(false);
+  const [rcSelectionneHebdo, setRcSelectionneHebdo] = useState<any | null>(null);
+  const [obsValidation, setObsValidation] = useState<string>("");
+  const [validatingSaving, setValidatingSaving] = useState<boolean>(false);
 
   // Liste des RC et recherche
   const [listeRelais, setListeRelais] = useState<any[]>([]);
@@ -249,6 +266,75 @@ export default function SuiviRelaisPage() {
       console.warn("Erreur chargement suivi relais, maintien local:", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const chargerPlanningsEtRapportsHebdo = async (ascqId: string, annee: number, semaine: number) => {
+    setLoadingHebdo(true);
+    try {
+      const [pRes, rRes] = await Promise.all([
+        supabase
+          .from("plannings_hebdo_relais")
+          .select("*")
+          .eq("ascq_id", ascqId)
+          .eq("annee", annee)
+          .eq("semaine_num", semaine),
+        supabase
+          .from("rapports_hebdo_activites_relais")
+          .select("*")
+          .eq("ascq_id", ascqId)
+          .eq("annee", annee)
+          .eq("semaine_num", semaine),
+      ]);
+
+      const pMap: Record<string, any> = {};
+      (pRes.data || []).forEach((p: any) => {
+        pMap[p.relais_id] = p;
+      });
+      setPlanningsRcMap(pMap);
+
+      const rMap: Record<string, any> = {};
+      (rRes.data || []).forEach((r: any) => {
+        rMap[r.relais_id] = r;
+      });
+      setRapportsRcMap(rMap);
+    } catch (err) {
+      console.warn("Erreur chargement plannings/rapports:", err);
+    } finally {
+      setLoadingHebdo(false);
+    }
+  };
+
+  useEffect(() => {
+    if (currentUser?.id) {
+      chargerPlanningsEtRapportsHebdo(currentUser.id, anneeFiltre, semaineFiltre);
+    }
+  }, [currentUser?.id, anneeFiltre, semaineFiltre]);
+
+  const handleValiderRapportRc = async (rapportId: string, approuve: boolean) => {
+    setValidatingSaving(true);
+    try {
+      const { data, error } = await supabase.rpc("valider_rapport_hebdo_rc_par_ascq", {
+        p_rapport_id: rapportId,
+        p_approuve: approuve,
+        p_observations: obsValidation || (approuve ? "Rapport validé par l'ASCQ." : "À corriger."),
+      });
+
+      if (error) throw error;
+
+      setMessage({
+        text: approuve ? "✅ Rapport hebdomadaire validé avec succès !" : "⚠️ Rapport renvoyé pour correction.",
+        error: false,
+      });
+
+      if (currentUser?.id) {
+        await chargerPlanningsEtRapportsHebdo(currentUser.id, anneeFiltre, semaineFiltre);
+      }
+      setObsValidation("");
+    } catch (err: any) {
+      setMessage({ text: err.message || "Erreur lors de la validation du rapport.", error: true });
+    } finally {
+      setValidatingSaving(false);
     }
   };
 
@@ -514,7 +600,20 @@ export default function SuiviRelaisPage() {
           </div>
 
           {/* ONGLETS DE COMMUTATION */}
-          <div className="flex items-center gap-1.5 pt-2 border-t border-slate-100">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-1.5 pt-2 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setModeVue("plannings_rapports_rc")}
+              className={`flex-1 py-2.5 px-3 rounded-2xl text-xs font-black transition-all flex items-center justify-center gap-2 ${
+                modeVue === "plannings_rapports_rc"
+                  ? "bg-[#005c30] text-white shadow-sm"
+                  : "bg-slate-100 hover:bg-slate-200 text-slate-600"
+              }`}
+            >
+              <Calendar className="w-4 h-4" />
+              <span>1. Plannings & Rapports Hebdo ({listeRelais.length} RC)</span>
+            </button>
+
             <button
               type="button"
               onClick={() => setModeVue("fiches_rc")}
@@ -525,7 +624,7 @@ export default function SuiviRelaisPage() {
               }`}
             >
               <ClipboardCheck className="w-4 h-4" />
-              <span>1. Données & Fiches de mes Relais ({listeRelais.length})</span>
+              <span>2. Alertes & Registres RC</span>
             </button>
 
             <button
@@ -538,7 +637,7 @@ export default function SuiviRelaisPage() {
               }`}
             >
               <Users className="w-4 h-4" />
-              <span>2. Procès-Verbal de Réunion Mensuelle</span>
+              <span>3. Réunion Mensuelle & Inventaire</span>
             </button>
           </div>
         </div>
@@ -549,6 +648,351 @@ export default function SuiviRelaisPage() {
           }`}>
             {message.error ? <AlertTriangle className="w-4 h-4 shrink-0" /> : <Check className="w-4 h-4 shrink-0" />}
             <span>{message.text}</span>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* MODE 1 : PLANNINGS & RAPPORTS HEBDOMADAIRES DES RC (AU FUR ET À MESURE)    */}
+        {/* ========================================================================= */}
+        {modeVue === "plannings_rapports_rc" && (
+          <div className="space-y-4">
+            
+            {/* Barre de filtrage par Semaine et Année */}
+            <div className="bg-white rounded-3xl p-4 border border-slate-200/80 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-[#005c30]" />
+                <div>
+                  <h3 className="font-black text-sm text-slate-900">
+                    Semaine Épidémiologique {semaineFiltre} ({anneeFiltre})
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Suivi au fur et à mesure des plannings et rapports transmis par vos RC
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-xs font-bold">
+                  <span className="text-[10px] text-slate-400 pl-1">Semaine :</span>
+                  <select
+                    value={semaineFiltre}
+                    onChange={(e) => setSemaineFiltre(Number(e.target.value))}
+                    className="bg-white px-2 py-1 rounded-lg border border-slate-200 font-extrabold text-[#005c30] text-xs"
+                  >
+                    {Array.from({ length: 52 }, (_, i) => i + 1).map((s) => (
+                      <option key={s} value={s}>
+                        S{s} {s === semCourante ? "(Actuelle)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <select
+                  value={anneeFiltre}
+                  onChange={(e) => setAnneeFiltre(Number(e.target.value))}
+                  className="bg-slate-100 px-2 py-1.5 rounded-xl border-none font-bold text-slate-700 text-xs"
+                >
+                  <option value={2025}>2025</option>
+                  <option value={2026}>2026</option>
+                  <option value={2027}>2027</option>
+                </select>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (currentUser?.id) {
+                      chargerPlanningsEtRapportsHebdo(currentUser.id, anneeFiltre, semaineFiltre);
+                    }
+                  }}
+                  className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
+                  title="Rafraîchir"
+                >
+                  <RefreshCw className={`w-4 h-4 ${loadingHebdo ? "animate-spin text-[#005c30]" : ""}`} />
+                </button>
+              </div>
+            </div>
+
+            {/* Grille / Liste des RC avec statut de soumission */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {listeRelais.map((rc) => {
+                const planning = planningsRcMap[rc.user_id] || planningsRcMap[rc.id];
+                const rapport = rapportsRcMap[rc.user_id] || rapportsRcMap[rc.id];
+                const isSelected = rcSelectionneHebdo?.id === rc.id;
+
+                return (
+                  <div
+                    key={rc.id}
+                    onClick={() => setRcSelectionneHebdo(isSelected ? null : rc)}
+                    className={`p-4 rounded-3xl border transition-all cursor-pointer ${
+                      isSelected
+                        ? "bg-emerald-50/60 border-[#005c30] shadow-md ring-2 ring-[#005c30]/20"
+                        : "bg-white border-slate-200/80 shadow-sm hover:border-emerald-300"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="font-extrabold text-xs text-slate-900 truncate">
+                            {rc.nom} {rc.prenoms}
+                          </h4>
+                          <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
+                            {rc.village_nom || "Village non affecté"}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          Tél : {rc.telephone || "Non renseigné"}
+                        </p>
+                      </div>
+
+                      <div className="text-right shrink-0">
+                        {rapport?.lu_et_approuve_ascq ? (
+                          <span className="text-[10px] font-black uppercase text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300">
+                            Validé
+                          </span>
+                        ) : rapport ? (
+                          <span className="text-[10px] font-black uppercase text-blue-800 bg-blue-100 px-2 py-0.5 rounded-full border border-blue-300">
+                            Rapport reçu
+                          </span>
+                        ) : planning ? (
+                          <span className="text-[10px] font-bold uppercase text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-300">
+                            Planning reçu
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold uppercase text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
+                            Non transmis
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Résumé des indicateurs */}
+                    <div className="grid grid-cols-2 gap-2 mt-3 pt-2.5 border-t border-slate-100 text-xs">
+                      <div className="bg-slate-50 p-2 rounded-xl">
+                        <span className="text-[10px] text-slate-400 uppercase font-bold block">Planning</span>
+                        <span className="font-black text-slate-700">
+                          {planning ? `${planning.total_prevu} activité(s)` : "Aucun"}
+                        </span>
+                      </div>
+                      <div className="bg-slate-50 p-2 rounded-xl">
+                        <span className="text-[10px] text-slate-400 uppercase font-bold block">Rapport fait</span>
+                        <span className="font-black text-[#005c30]">
+                          {rapport ? `${rapport.total_fait} faite(s)` : "Non transmis"}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="mt-2.5 flex items-center justify-between text-[11px] font-bold text-[#005c30]">
+                      <span>{isSelected ? "Masquer les détails ▲" : "Examiner & Valider ▼"}</span>
+                      <Eye className="w-3.5 h-3.5" />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* DÉTAIL DU RC SÉLECTIONNÉ : PLANNING & RAPPORT DÉTAILLÉ AVEC VALIDATION */}
+            {rcSelectionneHebdo && (() => {
+              const rc = rcSelectionneHebdo;
+              const planning = planningsRcMap[rc.user_id] || planningsRcMap[rc.id];
+              const rapport = rapportsRcMap[rc.user_id] || rapportsRcMap[rc.id];
+
+              return (
+                <div className="bg-white rounded-3xl p-6 border-2 border-[#005c30] shadow-lg space-y-5 animate-in fade-in duration-200">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                    <div>
+                      <span className="text-[10px] font-black uppercase text-[#005c30] tracking-wider">
+                        Contrôle des Activités Semaine {semaineFiltre}
+                      </span>
+                      <h3 className="text-base font-black text-slate-900 mt-0.5">
+                        Relais Communautaire : {rc.nom} {rc.prenoms} ({rc.village_nom})
+                      </h3>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setRcSelectionneHebdo(null)}
+                        className="px-3 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold"
+                      >
+                        Fermer le détail
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    
+                    {/* Colonne 1 : Planning prévisionnel (activité, nombre prévu, date, lieu) */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between bg-slate-100 p-2.5 rounded-2xl">
+                        <div className="flex items-center gap-2 text-slate-800 font-black text-xs uppercase">
+                          <Calendar className="w-4 h-4 text-[#005c30]" />
+                          <span>Planning Prévisionnel</span>
+                        </div>
+                        <span className="text-xs font-black text-[#005c30]">
+                          Total : {planning?.total_prevu ?? 0}
+                        </span>
+                      </div>
+
+                      {planning && Array.isArray(planning.lignes_planning) && planning.lignes_planning.length > 0 ? (
+                        <div className="space-y-2">
+                          {planning.lignes_planning.map((ligne: any, idx: number) => (
+                            <div key={idx} className="p-3 rounded-2xl bg-slate-50 border border-slate-200/80 text-xs space-y-1">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="font-bold text-slate-900">{ligne.activite}</span>
+                                <span className="font-black text-[#005c30] bg-emerald-100 px-2 py-0.5 rounded-md">
+                                  {ligne.nombre_prevu} prévu(s)
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-3 text-[11px] text-slate-500">
+                                <span>📅 {ligne.date || "Date libre"}</span>
+                                <span>📍 {ligne.lieu || "Village"}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="p-6 text-center text-slate-400 text-xs bg-slate-50 rounded-2xl">
+                          Aucun planning enregistré par ce Relais pour la semaine {semaineFiltre}.
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Colonne 2 : Rapport hebdomadaire (activité, nombre prévu, nombre fait, date, lieu, observation) */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between bg-emerald-50 p-2.5 rounded-2xl border border-emerald-200">
+                        <div className="flex items-center gap-2 text-[#005c30] font-black text-xs uppercase">
+                          <CheckCircle2 className="w-4 h-4 text-[#005c30]" />
+                          <span>Rapport d'Activités Réalisées</span>
+                        </div>
+                        <span className="text-xs font-black text-emerald-800">
+                          Fait : {rapport?.total_fait ?? 0} / {rapport?.total_prevu ?? 0}
+                        </span>
+                      </div>
+
+                      {rapport && Array.isArray(rapport.lignes_rapport) && rapport.lignes_rapport.length > 0 ? (
+                        <div className="space-y-2">
+                          {rapport.lignes_rapport.map((ligne: any, idx: number) => (
+                            <div key={idx} className="p-3 rounded-2xl bg-emerald-50/40 border border-emerald-200 text-xs space-y-1">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="font-bold text-slate-900">{ligne.activite}</span>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[10px] text-slate-500">Prévu: {ligne.nombre_prevu}</span>
+                                  <span className="font-black text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md">
+                                    Fait : {ligne.nombre_fait}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-3 text-[11px] text-slate-500">
+                                <span>📅 {ligne.date}</span>
+                                <span>📍 {ligne.lieu}</span>
+                              </div>
+                              {ligne.observation && (
+                                <p className="text-[11px] text-slate-600 bg-white p-1.5 rounded-lg border border-emerald-100 mt-1 italic">
+                                  « {ligne.observation} »
+                                </p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="p-6 text-center text-slate-400 text-xs bg-slate-50 rounded-2xl">
+                          Aucun rapport d'activité soumis pour le moment.
+                        </div>
+                      )}
+                    </div>
+
+                  </div>
+
+                  {/* Synthèse quantitative pour intégration dans le rapport ASCQ */}
+                  {rapport && (
+                    <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+                      <span className="text-[10px] font-black uppercase text-slate-500 tracking-wide block">
+                        Activités comptabilisées pour votre rapport ASCQ
+                      </span>
+                      <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 text-center text-xs">
+                        <div className="bg-white p-2 rounded-xl border border-slate-100">
+                          <span className="text-[10px] text-slate-400 uppercase font-bold block">VAD</span>
+                          <span className="font-black text-[#005c30]">{rapport.total_vad_fait ?? 0}</span>
+                        </div>
+                        <div className="bg-white p-2 rounded-xl border border-slate-100">
+                          <span className="text-[10px] text-slate-400 uppercase font-bold block">Causeries</span>
+                          <span className="font-black text-[#005c30]">{rapport.total_causeries_fait ?? 0}</span>
+                        </div>
+                        <div className="bg-white p-2 rounded-xl border border-slate-100">
+                          <span className="text-[10px] text-slate-400 uppercase font-bold block">Salubrité</span>
+                          <span className="font-black text-[#005c30]">{rapport.total_salubrite_fait ?? 0}</span>
+                        </div>
+                        <div className="bg-white p-2 rounded-xl border border-slate-100">
+                          <span className="text-[10px] text-slate-400 uppercase font-bold block">Femmes</span>
+                          <span className="font-black text-[#005c30]">{rapport.total_femmes_suivies ?? 0}</span>
+                        </div>
+                        <div className="bg-white p-2 rounded-xl border border-slate-100">
+                          <span className="text-[10px] text-slate-400 uppercase font-bold block">Enfants</span>
+                          <span className="font-black text-[#005c30]">{rapport.total_enfants_suivis ?? 0}</span>
+                        </div>
+                        <div className="bg-white p-2 rounded-xl border border-slate-100">
+                          <span className="text-[10px] text-slate-400 uppercase font-bold block">Référés</span>
+                          <span className="font-black text-[#005c30]">{rapport.total_referees ?? 0}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* FORMULAIRE DE VALIDATION / APPROBATION ASCQ */}
+                  {rapport && (
+                    <div className="pt-3 border-t border-slate-100 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-black text-xs text-slate-800 uppercase tracking-wide">
+                          Validation ASCQ (« Lu et approuvé »)
+                        </h4>
+                        {rapport.lu_et_approuve_ascq && (
+                          <span className="text-xs font-black text-emerald-700 bg-emerald-100 px-2.5 py-1 rounded-xl">
+                            ✅ Déjà validé le {rapport.date_approbation_ascq ? new Date(rapport.date_approbation_ascq).toLocaleDateString() : ""}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-slate-600">
+                          Observations ou consignes de l'ASCQ au Relais (facultatif)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Ex: Bon travail sur les VAD, renforcer la sensibilisation sur les MILD..."
+                          defaultValue={rapport.observations_ascq || ""}
+                          onChange={(e) => setObsValidation(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-[#005c30]"
+                        />
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <button
+                          type="button"
+                          disabled={validatingSaving}
+                          onClick={() => handleValiderRapportRc(rapport.id, true)}
+                          className="flex-1 py-3 px-4 rounded-xl bg-[#005c30] hover:bg-[#004724] text-white font-black text-xs shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
+                        >
+                          <CheckCircle2 className="w-4 h-4" />
+                          <span>✅ Valider & Approuver le Rapport Hebdomadaire</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={validatingSaving}
+                          onClick={() => handleValiderRapportRc(rapport.id, false)}
+                          className="py-3 px-4 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-black text-xs shadow-sm active:scale-95 transition-all flex items-center justify-center gap-2"
+                        >
+                          <AlertTriangle className="w-4 h-4" />
+                          <span>⚠️ Demander correction au RC</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                </div>
+              );
+            })()}
+
           </div>
         )}
 

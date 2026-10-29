@@ -6,6 +6,41 @@
 -- =====================================================================
 
 -- ---------------------------------------------------------------------
+-- 0. FONCTIONS SECURISEES : est_administrateur (Support 0 argument et 1 argument UUID)
+-- ---------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION public.est_administrateur(p_user_id UUID DEFAULT auth.uid())
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+SET search_path = public
+AS $$
+    SELECT EXISTS (
+        SELECT 1 FROM public.utilisateurs
+        WHERE id = COALESCE(p_user_id, auth.uid())
+          AND (
+              role_technique IN ('SUPER_ADMIN', 'ADMINISTRATEUR')
+              OR poste IN ('SUPER_ADMIN', 'ADMINISTRATEUR')
+              OR telephone IN ('0169031463', '69031463', '+2290169031463', '+22969031463')
+          )
+    );
+$$;
+
+CREATE OR REPLACE FUNCTION public.est_administrateur()
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+SET search_path = public
+AS $$
+    SELECT public.est_administrateur(auth.uid());
+$$;
+
+GRANT EXECUTE ON FUNCTION public.est_administrateur(UUID) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.est_administrateur() TO anon, authenticated;
+
+-- ---------------------------------------------------------------------
 -- 1. FONCTION UNIQUE DETERMINANTE : 
 -- ce_responsable_peut_il_voir_cet_arrondissement(p_user_id, p_arrondissement_id)
 -- Ne réutilise pas est_administrateur() pour ces rôles.
@@ -485,7 +520,7 @@ SET search_path = public
 AS $$
 BEGIN
     -- Super Admin et Administrateurs autorisés
-    IF public.est_administrateur(auth.uid()) THEN
+    IF public.est_administrateur() THEN
         RETURN NEW;
     END IF;
 
@@ -538,11 +573,11 @@ CREATE POLICY "Representants communaux modification rma commune" ON public.rappo
     FOR UPDATE TO authenticated
     USING (
         (public.est_representant_communal(auth.uid()) AND public.ce_responsable_peut_il_voir_cet_arrondissement(auth.uid(), arrondissement_id))
-        OR public.est_administrateur(auth.uid())
+        OR public.est_administrateur()
     )
     WITH CHECK (
         (public.est_representant_communal(auth.uid()) AND public.ce_responsable_peut_il_voir_cet_arrondissement(auth.uid(), arrondissement_id))
-        OR public.est_administrateur(auth.uid())
+        OR public.est_administrateur()
     );
 
 DROP POLICY IF EXISTS "Representants communaux modification hebdo pnsc commune" ON public.rapports_hebdo_pnsc;
@@ -550,11 +585,11 @@ CREATE POLICY "Representants communaux modification hebdo pnsc commune" ON publi
     FOR UPDATE TO authenticated
     USING (
         (public.est_representant_communal(auth.uid()) AND public.ce_responsable_peut_il_voir_cet_arrondissement(auth.uid(), arrondissement_id))
-        OR public.est_administrateur(auth.uid())
+        OR public.est_administrateur()
     )
     WITH CHECK (
         (public.est_representant_communal(auth.uid()) AND public.ce_responsable_peut_il_voir_cet_arrondissement(auth.uid(), arrondissement_id))
-        OR public.est_administrateur(auth.uid())
+        OR public.est_administrateur()
     );
 
 DROP POLICY IF EXISTS "Representants communaux modification hebdo commune" ON public.rapports_hebdomadaires;
@@ -562,11 +597,11 @@ CREATE POLICY "Representants communaux modification hebdo commune" ON public.rap
     FOR UPDATE TO authenticated
     USING (
         (public.est_representant_communal(auth.uid()) AND public.ce_responsable_peut_il_voir_cet_arrondissement(auth.uid(), arrondissement_id))
-        OR public.est_administrateur(auth.uid())
+        OR public.est_administrateur()
     )
     WITH CHECK (
         (public.est_representant_communal(auth.uid()) AND public.ce_responsable_peut_il_voir_cet_arrondissement(auth.uid(), arrondissement_id))
-        OR public.est_administrateur(auth.uid())
+        OR public.est_administrateur()
     );
 
 DROP POLICY IF EXISTS "Representants communaux modification alertes commune" ON public.alertes_communautaires;
@@ -574,11 +609,11 @@ CREATE POLICY "Representants communaux modification alertes commune" ON public.a
     FOR UPDATE TO authenticated
     USING (
         (public.est_representant_communal(auth.uid()) AND public.ce_responsable_peut_il_voir_cet_arrondissement(auth.uid(), arrondissement_id))
-        OR public.est_administrateur(auth.uid())
+        OR public.est_administrateur()
     )
     WITH CHECK (
         (public.est_representant_communal(auth.uid()) AND public.ce_responsable_peut_il_voir_cet_arrondissement(auth.uid(), arrondissement_id))
-        OR public.est_administrateur(auth.uid())
+        OR public.est_administrateur()
     );
 
 DROP POLICY IF EXISTS "Representants communaux modification deces commune" ON public.deces_communautaires;
@@ -586,11 +621,11 @@ CREATE POLICY "Representants communaux modification deces commune" ON public.dec
     FOR UPDATE TO authenticated
     USING (
         (public.est_representant_communal(auth.uid()) AND public.ce_responsable_peut_il_voir_cet_arrondissement(auth.uid(), arrondissement_id))
-        OR public.est_administrateur(auth.uid())
+        OR public.est_administrateur()
     )
     WITH CHECK (
         (public.est_representant_communal(auth.uid()) AND public.ce_responsable_peut_il_voir_cet_arrondissement(auth.uid(), arrondissement_id))
-        OR public.est_administrateur(auth.uid())
+        OR public.est_administrateur()
     );
 
 DROP POLICY IF EXISTS "Representants communaux modification fiches rc commune" ON public.fiches_activites_hebdo_relais;
@@ -598,11 +633,11 @@ CREATE POLICY "Representants communaux modification fiches rc commune" ON public
     FOR UPDATE TO authenticated
     USING (
         (public.est_representant_communal(auth.uid()) AND public.ce_responsable_peut_il_voir_cet_arrondissement(auth.uid(), arrondissement_id))
-        OR public.est_administrateur(auth.uid())
+        OR public.est_administrateur()
     )
     WITH CHECK (
         (public.est_representant_communal(auth.uid()) AND public.ce_responsable_peut_il_voir_cet_arrondissement(auth.uid(), arrondissement_id))
-        OR public.est_administrateur(auth.uid())
+        OR public.est_administrateur()
     );
 
 -- ---------------------------------------------------------------------
@@ -1420,3 +1455,719 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.inscrire_nouvel_agent TO anon, authenticated;
+
+-- =====================================================================
+-- 12. MODULE PLANNING HEBDOMADAIRE & RAPPORT HEBDOMADAIRE DU RELAIS (RC)
+--     ET COMPTABILISATION AUTOMATIQUE SUR LE RAPPORT ASCQ
+-- =====================================================================
+
+-- ---------------------------------------------------------------------
+-- 12.1. TABLE : plannings_hebdo_relais
+-- Structure : activité, nombre prévu, date, lieu
+-- ---------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS public.plannings_hebdo_relais (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    relais_id UUID NOT NULL REFERENCES public.utilisateurs(id) ON DELETE CASCADE,
+    ascq_id UUID REFERENCES public.utilisateurs(id) ON DELETE SET NULL,
+    arrondissement_id UUID REFERENCES public.arrondissements(id) ON DELETE SET NULL,
+    village_nom TEXT NOT NULL DEFAULT 'Village',
+    grappe INT DEFAULT 1,
+    
+    annee INT NOT NULL,
+    semaine_num INT NOT NULL,
+    date_debut_semaine DATE NOT NULL DEFAULT CURRENT_DATE,
+    
+    -- Lignes du planning : [{ "id": "1", "activite": "Visites à Domicile (VAD)", "nombre_prevu": 5, "date": "2026-11-02", "lieu": "Grappe 1" }]
+    lignes_planning JSONB NOT NULL DEFAULT '[]'::jsonb,
+    total_prevu INT NOT NULL DEFAULT 0,
+    
+    statut TEXT NOT NULL DEFAULT 'VALIDE' CHECK (statut IN ('BROUILLON', 'VALIDE', 'TRANSMIS')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    
+    CONSTRAINT uq_planning_relais_semaine UNIQUE (relais_id, annee, semaine_num)
+);
+
+CREATE INDEX IF NOT EXISTS idx_plannings_relais_id ON public.plannings_hebdo_relais(relais_id);
+CREATE INDEX IF NOT EXISTS idx_plannings_ascq_id ON public.plannings_hebdo_relais(ascq_id);
+CREATE INDEX IF NOT EXISTS idx_plannings_semaine ON public.plannings_hebdo_relais(annee, semaine_num);
+
+ALTER TABLE public.plannings_hebdo_relais ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Lecture plannings RC" ON public.plannings_hebdo_relais;
+CREATE POLICY "Lecture plannings RC" ON public.plannings_hebdo_relais
+    FOR SELECT TO authenticated
+    USING (
+        relais_id = auth.uid()
+        OR ascq_id = auth.uid()
+        OR public.ce_responsable_peut_il_voir_cet_arrondissement(auth.uid(), arrondissement_id)
+        OR public.est_administrateur()
+    );
+
+DROP POLICY IF EXISTS "Insertion plannings par RC" ON public.plannings_hebdo_relais;
+CREATE POLICY "Insertion plannings par RC" ON public.plannings_hebdo_relais
+    FOR INSERT TO authenticated
+    WITH CHECK (relais_id = auth.uid());
+
+DROP POLICY IF EXISTS "Modification plannings par RC" ON public.plannings_hebdo_relais;
+CREATE POLICY "Modification plannings par RC" ON public.plannings_hebdo_relais
+    FOR UPDATE TO authenticated
+    USING (relais_id = auth.uid() OR public.est_administrateur());
+
+-- ---------------------------------------------------------------------
+-- 12.2. TABLE : rapports_hebdo_activites_relais
+-- Structure : activité, nombre prévu, nombre fait, date, lieu, observation (facultatif)
+-- ---------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS public.rapports_hebdo_activites_relais (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    planning_id UUID REFERENCES public.plannings_hebdo_relais(id) ON DELETE SET NULL,
+    relais_id UUID NOT NULL REFERENCES public.utilisateurs(id) ON DELETE CASCADE,
+    ascq_id UUID REFERENCES public.utilisateurs(id) ON DELETE SET NULL,
+    arrondissement_id UUID REFERENCES public.arrondissements(id) ON DELETE SET NULL,
+    village_nom TEXT NOT NULL DEFAULT 'Village',
+    grappe INT DEFAULT 1,
+    
+    annee INT NOT NULL,
+    semaine_num INT NOT NULL,
+    date_rapport DATE NOT NULL DEFAULT CURRENT_DATE,
+    
+    -- Lignes du rapport : [{ "id": "1", "activite": "Visites à Domicile (VAD)", "nombre_prevu": 5, "nombre_fait": 5, "date": "2026-11-02", "lieu": "Grappe 1", "observation": "Effectué" }]
+    lignes_rapport JSONB NOT NULL DEFAULT '[]'::jsonb,
+    
+    -- Cumuls quantitatifs
+    total_prevu INT NOT NULL DEFAULT 0,
+    total_fait INT NOT NULL DEFAULT 0,
+    total_vad_fait INT NOT NULL DEFAULT 0,
+    total_causeries_fait INT NOT NULL DEFAULT 0,
+    total_salubrite_fait INT NOT NULL DEFAULT 0,
+    total_femmes_suivies INT NOT NULL DEFAULT 0,
+    total_enfants_suivis INT NOT NULL DEFAULT 0,
+    total_referees INT NOT NULL DEFAULT 0,
+    
+    -- Validation et approbation par l'ASCQ
+    statut TEXT NOT NULL DEFAULT 'SOUMIS' CHECK (statut IN ('BROUILLON', 'SOUMIS', 'APPROUVE_ASCQ', 'REJETE')),
+    lu_et_approuve_ascq BOOLEAN NOT NULL DEFAULT FALSE,
+    date_approbation_ascq TIMESTAMPTZ,
+    observations_ascq TEXT,
+    signature_rc TEXT,
+    
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    
+    CONSTRAINT uq_rapport_relais_semaine UNIQUE (relais_id, annee, semaine_num)
+);
+
+CREATE INDEX IF NOT EXISTS idx_rapports_rc_relais ON public.rapports_hebdo_activites_relais(relais_id);
+CREATE INDEX IF NOT EXISTS idx_rapports_rc_ascq ON public.rapports_hebdo_activites_relais(ascq_id);
+CREATE INDEX IF NOT EXISTS idx_rapports_rc_semaine ON public.rapports_hebdo_activites_relais(annee, semaine_num);
+
+ALTER TABLE public.rapports_hebdo_activites_relais ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Lecture rapports RC" ON public.rapports_hebdo_activites_relais;
+CREATE POLICY "Lecture rapports RC" ON public.rapports_hebdo_activites_relais
+    FOR SELECT TO authenticated
+    USING (
+        relais_id = auth.uid()
+        OR ascq_id = auth.uid()
+        OR public.ce_responsable_peut_il_voir_cet_arrondissement(auth.uid(), arrondissement_id)
+        OR public.est_administrateur()
+    );
+
+DROP POLICY IF EXISTS "Insertion rapports par RC" ON public.rapports_hebdo_activites_relais;
+CREATE POLICY "Insertion rapports par RC" ON public.rapports_hebdo_activites_relais
+    FOR INSERT TO authenticated
+    WITH CHECK (relais_id = auth.uid());
+
+DROP POLICY IF EXISTS "Modification rapports par RC ou ASCQ" ON public.rapports_hebdo_activites_relais;
+CREATE POLICY "Modification rapports par RC ou ASCQ" ON public.rapports_hebdo_activites_relais
+    FOR UPDATE TO authenticated
+    USING (
+        relais_id = auth.uid()
+        OR ascq_id = auth.uid()
+        OR (public.est_representant_communal(auth.uid()) AND public.ce_responsable_peut_il_voir_cet_arrondissement(auth.uid(), arrondissement_id))
+        OR public.est_administrateur()
+    );
+
+-- ---------------------------------------------------------------------
+-- 12.3. FONCTION : enregistrer_planning_hebdo_rc
+-- Enregistre ou met à jour le planning hebdomadaire du RC
+-- ---------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION public.enregistrer_planning_hebdo_rc(
+    p_annee INT,
+    p_semaine INT,
+    p_date_debut DATE,
+    p_lignes JSONB,
+    p_village TEXT DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth, extensions
+AS $$
+DECLARE
+    v_user_id UUID := auth.uid();
+    v_ascq_id UUID;
+    v_arrondissement_id UUID;
+    v_village TEXT := p_village;
+    v_total INT := 0;
+    v_elem JSONB;
+    v_planning_id UUID;
+    v_nom_rc TEXT;
+BEGIN
+    IF v_user_id IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'Non authentifié');
+    END IF;
+
+    -- Récupérer ascq_id et arrondissement_id
+    SELECT u.ascq_id, u.arrondissement_id, COALESCE(v_village, u.village, rc.village_nom, 'Village'), (u.nom || ' ' || u.prenoms)
+    INTO v_ascq_id, v_arrondissement_id, v_village, v_nom_rc
+    FROM public.utilisateurs u
+    LEFT JOIN public.relais_communautaires rc ON rc.user_id = u.id
+    WHERE u.id = v_user_id;
+
+    -- Si ascq_id non trouvé dans utilisateurs, chercher dans relais_communautaires
+    IF v_ascq_id IS NULL THEN
+        SELECT ascq_id, arrondissement_id, COALESCE(v_village, village_nom, 'Village')
+        INTO v_ascq_id, v_arrondissement_id, v_village
+        FROM public.relais_communautaires
+        WHERE user_id = v_user_id;
+    END IF;
+
+    -- Calculer le total prévu
+    IF p_lignes IS NOT NULL AND jsonb_typeof(p_lignes) = 'array' THEN
+        FOR v_elem IN SELECT * FROM jsonb_array_elements(p_lignes)
+        LOOP
+            v_total := v_total + COALESCE((v_elem->>'nombre_prevu')::INT, 0);
+        END LOOP;
+    END IF;
+
+    -- Upsert planning
+    INSERT INTO public.plannings_hebdo_relais (
+        relais_id,
+        ascq_id,
+        arrondissement_id,
+        village_nom,
+        annee,
+        semaine_num,
+        date_debut_semaine,
+        lignes_planning,
+        total_prevu,
+        statut,
+        updated_at
+    ) VALUES (
+        v_user_id,
+        v_ascq_id,
+        v_arrondissement_id,
+        v_village,
+        p_annee,
+        p_semaine,
+        COALESCE(p_date_debut, CURRENT_DATE),
+        p_lignes,
+        v_total,
+        'VALIDE',
+        NOW()
+    )
+    ON CONFLICT (relais_id, annee, semaine_num) DO UPDATE SET
+        lignes_planning = EXCLUDED.lignes_planning,
+        total_prevu = EXCLUDED.total_prevu,
+        date_debut_semaine = EXCLUDED.date_debut_semaine,
+        village_nom = EXCLUDED.village_nom,
+        ascq_id = COALESCE(EXCLUDED.ascq_id, public.plannings_hebdo_relais.ascq_id),
+        updated_at = NOW()
+    RETURNING id INTO v_planning_id;
+
+    -- Notification en temps réel pour l'ASCQ superviseur
+    IF v_ascq_id IS NOT NULL THEN
+        BEGIN
+            INSERT INTO public.notifications (
+                destinataire_id,
+                titre,
+                message,
+                type,
+                type_notification,
+                priorite,
+                lu
+            ) VALUES (
+                v_ascq_id,
+                '📅 Planning hebdomadaire transmis par un RC',
+                'Le Relais Communautaire ' || COALESCE(v_nom_rc, 'de votre zone') || ' a enregistré son planning pour la semaine ' || p_semaine || ' (' || v_total || ' activités prévues).',
+                'INFO',
+                'PLANNING_RC',
+                'NORMALE',
+                FALSE
+            );
+        EXCEPTION WHEN OTHERS THEN
+            NULL;
+        END IF;
+    END IF;
+
+    RETURN jsonb_build_object(
+        'success', true,
+        'planning_id', v_planning_id,
+        'total_prevu', v_total,
+        'message', 'Planning hebdomadaire enregistré avec succès'
+    );
+END;
+$$;
+
+-- ---------------------------------------------------------------------
+-- 12.4. FONCTION : enregistrer_rapport_hebdo_rc
+-- Enregistre le rapport hebdomadaire du RC et le met à disposition de l'ASCQ
+-- ---------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION public.enregistrer_rapport_hebdo_rc(
+    p_annee INT,
+    p_semaine INT,
+    p_lignes JSONB,
+    p_village TEXT DEFAULT NULL,
+    p_signature TEXT DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth, extensions
+AS $$
+DECLARE
+    v_user_id UUID := auth.uid();
+    v_ascq_id UUID;
+    v_arrondissement_id UUID;
+    v_village TEXT := p_village;
+    v_nom_rc TEXT;
+    v_planning_id UUID;
+    
+    v_total_prevu INT := 0;
+    v_total_fait INT := 0;
+    v_total_vad INT := 0;
+    v_total_causeries INT := 0;
+    v_total_salubrite INT := 0;
+    v_total_femmes INT := 0;
+    v_total_enfants INT := 0;
+    v_total_referees INT := 0;
+    
+    v_elem JSONB;
+    v_act TEXT;
+    v_fait INT;
+    v_prev INT;
+    v_rapport_id UUID;
+BEGIN
+    IF v_user_id IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'Non authentifié');
+    END IF;
+
+    -- Récupérer données profil
+    SELECT u.ascq_id, u.arrondissement_id, COALESCE(v_village, u.village, rc.village_nom, 'Village'), (u.nom || ' ' || u.prenoms)
+    INTO v_ascq_id, v_arrondissement_id, v_village, v_nom_rc
+    FROM public.utilisateurs u
+    LEFT JOIN public.relais_communautaires rc ON rc.user_id = u.id
+    WHERE u.id = v_user_id;
+
+    IF v_ascq_id IS NULL THEN
+        SELECT ascq_id, arrondissement_id, COALESCE(v_village, village_nom, 'Village')
+        INTO v_ascq_id, v_arrondissement_id, v_village
+        FROM public.relais_communautaires
+        WHERE user_id = v_user_id;
+    END IF;
+
+    -- Récupérer l'ID du planning correspondant s'il existe
+    SELECT id INTO v_planning_id
+    FROM public.plannings_hebdo_relais
+    WHERE relais_id = v_user_id AND annee = p_annee AND semaine_num = p_semaine;
+
+    -- Calculer les cumuls par typologie d'activité
+    IF p_lignes IS NOT NULL AND jsonb_typeof(p_lignes) = 'array' THEN
+        FOR v_elem IN SELECT * FROM jsonb_array_elements(p_lignes)
+        LOOP
+            v_act := LOWER(COALESCE(v_elem->>'activite', ''));
+            v_prev := COALESCE((v_elem->>'nombre_prevu')::INT, 0);
+            v_fait := COALESCE((v_elem->>'nombre_fait')::INT, 0);
+            
+            v_total_prevu := v_total_prevu + v_prev;
+            v_total_fait := v_total_fait + v_fait;
+            
+            IF v_act ILIKE '%vad%' OR v_act ILIKE '%visite%domicile%' OR v_act ILIKE '%menage%' THEN
+                v_total_vad := v_total_vad + v_fait;
+            ELSIF v_act ILIKE '%causerie%' OR v_act ILIKE '%sensibilisation%' THEN
+                v_total_causeries := v_total_causeries + v_fait;
+            ELSIF v_act ILIKE '%salubrite%' OR v_act ILIKE '%hygiene%' OR v_act ILIKE '%latrine%' OR v_act ILIKE '%eau%' THEN
+                v_total_salubrite := v_total_salubrite + v_fait;
+            ELSIF v_act ILIKE '%femme%' OR v_act ILIKE '%enceinte%' OR v_act ILIKE '%cpn%' OR v_act ILIKE '%vat%' THEN
+                v_total_femmes := v_total_femmes + v_fait;
+            ELSIF v_act ILIKE '%enfant%' OR v_act ILIKE '%0-59%' OR v_act ILIKE '%vaccin%' OR v_act ILIKE '%nutrition%' OR v_act ILIKE '%pev%' THEN
+                v_total_enfants := v_total_enfants + v_fait;
+            ELSIF v_act ILIKE '%refere%' OR v_act ILIKE '%reference%' OR v_act ILIKE '%oriente%' THEN
+                v_total_referees := v_total_referees + v_fait;
+            END IF;
+        END LOOP;
+    END IF;
+
+    -- Upsert dans rapports_hebdo_activites_relais
+    INSERT INTO public.rapports_hebdo_activites_relais (
+        planning_id,
+        relais_id,
+        ascq_id,
+        arrondissement_id,
+        village_nom,
+        annee,
+        semaine_num,
+        date_rapport,
+        lignes_rapport,
+        total_prevu,
+        total_fait,
+        total_vad_fait,
+        total_causeries_fait,
+        total_salubrite_fait,
+        total_femmes_suivies,
+        total_enfants_suivis,
+        total_referees,
+        signature_rc,
+        statut,
+        updated_at
+    ) VALUES (
+        v_planning_id,
+        v_user_id,
+        v_ascq_id,
+        v_arrondissement_id,
+        v_village,
+        p_annee,
+        p_semaine,
+        CURRENT_DATE,
+        p_lignes,
+        v_total_prevu,
+        v_total_fait,
+        v_total_vad_fait,
+        v_total_causeries_fait,
+        v_total_salubrite_fait,
+        v_total_femmes,
+        v_total_enfants,
+        v_total_referees,
+        p_signature,
+        'SOUMIS',
+        NOW()
+    )
+    ON CONFLICT (relais_id, annee, semaine_num) DO UPDATE SET
+        lignes_rapport = EXCLUDED.lignes_rapport,
+        total_prevu = EXCLUDED.total_prevu,
+        total_fait = EXCLUDED.total_fait,
+        total_vad_fait = EXCLUDED.total_vad_fait,
+        total_causeries_fait = EXCLUDED.total_causeries_fait,
+        total_salubrite_fait = EXCLUDED.total_salubrite_fait,
+        total_femmes_suivies = EXCLUDED.total_femmes_suivies,
+        total_enfants_suivis = EXCLUDED.total_enfants_suivis,
+        total_referees = EXCLUDED.total_referees,
+        signature_rc = COALESCE(EXCLUDED.signature_rc, public.rapports_hebdo_activites_relais.signature_rc),
+        village_nom = EXCLUDED.village_nom,
+        statut = 'SOUMIS',
+        updated_at = NOW()
+    RETURNING id INTO v_rapport_id;
+
+    -- Synchronisation dans fiches_activites_hebdo_relais (pour rétrocompatibilité modèle PNSC)
+    BEGIN
+        INSERT INTO public.fiches_activites_hebdo_relais (
+            relais_id,
+            ascq_id,
+            arrondissement_id,
+            village_nom,
+            semaine_du,
+            annee,
+            semaine_num,
+            lignes_activites,
+            nbre_vad_prevu,
+            nbre_vad_realise,
+            nbre_causeries,
+            nbre_salubrite,
+            femmes_enceintes_suivies,
+            enfants_0_59_suivis,
+            personnes_referees,
+            signature_rc,
+            updated_at
+        ) VALUES (
+            v_user_id,
+            v_ascq_id,
+            v_arrondissement_id,
+            v_village,
+            CURRENT_DATE,
+            p_annee,
+            p_semaine,
+            p_lignes,
+            v_total_vad,
+            v_total_vad,
+            v_total_causeries,
+            v_total_salubrite,
+            v_total_femmes,
+            v_total_enfants,
+            v_total_referees,
+            p_signature,
+            NOW()
+        )
+        ON CONFLICT (relais_id, annee, semaine_num) DO UPDATE SET
+            lignes_activites = EXCLUDED.lignes_activites,
+            nbre_vad_realise = EXCLUDED.nbre_vad_realise,
+            nbre_causeries = EXCLUDED.nbre_causeries,
+            nbre_salubrite = EXCLUDED.nbre_salubrite,
+            femmes_enceintes_suivies = EXCLUDED.femmes_enceintes_suivies,
+            enfants_0_59_suivis = EXCLUDED.enfants_0_59_suivis,
+            personnes_referees = EXCLUDED.personnes_referees,
+            signature_rc = COALESCE(EXCLUDED.signature_rc, public.fiches_activites_hebdo_relais.signature_rc),
+            updated_at = NOW();
+    EXCEPTION WHEN OTHERS THEN
+        NULL;
+    END;
+
+    -- Notification pour l'ASCQ superviseur en temps réel
+    IF v_ascq_id IS NOT NULL THEN
+        BEGIN
+            INSERT INTO public.notifications (
+                destinataire_id,
+                titre,
+                message,
+                type,
+                type_notification,
+                priorite,
+                lu
+            ) VALUES (
+                v_ascq_id,
+                '📊 Nouveau rapport hebdomadaire transmis par un RC',
+                'Le Relais ' || COALESCE(v_nom_rc, '') || ' a transmis son rapport pour la semaine ' || p_semaine || ' (' || v_total_fait || '/' || v_total_prevu || ' activités réalisées). Consultez et validez.',
+                'INFO',
+                'RAPPORT_HEBDO_RC',
+                'HAUTE',
+                FALSE
+            );
+        EXCEPTION WHEN OTHERS THEN
+            NULL;
+        END IF;
+    END IF;
+
+    RETURN jsonb_build_object(
+        'success', true,
+        'rapport_id', v_rapport_id,
+        'total_prevu', v_total_prevu,
+        'total_fait', v_total_fait,
+        'total_vad', v_total_vad,
+        'total_causeries', v_total_causeries,
+        'message', 'Rapport hebdomadaire transmis avec succès à votre superviseur ASCQ'
+    );
+END;
+$$;
+
+-- ---------------------------------------------------------------------
+-- 12.5. FONCTION : valider_rapport_hebdo_rc_par_ascq
+-- Permet à l'ASCQ de valider le rapport de son RC ("Lu et approuvé")
+-- ---------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION public.valider_rapport_hebdo_rc_par_ascq(
+    p_rapport_id UUID,
+    p_approuve BOOLEAN DEFAULT TRUE,
+    p_observations TEXT DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth, extensions
+AS $$
+DECLARE
+    v_user_id UUID := auth.uid();
+    v_relais_id UUID;
+    v_semaine INT;
+    v_annee INT;
+    v_ascq_id UUID;
+BEGIN
+    IF v_user_id IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'Non authentifié');
+    END IF;
+
+    SELECT relais_id, semaine_num, annee, ascq_id
+    INTO v_relais_id, v_semaine, v_annee, v_ascq_id
+    FROM public.rapports_hebdo_activites_relais
+    WHERE id = p_rapport_id;
+
+    IF v_relais_id IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'Rapport introuvable');
+    END IF;
+
+    -- Vérifier que l'utilisateur est soit l'ASCQ du RC, soit le Représentant Communal, soit Admin
+    IF v_ascq_id != v_user_id AND NOT public.est_administrateur() AND NOT public.est_representant_communal(v_user_id) THEN
+        RETURN jsonb_build_object('success', false, 'error', 'Non autorisé à valider ce rapport');
+    END IF;
+
+    -- Mettre à jour le rapport
+    UPDATE public.rapports_hebdo_activites_relais
+    SET
+        lu_et_approuve_ascq = p_approuve,
+        statut = CASE WHEN p_approuve THEN 'APPROUVE_ASCQ' ELSE 'REJETE' END,
+        date_approbation_ascq = NOW(),
+        observations_ascq = p_observations,
+        updated_at = NOW()
+    WHERE id = p_rapport_id;
+
+    -- Répercuter sur fiches_activites_hebdo_relais
+    UPDATE public.fiches_activites_hebdo_relais
+    SET
+        lu_et_approuve_ascq = p_approuve,
+        date_approbation_ascq = NOW(),
+        observations_ascq = p_observations,
+        updated_at = NOW()
+    WHERE relais_id = v_relais_id AND annee = v_annee AND semaine_num = v_semaine;
+
+    -- Notification au Relais Communautaire
+    BEGIN
+        INSERT INTO public.notifications (
+            destinataire_id,
+            titre,
+            message,
+            type,
+            type_notification,
+            priorite,
+            lu
+        ) VALUES (
+            v_relais_id,
+            CASE WHEN p_approuve THEN '✅ Rapport hebdomadaire validé par votre ASCQ' ELSE '⚠️ Rapport hebdomadaire à corriger' END,
+            CASE WHEN p_approuve 
+                THEN 'Votre rapport de la semaine ' || v_semaine || ' a été approuvé par votre superviseur.' 
+                ELSE 'Votre rapport de la semaine ' || v_semaine || ' nécessite des corrections : ' || COALESCE(p_observations, '') 
+            END,
+            'INFO',
+            'VALIDATION_RAPPORT_RC',
+            'HAUTE',
+            FALSE
+        );
+    EXCEPTION WHEN OTHERS THEN
+        NULL;
+    END;
+
+    RETURN jsonb_build_object(
+        'success', true,
+        'message', CASE WHEN p_approuve THEN 'Rapport validé avec succès' ELSE 'Rapport renvoyé pour correction' END
+    );
+END;
+$$;
+
+-- ---------------------------------------------------------------------
+-- 12.6. FONCTION : obtenir_consolidation_mensuelle_relais
+-- Calcule les totaux des activités des RC du mois pour le rapport ASCQ (RMA)
+-- ---------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION public.obtenir_consolidation_mensuelle_relais(
+    p_ascq_id UUID,
+    p_annee INT,
+    p_mois INT
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+STABLE
+SET search_path = public, auth, extensions
+AS $$
+DECLARE
+    v_total_vad INT := 0;
+    v_total_causeries INT := 0;
+    v_total_salubrite INT := 0;
+    v_total_femmes INT := 0;
+    v_total_enfants INT := 0;
+    v_total_referees INT := 0;
+    v_rc_actifs INT := 0;
+    v_rapports_valides INT := 0;
+    v_liste_rc JSONB;
+BEGIN
+    -- Agrégation des rapports hebdomadaires soumis par les RC de cet ASCQ pour le mois donné
+    SELECT 
+        COALESCE(SUM(total_vad_fait), 0),
+        COALESCE(SUM(total_causeries_fait), 0),
+        COALESCE(SUM(total_salubrite_fait), 0),
+        COALESCE(SUM(total_femmes_suivies), 0),
+        COALESCE(SUM(total_enfants_suivis), 0),
+        COALESCE(SUM(total_referees), 0),
+        COUNT(DISTINCT relais_id),
+        COUNT(*) FILTER (WHERE lu_et_approuve_ascq = TRUE)
+    INTO
+        v_total_vad,
+        v_total_causeries,
+        v_total_salubrite,
+        v_total_femmes,
+        v_total_enfants,
+        v_total_referees,
+        v_rc_actifs,
+        v_rapports_valides
+    FROM public.rapports_hebdo_activites_relais
+    WHERE ascq_id = p_ascq_id
+      AND annee = p_annee
+      AND EXTRACT(MONTH FROM date_rapport) = p_mois;
+
+    -- Si aucune ligne par date_rapport, chercher également dans fiches_activites_hebdo_relais
+    IF v_total_vad = 0 AND v_total_causeries = 0 THEN
+        SELECT 
+            COALESCE(SUM(nbre_vad_realise), 0),
+            COALESCE(SUM(nbre_causeries), 0),
+            COALESCE(SUM(nbre_salubrite), 0),
+            COALESCE(SUM(femmes_enceintes_suivies), 0),
+            COALESCE(SUM(enfants_0_59_suivis), 0),
+            COALESCE(SUM(personnes_referees), 0),
+            COUNT(DISTINCT relais_id),
+            COUNT(*) FILTER (WHERE lu_et_approuve_ascq = TRUE)
+        INTO
+            v_total_vad,
+            v_total_causeries,
+            v_total_salubrite,
+            v_total_femmes,
+            v_total_enfants,
+            v_total_referees,
+            v_rc_actifs,
+            v_rapports_valides
+        FROM public.fiches_activites_hebdo_relais
+        WHERE ascq_id = p_ascq_id
+          AND annee = p_annee
+          AND EXTRACT(MONTH FROM semaine_du) = p_mois;
+    END IF;
+
+    -- Liste détaillée des RC ayant rapporté
+    SELECT COALESCE(jsonb_agg(
+        jsonb_build_object(
+            'relais_id', r.relais_id,
+            'nom_relais', (u.nom || ' ' || u.prenoms),
+            'village', r.village_nom,
+            'semaine', r.semaine_num,
+            'total_vad', r.total_vad_fait,
+            'total_causeries', r.total_causeries_fait,
+            'total_referees', r.total_referees,
+            'approuve', r.lu_et_approuve_ascq
+        )
+    ), '[]'::jsonb)
+    INTO v_liste_rc
+    FROM public.rapports_hebdo_activites_relais r
+    LEFT JOIN public.utilisateurs u ON u.id = r.relais_id
+    WHERE r.ascq_id = p_ascq_id
+      AND r.annee = p_annee
+      AND EXTRACT(MONTH FROM r.date_rapport) = p_mois;
+
+    RETURN jsonb_build_object(
+        'success', true,
+        'annee', p_annee,
+        'mois', p_mois,
+        'rc_actifs', v_rc_actifs,
+        'total_vad', v_total_vad,
+        'total_causeries', v_total_causeries,
+        'total_salubrite', v_total_salubrite,
+        'total_femmes_suivies', v_total_femmes,
+        'total_enfants_suivis', v_total_enfants,
+        'total_referees', v_total_referees,
+        'rapports_valides', v_rapports_valides,
+        'details_relais', v_liste_rc
+    );
+END;
+$$;
+
+-- ---------------------------------------------------------------------
+-- 12.7. PERMISSIONS DES NOUVELLES FONCTIONS
+-- ---------------------------------------------------------------------
+
+GRANT ALL ON TABLE public.plannings_hebdo_relais TO authenticated;
+GRANT ALL ON TABLE public.rapports_hebdo_activites_relais TO authenticated;
+
+GRANT EXECUTE ON FUNCTION public.enregistrer_planning_hebdo_rc TO authenticated;
+GRANT EXECUTE ON FUNCTION public.enregistrer_rapport_hebdo_rc TO authenticated;
+GRANT EXECUTE ON FUNCTION public.valider_rapport_hebdo_rc_par_ascq TO authenticated;
+GRANT EXECUTE ON FUNCTION public.obtenir_consolidation_mensuelle_relais TO authenticated;
+
