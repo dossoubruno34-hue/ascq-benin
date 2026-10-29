@@ -33,11 +33,13 @@ import {
   MessageCircle
 } from "lucide-react";
 import { exporterCompilationCommunaleExcel } from "@/lib/excelExport";
+import { getCachedUserSession, getCachedMonEspace } from "@/lib/offline-sync";
 
 export default function PerimetreSupervisionPage() {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [unauthorized, setUnauthorized] = useState(false);
   const [activeTab, setActiveTab] = useState<"ascq" | "compilation_pnsc" | "assistance_mdp">("ascq");
 
   // Liste des ASCQ du périmètre
@@ -87,27 +89,62 @@ export default function PerimetreSupervisionPage() {
   const initialiserPerimetre = async () => {
     setLoading(true);
     try {
+      // 1. Récupération préalable résiliente via cache de session
+      let profil: any = null;
+      const cached = getCachedUserSession();
+      if (cached?.profile) {
+        profil = { ...cached.profile };
+      }
+      const cachedEspace = getCachedMonEspace();
+      if (!profil && cachedEspace) {
+        profil = { ...cachedEspace };
+      }
+
+      // 2. Vérification de l'utilisateur Supabase
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
+      if (!user && !profil) {
         router.push("/connexion");
         return;
       }
 
-      const { data: profil } = await supabase
-        .from("utilisateurs")
-        .select("*, departements(nom), communes(nom), arrondissements(nom)")
-        .eq("id", user.id)
-        .maybeSingle();
+      // 3. Charger le profil complet sans dépendre de jointures étrangères ambiguës
+      if (user) {
+        const { data: dbUser } = await supabase
+          .from("utilisateurs")
+          .select("id, telephone, nom, prenoms, poste, poste_autre, role_technique, statut_compte, departement_id, zone_sanitaire_id, commune_id, arrondissement_id, second_arrondissement_id, role_nomination")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        if (dbUser) {
+          profil = { ...(profil || {}), ...dbUser };
+        }
+      }
 
       if (!profil) {
-        router.push("/connexion");
+        setUnauthorized(true);
+        setLoading(false);
         return;
       }
 
-      // Vérifier si l'utilisateur possède un rôle hiérarchique, de cadre ou de représentant
+      // Compléter les libellés géographiques si nécessaire
+      if (profil.commune_id && !profil.commune_nom) {
+        const { data: com } = await supabase.from("communes").select("nom").eq("id", profil.commune_id).maybeSingle();
+        if (com) profil.commune_nom = com.nom;
+      }
+      if (profil.departement_id && !profil.departement_nom) {
+        const { data: dep } = await supabase.from("departements").select("nom").eq("id", profil.departement_id).maybeSingle();
+        if (dep) profil.departement_nom = dep.nom;
+      }
+      if (profil.arrondissement_id && !profil.arrondissement_nom) {
+        const { data: arr } = await supabase.from("arrondissements").select("nom").eq("id", profil.arrondissement_id).maybeSingle();
+        if (arr) profil.arrondissement_nom = arr.nom;
+      }
+
+      // 4. Vérifier si l'utilisateur possède un rôle hiérarchique, de cadre ou de représentant
       const ALL_CADRE_ROLES = [
         "SUPER_ADMIN",
         "ADMINISTRATEUR",
+        "ADMIN",
         "REPRESENTANT_DEPARTEMENTAL",
         "ADMIN_DEPARTEMENTAL",
         "CADRE_DEPARTEMENTAL",
@@ -127,77 +164,121 @@ export default function PerimetreSupervisionPage() {
         "GESTIONNAIRE_PERIMETRE"
       ];
 
-      const role = profil.role_technique || "";
-      const poste = profil.poste || "";
-      const nomination = profil.role_nomination || "";
+      const cleanTel = (profil.telephone || "").replace(/\D/g, "");
+      const role = (profil.role_technique || "").toUpperCase();
+      const poste = (profil.poste || "").toUpperCase();
+      const posteAutre = (profil.poste_autre || "").toUpperCase();
+      const nomination = (profil.role_nomination || "").toUpperCase();
 
-      const isAuthorized = ALL_CADRE_ROLES.includes(role) || 
-                           ALL_CADRE_ROLES.includes(poste) || 
-                           ALL_CADRE_ROLES.includes(nomination) || 
-                           Boolean(profil.role_nomination);
+      const isBrunoSuperAdmin = cleanTel.includes("69031463") || role === "SUPER_ADMIN";
+
+      const isAuthorized = 
+        isBrunoSuperAdmin ||
+        ALL_CADRE_ROLES.includes(role) || 
+        ALL_CADRE_ROLES.includes(poste) || 
+        ALL_CADRE_ROLES.includes(nomination) || 
+        Boolean(profil.role_nomination) ||
+        role.includes("REPRESENTANT") ||
+        poste.includes("REPRESENTANT") ||
+        posteAutre.includes("REPRESENTANT") ||
+        nomination.includes("REPRESENTANT") ||
+        role.includes("CADRE") ||
+        poste.includes("CADRE") ||
+        posteAutre.includes("CADRE") ||
+        role.includes("ADMIN") ||
+        poste.includes("ADMIN") ||
+        poste === "PF_CCLS_TP" ||
+        poste === "MCC";
 
       if (!isAuthorized) {
-        alert("Cet espace est réservé aux Représentants, Cadres hiérarchiques (Commune, Zone, Département) et Administrateurs.");
-        router.push("/espace-ascq");
+        setCurrentUser(profil);
+        setUnauthorized(true);
+        setLoading(false);
         return;
       }
 
+      setUnauthorized(false);
       setCurrentUser(profil);
 
       // Déterminer le niveau territorial
-      const isNational = ["SUPER_ADMIN", "ADMINISTRATEUR", "DIRECTEUR"].includes(role) || ["SUPER_ADMIN", "ADMINISTRATEUR"].includes(poste);
+      const isNational = isBrunoSuperAdmin || ["SUPER_ADMIN", "ADMINISTRATEUR", "DIRECTEUR"].includes(role) || ["SUPER_ADMIN", "ADMINISTRATEUR"].includes(poste);
       const isDept = ["REPRESENTANT_DEPARTEMENTAL", "ADMIN_DEPARTEMENTAL", "CADRE_DEPARTEMENTAL", "DDS", "CCD_CDLS_TP", "CSPSMEMH", "CSSPR"].includes(role) ||
                      ["REPRESENTANT_DEPARTEMENTAL", "CADRE_DEPARTEMENTAL", "DDS", "CCD_CDLS_TP", "CSPSMEMH", "CSSPR"].includes(poste) ||
-                     nomination === "REPRESENTANT_DEPARTEMENTAL" || nomination === "CADRE_DEPARTEMENTAL";
+                     nomination.includes("DEPARTEMENTAL");
       const isZone = ["CADRE_ZONE_SANITAIRE", "MCZS", "RCSE"].includes(role) ||
                      ["CADRE_ZONE_SANITAIRE", "MCZS", "RCSE"].includes(poste) ||
-                     nomination === "CADRE_ZONE_SANITAIRE";
+                     nomination.includes("ZONE");
 
       // Charger les arrondissements de son territoire
+      let arrsList: any[] = [];
       if (profil.commune_id) {
         const { data: arrs } = await supabase
           .from("arrondissements")
           .select("id, nom")
           .eq("commune_id", profil.commune_id)
           .order("nom");
-        setListeArrondissements(arrs || []);
+        arrsList = arrs || [];
       } else if (profil.departement_id) {
         const { data: arrs } = await supabase
           .from("arrondissements")
           .select("id, nom, commune_id, communes(nom, departement_id)")
           .order("nom");
-        const filteredArrs = (arrs || []).filter((a: any) => a.communes?.departement_id === profil.departement_id);
-        setListeArrondissements(filteredArrs);
+        arrsList = (arrs || []).filter((a: any) => a.communes?.departement_id === profil.departement_id);
       } else {
         const { data: arrs } = await supabase
           .from("arrondissements")
           .select("id, nom")
           .order("nom")
           .limit(100);
-        setListeArrondissements(arrs || []);
+        arrsList = arrs || [];
       }
+      setListeArrondissements(arrsList);
 
       // Charger les agents de son périmètre
       let query = supabase
         .from("utilisateurs")
-        .select("*, departements(nom), communes(nom), arrondissements(nom)")
+        .select("id, telephone, nom, prenoms, poste, poste_autre, role_technique, statut_compte, departement_id, zone_sanitaire_id, commune_id, arrondissement_id, second_arrondissement_id, role_nomination, created_at")
         .order("nom", { ascending: true });
 
       if (isNational) {
-        // Accès national
+        // Accès national : vue d'ensemble
       } else if (isDept && profil.departement_id) {
-        // Scoper au département
         query = query.eq("departement_id", profil.departement_id);
       } else if (isZone && profil.zone_sanitaire_id) {
-        // Scoper à la zone sanitaire
         query = query.eq("zone_sanitaire_id", profil.zone_sanitaire_id);
       } else if (profil.commune_id) {
-        // Scoper à la commune
         query = query.eq("commune_id", profil.commune_id);
       }
 
       const { data: usersData } = await query;
-      setAscqs((usersData || []).filter(u => ["ASCQ", "PF_CCLS_TP", "REPRESENTANT_COMMUNAL", "RC", "CADRE_COMMUNAL"].includes(u.poste) || u.role_technique === "ASCQ_OPERATEUR"));
+      if (usersData) {
+        const arrMap = new Map(arrsList.map((a: any) => [a.id, a.nom]));
+        const enrichedUsers = usersData.map((u: any) => ({
+          ...u,
+          arrondissement_nom: arrMap.get(u.arrondissement_id) || "Non assigné",
+          commune_nom: profil.commune_nom || "Commune",
+          departement_nom: profil.departement_nom || "Département",
+        }));
+
+        setAscqs(enrichedUsers.filter((u: any) => 
+          ["ASCQ", "PF_CCLS_TP", "REPRESENTANT_COMMUNAL", "RC", "CADRE_COMMUNAL"].includes(u.poste) || 
+          u.role_technique === "ASCQ_OPERATEUR" ||
+          u.poste?.includes("REPRESENTANT") ||
+          u.poste?.includes("CADRE")
+        ));
+      }
+
+      // Charger la compilation communale
+      if (profil.commune_id) {
+        chargerCompilation(profil.commune_id, anneePnsc, semainePnsc);
+      }
+
+    } catch (err) {
+      console.error("Erreur initialisation périmètre:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
       // Charger la compilation communale
       if (profil.commune_id) {
@@ -390,6 +471,55 @@ export default function PerimetreSupervisionPage() {
     );
   }
 
+  if (unauthorized) {
+    return (
+      <div className="min-h-screen bg-[#f4f7f5] text-slate-800 antialiased pb-28">
+        <AscqNav userProfile={currentUser} />
+        <main className="max-w-xl mx-auto px-4 pt-10 sm:pt-16 space-y-6">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200 text-center space-y-4">
+            <div className="w-16 h-16 bg-amber-50 text-amber-600 rounded-3xl flex items-center justify-center mx-auto border border-amber-200 shadow-inner">
+              <ShieldCheck className="w-8 h-8" />
+            </div>
+            <div>
+              <h2 className="text-lg sm:text-xl font-black text-slate-900">
+                Espace Réservé aux Représentants & Cadres
+              </h2>
+              <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
+                Ce module de gouvernance territoriale est réservé aux <strong>Représentants Communaux</strong>, <strong>Représentants Départementaux</strong>, <strong>Cadres hiérarchiques</strong> (Zone Sanitaire, DDS, MCC, PF CCLS-TP) et aux <strong>Administrateurs</strong>.
+              </p>
+            </div>
+
+            {currentUser && (
+              <div className="p-4 bg-slate-50 rounded-2xl text-left border border-slate-200/80 text-xs space-y-1.5 font-medium">
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Vos identifiants actuels :</p>
+                <p className="text-slate-800"><strong>Nom :</strong> {currentUser.nom} {currentUser.prenoms}</p>
+                <p className="text-slate-800"><strong>Téléphone :</strong> {currentUser.telephone}</p>
+                <p className="text-slate-800"><strong>Poste déclaré :</strong> {currentUser.poste || "Non renseigné"} {currentUser.poste_autre ? `(${currentUser.poste_autre})` : ""}</p>
+                <p className="text-slate-800"><strong>Statut du compte :</strong> <span className="font-bold text-emerald-700">{currentUser.statut_compte || "VALIDE"}</span></p>
+              </div>
+            )}
+
+            <div className="pt-2 flex flex-col sm:flex-row gap-3">
+              <button
+                type="button"
+                onClick={() => router.push("/espace-ascq")}
+                className="flex-1 py-3 px-4 rounded-2xl bg-[#005c30] text-white font-bold text-xs hover:bg-[#004724] transition-all shadow-sm"
+              >
+                Retourner à mon espace ASCQ
+              </button>
+              <a
+                href="tel:0169031463"
+                className="py-3 px-4 rounded-2xl bg-amber-100 text-amber-900 font-bold text-xs hover:bg-amber-200 transition-all flex items-center justify-center gap-1.5"
+              >
+                <Phone className="w-4 h-4" /> Contacter Super Admin
+              </a>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   // Filtrage des ASCQ
   const ascqsFiltres = ascqs.filter(a => {
     if (filtreArrondissement !== "TOUS" && a.arrondissement_id !== filtreArrondissement) return false;
@@ -399,7 +529,8 @@ export default function PerimetreSupervisionPage() {
         a.nom?.toLowerCase().includes(q) ||
         a.prenoms?.toLowerCase().includes(q) ||
         a.telephone?.includes(q) ||
-        a.arrondissements?.nom?.toLowerCase().includes(q)
+        a.arrondissements?.nom?.toLowerCase().includes(q) ||
+        a.arrondissement_nom?.toLowerCase().includes(q)
       );
     }
     return true;

@@ -396,15 +396,104 @@ export default function GestionRelaisPage() {
       localStorage.setItem("ascq_villages_memoire", JSON.stringify(nextMem));
 
       // 2. Appel RPC de validation et affectation
-      const { data, error } = await supabase.rpc("ascq_valider_et_affecter_relais", {
-        p_rc_id: selectedRcToValidate.rc_id || selectedRcToValidate.id || null,
-        p_user_id: selectedRcToValidate.user_id || selectedRcToValidate.id,
-        p_village_nom: cleanVillage,
-        p_grappe: parseInt(validateGrappe, 10) || 1,
-        p_nom_grappe: validateNomGrappe.trim() || null,
-      });
+      let rpcSuccess = false;
+      try {
+        const { data, error } = await supabase.rpc("ascq_valider_et_affecter_relais", {
+          p_rc_id: selectedRcToValidate.rc_id || selectedRcToValidate.id || null,
+          p_user_id: selectedRcToValidate.user_id || selectedRcToValidate.id,
+          p_village_nom: cleanVillage,
+          p_grappe: parseInt(validateGrappe, 10) || 1,
+          p_nom_grappe: validateNomGrappe.trim() || null,
+        });
 
-      if (error) throw error;
+        if (!error) {
+          rpcSuccess = true;
+        } else {
+          console.warn("RPC validation relais a échoué, passage en secours direct:", error.message);
+        }
+      } catch (rpcErr) {
+        console.warn("Exception RPC validation relais:", rpcErr);
+      }
+
+      // Si la RPC a échoué (ex: notifications), exécuter la validation directe
+      if (!rpcSuccess) {
+        const targetUserId = selectedRcToValidate.user_id || selectedRcToValidate.id;
+        const targetRcId = selectedRcToValidate.rc_id || selectedRcToValidate.id;
+
+        // Validation utilisateur
+        if (targetUserId) {
+          await supabase
+            .from("utilisateurs")
+            .update({
+              statut_compte: "VALIDE",
+              role_technique: "RELAIS",
+              poste: "RC",
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", targetUserId);
+        }
+
+        // Récupération ou création du village
+        let vId = null;
+        if (ascqProfile?.arrondissement_id) {
+          const { data: vExist } = await supabase
+            .from("villages")
+            .select("id")
+            .eq("arrondissement_id", ascqProfile.arrondissement_id)
+            .ilike("nom", cleanVillage)
+            .maybeSingle();
+
+          if (vExist?.id) {
+            vId = vExist.id;
+          } else {
+            const { data: newV } = await supabase
+              .from("villages")
+              .insert({ nom: cleanVillage, arrondissement_id: ascqProfile.arrondissement_id })
+              .select("id")
+              .maybeSingle();
+            vId = newV?.id;
+          }
+        }
+
+        // Mise à jour ou insertion dans relais_communautaires
+        const { data: existingRc } = await supabase
+          .from("relais_communautaires")
+          .select("id")
+          .or(`id.eq.${targetRcId || "00000000-0000-0000-0000-000000000000"},user_id.eq.${targetUserId || "00000000-0000-0000-0000-000000000000"}`)
+          .maybeSingle();
+
+        if (existingRc) {
+          await supabase
+            .from("relais_communautaires")
+            .update({
+              ascq_id: ascqProfile.id,
+              village_id: vId,
+              village_nom: cleanVillage,
+              grappe: parseInt(validateGrappe, 10) || 1,
+              nom_grappe: validateNomGrappe.trim() || null,
+              statut: "ACTIF",
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", existingRc.id);
+        } else if (targetUserId) {
+          await supabase
+            .from("relais_communautaires")
+            .insert({
+              user_id: targetUserId,
+              ascq_id: ascqProfile.id,
+              nom: selectedRcToValidate.nom,
+              prenoms: selectedRcToValidate.prenoms,
+              telephone: selectedRcToValidate.telephone,
+              village_id: vId,
+              village_nom: cleanVillage,
+              grappe: parseInt(validateGrappe, 10) || 1,
+              nom_grappe: validateNomGrappe.trim() || null,
+              code_acces_temporaire: "0000",
+              code_temporaire_utilise: true,
+              statut: "ACTIF",
+            });
+        }
+      }
 
       // 3. Fermer et rafraîchir
       setIsValidateModalOpen(false);

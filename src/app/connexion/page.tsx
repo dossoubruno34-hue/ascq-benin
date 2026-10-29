@@ -106,6 +106,7 @@ export default function ConnexionPage() {
           titre: "Alerte : Mot de passe oublié (ASCQ)",
           message: `L'ASCQ ${userLookup.prenoms} ${userLookup.nom} (${cleanTel}) a oublié son mot de passe et demande une réinitialisation à 000000 par le Représentant Communal.`,
           type: "URGENT",
+          type_notification: "ALERTE_PRIORITAIRE",
           lu: false,
         });
 
@@ -118,6 +119,7 @@ export default function ConnexionPage() {
           titre: "Demande réinitialisation mot de passe",
           message: `L'agent ${oubliNom || cleanTel} demande une réinitialisation de mot de passe.`,
           type: "URGENT",
+          type_notification: "ALERTE_PRIORITAIRE",
           lu: false,
         });
 

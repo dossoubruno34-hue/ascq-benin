@@ -601,7 +601,22 @@ export default function AdminPage() {
           p_zone_sanitaire_id: nominationZsId || null,
           p_commune_id: nominationComId || null,
         });
-        if (errFallback) throw errFallback;
+        if (errFallback) {
+          // Secours direct sur la table utilisateurs
+          const { error: directErr } = await supabase
+            .from("utilisateurs")
+            .update({
+              poste: nominationPoste,
+              role_technique: nominationRoleTechnique,
+              role_nomination: nominationPoste,
+              departement_id: nominationDepId || null,
+              zone_sanitaire_id: nominationZsId || null,
+              commune_id: nominationComId || null,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", nominationModalUser.id);
+          if (directErr) throw directErr;
+        }
       }
 
       setToastMessage({

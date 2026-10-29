@@ -142,7 +142,7 @@ export async function getEffectiveUser(): Promise<{ user: any | null; profile: a
     try {
       const { data: profil } = await supabase
         .from("utilisateurs")
-        .select("*, departements(nom), communes(nom), arrondissements(nom)")
+        .select("id, telephone, nom, prenoms, poste, poste_autre, role_technique, statut_compte, departement_id, zone_sanitaire_id, commune_id, arrondissement_id, second_arrondissement_id, role_nomination, departements(nom), communes(nom)")
         .eq("id", user.id)
         .maybeSingle();
 
