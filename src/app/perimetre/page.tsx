@@ -52,7 +52,16 @@ export default function PerimetreGouvernancePage() {
   const [unauthorized, setUnauthorized] = useState(false);
   
   // Onglets principaux de gouvernance
-  const [activeTab, setActiveTab] = useState<"dashboard_compile" | "suivi_individuel" | "diffusion_alertes" | "exports_journal">("dashboard_compile");
+  const [activeTab, setActiveTab] = useState<"dashboard_compile" | "suivi_individuel" | "inscriptions_ascq" | "diffusion_alertes" | "exports_journal">("dashboard_compile");
+
+  // Inscriptions ASCQ en attente (Validation par le Représentant Communal)
+  const [inscriptionsEnAttente, setInscriptionsEnAttente] = useState<any[]>([]);
+  const [loadingInscriptions, setLoadingInscriptions] = useState(false);
+  const [actionInProgress, setActionInProgress] = useState<string | null>(null);
+
+  // Modal d'édition/correction d'un RMA par le Représentant Communal
+  const [editingRma, setEditingRma] = useState<any | null>(null);
+  const [savingRma, setSavingRma] = useState(false);
 
   // Période d'analyse
   const now = new Date();
@@ -211,6 +220,9 @@ export default function PerimetreGouvernancePage() {
 
       // Charger les ASCQ du périmètre
       await chargerListeAscq(profil);
+
+      // Charger les inscriptions ASCQ en attente de validation
+      await chargerInscriptionsEnAttente(profil);
 
     } catch (err) {
       console.error("Erreur initialisation gouvernance:", err);
@@ -384,7 +396,7 @@ export default function PerimetreGouvernancePage() {
         const arrNames = new Map(listeTerritoiresInf.map(t => [t.id, t.nom]));
 
         const enriched = users.map((u: any) => {
-          const rma = rmaMap.get(u.id);
+          const rma = rmaMap.get(u.id) as any;
           let statutRapport = "MANQUANT";
           if (rma) {
             const dDepot = rma.date_depot ? new Date(rma.date_depot) : new Date(rma.created_at);
@@ -404,6 +416,183 @@ export default function PerimetreGouvernancePage() {
       }
     } catch (e) {
       console.warn("Erreur liste ASCQ:", e);
+    }
+  };
+
+  // 4. CHARGEMENT DES INSCRIPTIONS ASCQ EN ATTENTE (Pour le Représentant Communal)
+  const chargerInscriptionsEnAttente = async (profil: any) => {
+    if (!profil) return;
+    setLoadingInscriptions(true);
+    try {
+      const isSuperAdmin = (profil.telephone || "").includes("69031463") || profil.role_technique === "SUPER_ADMIN";
+      let query = supabase
+        .from("utilisateurs")
+        .select("id, nom, prenoms, telephone, poste, role_technique, statut_compte, commune_id, arrondissement_id, second_arrondissement_id, created_at")
+        .eq("statut_compte", "EN_ATTENTE")
+        .or("poste.eq.ASCQ,role_technique.eq.ASCQ_OPERATEUR");
+
+      if (!isSuperAdmin && profil.commune_id) {
+        query = query.eq("commune_id", profil.commune_id);
+      } else if (!isSuperAdmin && profil.departement_id) {
+        query = query.eq("departement_id", profil.departement_id);
+      }
+
+      const { data } = await query.order("created_at", { ascending: false });
+
+      if (data && data.length > 0) {
+        const arrIds = data.map((u: any) => u.arrondissement_id).filter(Boolean);
+        let arrMap = new Map();
+        if (arrIds.length > 0) {
+          const { data: arrData } = await supabase.from("arrondissements").select("id, nom").in("id", arrIds);
+          arrMap = new Map((arrData || []).map((a: any) => [a.id, a.nom]));
+        }
+        setInscriptionsEnAttente(data.map((u: any) => ({
+          ...u,
+          arrondissement_nom: arrMap.get(u.arrondissement_id) || "Arrondissement"
+        })));
+      } else {
+        setInscriptionsEnAttente([]);
+      }
+    } catch (e) {
+      console.warn("Erreur chargement inscriptions:", e);
+    } finally {
+      setLoadingInscriptions(false);
+    }
+  };
+
+  // Action : Valider l'inscription d'un ASCQ par le Représentant Communal
+  const handleValiderAscq = async (ascqId: string, nomComplet: string) => {
+    setActionInProgress(ascqId);
+    try {
+      const { data, error } = await supabase.rpc("valider_inscription_ascq_communal", {
+        p_ascq_id: ascqId,
+        p_nouveau_statut: "VALIDE"
+      });
+
+      if (error) {
+        // Fallback update direct
+        const { error: upErr } = await supabase.from("utilisateurs").update({
+          statut_compte: "VALIDE",
+          date_validation: new Date().toISOString(),
+          valide_par: currentUser.id
+        }).eq("id", ascqId);
+
+        if (upErr) throw upErr;
+      }
+
+      setToastMsg({ text: `🎉 Compte ASCQ de ${nomComplet} validé avec succès !`, error: false });
+      setTimeout(() => setToastMsg(null), 3500);
+
+      // Rafraîchir
+      await chargerInscriptionsEnAttente(currentUser);
+      await chargerListeAscq(currentUser);
+      await chargerIndicateursCompiles(currentUser);
+    } catch (err: any) {
+      setToastMsg({ text: "Erreur validation: " + err.message, error: true });
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
+  // Action : Rejeter l'inscription d'un ASCQ
+  const handleRejeterAscq = async (ascqId: string, nomComplet: string) => {
+    if (!confirm(`Confirmez-vous le rejet de l'inscription de l'ASCQ ${nomComplet} ?`)) return;
+    setActionInProgress(ascqId);
+    try {
+      const { data, error } = await supabase.rpc("valider_inscription_ascq_communal", {
+        p_ascq_id: ascqId,
+        p_nouveau_statut: "REJETE"
+      });
+
+      if (error) {
+        const { error: upErr } = await supabase.from("utilisateurs").update({
+          statut_compte: "REJETE"
+        }).eq("id", ascqId);
+        if (upErr) throw upErr;
+      }
+
+      setToastMsg({ text: `Inscription de ${nomComplet} rejetée.`, error: false });
+      setTimeout(() => setToastMsg(null), 3500);
+      await chargerInscriptionsEnAttente(currentUser);
+    } catch (err: any) {
+      setToastMsg({ text: "Erreur rejet: " + err.message, error: true });
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
+  // Action : Valider un RMA par le Représentant Communal
+  const handleValiderRma = async (rmaId: string) => {
+    setActionInProgress(rmaId);
+    try {
+      const { error } = await supabase.from("rapports_mensuels_ascq").update({
+        statut: "VALIDE",
+        date_validation: new Date().toISOString(),
+        valide_par: currentUser.id,
+        observations_validation: `Validé le ${new Date().toLocaleDateString("fr-FR")} par ${currentUser.nom || "Superviseur"} (${currentUser.poste || "Représentant Communal"})`
+      }).eq("id", rmaId);
+
+      if (error) throw error;
+
+      setToastMsg({ text: "✅ Rapport Mensuel (RMA) validé avec succès !", error: false });
+      setTimeout(() => setToastMsg(null), 3500);
+      if (selectedAscq) await inspecterAscq360(selectedAscq);
+    } catch (err: any) {
+      setToastMsg({ text: "Erreur validation RMA: " + err.message, error: true });
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
+  // Action : Valider un rapport hebdomadaire PNSC par le Représentant Communal
+  const handleValiderHebdoPnsc = async (hebdoId: string) => {
+    setActionInProgress(hebdoId);
+    try {
+      const { error } = await supabase.from("rapports_hebdo_pnsc").update({
+        statut: "VALIDE",
+        date_validation: new Date().toISOString(),
+        observations: `Validé par ${currentUser.nom || "Superviseur"} (${currentUser.poste || "Représentant Communal"})`
+      }).eq("id", hebdoId);
+
+      if (error) throw error;
+
+      setToastMsg({ text: "✅ Rapport hebdomadaire PNSC validé avec succès !", error: false });
+      setTimeout(() => setToastMsg(null), 3500);
+      if (selectedAscq) await inspecterAscq360(selectedAscq);
+    } catch (err: any) {
+      setToastMsg({ text: "Erreur validation rapport hebdomadaire: " + err.message, error: true });
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
+  // Action : Enregistrer les corrections d'un RMA par le Représentant Communal
+  const handleSaveRmaModifications = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingRma) return;
+    setSavingRma(true);
+    try {
+      const { error } = await supabase.from("rapports_mensuels_ascq").update({
+        total_visites_domiciliaires: Number(editingRma.total_visites_domiciliaires) || 0,
+        total_seances_sensibilisation: Number(editingRma.total_seances_sensibilisation) || 0,
+        femmes_enceintes_suivies: Number(editingRma.femmes_enceintes_suivies) || 0,
+        enfants_0_59_mois_suivis: Number(editingRma.enfants_0_59_mois_suivis) || 0,
+        statut: "VALIDE",
+        date_validation: new Date().toISOString(),
+        valide_par: currentUser.id,
+        observations_validation: editingRma.observations_validation || `Validé et corrigé par le Représentant Communal ${currentUser.nom || ""}`
+      }).eq("id", editingRma.id);
+
+      if (error) throw error;
+
+      setToastMsg({ text: "✅ RMA corrigé et validé avec succès !", error: false });
+      setTimeout(() => setToastMsg(null), 3500);
+      setEditingRma(null);
+      if (selectedAscq) await inspecterAscq360(selectedAscq);
+    } catch (err: any) {
+      setToastMsg({ text: "Erreur enregistrement RMA: " + err.message, error: true });
+    } finally {
+      setSavingRma(false);
     }
   };
 
@@ -661,6 +850,14 @@ export default function PerimetreGouvernancePage() {
                       currentUser?.poste === "PF_CCLS_TP" ? "Point Focal CCLS-TP" :
                       currentUser?.poste || "Responsable de Santé";
 
+  const isSuperAdmin = (currentUser?.telephone || "").includes("69031463") || currentUser?.role_technique === "SUPER_ADMIN";
+  const isRepresentantCommunal = isSuperAdmin || 
+    currentUser?.poste === "REPRESENTANT_COMMUNAL" || 
+    currentUser?.role_technique === "REPRESENTANT_COMMUNAL" || 
+    (currentUser?.role_nomination || "").toUpperCase().includes("REPRESENTANT_COMMUNAL") ||
+    (currentUser?.role_nomination || "").toUpperCase().includes("COMMUNAL") ||
+    currentUser?.poste === "PF_CCLS_TP";
+
   return (
     <div className="min-h-screen bg-[#f4f7f5] text-slate-800 antialiased pb-28">
       <AscqNav userProfile={currentUser} />
@@ -674,13 +871,17 @@ export default function PerimetreGouvernancePage() {
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400 text-slate-950 text-xs font-black shadow-sm mb-2">
                 <Crown className="w-4 h-4 fill-current" />
                 <span>{libelleRole}</span>
-                <span className="text-[10px] bg-slate-900 text-amber-300 px-1.5 py-0.2 rounded-full uppercase">Consultation Seule</span>
+                <span className="text-[10px] bg-slate-900 text-amber-300 px-2 py-0.5 rounded-full uppercase">
+                  {isRepresentantCommunal ? "Supervision & Validation" : "Consultation Seule"}
+                </span>
               </div>
               <h1 className="text-xl sm:text-2xl font-black tracking-tight">
                 Gouvernance Sanitaire • {libelleTerritoire}
               </h1>
               <p className="text-xs text-emerald-100 font-medium">
-                Suivi épidémiologique, ponctualité des rapports, supervision 360° des ASCQ et exports audités.
+                {isRepresentantCommunal
+                  ? "Validation des inscriptions ASCQ, contrôle et visa des rapports RMA/Hebdo, et suivi épidémiologique communal."
+                  : "Suivi épidémiologique territorial, ponctualité des rapports, supervision des ASCQ et exports audités."}
               </p>
             </div>
 
@@ -688,6 +889,16 @@ export default function PerimetreGouvernancePage() {
               <span className="px-3 py-1.5 rounded-2xl bg-white/10 text-white font-mono font-bold text-xs border border-white/20">
                 {stats.total_ascq} ASCQ rattachés
               </span>
+              {isRepresentantCommunal && inscriptionsEnAttente.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("inscriptions_ascq")}
+                  className="px-3 py-1.5 rounded-2xl bg-amber-400 text-slate-950 font-bold text-xs shadow-sm flex items-center gap-1.5 hover:bg-amber-300 transition-all"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>{inscriptionsEnAttente.length} inscription(s) à valider</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -701,7 +912,7 @@ export default function PerimetreGouvernancePage() {
           </div>
         )}
 
-        {/* 4 ONGLETS DE GOUVERNANCE */}
+        {/* ONGLETS DE GOUVERNANCE */}
         <div className="bg-white rounded-2xl p-1 shadow-sm border border-slate-200/80 flex items-center justify-between text-xs font-bold text-slate-600 gap-1 overflow-x-auto">
           <button
             onClick={() => setActiveTab("dashboard_compile")}
@@ -710,7 +921,7 @@ export default function PerimetreGouvernancePage() {
             }`}
           >
             <BarChart3 className="w-4 h-4" />
-            <span>1. Tableau de bord Compilé</span>
+            <span>1. Tableau de bord</span>
           </button>
 
           <button
@@ -720,8 +931,25 @@ export default function PerimetreGouvernancePage() {
             }`}
           >
             <Users className="w-4 h-4" />
-            <span>2. Suivi Individuel des ASCQ</span>
+            <span>2. ASCQ du Territoire</span>
           </button>
+
+          {(isRepresentantCommunal || isSuperAdmin) && (
+            <button
+              onClick={() => setActiveTab("inscriptions_ascq")}
+              className={`flex-1 py-2.5 px-2 text-center rounded-xl transition-all flex items-center justify-center gap-1.5 whitespace-nowrap relative ${
+                activeTab === "inscriptions_ascq" ? "bg-[#e0f2e9] text-[#005c30] shadow-sm font-black" : "hover:text-slate-900"
+              }`}
+            >
+              <ShieldCheck className="w-4 h-4" />
+              <span>3. Inscriptions ASCQ</span>
+              {inscriptionsEnAttente.length > 0 && (
+                <span className="px-1.5 py-0.2 text-[10px] rounded-full bg-amber-500 text-white font-black animate-pulse">
+                  {inscriptionsEnAttente.length}
+                </span>
+              )}
+            </button>
+          )}
 
           <button
             onClick={() => setActiveTab("diffusion_alertes")}
@@ -730,7 +958,7 @@ export default function PerimetreGouvernancePage() {
             }`}
           >
             <Send className="w-4 h-4" />
-            <span>3. Envoyer une Alerte</span>
+            <span>4. Diffuser Alerte</span>
           </button>
 
           <button
@@ -740,7 +968,7 @@ export default function PerimetreGouvernancePage() {
             }`}
           >
             <Download className="w-4 h-4" />
-            <span>4. Exports & Journal d'Audit</span>
+            <span>5. Exports & Audit</span>
           </button>
         </div>
 
@@ -1050,9 +1278,13 @@ export default function PerimetreGouvernancePage() {
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="px-2 py-0.5 rounded-full bg-slate-200 text-slate-800 text-[10px] font-black uppercase">
-                          Consultation Seule 360°
+                          {isRepresentantCommunal ? "Supervision & Validation Communale" : "Consultation Seule 360°"}
                         </span>
-                        <Lock className="w-3.5 h-3.5 text-slate-400" />
+                        {isRepresentantCommunal ? (
+                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                        ) : (
+                          <Lock className="w-3.5 h-3.5 text-slate-400" />
+                        )}
                       </div>
                       <h3 className="text-base font-black text-slate-900 mt-1">
                         Dossier de {selectedAscq.nom} {selectedAscq.prenoms}
@@ -1079,27 +1311,116 @@ export default function PerimetreGouvernancePage() {
                       </div>
                     ) : (
                       <>
-                        {/* Section 1 : Rapports Mensuels */}
+                        {/* Section 1 : Rapports Mensuels (RMA) */}
                         <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2">
                           <h4 className="font-bold text-slate-900 flex items-center justify-between">
-                            <span>📊 Rapports Mensuels Déposés (RMA)</span>
+                            <span>📊 Rapports Mensuels d'Activités (RMA)</span>
                             <span className="text-[10px] text-slate-500">{dossierAscq.rma.length} trouvés</span>
                           </h4>
                           {dossierAscq.rma.length === 0 ? (
                             <p className="text-slate-400 text-[11px]">Aucun rapport mensuel déposé.</p>
                           ) : (
-                            <div className="space-y-1">
+                            <div className="space-y-2">
                               {dossierAscq.rma.map((r: any) => (
-                                <div key={r.id} className="p-2 bg-white rounded-xl border border-slate-200/60 flex items-center justify-between">
-                                  <span>Mois {r.mois} / {r.annee}</span>
-                                  <span className="font-bold text-emerald-700">Déposé le {new Date(r.created_at).toLocaleDateString("fr-FR")}</span>
+                                <div key={r.id} className="p-3 bg-white rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-sm">
+                                  <div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-extrabold text-slate-900">Mois {r.mois} / {r.annee}</span>
+                                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                        r.statut === "VALIDE" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-900"
+                                      }`}>
+                                        {r.statut === "VALIDE" ? "✅ Validé" : "⏳ En attente de validation"}
+                                      </span>
+                                    </div>
+                                    <p className="text-[11px] text-slate-500 mt-0.5">
+                                      Déposé le {new Date(r.created_at).toLocaleDateString("fr-FR")}
+                                      {r.date_validation && ` • Validé le ${new Date(r.date_validation).toLocaleDateString("fr-FR")}`}
+                                    </p>
+                                    <div className="text-[10px] text-slate-600 mt-1 flex flex-wrap gap-2">
+                                      <span>VAD : <strong>{r.total_visites_domiciliaires || 0}</strong></span>
+                                      <span>Causeries : <strong>{r.total_seances_sensibilisation || 0}</strong></span>
+                                      <span>Femmes suivies : <strong>{r.femmes_enceintes_suivies || 0}</strong></span>
+                                      <span>Enfants : <strong>{r.enfants_0_59_mois_suivis || 0}</strong></span>
+                                    </div>
+                                  </div>
+
+                                  {isRepresentantCommunal && (
+                                    <div className="flex items-center gap-1.5 self-end sm:self-auto shrink-0">
+                                      {r.statut !== "VALIDE" && (
+                                        <button
+                                          type="button"
+                                          disabled={actionInProgress === r.id}
+                                          onClick={() => handleValiderRma(r.id)}
+                                          className="py-1.5 px-3 rounded-lg bg-[#005c30] hover:bg-[#004724] text-white font-bold text-[11px] flex items-center gap-1 transition-all"
+                                        >
+                                          {actionInProgress === r.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
+                                          <span>Valider RMA</span>
+                                        </button>
+                                      )}
+                                      <button
+                                        type="button"
+                                        onClick={() => setEditingRma(r)}
+                                        className="py-1.5 px-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] transition-all"
+                                      >
+                                        Modifier / Corriger
+                                      </button>
+                                    </div>
+                                  )}
                                 </div>
                               ))}
                             </div>
                           )}
                         </div>
 
-                        {/* Section 2 : Plannings et Activités */}
+                        {/* Section 2 : Rapports Hebdomadaires PNSC */}
+                        <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2">
+                          <h4 className="font-bold text-slate-900 flex items-center justify-between">
+                            <span>📋 Rapports Hebdomadaires PNSC</span>
+                            <span className="text-[10px] text-slate-500">{dossierAscq.hebdo.length} trouvés</span>
+                          </h4>
+                          {dossierAscq.hebdo.length === 0 ? (
+                            <p className="text-slate-400 text-[11px]">Aucun rapport hebdomadaire PNSC déposé.</p>
+                          ) : (
+                            <div className="space-y-2">
+                              {dossierAscq.hebdo.map((h: any) => (
+                                <div key={h.id} className="p-3 bg-white rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-sm">
+                                  <div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-bold text-slate-900">Semaine {h.semaine} / {h.annee}</span>
+                                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                        h.statut === "VALIDE" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-900"
+                                      }`}>
+                                        {h.statut === "VALIDE" ? "✅ Validé" : "⏳ Soumis"}
+                                      </span>
+                                    </div>
+                                    <p className="text-[11px] text-slate-500 mt-0.5">
+                                      GAP RH : <strong>{h.rh_gap ?? 0}</strong> • GAP Moto : <strong>{h.motos_gap ?? 0}</strong> • Forfait : <strong>{h.forfait_internet_recu ? "Reçu" : "Non reçu"}</strong>
+                                    </p>
+                                    {h.activites_realisees && (
+                                      <p className="text-[10px] text-slate-600 line-clamp-1 mt-0.5">
+                                        Activité : {h.activites_realisees}
+                                      </p>
+                                    )}
+                                  </div>
+
+                                  {isRepresentantCommunal && h.statut !== "VALIDE" && (
+                                    <button
+                                      type="button"
+                                      disabled={actionInProgress === h.id}
+                                      onClick={() => handleValiderHebdoPnsc(h.id)}
+                                      className="py-1.5 px-3 rounded-lg bg-[#005c30] hover:bg-[#004724] text-white font-bold text-[11px] flex items-center gap-1 self-end sm:self-auto shrink-0 transition-all"
+                                    >
+                                      {actionInProgress === h.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
+                                      <span>Valider Hebdo</span>
+                                    </button>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Section 3 : Plannings et Activités */}
                         <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2">
                           <h4 className="font-bold text-slate-900 flex items-center justify-between">
                             <span>📅 Plannings & Activités menées</span>
@@ -1119,7 +1440,7 @@ export default function PerimetreGouvernancePage() {
                           )}
                         </div>
 
-                        {/* Section 3 : Alertes Épidémiologiques Notifiées */}
+                        {/* Section 4 : Alertes Épidémiologiques Notifiées */}
                         <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2">
                           <h4 className="font-bold text-slate-900 flex items-center justify-between">
                             <span>🚨 Alertes épidémiologiques notifiées</span>
@@ -1156,6 +1477,118 @@ export default function PerimetreGouvernancePage() {
               </div>
             )}
 
+          </div>
+        )}
+
+        {/* ------------------------------------------------------------- */}
+        {/* ONGLET 3 : VALIDATION DES INSCRIPTIONS ASCQ DU PERIMETRE */}
+        {/* ------------------------------------------------------------- */}
+        {activeTab === "inscriptions_ascq" && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 font-extrabold text-[10px] uppercase border border-amber-300">
+                    Validation Communale Obligatoire
+                  </span>
+                </div>
+                <h2 className="text-base font-black text-slate-900 mt-1">
+                  Inscriptions d'ASCQ en attente de validation ({inscriptionsEnAttente.length})
+                </h2>
+                <p className="text-xs text-slate-500">
+                  En tant que Représentant Communal, vous examinez et validez les inscriptions des nouveaux ASCQ de votre commune avant qu'ils ne puissent se connecter.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => chargerInscriptionsEnAttente(currentUser)}
+                disabled={loadingInscriptions}
+                className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1.5 self-start sm:self-auto transition-all"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loadingInscriptions ? "animate-spin text-[#005c30]" : ""}`} />
+                <span>Actualiser</span>
+              </button>
+            </div>
+
+            {loadingInscriptions ? (
+              <div className="p-12 text-center text-slate-400 bg-white rounded-3xl border border-slate-200">
+                <RefreshCw className="w-6 h-6 animate-spin mx-auto text-[#005c30] mb-2" />
+                Chargement des inscriptions en attente...
+              </div>
+            ) : inscriptionsEnAttente.length === 0 ? (
+              <div className="p-12 text-center bg-white rounded-3xl border border-slate-200 space-y-2">
+                <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto" />
+                <h3 className="font-extrabold text-slate-900 text-sm">
+                  Aucune inscription en attente dans votre périmètre
+                </h3>
+                <p className="text-xs text-slate-500 max-w-md mx-auto">
+                  Tous les agents de santé communautaire qualifiés de votre commune ont été validés ou aucune nouvelle inscription n'a été soumise.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {inscriptionsEnAttente.map((agent: any) => (
+                  <div key={agent.id} className="p-4 bg-white rounded-2xl border border-slate-200 shadow-sm space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-extrabold text-sm text-slate-900">
+                            {agent.nom} {agent.prenoms}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 text-[10px] font-bold">
+                            En attente
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-600 font-mono mt-0.5 flex items-center gap-1">
+                          <Phone className="w-3 h-3 text-slate-400" />
+                          <span>{agent.telephone}</span>
+                        </p>
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-medium">
+                        {new Date(agent.created_at).toLocaleDateString("fr-FR")}
+                      </span>
+                    </div>
+
+                    <div className="p-2.5 bg-slate-50 rounded-xl text-xs space-y-1 text-slate-700">
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Arrondissement :</span>
+                        <span className="font-bold">{agent.arrondissement_nom}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Poste demandé :</span>
+                        <span className="font-bold text-emerald-800">Agent de Santé Communautaire (ASCQ)</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-1">
+                      <button
+                        type="button"
+                        disabled={actionInProgress === agent.id}
+                        onClick={() => handleValiderAscq(agent.id, `${agent.nom} ${agent.prenoms}`)}
+                        className="flex-1 py-2 px-3 rounded-xl bg-[#005c30] hover:bg-[#004724] text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all"
+                      >
+                        {actionInProgress === agent.id ? (
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                        )}
+                        <span>Valider l'ASCQ</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={actionInProgress === agent.id}
+                        onClick={() => handleRejeterAscq(agent.id, `${agent.nom} ${agent.prenoms}`)}
+                        className="py-2 px-3 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 font-bold text-xs border border-red-200 transition-all"
+                      >
+                        Rejeter
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -1329,6 +1762,113 @@ export default function PerimetreGouvernancePage() {
               </div>
             </div>
 
+          </div>
+        )}
+
+        {/* MODAL CORRECTION / VALIDATION DE RMA PAR LE REPRESENTANT COMMUNAL */}
+        {editingRma && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b pb-3">
+                <div>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase">
+                      Supervision Communale
+                    </span>
+                  </div>
+                  <h3 className="font-black text-sm text-slate-900">
+                    Modifier / Corriger le RMA (Mois {editingRma.mois} / {editingRma.annee})
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Agent supervisé : {selectedAscq?.nom} {selectedAscq?.prenoms}
+                  </p>
+                </div>
+                <button 
+                  type="button" 
+                  onClick={() => setEditingRma(null)} 
+                  className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveRmaModifications} className="space-y-3 text-xs">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-600 font-bold mb-1">Total VAD Réalisées</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={editingRma.total_visites_domiciliaires ?? 0}
+                      onChange={(e) => setEditingRma({ ...editingRma, total_visites_domiciliaires: Number(e.target.value) })}
+                      className="w-full p-2.5 rounded-xl border border-slate-200 font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-600 font-bold mb-1">Séances de Causerie</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={editingRma.total_seances_sensibilisation ?? 0}
+                      onChange={(e) => setEditingRma({ ...editingRma, total_seances_sensibilisation: Number(e.target.value) })}
+                      className="w-full p-2.5 rounded-xl border border-slate-200 font-bold"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-600 font-bold mb-1">Femmes Enceintes Suivies</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={editingRma.femmes_enceintes_suivies ?? 0}
+                      onChange={(e) => setEditingRma({ ...editingRma, femmes_enceintes_suivies: Number(e.target.value) })}
+                      className="w-full p-2.5 rounded-xl border border-slate-200 font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-600 font-bold mb-1">Enfants 0-59 mois Suivis</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={editingRma.enfants_0_59_mois_suivis ?? 0}
+                      onChange={(e) => setEditingRma({ ...editingRma, enfants_0_59_mois_suivis: Number(e.target.value) })}
+                      className="w-full p-2.5 rounded-xl border border-slate-200 font-bold"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-slate-600 font-bold mb-1">Visa & Observations du Représentant Communal</label>
+                  <textarea
+                    rows={3}
+                    placeholder="Saisissez vos observations, validations ou corrections supervisées..."
+                    value={editingRma.observations_validation || ""}
+                    onChange={(e) => setEditingRma({ ...editingRma, observations_validation: e.target.value })}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 font-medium"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2 pt-2">
+                  <button
+                    type="submit"
+                    disabled={savingRma}
+                    className="flex-1 py-2.5 rounded-xl bg-[#005c30] hover:bg-[#004724] text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm"
+                  >
+                    {savingRma ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                    <span>Enregistrer et Valider le RMA</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditingRma(null)}
+                    className="py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs"
+                  >
+                    Annuler
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         )}
 

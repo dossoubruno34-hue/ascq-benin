@@ -25,15 +25,18 @@ export default function InscriptionPage() {
   const [poste, setPoste] = useState("ASCQ");
   const [posteAutre, setPosteAutre] = useState("");
 
-  // Rôles et niveaux hiérarchiques (les Représentants s'inscrivent comme ASCQ puis sont nommés par l'Admin)
-  const isCadreDept = ["DDS", "CCD_CDLS_TP", "CSSPR", "CSPSMEMH"].includes(poste);
-  const isCadreZone = ["MCZS", "RCSE", "C_RAMS"].includes(poste);
-  const isCadreCommune = ["MCC", "PF_CCLS_TP"].includes(poste);
+  // Rôles et niveaux hiérarchiques
+  // Les responsables de santé ne sont pas rattachés à un arrondissement ni à un centre de santé mais selon leur périmètre
+  const isCadreNational = ["CADRE_NATIONAL", "DIRECTEUR", "MINISTRE", "COORDINATEUR_NATIONAL"].includes(poste);
+  const isCadreDept = ["DDS", "CCD_CDLS_TP", "CSSPR", "CSPSMEMH", "CADRE_DEPARTEMENTAL"].includes(poste);
+  const isCadreZone = ["MCZS", "RCSE", "C_RAMS", "CADRE_ZONE_SANITAIRE"].includes(poste);
+  const isCadreCommune = ["MCC", "PF_CCLS_TP", "CADRE_COMMUNAL"].includes(poste);
   const isTerrainAscq = poste === "ASCQ";
   const isTerrainRc = poste === "RC";
   const isAutre = poste === "AUTRE";
 
-  const showZoneSanitaire = isCadreZone || isCadreCommune || isTerrainAscq || isTerrainRc || isAutre;
+  const showDepartement = !isCadreNational;
+  const showZoneSanitaire = isCadreZone || isTerrainAscq || isTerrainRc || isAutre;
   const showCommune = isCadreCommune || isTerrainAscq || isTerrainRc || isAutre;
   const showArrondissement = isTerrainAscq || isTerrainRc || isAutre;
   const showAscqProfil = isTerrainAscq;
@@ -146,8 +149,8 @@ export default function InscriptionPage() {
         setLoading(false);
         return;
       }
-      if (!selectedArr) {
-        setErrorMsg("Veuillez sélectionner l'arrondissement pour votre rattachement en tant que Relais Communautaire.");
+      if (!selectedDep || !selectedCom || !selectedArr) {
+        setErrorMsg("Veuillez sélectionner le département, la commune et l'arrondissement pour votre rattachement en tant que Relais Communautaire.");
         setLoading(false);
         return;
       }
@@ -156,6 +159,31 @@ export default function InscriptionPage() {
         setErrorMsg("Le mot de passe doit comporter au moins 6 caractères.");
         setLoading(false);
         return;
+      }
+      if (isTerrainAscq) {
+        if (!selectedDep || !selectedCom || !selectedArr) {
+          setErrorMsg("Veuillez sélectionner le département, la commune et l'arrondissement d'affectation de l'ASCQ.");
+          setLoading(false);
+          return;
+        }
+      } else if (isCadreCommune) {
+        if (!selectedDep || !selectedCom) {
+          setErrorMsg("Veuillez sélectionner votre département et votre commune de rattachement.");
+          setLoading(false);
+          return;
+        }
+      } else if (isCadreZone) {
+        if (!selectedDep || !selectedZs) {
+          setErrorMsg("Veuillez sélectionner votre département et votre zone sanitaire de rattachement.");
+          setLoading(false);
+          return;
+        }
+      } else if (isCadreDept) {
+        if (!selectedDep) {
+          setErrorMsg("Veuillez sélectionner votre département de rattachement.");
+          setLoading(false);
+          return;
+        }
       }
     }
 
@@ -413,31 +441,52 @@ export default function InscriptionPage() {
                       if (newP === "RC") {
                         setNombreRc(0);
                       }
-                      if (["DDS", "CCD_CDLS_TP", "CSSPR", "CSPSMEMH"].includes(newP)) {
+                      if (["CADRE_NATIONAL", "DIRECTEUR", "MINISTRE", "COORDINATEUR_NATIONAL"].includes(newP)) {
+                        setSelectedDep("");
                         setSelectedZs("");
                         setSelectedCom("");
                         setSelectedArr("");
-                      } else if (["MCZS", "RCSE", "C_RAMS"].includes(newP)) {
+                      } else if (["DDS", "CCD_CDLS_TP", "CSSPR", "CSPSMEMH", "CADRE_DEPARTEMENTAL"].includes(newP)) {
+                        setSelectedZs("");
                         setSelectedCom("");
                         setSelectedArr("");
-                      } else if (["MCC", "PF_CCLS_TP"].includes(newP)) {
+                      } else if (["MCZS", "RCSE", "C_RAMS", "CADRE_ZONE_SANITAIRE"].includes(newP)) {
+                        setSelectedCom("");
+                        setSelectedArr("");
+                      } else if (["MCC", "PF_CCLS_TP", "CADRE_COMMUNAL"].includes(newP)) {
                         setSelectedArr("");
                       }
                     }}
                     className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-slate-800"
                   >
-                    <option value="ASCQ">Agent de Santé Communautaire Qualifié (ASCQ)</option>
-                    <option value="RC">Relais Communautaire (RC)</option>
-                    <option value="PF_CCLS_TP">PF CCLS-TP</option>
-                    <option value="MCC">MCC</option>
-                    <option value="MCZS">MCZS</option>
-                    <option value="RCSE">RCSE</option>
-                    <option value="C_RAMS">C-RAMS</option>
-                    <option value="DDS">DDS</option>
-                    <option value="CCD_CDLS_TP">CCD CDLS-TP</option>
-                    <option value="CSSPR">CSSPR</option>
-                    <option value="CSPSMEMH">CSPSMEMH</option>
-                    <option value="AUTRE">AUTRE</option>
+                    <optgroup label="Agents de Terrain & Communauté">
+                      <option value="ASCQ">Agent de Santé Communautaire Qualifié (ASCQ)</option>
+                      <option value="RC">Relais Communautaire (RC)</option>
+                    </optgroup>
+                    <optgroup label="Niveau Communal (Périmètre Commune)">
+                      <option value="MCC">Médecin Coordonnateur de Commune (MCC)</option>
+                      <option value="PF_CCLS_TP">Point Focal CCLS-TP</option>
+                      <option value="CADRE_COMMUNAL">Responsable / Cadre Communal de Santé</option>
+                    </optgroup>
+                    <optgroup label="Niveau Zone Sanitaire (Périmètre Zone)">
+                      <option value="MCZS">Médecin Coordonnateur de Zone Sanitaire (MCZS)</option>
+                      <option value="RCSE">Responsable CSE (RCSE)</option>
+                      <option value="C_RAMS">C-RAMS</option>
+                      <option value="CADRE_ZONE_SANITAIRE">Responsable / Cadre de Zone Sanitaire</option>
+                    </optgroup>
+                    <optgroup label="Niveau Départemental (Périmètre Département)">
+                      <option value="DDS">Directeur Départemental de la Santé (DDS)</option>
+                      <option value="CCD_CDLS_TP">CCD CDLS-TP</option>
+                      <option value="CSSPR">CSSPR</option>
+                      <option value="CSPSMEMH">CSPSMEMH</option>
+                      <option value="CADRE_DEPARTEMENTAL">Responsable / Cadre Départemental</option>
+                    </optgroup>
+                    <optgroup label="Niveau National (Tout le Bénin)">
+                      <option value="CADRE_NATIONAL">Cadre / Responsable National (Ministère, DNSP, ANSSP)</option>
+                    </optgroup>
+                    <optgroup label="Autre">
+                      <option value="AUTRE">Autre fonction sanitaire</option>
+                    </optgroup>
                   </select>
                 </div>
 
@@ -448,6 +497,50 @@ export default function InscriptionPage() {
                     </p>
                     <p className="text-[11px] leading-relaxed text-emerald-800">
                       Renseignez votre département, zone sanitaire, commune et arrondissement. Dès validation par l'ASCQ de votre arrondissement, votre compte sera affecté à votre village d'intervention et actif pour la connexion.
+                    </p>
+                  </div>
+                )}
+
+                {isCadreNational && (
+                  <div className="sm:col-span-2 p-3.5 bg-teal-50 border border-teal-200 rounded-2xl text-xs text-teal-950 space-y-1">
+                    <p className="font-extrabold text-teal-900">
+                      🏛️ Périmètre National (Supervision globale Bénin)
+                    </p>
+                    <p className="text-[11px] leading-relaxed text-teal-800">
+                      En tant que cadre national, vous supervisez l'ensemble du territoire national en consultation seule. Aucun rattachement à un arrondissement ou centre de santé n'est requis.
+                    </p>
+                  </div>
+                )}
+
+                {isCadreDept && (
+                  <div className="sm:col-span-2 p-3 bg-blue-50 border border-blue-200 rounded-2xl text-xs text-blue-950 space-y-1">
+                    <p className="font-extrabold text-blue-900">
+                      🗺️ Périmètre Départemental (Supervision du département)
+                    </p>
+                    <p className="text-[11px] leading-relaxed text-blue-800">
+                      Sélectionnez uniquement votre département. Vous superviserez toutes les communes et arrondissements de ce département. Aucun rattachement à un arrondissement ou centre de santé n'est requis.
+                    </p>
+                  </div>
+                )}
+
+                {isCadreZone && (
+                  <div className="sm:col-span-2 p-3 bg-blue-50 border border-blue-200 rounded-2xl text-xs text-blue-950 space-y-1">
+                    <p className="font-extrabold text-blue-900">
+                      🏥 Périmètre Zone Sanitaire (Supervision de la zone)
+                    </p>
+                    <p className="text-[11px] leading-relaxed text-blue-800">
+                      Sélectionnez votre département et votre zone sanitaire. Vous superviserez toutes les communes rattachées. Aucun rattachement à un arrondissement ou centre de santé n'est requis.
+                    </p>
+                  </div>
+                )}
+
+                {isCadreCommune && (
+                  <div className="sm:col-span-2 p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs text-emerald-950 space-y-1">
+                    <p className="font-extrabold text-emerald-900">
+                      🏛️ Périmètre Communal (Supervision de la commune)
+                    </p>
+                    <p className="text-[11px] leading-relaxed text-emerald-800">
+                      Sélectionnez votre département et votre commune. Votre périmètre couvrira tous les arrondissements de la commune. Aucun rattachement à un arrondissement ou centre de santé spécifique n'est requis.
                     </p>
                   </div>
                 )}
@@ -479,128 +572,138 @@ export default function InscriptionPage() {
                 <span className="text-[11px] text-slate-500">Filtrage en cascade</span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Département *
-                  </label>
-                  <select
-                    required
-                    value={selectedDep}
-                    onChange={(e) => setSelectedDep(e.target.value)}
-                    className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  >
-                    <option value="">Sélectionnez un département</option>
-                    {departements.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.nom}
-                      </option>
-                    ))}
-                  </select>
+              {isCadreNational ? (
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-600 text-center font-medium">
+                  ✅ Aire géographique : <strong>Territoire National (Tout le Bénin)</strong>. Aucune sous-division n'est requise.
                 </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {showDepartement && (
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Département *
+                        </label>
+                        <select
+                          required
+                          value={selectedDep}
+                          onChange={(e) => setSelectedDep(e.target.value)}
+                          className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        >
+                          <option value="">Sélectionnez un département</option>
+                          {departements.map((d) => (
+                            <option key={d.id} value={d.id}>
+                              {d.nom}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
 
-                {showZoneSanitaire && (
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Zone sanitaire {isAutre ? "" : "*"}
-                    </label>
-                    <select
-                      required={!isAutre}
-                      value={selectedZs}
-                      onChange={(e) => setSelectedZs(e.target.value)}
-                      disabled={!selectedDep}
-                      className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50"
-                    >
-                      <option value="">Sélectionnez une zone sanitaire</option>
-                      {zonesSanitaires.map((z) => (
-                        <option key={z.id} value={z.id}>
-                          {z.nom}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
+                    {showZoneSanitaire && (
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Zone sanitaire {isAutre ? "" : "*"}
+                        </label>
+                        <select
+                          required={!isAutre}
+                          value={selectedZs}
+                          onChange={(e) => setSelectedZs(e.target.value)}
+                          disabled={!selectedDep}
+                          className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50"
+                        >
+                          <option value="">Sélectionnez une zone sanitaire</option>
+                          {zonesSanitaires.map((z) => (
+                            <option key={z.id} value={z.id}>
+                              {z.nom}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
 
-                {showCommune && (
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Commune {isAutre ? "" : "*"}
-                    </label>
-                    <select
-                      required={!isAutre}
-                      value={selectedCom}
-                      onChange={(e) => setSelectedCom(e.target.value)}
-                      disabled={!selectedDep}
-                      className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50"
-                    >
-                      <option value="">Sélectionnez une commune</option>
-                      {filteredCommunes.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.nom}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
+                    {showCommune && (
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Commune {isAutre ? "" : "*"}
+                        </label>
+                        <select
+                          required={!isAutre}
+                          value={selectedCom}
+                          onChange={(e) => setSelectedCom(e.target.value)}
+                          disabled={!selectedDep}
+                          className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50"
+                        >
+                          <option value="">Sélectionnez une commune</option>
+                          {filteredCommunes.map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.nom}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
 
-                {showArrondissement && (
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Arrondissement principal {isTerrainAscq ? "*" : ""}
-                    </label>
-                    <select
-                      required={isTerrainAscq}
-                      value={selectedArr}
-                      onChange={(e) => setSelectedArr(e.target.value)}
-                      disabled={!selectedCom}
-                      className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50"
-                    >
-                      <option value="">Sélectionnez un arrondissement</option>
-                      {arrondissements.map((a) => (
-                        <option key={a.id} value={a.id}>
-                          {a.nom}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-              </div>
-
-              {isTerrainAscq && selectedCom && (
-                <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-3">
-                  <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-800">
-                    <input
-                      type="checkbox"
-                      checked={cumulArrondissements}
-                      onChange={(e) => setCumulArrondissements(e.target.checked)}
-                      className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500"
-                    />
-                    <span>Je cumule deux arrondissements</span>
-                  </label>
-
-                  {cumulArrondissements && (
-                    <div className="pt-2">
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">
-                        Second arrondissement cumulé *
-                      </label>
-                      <select
-                        required={cumulArrondissements}
-                        value={selectedSecondArr}
-                        onChange={(e) => setSelectedSecondArr(e.target.value)}
-                        className="w-full text-sm rounded-xl border border-slate-200 bg-white px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                      >
-                        <option value="">Sélectionnez le second arrondissement</option>
-                        {arrondissements
-                          .filter((a) => a.id !== selectedArr)
-                          .map((a) => (
+                    {showArrondissement && (
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Arrondissement principal {isTerrainAscq ? "*" : ""}
+                        </label>
+                        <select
+                          required={isTerrainAscq}
+                          value={selectedArr}
+                          onChange={(e) => setSelectedArr(e.target.value)}
+                          disabled={!selectedCom}
+                          className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50"
+                        >
+                          <option value="">Sélectionnez un arrondissement</option>
+                          {arrondissements.map((a) => (
                             <option key={a.id} value={a.id}>
                               {a.nom}
                             </option>
                           ))}
-                      </select>
+                        </select>
+                      </div>
+                    )}
+                  </div>
+
+                  {isTerrainAscq && selectedCom && (
+                    <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-3">
+                      <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-800">
+                        <input
+                          type="checkbox"
+                          checked={cumulArrondissements}
+                          onChange={(e) => setCumulArrondissements(e.target.checked)}
+                          className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500"
+                        />
+                        <span>Je cumule deux arrondissements</span>
+                      </label>
+
+                      {cumulArrondissements && (
+                        <div className="pt-2">
+                          <label className="block text-xs font-semibold text-slate-700 mb-1">
+                            Second arrondissement cumulé *
+                          </label>
+                          <select
+                            required={cumulArrondissements}
+                            value={selectedSecondArr}
+                            onChange={(e) => setSelectedSecondArr(e.target.value)}
+                            className="w-full text-sm rounded-xl border border-slate-200 bg-white px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          >
+                            <option value="">Sélectionnez le second arrondissement</option>
+                            {arrondissements
+                              .filter((a) => a.id !== selectedArr)
+                              .map((a) => (
+                                <option key={a.id} value={a.id}>
+                                  {a.nom}
+                                </option>
+                              ))}
+                          </select>
+                        </div>
+                      )}
                     </div>
                   )}
-                </div>
+                </>
               )}
             </div>
 
