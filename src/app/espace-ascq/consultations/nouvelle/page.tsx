@@ -426,6 +426,57 @@ export default function NouvelleConsultationPage() {
     );
   }
 
+  const isRelais =
+    currentUser?.role_technique === "RELAIS" ||
+    currentUser?.role_technique === "RELAIS_COMMUNAUTAIRE" ||
+    currentUser?.poste === "RC";
+
+  if (!loading && isRelais) {
+    return (
+      <div className="min-h-screen bg-[#f4f7f5] flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white rounded-3xl p-6 sm:p-8 border-2 border-amber-300 shadow-xl space-y-5 text-center">
+          <div className="w-16 h-16 rounded-3xl bg-amber-50 text-amber-700 flex items-center justify-center mx-auto border border-amber-200 shadow-inner">
+            <AlertTriangle className="w-8 h-8" />
+          </div>
+          <div className="space-y-2">
+            <span className="text-[10px] font-black uppercase text-amber-800 bg-amber-100 px-2.5 py-1 rounded-full">
+              Périmètre Clinique Strict
+            </span>
+            <h2 className="text-lg font-black text-slate-900">
+              Module Réservé aux ASCQ Qualifiés
+            </h2>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              En tant que <strong>Relais Communautaire (RC)</strong>, vous n'avez pas l'habilitation pour réaliser une consultation clinique directe ni administrer ou délivrer des médicaments (CTA, Amoxicilline, SRO/Zinc, etc.).
+            </p>
+            <div className="p-3 bg-emerald-50 rounded-2xl border border-emerald-200 text-left text-xs text-emerald-900 leading-relaxed">
+              💡 <strong>Rôle du Relais Communautaire :</strong> Vous devez établir immédiatement une <strong>Référence</strong> vers :
+              <ul className="list-disc list-inside mt-1 font-semibold space-y-0.5">
+                <li>Votre <strong>ASCQ Superviseur</strong> (iCCM au village)</li>
+                <li>Le <strong>Centre de Santé (CS)</strong> (dispensaire / maternité)</li>
+                <li>Le <strong>GUPS</strong> (protection sociale, indigent, VBG)</li>
+              </ul>
+            </div>
+          </div>
+          <div className="flex flex-col gap-2 pt-2">
+            <Link
+              href="/relais/reference/nouvelle"
+              className="w-full py-3 px-4 rounded-xl text-xs font-black bg-[#005c30] hover:bg-[#004724] text-white shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
+            >
+              <Send className="w-4 h-4" />
+              <span>Référer le cas (ASCQ / CS / GUPS)</span>
+            </Link>
+            <Link
+              href="/espace-rc"
+              className="w-full py-2.5 px-4 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 transition-colors"
+            >
+              Retourner à Mon Espace RC
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // ÉCRAN DE SUCCÈS
   if (successResult) {
     const isPec = successResult.decision === "PRISE_EN_CHARGE_COMMUNAUTAIRE";

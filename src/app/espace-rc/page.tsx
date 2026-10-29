@@ -28,15 +28,19 @@ import {
   Plus,
   Check,
   Trash2,
-  WifiOff
+  WifiOff,
+  ExternalLink,
+  Printer
 } from "lucide-react";
 import { getCachedRcSpace, saveCachedRcSpace, saveCachedUserSession } from "@/lib/offline-sync";
+import FicheHebdoActivitesRcOfficielle from "@/components/FicheHebdoActivitesRcOfficielle";
 
 export default function EspaceRelaisPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"fiches" | "planning" | "notifications" | "compte">("fiches");
   const [rcData, setRcData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [planningMode, setPlanningMode] = useState<"officielle" | "rapide">("officielle");
 
   // Planning hebdomadaire du Relais
   const [planningTaches, setPlanningTaches] = useState<Array<{ id: string; jour: string; activite: string; fait: boolean }>>([
@@ -307,6 +311,49 @@ export default function EspaceRelaisPage() {
               </p>
             </div>
 
+            {/* Fiche 0 : Fiche hebdomadaire d'activités PNSC Officielle */}
+            <div className="bg-gradient-to-br from-emerald-50 via-teal-50/50 to-white rounded-3xl p-5 border-2 border-[#005c30] shadow-md space-y-3 hover:shadow-lg transition-all">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-[#005c30] text-white flex items-center justify-center shrink-0 shadow-sm">
+                  <Calendar className="w-5 h-5 stroke-[2.5]" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-black text-slate-900 text-sm">
+                      Fiche hebdomadaire d'activités (PNSC Officielle)
+                    </h3>
+                    <span className="text-[10px] font-black uppercase text-[#005c30] bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300">
+                      Officiel Bénin
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                    VAD, causeries, salubrité, santé animale, affaires sociales, suivi femmes enceintes & enfants 0-59 mois, références et signature ASCQ.
+                  </p>
+                </div>
+              </div>
+
+              <div className="pt-2 flex items-center justify-between border-t border-emerald-100">
+                <Link
+                  href="/espace-rc/fiche-hebdo"
+                  className="text-xs font-bold text-[#005c30] hover:underline flex items-center gap-1"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Version plein écran & PDF</span>
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab("planning");
+                    setPlanningMode("officielle");
+                  }}
+                  className="px-4 py-2 rounded-xl text-xs font-black bg-[#005c30] hover:bg-[#004724] text-white shadow-md active:scale-95 transition-all flex items-center gap-1.5"
+                >
+                  <Calendar className="w-4 h-4" />
+                  <span>Remplir ma fiche</span>
+                </button>
+              </div>
+            </div>
+
             {/* Fiche 1 : Registre communautaire */}
             <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm space-y-3 hover:border-emerald-300 transition-all">
               <div className="flex items-start gap-3">
@@ -460,148 +507,202 @@ export default function EspaceRelaisPage() {
         )}
 
         {/* ------------------------------------------------------------- */}
-        {/* ONGLET 2 : MON PLANNING HEBDOMADAIRE (NOUVEAU) */}
+        {/* ONGLET 2 : MON PLANNING & FICHE HEBDOMADAIRE (OFFICIEL PNSC) */}
         {/* ------------------------------------------------------------- */}
         {activeTab === "planning" && (
           <section className="space-y-4">
-            <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-[#005c30]">
-                  <Calendar className="w-5 h-5" />
-                  <h2 className="font-extrabold text-sm text-slate-900">
-                    Planning d'Activités du Relais
-                  </h2>
-                </div>
-                <span className="text-[11px] font-black bg-emerald-50 text-[#005c30] px-2.5 py-1 rounded-xl border border-emerald-200">
-                  {planningTaches.filter(t => t.fait).length} / {planningTaches.length} réalisées
-                </span>
-              </div>
-              <p className="text-xs text-slate-500">
-                Planifiez vos Visites à Domicile (VAD), séances de sensibilisation, ratissage vaccinal et dépistage iCCM sur votre grappe.
-              </p>
-            </div>
-
-            {/* Formulaire d'ajout rapide d'activité */}
-            <div className="bg-white rounded-3xl p-4 border border-slate-200/80 shadow-sm space-y-3">
-              <h3 className="font-bold text-xs text-slate-700">Ajouter une activité au planning</h3>
-              <div className="flex flex-col sm:flex-row gap-2">
-                <select
-                  value={nouvelleTacheJour}
-                  onChange={(e) => setNouvelleTacheJour(e.target.value)}
-                  className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold bg-slate-50/50"
+            {/* Barre de sélection de mode (Fiche Officielle vs Tâches rapides) */}
+            <div className="bg-white rounded-3xl p-4 border border-slate-200/80 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-2xl w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => setPlanningMode("officielle")}
+                  className={`flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 ${
+                    planningMode === "officielle"
+                      ? "bg-white text-[#005c30] shadow-sm"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
                 >
-                  <option value="Lundi">Lundi</option>
-                  <option value="Mardi">Mardi</option>
-                  <option value="Mercredi">Mercredi</option>
-                  <option value="Jeudi">Jeudi</option>
-                  <option value="Vendredi">Vendredi</option>
-                  <option value="Samedi">Samedi</option>
-                  <option value="Dimanche">Dimanche</option>
-                </select>
-
-                <input
-                  type="text"
-                  placeholder="Ex: Visite des 4 ménages du hameau sud..."
-                  value={nouvelleTacheTitre}
-                  onChange={(e) => setNouvelleTacheTitre(e.target.value)}
-                  className="flex-1 px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-[#005c30]"
-                />
+                  <Calendar className="w-4 h-4 text-[#005c30]" />
+                  <span>Fiche Officielle PNSC</span>
+                  <span className="hidden md:inline-block text-[9px] uppercase px-1.5 py-0.5 rounded bg-emerald-100 text-[#005c30] font-black">
+                    Validée
+                  </span>
+                </button>
 
                 <button
                   type="button"
-                  onClick={() => {
-                    if (!nouvelleTacheTitre.trim()) return;
-                    setPlanningTaches([
-                      ...planningTaches,
-                      {
-                        id: Date.now().toString(),
-                        jour: nouvelleTacheJour,
-                        activite: nouvelleTacheTitre.trim(),
-                        fait: false,
-                      }
-                    ]);
-                    setNouvelleTacheTitre("");
-                  }}
-                  className="px-4 py-2 bg-[#005c30] hover:bg-[#004724] text-white text-xs font-bold rounded-xl shadow-sm active:scale-95 transition-all flex items-center justify-center gap-1"
+                  onClick={() => setPlanningMode("rapide")}
+                  className={`flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 ${
+                    planningMode === "rapide"
+                      ? "bg-white text-[#005c30] shadow-sm"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
                 >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Ajouter</span>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  <span>Tâches au jour le jour</span>
                 </button>
               </div>
 
-              {/* Raccourcis d'activités recommandées */}
-              <div className="pt-2 border-t border-slate-100 flex items-center gap-1.5 flex-wrap text-[10px]">
-                <span className="text-slate-400 font-medium">Modèles rapides :</span>
-                {[
-                  "5 VAD avec boîte à images",
-                  "Ratissage vaccinal PEV",
-                  "Dépistage Palu TDR",
-                  "Sensibilisation eau & latrines"
-                ].map((modele, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => setNouvelleTacheTitre(modele)}
-                    className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors"
-                  >
-                    + {modele}
-                  </button>
-                ))}
-              </div>
+              <Link
+                href="/espace-rc/fiche-hebdo"
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-black shadow-sm transition-all active:scale-95 shrink-0"
+              >
+                <Printer className="w-4 h-4" />
+                <span>Format Plein Écran & PDF</span>
+              </Link>
             </div>
 
-            {/* Liste des activités planifiées */}
-            <div className="space-y-2">
-              {planningTaches.map((t) => (
-                <div
-                  key={t.id}
-                  className={`p-3.5 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
-                    t.fait ? "bg-emerald-50/50 border-emerald-200" : "bg-white border-slate-200/80 shadow-sm"
-                  }`}
-                >
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
+            {/* Mode 1 : Fiche hebdomadaire officielle PNSC Bénin */}
+            {planningMode === "officielle" && (
+              <div className="space-y-4">
+                <FicheHebdoActivitesRcOfficielle rcProfile={rcData} isAscqSuperviseur={false} />
+              </div>
+            )}
+
+            {/* Mode 2 : Tâches rapides au jour le jour */}
+            {planningMode === "rapide" && (
+              <div className="space-y-4">
+                <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-[#005c30]">
+                      <Calendar className="w-5 h-5" />
+                      <h2 className="font-extrabold text-sm text-slate-900">
+                        Planning d'Activités du Relais
+                      </h2>
+                    </div>
+                    <span className="text-[11px] font-black bg-emerald-50 text-[#005c30] px-2.5 py-1 rounded-xl border border-emerald-200">
+                      {planningTaches.filter(t => t.fait).length} / {planningTaches.length} réalisées
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    Planifiez vos Visites à Domicile (VAD), séances de sensibilisation, ratissage vaccinal et dépistage iCCM sur votre grappe.
+                  </p>
+                </div>
+
+                {/* Formulaire d'ajout rapide d'activité */}
+                <div className="bg-white rounded-3xl p-4 border border-slate-200/80 shadow-sm space-y-3">
+                  <h3 className="font-bold text-xs text-slate-700">Ajouter une activité au planning</h3>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <select
+                      value={nouvelleTacheJour}
+                      onChange={(e) => setNouvelleTacheJour(e.target.value)}
+                      className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold bg-slate-50/50"
+                    >
+                      <option value="Lundi">Lundi</option>
+                      <option value="Mardi">Mardi</option>
+                      <option value="Mercredi">Mercredi</option>
+                      <option value="Jeudi">Jeudi</option>
+                      <option value="Vendredi">Vendredi</option>
+                      <option value="Samedi">Samedi</option>
+                      <option value="Dimanche">Dimanche</option>
+                    </select>
+
+                    <input
+                      type="text"
+                      placeholder="Ex: Visite des 4 ménages du hameau sud..."
+                      value={nouvelleTacheTitre}
+                      onChange={(e) => setNouvelleTacheTitre(e.target.value)}
+                      className="flex-1 px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-[#005c30]"
+                    />
+
                     <button
                       type="button"
                       onClick={() => {
-                        setPlanningTaches(planningTaches.map(item => item.id === t.id ? { ...item, fait: !item.fait } : item));
+                        if (!nouvelleTacheTitre.trim()) return;
+                        setPlanningTaches([
+                          ...planningTaches,
+                          {
+                            id: Date.now().toString(),
+                            jour: nouvelleTacheJour,
+                            activite: nouvelleTacheTitre.trim(),
+                            fait: false,
+                          }
+                        ]);
+                        setNouvelleTacheTitre("");
                       }}
-                      className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all ${
-                        t.fait ? "bg-[#005c30] text-white" : "border-2 border-slate-300 bg-white"
-                      }`}
+                      className="px-4 py-2 bg-[#005c30] hover:bg-[#004724] text-white text-xs font-bold rounded-xl shadow-sm active:scale-95 transition-all flex items-center justify-center gap-1"
                     >
-                      {t.fait && <Check className="w-4 h-4 stroke-[3]" />}
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Ajouter</span>
                     </button>
-
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-black uppercase text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
-                          {t.jour}
-                        </span>
-                        {t.fait && (
-                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-md">
-                            Terminé
-                          </span>
-                        )}
-                      </div>
-                      <p className={`text-xs font-medium mt-1 truncate ${t.fait ? "line-through text-slate-400" : "text-slate-800 font-bold"}`}>
-                        {t.activite}
-                      </p>
-                    </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPlanningTaches(planningTaches.filter(item => item.id !== t.id));
-                    }}
-                    className="p-1.5 text-slate-300 hover:text-red-500 transition-colors"
-                    title="Supprimer"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  {/* Raccourcis d'activités recommandées */}
+                  <div className="pt-2 border-t border-slate-100 flex items-center gap-1.5 flex-wrap text-[10px]">
+                    <span className="text-slate-400 font-medium">Modèles rapides :</span>
+                    {[
+                      "5 VAD avec boîte à images",
+                      "Ratissage vaccinal PEV",
+                      "Dépistage Palu TDR",
+                      "Sensibilisation eau & latrines"
+                    ].map((modele, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setNouvelleTacheTitre(modele)}
+                        className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors"
+                      >
+                        + {modele}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              ))}
-            </div>
+
+                {/* Liste des activités planifiées */}
+                <div className="space-y-2">
+                  {planningTaches.map((t) => (
+                    <div
+                      key={t.id}
+                      className={`p-3.5 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
+                        t.fait ? "bg-emerald-50/50 border-emerald-200" : "bg-white border-slate-200/80 shadow-sm"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPlanningTaches(planningTaches.map(item => item.id === t.id ? { ...item, fait: !item.fait } : item));
+                          }}
+                          className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all ${
+                            t.fait ? "bg-[#005c30] text-white" : "border-2 border-slate-300 bg-white"
+                          }`}
+                        >
+                          {t.fait && <Check className="w-4 h-4 stroke-[3]" />}
+                        </button>
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-black uppercase text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
+                              {t.jour}
+                            </span>
+                            {t.fait && (
+                              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-md">
+                                Terminé
+                              </span>
+                            )}
+                          </div>
+                          <p className={`text-xs font-medium mt-1 truncate ${t.fait ? "line-through text-slate-400" : "text-slate-800 font-bold"}`}>
+                            {t.activite}
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPlanningTaches(planningTaches.filter(item => item.id !== t.id));
+                        }}
+                        className="p-1.5 text-slate-300 hover:text-red-500 transition-colors"
+                        title="Supprimer"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </section>
         )}
 

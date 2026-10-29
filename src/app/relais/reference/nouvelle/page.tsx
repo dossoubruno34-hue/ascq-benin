@@ -21,9 +21,11 @@ import {
   FileText,
   Activity,
   Trees,
-  Check
+  Check,
+  Stethoscope
 } from "lucide-react";
 import {
+  MOTIFS_REFERENCES_ASCQ,
   MOTIFS_REFERENCES_SANTE,
   MOTIFS_REFERENCES_GUPS,
   ONE_HEALTH_SECTEURS
@@ -38,8 +40,8 @@ export default function NouvelleReferenceCommunautairePage() {
   const [successResult, setSuccessResult] = useState<any | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // 1. Typologie & Destination
-  const [typeReference, setTypeReference] = useState<"SANTE" | "SOCIAL_GUPS">("SANTE");
+  // 1. Typologie & Destination (3 cibles : ASCQ, CS, GUPS)
+  const [typeReference, setTypeReference] = useState<"ASCQ" | "SANTE" | "SOCIAL_GUPS">("ASCQ");
   const [destinationNom, setDestinationNom] = useState("");
   const [degreUrgence, setDegreUrgence] = useState<"NORMALE" | "URGENTE" | "EVACUATION_IMMEDIATE">("NORMALE");
 
@@ -117,21 +119,21 @@ export default function NouvelleReferenceCommunautairePage() {
         setCurrentUser(profil);
 
         // Si c'est un Relais Communautaire, récupérer son village et son ASCQ
-        if (profil?.poste === "RC") {
-          const cachedRc = getCachedRcSpace();
-          if (cachedRc?.village_nom) {
-            setVillageNom(cachedRc.village_nom);
-            setDestinationNom(`Centre de Santé de ${cachedRc.village_nom}`);
-          } else {
-            setDestinationNom(`Centre de Santé le plus proche`);
-          }
-        } else {
-          setDestinationNom(profil?.commune_nom ? `Centre de Santé Communal de ${profil.commune_nom}` : "Centre de Santé");
+        const cachedRc = getCachedRcSpace();
+        if (cachedRc?.village_nom) {
+          setVillageNom(cachedRc.village_nom);
         }
 
-        // Motif par défaut
-        setMotifCode(MOTIFS_REFERENCES_SANTE[0].code);
-        setMotifLibelle(MOTIFS_REFERENCES_SANTE[0].nom);
+        const ascqNom = cachedRc?.ascq_nom || profil?.ascq_nom;
+        if (ascqNom) {
+          setDestinationNom(`ASCQ Superviseur : ${ascqNom}`);
+        } else {
+          setDestinationNom("ASCQ Superviseur de proximité");
+        }
+
+        // Motif par défaut : Soins communautaires ASCQ
+        setMotifCode(MOTIFS_REFERENCES_ASCQ[0].code);
+        setMotifLibelle(MOTIFS_REFERENCES_ASCQ[0].nom);
 
       } catch (err) {
         console.warn("Erreur init nouvelle référence, bascule locale:", err);
@@ -143,10 +145,20 @@ export default function NouvelleReferenceCommunautairePage() {
     init();
   }, [router]);
 
-  // Basculement Type : ajuster destination et motifs
-  const handleTypeChange = (newType: "SANTE" | "SOCIAL_GUPS") => {
+  // Basculement Type : 3 cibles (ASCQ, CS, GUPS)
+  const handleTypeChange = (newType: "ASCQ" | "SANTE" | "SOCIAL_GUPS") => {
     setTypeReference(newType);
-    if (newType === "SANTE") {
+    if (newType === "ASCQ") {
+      setMotifCode(MOTIFS_REFERENCES_ASCQ[0].code);
+      setMotifLibelle(MOTIFS_REFERENCES_ASCQ[0].nom);
+      const cachedRc = getCachedRcSpace();
+      const ascqNom = cachedRc?.ascq_nom || currentUser?.ascq_nom;
+      setDestinationNom(
+        ascqNom 
+          ? `ASCQ Superviseur : ${ascqNom}` 
+          : "ASCQ Superviseur de proximité"
+      );
+    } else if (newType === "SANTE") {
       setMotifCode(MOTIFS_REFERENCES_SANTE[0].code);
       setMotifLibelle(MOTIFS_REFERENCES_SANTE[0].nom);
       setDestinationNom(
@@ -166,7 +178,11 @@ export default function NouvelleReferenceCommunautairePage() {
   };
 
   const handleMotifSelect = (code: string) => {
-    const list = typeReference === "SANTE" ? MOTIFS_REFERENCES_SANTE : MOTIFS_REFERENCES_GUPS;
+    const list = typeReference === "ASCQ" 
+      ? MOTIFS_REFERENCES_ASCQ 
+      : typeReference === "SANTE" 
+        ? MOTIFS_REFERENCES_SANTE 
+        : MOTIFS_REFERENCES_GUPS;
     const found = list.find(m => m.code === code);
     if (found) {
       setMotifCode(found.code);
@@ -186,14 +202,14 @@ export default function NouvelleReferenceCommunautairePage() {
       return;
     }
     if (!destinationNom.trim()) {
-      setErrorMsg("Veuillez préciser la structure de destination (Centre de Santé ou GUPS).");
+      setErrorMsg("Veuillez préciser le destinataire (ASCQ, Centre de Santé ou GUPS).");
       return;
     }
 
     setSubmitting(true);
     setErrorMsg(null);
 
-    const destinationType = typeReference === "SANTE" ? "CENTRE_SANTE" : "GUPS";
+    const destinationType = typeReference === "ASCQ" ? "ASCQ" : (typeReference === "SANTE" ? "CENTRE_SANTE" : "GUPS");
     const detailsComplets = [
       motifDetails.trim(),
       premiersSecours.trim() ? `Premiers soins / mesures communautaires : ${premiersSecours.trim()}` : null
@@ -428,7 +444,11 @@ export default function NouvelleReferenceCommunautairePage() {
     );
   }
 
-  const listeMotifs = typeReference === "SANTE" ? MOTIFS_REFERENCES_SANTE : MOTIFS_REFERENCES_GUPS;
+  const listeMotifs = typeReference === "ASCQ" 
+    ? MOTIFS_REFERENCES_ASCQ 
+    : typeReference === "SANTE" 
+      ? MOTIFS_REFERENCES_SANTE 
+      : MOTIFS_REFERENCES_GUPS;
 
   return (
     <div className="min-h-screen bg-[#f4f7f5] text-slate-800 antialiased pb-28">
@@ -444,7 +464,7 @@ export default function NouvelleReferenceCommunautairePage() {
           </Link>
           <div className="text-center">
             <h1 className="text-sm font-extrabold tracking-tight">Fiche de Référence Communautaire</h1>
-            <p className="text-[10px] text-white/80">Santé Publique & GUPS (Protection Sociale)</p>
+            <p className="text-[10px] text-white/80">3 Destinations : ASCQ, Centre de Santé ou GUPS</p>
           </div>
           <div className="w-8"></div>
         </div>
@@ -462,13 +482,13 @@ export default function NouvelleReferenceCommunautairePage() {
             <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800">
               Circuit de Référence Officiel
             </span>
-            <span className="text-xs text-slate-400 font-bold">Phase 12 One Health</span>
+            <span className="text-xs text-slate-400 font-bold">ASCQ • CS • GUPS</span>
           </div>
           <h2 className="text-base sm:text-lg font-black text-slate-900">
-            Orientation de Cas : Centre de Santé ou GUPS
+            Orientation de Cas : ASCQ, Centre de Santé ou GUPS
           </h2>
           <p className="text-xs text-slate-500 leading-relaxed">
-            Permet au Relais ou à l'ASCQ de référer rapidement un malade vers le centre de santé ou un cas de vulnérabilité / violence vers le Guichet Unique de Protection Sociale (GUPS).
+            Permet au Relais Communautaire d'orienter immédiatement une personne vers son <strong>ASCQ superviseur</strong> (soins iCCM au village), vers le <strong>Centre de Santé (CS)</strong> (urgences / signes de danger / maternité) ou vers le <strong>GUPS</strong> (protection sociale, VBG, indigence).
           </p>
         </div>
 
@@ -480,10 +500,31 @@ export default function NouvelleReferenceCommunautairePage() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4 text-xs">
-          {/* 1. SÉLECTION DE LA DESTINATION : SANTÉ OU GUPS */}
+          {/* 1. SÉLECTION DE LA DESTINATION : 3 OPTIONS (ASCQ, CS, GUPS) */}
           <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm space-y-3">
             <h3 className="font-extrabold text-sm text-slate-900">1. Destination de la Référence *</h3>
-            <div className="grid grid-cols-2 gap-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              {/* Cible 1 : ASCQ */}
+              <button
+                type="button"
+                onClick={() => handleTypeChange("ASCQ")}
+                className={`p-3.5 rounded-2xl border text-left transition-all flex flex-col gap-1.5 ${
+                  typeReference === "ASCQ"
+                    ? "bg-teal-50/80 border-[#005c30] text-teal-950 ring-2 ring-[#005c30]/20 shadow-sm"
+                    : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-white"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <Stethoscope className={`w-5 h-5 ${typeReference === "ASCQ" ? "text-[#005c30]" : "text-slate-400"}`} />
+                  {typeReference === "ASCQ" && <Check className="w-4 h-4 text-[#005c30] stroke-[3]" />}
+                </div>
+                <div>
+                  <strong className="block text-xs font-black">1. ASCQ Superviseur</strong>
+                  <span className="text-[10px] text-slate-500 leading-tight block">Soins iCCM, Palu TDR, SRO/Zinc</span>
+                </div>
+              </button>
+
+              {/* Cible 2 : Centre de Santé */}
               <button
                 type="button"
                 onClick={() => handleTypeChange("SANTE")}
@@ -498,11 +539,12 @@ export default function NouvelleReferenceCommunautairePage() {
                   {typeReference === "SANTE" && <Check className="w-4 h-4 text-[#005c30] stroke-[3]" />}
                 </div>
                 <div>
-                  <strong className="block text-xs font-black">Centre de Santé</strong>
-                  <span className="text-[10px] text-slate-500 leading-tight block">Maladies, urgences médicales, iCCM</span>
+                  <strong className="block text-xs font-black">2. Centre de Santé (CS)</strong>
+                  <span className="text-[10px] text-slate-500 leading-tight block">Dangers, urgences, maternité, &gt; 5 ans</span>
                 </div>
               </button>
 
+              {/* Cible 3 : GUPS */}
               <button
                 type="button"
                 onClick={() => handleTypeChange("SOCIAL_GUPS")}
@@ -517,20 +559,26 @@ export default function NouvelleReferenceCommunautairePage() {
                   {typeReference === "SOCIAL_GUPS" && <Check className="w-4 h-4 text-purple-700 stroke-[3]" />}
                 </div>
                 <div>
-                  <strong className="block text-xs font-black">GUPS (Social)</strong>
+                  <strong className="block text-xs font-black">3. GUPS (Social)</strong>
                   <span className="text-[10px] text-slate-500 leading-tight block">VBG, indigence, enfance, handicap</span>
                 </div>
               </button>
             </div>
 
             <div className="space-y-1 pt-1">
-              <label className="font-bold text-slate-700">Nom de la structure destinataire *</label>
+              <label className="font-bold text-slate-700">Nom du destinataire / structure *</label>
               <input
                 type="text"
                 required
                 value={destinationNom}
                 onChange={(e) => setDestinationNom(e.target.value)}
-                placeholder={typeReference === "SANTE" ? "Ex: Centre de Santé d'Arrondissement de Gangban" : "Ex: Guichet Unique de Protection Sociale (GUPS) de Ouinhi"}
+                placeholder={
+                  typeReference === "ASCQ"
+                    ? "Ex: ASCQ Superviseur Dossou"
+                    : typeReference === "SANTE"
+                      ? "Ex: Centre de Santé d'Arrondissement de Gangban"
+                      : "Ex: Guichet Unique de Protection Sociale (GUPS) de Ouinhi"
+                }
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-medium focus:ring-2 focus:ring-[#005c30]"
               />
             </div>
@@ -572,7 +620,7 @@ export default function NouvelleReferenceCommunautairePage() {
           {/* 2. MOTIF DE LA RÉFÉRENCE */}
           <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm space-y-3">
             <h3 className="font-extrabold text-sm text-slate-900">
-              2. Motif Officiel de Référence ({typeReference === "SANTE" ? "Médical" : "Social"}) *
+              2. Motif Officiel de Référence ({typeReference === "ASCQ" ? "Soins Communautaires ASCQ" : typeReference === "SANTE" ? "Médical CS" : "Social GUPS"}) *
             </h3>
 
             <div className="space-y-1">

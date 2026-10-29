@@ -364,6 +364,16 @@ export interface MotifReferenceRef {
   oneHealth?: boolean;
 }
 
+export const MOTIFS_REFERENCES_ASCQ: MotifReferenceRef[] = [
+  { code: "DEPISTAGE_PALU_ICCM", nom: "Suspicion Paludisme enfant < 5 ans (TDR / CTA)", description: "Fièvre ou chaleur corporelle chez l'enfant de moins de 5 ans pour test rapide et traitement", urgence: "URGENTE", oneHealth: false },
+  { code: "DIARRHEE_SRO_ZINC", nom: "Diarrhée simple sans déshydratation sévère (SRO + Zinc)", description: "Émission de selles liquides chez l'enfant nécessitant réhydratation orale et zinc", urgence: "NORMALE", oneHealth: false },
+  { code: "TOUX_RHUME_AMOX", nom: "Infection respiratoire bénigne / Toux simple", description: "Enfant qui tousse sans tirage ni détresse pour évaluation respiratoire et amoxicilline si indiqué", urgence: "NORMALE", oneHealth: false },
+  { code: "MALNUTRITION_MAM", nom: "Dépistage Malnutrition (Périmètre Brachial jaune/rouge)", description: "Enfant présentant une perte de poids ou périmètre brachial anormal pour supplémentation nutritionnelle", urgence: "NORMALE", oneHealth: false },
+  { code: "FEMME_ENCEINTE_SUIVI", nom: "Suivi femme enceinte (Rappel CPN, Enov'Mum+, MILD)", description: "Orientation vers l'ASCQ pour enregistrement, conseils, et suivi préventif de la grossesse", urgence: "NORMALE", oneHealth: false },
+  { code: "RATISSAGE_VACCINAL", nom: "Ratissage vaccinal PEV (Enfant non vacciné)", description: "Enfant de 0 à 59 mois ayant manqué des doses de vaccin pour orientation et rattrapage", urgence: "NORMALE", oneHealth: false },
+  { code: "AUTRE_ICCM", nom: "Autre évaluation clinique communautaire par l'ASCQ", description: "Tout cas bénin nécessitant la prise en charge ou les conseils de l'ASCQ superviseur", urgence: "NORMALE", oneHealth: false },
+];
+
 export const MOTIFS_REFERENCES_SANTE: MotifReferenceRef[] = [
   { code: "PALU_GRAVE", nom: "Paludisme grave / Fièvre persistante", description: "Fièvre élevée avec léthargie, convulsions ou refus de s'alimenter", urgence: "URGENTE", oneHealth: false },
   { code: "DIARRHEE_SEV", nom: "Diarrhée aiguë avec déshydratation sévère", description: "Selles liquides abondantes, pli cutané persistant, yeux enfoncés", urgence: "URGENTE", oneHealth: false },
