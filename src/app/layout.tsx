@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 import InstallAppBanner from "@/components/InstallAppBanner";
+import NotificationWatcher from "@/components/NotificationWatcher";
 
 export const metadata: Metadata = {
   title: "ASCQ BÉNIN - Application Officielle",
@@ -34,6 +35,7 @@ export default function RootLayout({
       <body className="min-h-screen bg-slate-50 text-slate-900 antialiased font-sans selection:bg-emerald-100 selection:text-emerald-900">
         <InstallAppBanner />
         <ServiceWorkerRegister />
+        <NotificationWatcher />
         {children}
       </body>
     </html>

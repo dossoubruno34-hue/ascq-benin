@@ -1302,13 +1302,16 @@ export default function NouvelleAlertePage() {
                 <div className="flex items-center gap-2 text-[#005c30]">
                   <FileCheck className="w-5 h-5" />
                   <h2 className="font-extrabold text-sm text-slate-900">
-                    Signature officielle du notificateur
+                    Signature du déclarant (Relais Communautaire ou ASCQ)
                   </h2>
                 </div>
                 <span className="text-[11px] font-bold text-red-500">
                   Obligatoire
                 </span>
               </div>
+              <p className="text-xs text-slate-500">
+                Fiche d'alerte signée directement par le RC ou l'ASCQ notificateur. Aucun visa hiérarchique ou visa de médecin coordonnateur n'est requis.
+              </p>
 
               <SignatureCanvas
                 onSignatureChange={(sig) => setSignatureTactile(sig)}

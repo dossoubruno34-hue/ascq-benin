@@ -34,6 +34,7 @@ import {
 import AscqNav from "@/components/AscqNav";
 import SignatureCanvas from "@/components/SignatureCanvas";
 import { getCachedUserSession, getCachedMonEspace } from "@/lib/offline-sync";
+import BeninPhoneAction from "@/components/BeninPhoneAction";
 
 interface RelaisPresence {
   relais_id: string;
@@ -739,9 +740,10 @@ export default function SuiviRelaisPage() {
                             {rc.village_nom || "Village non affecté"}
                           </span>
                         </div>
-                        <p className="text-[11px] text-slate-400 mt-0.5">
-                          Tél : {rc.telephone || "Non renseigné"}
-                        </p>
+                        <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1.5">
+                          <span>Tél :</span>
+                          <BeninPhoneAction telephone={rc.telephone} variant="compact" />
+                        </div>
                       </div>
 
                       <div className="text-right shrink-0">
@@ -1053,9 +1055,16 @@ export default function SuiviRelaisPage() {
                     <h2 className="text-base sm:text-lg font-black text-slate-900">
                       {selectedRc.prenoms} {selectedRc.nom}
                     </h2>
-                    <p className="text-xs text-slate-500">
-                      Village : <strong className="text-slate-800">{selectedRc.village_nom}</strong> • Téléphone : <strong className="text-slate-800 font-mono">{selectedRc.telephone}</strong> • Grappe {selectedRc.grappe}
-                    </p>
+                    <div className="text-xs text-slate-500 flex items-center gap-2 flex-wrap">
+                      <span>Village : <strong className="text-slate-800">{selectedRc.village_nom}</strong></span>
+                      <span>•</span>
+                      <span className="flex items-center gap-1.5">
+                        <span>Téléphone :</span>
+                        <BeninPhoneAction telephone={selectedRc.telephone} variant="button-group" />
+                      </span>
+                      <span>•</span>
+                      <span>Grappe {selectedRc.grappe}</span>
+                    </div>
                   </div>
 
                   <div className="flex items-center gap-2 text-xs">

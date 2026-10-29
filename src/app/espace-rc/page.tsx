@@ -41,6 +41,7 @@ import {
 } from "lucide-react";
 import { getCachedRcSpace, saveCachedRcSpace, saveCachedUserSession } from "@/lib/offline-sync";
 import FicheHebdoActivitesRcOfficielle from "@/components/FicheHebdoActivitesRcOfficielle";
+import BeninPhoneAction from "@/components/BeninPhoneAction";
 
 interface LignePlanningRC {
   id: string;
@@ -1396,7 +1397,7 @@ export default function EspaceRelaisPage() {
               <div className="space-y-2.5 pt-2 border-t border-slate-100 text-xs">
                 <div className="flex items-center justify-between">
                   <span className="text-slate-500 font-medium">Téléphone :</span>
-                  <span className="font-bold text-slate-800">{rcData.telephone}</span>
+                  <BeninPhoneAction telephone={rcData.telephone} variant="button-group" />
                 </div>
 
                 <div className="flex items-center justify-between">
@@ -1432,13 +1433,13 @@ export default function EspaceRelaisPage() {
               </div>
 
               {rcData.ascq_telephone && (
-                <a
-                  href={`tel:${rcData.ascq_telephone}`}
-                  className="inline-flex items-center justify-center gap-2 w-full py-2.5 px-4 rounded-xl bg-[#005c30] text-white font-bold text-xs shadow-sm hover:bg-[#004724] active:scale-95 transition-all"
-                >
-                  <Phone className="w-3.5 h-3.5" />
-                  <span>Appeler mon ASCQ : {rcData.ascq_telephone}</span>
-                </a>
+                <div className="pt-1">
+                  <BeninPhoneAction 
+                    telephone={rcData.ascq_telephone} 
+                    variant="full" 
+                    label="Contacter mon ASCQ"
+                  />
+                </div>
               )}
             </div>
 

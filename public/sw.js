@@ -1,7 +1,7 @@
-// Service Worker officiel ASCQ BÉNIN (PWA) - Mode Hors-Ligne Renforcé V6
-// Garanti d'ouverture 100% hors-ligne en zones rurales blanches
+// Service Worker officiel ASCQ BÉNIN (PWA) - Mode Hors-Ligne Renforcé V7
+// Garanti d'ouverture 100% hors-ligne en zones rurales blanches & Push Notifications
 
-const CACHE_NAME = "ascq-benin-v6";
+const CACHE_NAME = "ascq-benin-v7";
 
 // Pages et ressources critiques à pré-mettre en cache
 const PRECACHE_ASSETS = [
@@ -12,6 +12,7 @@ const PRECACHE_ASSETS = [
   "/icon-512.png",
   "/connexion",
   "/espace-ascq",
+  "/perimetre",
   "/espace-rc",
   "/briefing",
   "/fiches",
@@ -217,7 +218,8 @@ function createOfflineResponse() {
     <span class="badge">📡 MODE HORS-LIGNE ACTIF</span>
     <h1>ASCQ BÉNIN</h1>
     <p>Vous êtes en zone sans connexion internet. Vous pouvez continuer à saisir vos fiches et consulter vos outils enregistrés en local.</p>
-    <a href="/espace-ascq" class="btn">Accéder à Mon Espace ASCQ</a>
+    <a href="/perimetre" class="btn">Accéder à Mon Périmètre de Gouvernance</a>
+    <a href="/espace-ascq" class="btn btn-secondary">Accéder à Mon Espace ASCQ</a>
     <a href="/espace-rc" class="btn btn-secondary">Espace Relais Communautaire</a>
     <a href="/fiches" class="btn btn-secondary">Formulaires & Fiches Hors-Ligne</a>
   </div>
@@ -228,3 +230,49 @@ function createOfflineResponse() {
     status: 200,
   });
 }
+
+// 4. Gestion des notifications push natives reçues du serveur
+self.addEventListener("push", (event) => {
+  let payload = { title: "ASCQ Bénin - Notification", body: "Nouvelle mise à jour disponible.", url: "/perimetre" };
+  if (event.data) {
+    try {
+      payload = event.data.json();
+    } catch (e) {
+      payload.body = event.data.text();
+    }
+  }
+
+  const title = payload.title || "ASCQ Bénin - Notification";
+  const options = {
+    body: payload.body || "Nouvelle information ou alerte disponible.",
+    icon: "/icon-192.png",
+    badge: "/icon-192.png",
+    vibrate: [200, 100, 200, 100, 300],
+    data: {
+      url: payload.url || "/perimetre"
+    },
+    requireInteraction: true
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+// 5. Clic sur notification : focaliser ou ouvrir l'application à l'URL cible
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const targetUrl = event.notification.data?.url || "/perimetre";
+
+  event.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if (client.url.includes(self.location.origin) && "focus" in client) {
+          client.navigate(targetUrl);
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) {
+        return clients.openWindow(targetUrl);
+      }
+    })
+  );
+});

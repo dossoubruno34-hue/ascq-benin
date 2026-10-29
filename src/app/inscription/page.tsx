@@ -34,6 +34,13 @@ export default function InscriptionPage() {
   const isTerrainAscq = poste === "ASCQ";
   const isTerrainRc = poste === "RC";
   const isAutre = poste === "AUTRE";
+  const necessitePrecision = [
+    "CADRE_COMMUNAL",
+    "CADRE_ZONE_SANITAIRE",
+    "CADRE_DEPARTEMENTAL",
+    "CADRE_NATIONAL",
+    "AUTRE"
+  ].includes(poste);
 
   const showDepartement = !isCadreNational;
   const showZoneSanitaire = isCadreZone || isTerrainAscq || isTerrainRc || isAutre;
@@ -143,6 +150,12 @@ export default function InscriptionPage() {
       return;
     }
 
+    if (necessitePrecision && !posteAutre.trim()) {
+      setErrorMsg("Veuillez obligatoirement préciser votre fonction ou titre officiel.");
+      setLoading(false);
+      return;
+    }
+
     if (isTerrainRc) {
       if (motDePasse.length !== 4 || !/^\d{4}$/.test(motDePasse)) {
         setErrorMsg("Le mot de passe pour le RC doit comporter exactement 4 chiffres (ex: 1234).");
@@ -216,7 +229,7 @@ export default function InscriptionPage() {
         p_nom: nom.trim().toUpperCase(),
         p_prenoms: prenoms.trim(),
         p_poste: poste,
-        p_poste_autre: poste === "AUTRE" ? posteAutre.trim() : null,
+        p_poste_autre: necessitePrecision ? posteAutre.trim() : null,
         p_departement_id: selectedDep || null,
         p_zone_sanitaire_id: showZoneSanitaire ? (selectedZs || null) : null,
         p_commune_id: showCommune ? (selectedCom || null) : null,
@@ -545,19 +558,28 @@ export default function InscriptionPage() {
                   </div>
                 )}
 
-                {poste === "AUTRE" && (
+                {necessitePrecision && (
                   <div className="sm:col-span-2">
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Précisez votre poste *
+                      Préciser (obligatoire) *
                     </label>
                     <input
                       type="text"
                       required
                       value={posteAutre}
                       onChange={(e) => setPosteAutre(e.target.value)}
-                      placeholder="Ex: Superviseur de zone"
-                      className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 uppercase"
+                      placeholder={
+                        poste === "CADRE_NATIONAL" ? "Ex: Directeur Général, Coordonnateur Adjoint..." :
+                        poste === "CADRE_DEPARTEMENTAL" ? "Ex: Chef Service Statistiques, Coordonnateur Régional..." :
+                        poste === "CADRE_ZONE_SANITAIRE" ? "Ex: Médecin Chef Adjoint, Responsable Hygiène Zone..." :
+                        poste === "CADRE_COMMUNAL" ? "Ex: Chargé de Mission Santé Mairie, Superviseur Communal..." :
+                        "Ex: Superviseur, Coordonnateur, Fonction officielle..."
+                      }
+                      className="w-full text-sm rounded-xl border border-amber-300 bg-amber-50/40 px-3.5 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 uppercase font-medium shadow-sm"
                     />
+                    <p className="text-[11px] text-amber-800 mt-1 font-medium">
+                      ⚠️ Précision obligatoire pour l'identification de votre fonction dans la gouvernance sanitaire.
+                    </p>
                   </div>
                 )}
               </div>

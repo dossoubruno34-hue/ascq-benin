@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import AscqNav from "@/components/AscqNav";
+import BeninPhoneAction from "@/components/BeninPhoneAction";
 import { 
   Users, 
   UserPlus, 
@@ -613,10 +614,7 @@ export default function GestionRelaisPage() {
                       </span>
                     </div>
                     <div className="flex items-center gap-2 text-xs text-slate-600 flex-wrap">
-                      <div className="flex items-center gap-1 font-mono font-bold text-slate-800">
-                        <Phone className="w-3.5 h-3.5 text-slate-400" />
-                        <span>{rcAtt.telephone}</span>
-                      </div>
+                      <BeninPhoneAction telephone={rcAtt.telephone} variant="button-group" />
                       {rcAtt.arrondissement_nom && (
                         <span className="text-slate-500">
                           • Arrondissement : <strong>{rcAtt.arrondissement_nom}</strong>
@@ -705,17 +703,8 @@ export default function GestionRelaisPage() {
                     <h3 className="font-extrabold text-slate-900 text-sm uppercase">
                       {rc.nom} {rc.prenoms}
                     </h3>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-xs text-slate-600 font-medium">
-                        {rc.telephone}
-                      </span>
-                      <a
-                        href={`tel:${rc.telephone}`}
-                        className="text-[#005c30] p-1 hover:bg-emerald-50 rounded-lg transition-colors"
-                        title="Appeler ce relais"
-                      >
-                        <Phone className="w-3.5 h-3.5" />
-                      </a>
+                    <div className="mt-1">
+                      <BeninPhoneAction telephone={rc.telephone} variant="button-group" />
                     </div>
                   </div>
 
@@ -1262,9 +1251,8 @@ export default function GestionRelaisPage() {
               <p className="text-xs font-black text-slate-900 uppercase">
                 {selectedRcToValidate.nom} {selectedRcToValidate.prenoms}
               </p>
-              <div className="flex items-center gap-2 text-xs text-slate-600 font-mono">
-                <Phone className="w-3.5 h-3.5 text-slate-400" />
-                <span>{selectedRcToValidate.telephone}</span>
+              <div className="mt-1">
+                <BeninPhoneAction telephone={selectedRcToValidate.telephone} variant="button-group" />
               </div>
             </div>
 

@@ -45,6 +45,7 @@ import {
 } from "lucide-react";
 import { getCachedUserSession, getCachedMonEspace } from "@/lib/offline-sync";
 import { estCadreNonAscq, getTitreCadreOfficiel, getPerimetreScope, PerimetreScope } from "@/lib/cadre-roles";
+import BeninPhoneAction from "@/components/BeninPhoneAction";
 import {
   telechargerCsvBOM,
   telechargerExcelHtml,
@@ -1339,7 +1340,10 @@ function PerimetreGouvernanceContent() {
               <div className="p-4 bg-slate-50 rounded-2xl text-left border border-slate-200/80 text-xs space-y-1.5 font-medium">
                 <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Vos identifiants actuels :</p>
                 <p className="text-slate-800"><strong>Nom :</strong> {currentUser.nom} {currentUser.prenoms}</p>
-                <p className="text-slate-800"><strong>Téléphone :</strong> {currentUser.telephone}</p>
+                <div className="text-slate-800 flex items-center gap-2">
+                  <strong>Téléphone :</strong>
+                  <BeninPhoneAction telephone={currentUser.telephone} variant="button-group" />
+                </div>
                 <p className="text-slate-800"><strong>Poste :</strong> {currentUser.poste || "Non renseigné"} {currentUser.poste_autre ? `(${currentUser.poste_autre})` : ""}</p>
                 <p className="text-slate-800"><strong>Statut :</strong> <span className="font-bold text-emerald-700">{currentUser.statut_compte || "VALIDE"}</span></p>
               </div>
@@ -1802,11 +1806,11 @@ function PerimetreGouvernanceContent() {
                              ascq.statut_rapport_mois === "EN_RETARD" ? "🟡 Dépôt en retard" : "🔴 Rapport manquant"}
                           </span>
                         </div>
-                        <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-2">
-                          <span>📞 {ascq.telephone}</span>
+                        <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-2 flex-wrap">
+                          <BeninPhoneAction telephone={ascq.telephone} variant="button-group" />
                           <span>•</span>
                           <span>📍 {ascq.arrondissement_nom}</span>
-                        </p>
+                        </div>
                       </div>
 
                       <button
@@ -1844,9 +1848,11 @@ function PerimetreGouvernanceContent() {
                       <h3 className="text-base font-black text-slate-900 mt-1">
                         Dossier de {selectedAscq.nom} {selectedAscq.prenoms}
                       </h3>
-                      <p className="text-xs text-slate-500">
-                        {selectedAscq.telephone} • {selectedAscq.arrondissement_nom}
-                      </p>
+                      <div className="text-xs text-slate-500 flex items-center gap-2 mt-1">
+                        <BeninPhoneAction telephone={selectedAscq.telephone} variant="button-group" />
+                        <span>•</span>
+                        <span>{selectedAscq.arrondissement_nom}</span>
+                      </div>
                     </div>
                     <button
                       type="button"
@@ -2335,7 +2341,10 @@ function PerimetreGouvernanceContent() {
                                   <div key={rc.id} className="p-3 bg-white rounded-2xl border border-slate-200 shadow-sm space-y-1">
                                     <p className="font-black text-slate-900">{rc.nom} {rc.prenoms}</p>
                                     <p className="text-[11px] text-slate-500">Village : <strong>{rc.village_nom || "Non affecté"}</strong></p>
-                                    <p className="text-[11px] text-slate-500">Tél : {rc.telephone}</p>
+                                    <div className="text-[11px] text-slate-500 flex items-center gap-1.5 pt-0.5">
+                                      <span>Tél :</span>
+                                      <BeninPhoneAction telephone={rc.telephone} variant="compact" />
+                                    </div>
                                     <span className="inline-block px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[9px] font-bold">
                                       Enrôlé & Actif
                                     </span>
@@ -2637,10 +2646,9 @@ function PerimetreGouvernanceContent() {
                             En attente
                           </span>
                         </div>
-                        <p className="text-xs text-slate-600 font-mono mt-0.5 flex items-center gap-1">
-                          <Phone className="w-3 h-3 text-slate-400" />
-                          <span>{agent.telephone}</span>
-                        </p>
+                        <div className="mt-1">
+                          <BeninPhoneAction telephone={agent.telephone} variant="button-group" />
+                        </div>
                       </div>
                       <span className="text-[10px] text-slate-400 font-medium">
                         {new Date(agent.created_at).toLocaleDateString("fr-FR")}
@@ -3473,7 +3481,14 @@ function PerimetreGouvernanceContent() {
                         <p>Âge : <strong>{ficheAffichee.donnees.age_valeur} {ficheAffichee.donnees.age_unite || "ans"}</strong> (Sexe: {ficheAffichee.donnees.sexe})</p>
                         <p>Village : <strong>{ficheAffichee.donnees.village}</strong></p>
                         <p>Parent / Tuteur : <strong>{ficheAffichee.donnees.nom_parent_tuteur || "Non précisé"}</strong></p>
-                        <p>Téléphone : <strong>{ficheAffichee.donnees.telephone_contact || "Aucun"}</strong></p>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span>Téléphone :</span>
+                          {ficheAffichee.donnees.telephone_contact ? (
+                            <BeninPhoneAction telephone={ficheAffichee.donnees.telephone_contact} variant="compact" />
+                          ) : (
+                            <strong>Aucun</strong>
+                          )}
+                        </div>
                         <p>Date : <strong>{ficheAffichee.donnees.date_consultation}</strong></p>
                       </div>
                     </div>

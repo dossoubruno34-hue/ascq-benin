@@ -739,14 +739,9 @@ export function exporterFicheSurveillanceIndividuelleExcel(fiche: any) {
 
     <table style="width: 100%; margin-top: 35px; border: none;">
       <tr>
-        <td style="width: 50%; border: none; text-align: left; vertical-align: top;">
-          <strong>L'ASCQ Déclarant / Superviseur :</strong><br />
-          <span style="font-size: 8pt; color: #555;">Signature et date :</span><br /><br /><br />
-          ___________________________________________
-        </td>
-        <td style="width: 50%; border: none; text-align: right; vertical-align: top;">
-          <strong>Le Médecin Coordonnateur de Zone (MCZS) :</strong><br />
-          <span style="font-size: 8pt; color: #555;">Cachet officiel de la Zone Sanitaire :</span><br /><br /><br />
+        <td style="width: 100%; border: none; text-align: right; vertical-align: top;">
+          <strong>Signature du Déclarant (Relais Communautaire ou ASCQ) :</strong><br />
+          <span style="font-size: 8pt; color: #555;">Signature officielle et date (Aucun visa hiérarchique requis) :</span><br /><br /><br />
           ___________________________________________
         </td>
       </tr>

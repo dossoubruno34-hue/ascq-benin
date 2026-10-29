@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { getCachedMonEspace, saveCachedMonEspace, saveCachedUserSession, getCachedUserSession } from "@/lib/offline-sync";
 import { estCadreNonAscq } from "@/lib/cadre-roles";
+import BeninPhoneAction from "@/components/BeninPhoneAction";
 
 export default function MonEspacePage() {
   const router = useRouter();
@@ -567,9 +568,14 @@ export default function MonEspacePage() {
                   Compte Validé
                 </span>
               </div>
-              <p className="text-xs text-slate-600 font-medium">
-                Poste : <strong className="text-slate-800">{espaceData?.poste}</strong> • Téléphone : <strong className="text-slate-800 font-mono">{espaceData?.telephone}</strong>
-              </p>
+              <div className="text-xs text-slate-600 font-medium flex items-center justify-center sm:justify-start gap-2 flex-wrap">
+                <span>Poste : <strong className="text-slate-800">{espaceData?.poste}</strong></span>
+                <span>•</span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span>Téléphone :</span>
+                  <BeninPhoneAction telephone={espaceData?.telephone} variant="button-group" />
+                </span>
+              </div>
               <p className="text-[11px] text-slate-500">
                 Aire : {espaceData?.commune_nom} • Arrondissement : {espaceData?.arrondissement_nom}
               </p>
@@ -701,12 +707,12 @@ export default function MonEspacePage() {
 
           {!isEditing ? (
             <div className="space-y-3 text-xs">
-              <div className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-100">
+              <div className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-100 flex-wrap gap-2">
                 <div className="flex items-center gap-2 text-slate-600">
                   <Phone className="w-4 h-4 text-slate-400" />
                   <span>Numéro de téléphone professionnel</span>
                 </div>
-                <span className="font-bold text-slate-900">{espaceData?.telephone || "Non renseigné"}</span>
+                <BeninPhoneAction telephone={espaceData?.telephone} variant="badge" />
               </div>
 
               <div className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-100">
