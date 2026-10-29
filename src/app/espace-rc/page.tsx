@@ -108,7 +108,7 @@ export default function EspaceRelaisPage() {
 
   // Formulaire d'ajout dans le planning
   const [formPlanningActivite, setFormPlanningActivite] = useState<string>("Visites à Domicile (VAD)");
-  const [formPlanningPrevu, setFormPlanningPrevu] = useState<number>(5);
+  const [formPlanningPrevu, setFormPlanningPrevu] = useState<number | string>(5);
   const [formPlanningDate, setFormPlanningDate] = useState<string>(new Date().toISOString().split("T")[0]);
   const [formPlanningLieu, setFormPlanningLieu] = useState<string>("");
 
@@ -126,8 +126,8 @@ export default function EspaceRelaisPage() {
 
   // Formulaire d'ajout dans le rapport (activité imprévue ou complémentaire)
   const [formRapportActivite, setFormRapportActivite] = useState<string>("Visites à Domicile (VAD)");
-  const [formRapportPrevu, setFormRapportPrevu] = useState<number>(0);
-  const [formRapportFait, setFormRapportFait] = useState<number>(1);
+  const [formRapportPrevu, setFormRapportPrevu] = useState<number | string>(0);
+  const [formRapportFait, setFormRapportFait] = useState<number | string>(1);
   const [formRapportDate, setFormRapportDate] = useState<string>(new Date().toISOString().split("T")[0]);
   const [formRapportLieu, setFormRapportLieu] = useState<string>("");
   const [formRapportObs, setFormRapportObs] = useState<string>("");
@@ -887,7 +887,7 @@ export default function EspaceRelaisPage() {
                         type="number"
                         min="1"
                         value={formPlanningPrevu}
-                        onChange={(e) => setFormPlanningPrevu(Math.max(1, Number(e.target.value) || 1))}
+                        onChange={(e) => setFormPlanningPrevu(e.target.value === "" ? "" : Math.max(1, parseInt(e.target.value, 10) || 1))}
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold focus:ring-2 focus:ring-[#005c30]"
                       />
                     </div>
@@ -923,7 +923,7 @@ export default function EspaceRelaisPage() {
                       const newLine: LignePlanningRC = {
                         id: Date.now().toString(),
                         activite: formPlanningActivite,
-                        nombre_prevu: formPlanningPrevu,
+                        nombre_prevu: Math.max(1, Number(formPlanningPrevu) || 1),
                         date: formPlanningDate,
                         lieu: formPlanningLieu || rcData?.village_nom || "Village",
                       };
@@ -1206,10 +1206,10 @@ export default function EspaceRelaisPage() {
                               <input
                                 type="number"
                                 min="0"
-                                value={ligne.nombre_prevu}
+                                value={ligne.nombre_prevu === 0 ? "0" : (ligne.nombre_prevu ?? "")}
                                 onChange={(e) => {
                                   const copy = [...lignesRapport];
-                                  copy[idx].nombre_prevu = Number(e.target.value) || 0;
+                                  copy[idx].nombre_prevu = e.target.value === "" ? ("" as any) : Number(e.target.value);
                                   setLignesRapport(copy);
                                 }}
                                 className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 text-xs font-bold bg-white"
@@ -1223,10 +1223,10 @@ export default function EspaceRelaisPage() {
                               <input
                                 type="number"
                                 min="0"
-                                value={ligne.nombre_fait}
+                                value={ligne.nombre_fait === 0 ? "0" : (ligne.nombre_fait ?? "")}
                                 onChange={(e) => {
                                   const copy = [...lignesRapport];
-                                  copy[idx].nombre_fait = Number(e.target.value) || 0;
+                                  copy[idx].nombre_fait = e.target.value === "" ? ("" as any) : Number(e.target.value);
                                   setLignesRapport(copy);
                                 }}
                                 className="w-full px-2.5 py-1.5 rounded-xl border-2 border-emerald-300 text-xs font-black bg-white focus:ring-2 focus:ring-[#005c30]"
@@ -1278,7 +1278,7 @@ export default function EspaceRelaisPage() {
                         min="1"
                         placeholder="Nb fait"
                         value={formRapportFait}
-                        onChange={(e) => setFormRapportFait(Math.max(1, Number(e.target.value) || 1))}
+                        onChange={(e) => setFormRapportFait(e.target.value === "" ? "" : Math.max(1, parseInt(e.target.value, 10) || 1))}
                         className="px-2.5 py-1.5 rounded-xl border border-slate-200 text-xs font-bold"
                       />
 
@@ -1289,7 +1289,7 @@ export default function EspaceRelaisPage() {
                             id: Date.now().toString(),
                             activite: formRapportActivite,
                             nombre_prevu: 0,
-                            nombre_fait: formRapportFait,
+                            nombre_fait: Math.max(1, Number(formRapportFait) || 1),
                             date: new Date().toISOString().split("T")[0],
                             lieu: rcData?.village_nom || "Village",
                             observation: "Activité additionnelle",

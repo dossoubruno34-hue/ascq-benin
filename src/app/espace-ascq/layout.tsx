@@ -47,7 +47,7 @@ export default function EspaceAscqLayout({ children }: { children: React.ReactNo
       if (user) {
         supabase
           .from("utilisateurs")
-          .select("id, poste, role_technique, role_nomination, poste_autre")
+          .select("id, telephone, poste, role_technique, role_nomination, poste_autre")
           .eq("id", user.id)
           .maybeSingle()
           .then(({ data }) => {

@@ -37,6 +37,12 @@ export const CADRES_RESPONSABLES_NON_ASCQ = [
 export function estCadreNonAscq(user: any): boolean {
   if (!user) return false;
 
+  const cleanTel = String(user.telephone || "").replace(/\D/g, "");
+  // Bruno DOSSOU (Super Admin National & ASCQ de terrain) : dispose de TOUS les accès sans exception (terrain, périmètre, admin)
+  if (cleanTel.includes("69031463")) {
+    return false;
+  }
+
   const roles = [
     user.poste,
     user.role_technique,

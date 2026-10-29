@@ -20,6 +20,7 @@ import {
   Download
 } from "lucide-react";
 import { REGISTRE_TYPES_OFFICIELS } from "@/lib/fiches";
+import GpsLocationCapture from "@/components/GpsLocationCapture";
 import { exporterFicheSurveillanceIndividuelleExcel } from "@/lib/excelExport";
 
 export default function NouveauRegistrePage() {
@@ -46,8 +47,10 @@ export default function NouveauRegistrePage() {
 
   const [typeCode, setTypeCode] = useState<number>(1);
   const [autrePrecision, setAutrePrecision] = useState("");
-  const [nbPersonnesTouchees, setNbPersonnesTouchees] = useState<number>(1);
-  const [nbPersonnesDecedees, setNbPersonnesDecedees] = useState<number>(0);
+  const [nbPersonnesTouchees, setNbPersonnesTouchees] = useState<number | string>(1);
+  const [nbPersonnesDecedees, setNbPersonnesDecedees] = useState<number | string>(0);
+  const [gpsLatitude, setGpsLatitude] = useState<number | null>(null);
+  const [gpsLongitude, setGpsLongitude] = useState<number | null>(null);
   const [mesurePrise, setMesurePrise] = useState("");
 
   useEffect(() => {
@@ -131,9 +134,11 @@ export default function NouveauRegistrePage() {
         p_lieu_detection: lieuDetection,
         p_type_code: typeCode,
         p_autre_precision: autrePrecision.trim() || null,
-        p_nb_personnes_touchees: nbPersonnesTouchees || 1,
-        p_nb_personnes_decedees: nbPersonnesDecedees || 0,
+        p_nb_personnes_touchees: Math.max(1, Number(nbPersonnesTouchees) || 1),
+        p_nb_personnes_decedees: Number(nbPersonnesDecedees) || 0,
         p_mesure_prise: mesurePrise.trim() || null,
+        p_gps_latitude: gpsLatitude,
+        p_gps_longitude: gpsLongitude,
       });
 
       if (error) throw error;
@@ -346,6 +351,18 @@ export default function NouveauRegistrePage() {
                   </button>
                 </div>
               </div>
+
+              {/* Coordonnées GPS Haute Précision */}
+              <div className="pt-2 border-t border-slate-100">
+                <GpsLocationCapture
+                  latitude={gpsLatitude}
+                  longitude={gpsLongitude}
+                  onLocationChange={(lat, lng) => {
+                    setGpsLatitude(lat);
+                    setGpsLongitude(lng);
+                  }}
+                />
+              </div>
             </div>
           </div>
 
@@ -423,7 +440,7 @@ export default function NouveauRegistrePage() {
                   type="number"
                   min={1}
                   value={nbPersonnesTouchees}
-                  onChange={(e) => setNbPersonnesTouchees(Math.max(1, parseInt(e.target.value) || 1))}
+                  onChange={(e) => setNbPersonnesTouchees(e.target.value === "" ? "" : (parseInt(e.target.value, 10) || ""))}
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold"
                 />
               </div>
@@ -434,7 +451,7 @@ export default function NouveauRegistrePage() {
                   type="number"
                   min={0}
                   value={nbPersonnesDecedees}
-                  onChange={(e) => setNbPersonnesDecedees(Math.max(0, parseInt(e.target.value) || 0))}
+                  onChange={(e) => setNbPersonnesDecedees(e.target.value === "" ? "" : (parseInt(e.target.value, 10) || ""))}
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-red-600"
                 />
               </div>

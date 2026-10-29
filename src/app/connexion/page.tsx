@@ -146,10 +146,19 @@ export default function ConnexionPage() {
         setCachedUser(cProfile);
         // Si totalement hors-ligne, proposer ou rediriger directement
         if (!navigator.onLine) {
+          const cleanTel = (cProfile.telephone || "").replace(/\D/g, "");
+          if (cleanTel.includes("69031463")) {
+            router.push("/espace-ascq");
+            return;
+          }
+          if (estCadreNonAscq(cProfile)) {
+            router.push("/perimetre");
+            return;
+          }
           if (cProfile.poste === "RC") {
             router.push("/espace-rc");
             return;
-          } else if (cProfile.poste === "ASCQ" || cProfile.role_technique === "SUPER_ADMIN") {
+          } else {
             router.push("/espace-ascq");
             return;
           }
@@ -165,11 +174,20 @@ export default function ConnexionPage() {
             const userProfile = profils[0];
             saveCachedUserSession(session.user, userProfile);
             if (userProfile.statut_compte === "VALIDE") {
+              const cleanTel = (userProfile.telephone || "").replace(/\D/g, "");
+              if (cleanTel.includes("69031463")) {
+                router.push("/espace-ascq");
+                return;
+              }
+              if (estCadreNonAscq(userProfile)) {
+                router.push("/perimetre");
+                return;
+              }
               if (userProfile.role_technique === "SUPER_ADMIN" || userProfile.role_technique === "ADMINISTRATEUR") {
                 router.push("/admin");
               } else if (userProfile.poste === "RC") {
                 router.push("/espace-rc");
-              } else if (userProfile.poste === "ASCQ") {
+              } else {
                 router.push("/espace-ascq");
               }
             }
@@ -275,15 +293,18 @@ export default function ConnexionPage() {
       setLoginSuccess(userProfile);
 
       setTimeout(async () => {
+        const cleanTel = (userProfile.telephone || "").replace(/\D/g, "");
+        if (cleanTel.includes("69031463")) {
+          // Bruno DOSSOU (Super Admin National & ASCQ de terrain) : accès terrain direct + tous privilèges
+          router.push("/espace-ascq");
+          return;
+        }
+
         // 1. Distinction stricte Cadres & Responsables (NON-ASCQ) vs Agents de terrain
         if (estCadreNonAscq(userProfile)) {
           // Les Cadres (CCD CDLS-TP, CSSPR, CSPSMEH, MCZS, MCC, PF CCLS-TP, DDS, Cadres...) 
           // n'ont pas accès aux fiches de soins de terrain mais pilotent leur périmètre
-          if (userProfile.role_technique === "SUPER_ADMIN") {
-            router.push("/perimetre");
-          } else {
-            router.push("/perimetre");
-          }
+          router.push("/perimetre");
           return;
         }
 

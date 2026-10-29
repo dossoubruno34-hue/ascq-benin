@@ -21,6 +21,7 @@ import {
   Download
 } from "lucide-react";
 import SignatureCanvas from "@/components/SignatureCanvas";
+import GpsLocationCapture from "@/components/GpsLocationCapture";
 import { exporterFicheSurveillanceIndividuelleExcel } from "@/lib/excelExport";
 import { 
   DECES_TYPES_OFFICIELS, 
@@ -54,7 +55,7 @@ export default function NouveauDecesPage() {
   const [communeId, setCommuneId] = useState("");
   const [arrondissementId, setArrondissementId] = useState("");
   const [villageNom, setVillageNom] = useState("");
-  const [numeroGrappe, setNumeroGrappe] = useState<number>(1);
+  const [numeroGrappe, setNumeroGrappe] = useState<number | string>(1);
   const [nomGrappe, setNomGrappe] = useState("");
   const [gpsLatitude, setGpsLatitude] = useState<number | null>(null);
   const [gpsLongitude, setGpsLongitude] = useState<number | null>(null);
@@ -64,7 +65,7 @@ export default function NouveauDecesPage() {
   const [prenomsDefunt, setPrenomsDefunt] = useState("");
   const [npiDefunt, setNpiDefunt] = useState("");
   const [sexe, setSexe] = useState<"M" | "F">("M");
-  const [ageValeur, setAgeValeur] = useState<number>(30);
+  const [ageValeur, setAgeValeur] = useState<number | string>(30);
   const [ageUnite, setAgeUnite] = useState<"ANS" | "MOIS" | "JOURS">("ANS");
   const [estDecesMaternel, setEstDecesMaternel] = useState(false);
 
@@ -87,7 +88,7 @@ export default function NouveauDecesPage() {
 
   // Mise à jour automatique de la proposition de type selon l'âge et le sexe
   useEffect(() => {
-    const codePropose = calculerTypeDecesParAge(ageValeur, ageUnite, estDecesMaternel);
+    const codePropose = calculerTypeDecesParAge(Number(ageValeur) || 0, ageUnite, estDecesMaternel);
     setTypeDecesCode(codePropose);
   }, [ageValeur, ageUnite, estDecesMaternel]);
 
@@ -177,7 +178,7 @@ export default function NouveauDecesPage() {
         p_commune_id: communeId,
         p_arrondissement_id: arrondissementId,
         p_village_nom: villageNom.trim(),
-        p_numero_grappe: numeroGrappe || 1,
+        p_numero_grappe: Number(numeroGrappe) || 1,
         p_nom_grappe: nomGrappe.trim() || null,
         p_gps_latitude: gpsLatitude,
         p_gps_longitude: gpsLongitude,
@@ -187,7 +188,7 @@ export default function NouveauDecesPage() {
         p_circonstance_code: circonstanceCode,
         p_circonstance_autre_precision: circonstanceAutrePrecision.trim() || null,
         p_sexe: sexe,
-        p_age_valeur: ageValeur,
+        p_age_valeur: Number(ageValeur) || 0,
         p_age_unite: ageUnite,
         p_signature_tactile: signatureTactile,
         p_nom_defunt: nomDefunt.trim(),
@@ -395,6 +396,18 @@ export default function NouveauDecesPage() {
                 />
               </div>
             </div>
+
+            <div className="pt-2 border-t border-slate-100">
+              <GpsLocationCapture
+                latitude={gpsLatitude}
+                longitude={gpsLongitude}
+                onLocationCaptured={(lat, lng) => {
+                  setGpsLatitude(lat);
+                  setGpsLongitude(lng);
+                }}
+                label="Géolocalisation GPS du lieu de décès"
+              />
+            </div>
           </div>
 
           {/* Identité du défunt (Protégée sous RLS) */}
@@ -466,7 +479,7 @@ export default function NouveauDecesPage() {
                     type="number"
                     min={0}
                     value={ageValeur}
-                    onChange={(e) => setAgeValeur(parseInt(e.target.value) || 0)}
+                    onChange={(e) => setAgeValeur(e.target.value === "" ? "" : (parseInt(e.target.value, 10) || ""))}
                     className="w-16 px-2.5 py-2 rounded-xl border border-slate-200 text-xs font-bold text-center"
                   />
                   <select

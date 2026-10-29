@@ -41,9 +41,27 @@ export function isOnline(): boolean {
 }
 
 // 2. Gestion du profil et de la session utilisateur en mode hors-ligne
+export function clearAllUserCaches(): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem(STORAGE_KEYS.USER_SESSION_CACHE);
+    localStorage.removeItem(STORAGE_KEYS.USER_PROFILE_CACHE);
+    localStorage.removeItem(STORAGE_KEYS.MON_ESPACE_CACHE);
+    localStorage.removeItem(STORAGE_KEYS.RC_SPACE_CACHE);
+  } catch (e) {
+    console.warn("Échec purge caches utilisateur :", e);
+  }
+}
+
 export function saveCachedUserSession(user: any, profile: any): void {
   if (typeof window === "undefined") return;
   try {
+    const existing = getCachedUserSession();
+    if (existing?.user?.id && user?.id && existing.user.id !== user.id) {
+      // Compte différent -> Purger immédiatement les caches de l'ancien utilisateur
+      localStorage.removeItem(STORAGE_KEYS.MON_ESPACE_CACHE);
+      localStorage.removeItem(STORAGE_KEYS.RC_SPACE_CACHE);
+    }
     if (user) {
       localStorage.setItem(STORAGE_KEYS.USER_SESSION_CACHE, JSON.stringify(user));
     }
@@ -87,7 +105,14 @@ export function getCachedMonEspace(): any | null {
     const raw = localStorage.getItem(STORAGE_KEYS.MON_ESPACE_CACHE);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    return parsed.data || null;
+    const data = parsed.data || null;
+    const session = getCachedUserSession();
+    // Si les données en cache appartiennent à un autre utilisateur, on les purge
+    if (data && session?.user?.id && data.id && data.id !== session.user.id) {
+      localStorage.removeItem(STORAGE_KEYS.MON_ESPACE_CACHE);
+      return null;
+    }
+    return data;
   } catch {
     return null;
   }
@@ -111,7 +136,13 @@ export function getCachedRcSpace(): any | null {
     const raw = localStorage.getItem(STORAGE_KEYS.RC_SPACE_CACHE);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    return parsed.data || null;
+    const data = parsed.data || null;
+    const session = getCachedUserSession();
+    if (data && session?.user?.id && data.user_id && data.user_id !== session.user.id) {
+      localStorage.removeItem(STORAGE_KEYS.RC_SPACE_CACHE);
+      return null;
+    }
+    return data;
   } catch {
     return null;
   }

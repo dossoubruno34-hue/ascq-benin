@@ -1,0 +1,1 @@
+feat: geolocalisation gps universelle, isolation session cadres non-ascq et acces total bruno super admin ascq

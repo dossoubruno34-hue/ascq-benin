@@ -26,6 +26,7 @@ import {
   FileText
 } from "lucide-react";
 import { enqueueOfflineItem, getCachedUserSession, getCachedMonEspace } from "@/lib/offline-sync";
+import GpsLocationCapture from "@/components/GpsLocationCapture";
 
 // 1. Référentiel des signes principaux
 const SIGNES_PRINCIPAUX = [
@@ -124,11 +125,13 @@ export default function NouvelleConsultationPage() {
   const [village, setVillage] = useState("");
   const [nomPatient, setNomPatient] = useState("");
   const [prenomsPatient, setPrenomsPatient] = useState("");
-  const [ageValeur, setAgeValeur] = useState<number>(3);
+  const [ageValeur, setAgeValeur] = useState<number | string>(3);
   const [ageUnite, setAgeUnite] = useState<"ANS" | "MOIS" | "JOURS">("ANS");
   const [sexe, setSexe] = useState<"M" | "F">("M");
   const [nomParentTuteur, setNomParentTuteur] = useState("");
   const [telephoneContact, setTelephoneContact] = useState("");
+  const [gpsLatitude, setGpsLatitude] = useState<number | null>(null);
+  const [gpsLongitude, setGpsLongitude] = useState<number | null>(null);
 
   // Détection patient de plus de 5 ans (> 5 ans ou > 59 mois)
   const isPlusDe5Ans = (ageUnite === "ANS" && Number(ageValeur) > 5) || (ageUnite === "MOIS" && Number(ageValeur) > 59);
@@ -319,6 +322,8 @@ export default function NouvelleConsultationPage() {
       premier_geste_pose: decision === "REFERER_CS" ? gesteFinal.trim() : null,
       structure_cs_destination: decision === "REFERER_CS" ? structureCsDestination.trim() : null,
       observations: observations.trim() || null,
+      gps_latitude: gpsLatitude,
+      gps_longitude: gpsLongitude,
       date_consultation: new Date().toISOString().split("T")[0],
     };
 
@@ -351,6 +356,8 @@ export default function NouvelleConsultationPage() {
           age_unite: ageUnite,
           telephone_contact: telephoneContact.trim() || null,
           nom_parent_tuteur: nomParentTuteur.trim() || null,
+          gps_latitude: gpsLatitude,
+          gps_longitude: gpsLongitude,
           statut: "VALIDEE",
           ascq_id: currentUser?.id || null,
           ascq_nom: currentUser ? `${currentUser.prenoms} ${currentUser.nom}` : "ASCQ Bénin",
@@ -729,7 +736,7 @@ export default function NouvelleConsultationPage() {
                     min="0"
                     required
                     value={ageValeur}
-                    onChange={(e) => setAgeValeur(parseInt(e.target.value, 10) || 0)}
+                    onChange={(e) => setAgeValeur(e.target.value === "" ? "" : (parseInt(e.target.value, 10) || ""))}
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold"
                   />
                 </div>
@@ -791,6 +798,18 @@ export default function NouvelleConsultationPage() {
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs"
                   />
                 </div>
+              </div>
+
+              <div className="pt-2 border-t border-slate-100">
+                <GpsLocationCapture
+                  latitude={gpsLatitude}
+                  longitude={gpsLongitude}
+                  onLocationCaptured={(lat, lng) => {
+                    setGpsLatitude(lat);
+                    setGpsLongitude(lng);
+                  }}
+                  label="Géolocalisation GPS du lieu de consultation"
+                />
               </div>
             </div>
           </div>

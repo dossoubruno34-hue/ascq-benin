@@ -39,10 +39,10 @@ export default function NouveauRapportHebdoPage() {
 
   // Semaine épidémiologique courante
   const epidemioNow = getEpidemiologicalWeek();
-  const [annee, setAnnee] = useState<number>(epidemioNow.annee);
-  const [semaine, setSemaine] = useState<number>(epidemioNow.semaine);
+  const [annee, setAnnee] = useState<number | string>(epidemioNow.annee);
+  const [semaine, setSemaine] = useState<number | string>(epidemioNow.semaine);
 
-  const datesSemaine = calculerDatesSemaine(annee, semaine);
+  const datesSemaine = calculerDatesSemaine(Number(annee) || epidemioNow.annee, Number(semaine) || epidemioNow.semaine);
   const [dateDebut, setDateDebut] = useState(datesSemaine.dateDebut);
   const [dateFin, setDateFin] = useState(datesSemaine.dateFin);
 
@@ -73,7 +73,7 @@ export default function NouveauRapportHebdoPage() {
 
   // Mise à jour des dates quand la semaine change
   useEffect(() => {
-    const d = calculerDatesSemaine(annee, semaine);
+    const d = calculerDatesSemaine(Number(annee) || epidemioNow.annee, Number(semaine) || epidemioNow.semaine);
     setDateDebut(d.dateDebut);
     setDateFin(d.dateFin);
   }, [annee, semaine]);
@@ -124,8 +124,8 @@ export default function NouveauRapportHebdoPage() {
     setErrorMessage(null);
     try {
       const { data, error } = await supabase.rpc("generer_pre_remplissage_hebdo", {
-        p_annee: annee,
-        p_semaine: semaine,
+        p_annee: Number(annee) || new Date().getFullYear(),
+        p_semaine: Number(semaine) || 1,
         p_village_nom: villageNom.trim(),
       });
 
@@ -181,8 +181,8 @@ export default function NouveauRapportHebdoPage() {
       }
 
       const { data, error } = await supabase.rpc("creer_rapport_hebdomadaire", {
-        p_annee: annee,
-        p_semaine: semaine,
+        p_annee: Number(annee) || new Date().getFullYear(),
+        p_semaine: Number(semaine) || 1,
         p_date_debut: dateDebut,
         p_date_fin: dateFin,
         p_departement_id: departementId,
@@ -338,7 +338,7 @@ export default function NouveauRapportHebdoPage() {
                 <input
                   type="number"
                   value={annee}
-                  onChange={(e) => setAnnee(parseInt(e.target.value) || 2026)}
+                  onChange={(e) => setAnnee(e.target.value === "" ? "" : (parseInt(e.target.value, 10) || ""))}
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold"
                 />
               </div>
@@ -350,7 +350,7 @@ export default function NouveauRapportHebdoPage() {
                   min={1}
                   max={53}
                   value={semaine}
-                  onChange={(e) => setSemaine(parseInt(e.target.value) || 1)}
+                  onChange={(e) => setSemaine(e.target.value === "" ? "" : (parseInt(e.target.value, 10) || ""))}
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold"
                 />
               </div>

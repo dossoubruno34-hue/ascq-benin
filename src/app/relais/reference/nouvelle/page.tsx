@@ -31,6 +31,7 @@ import {
   ONE_HEALTH_SECTEURS
 } from "@/lib/fiches";
 import { enqueueOfflineItem, getCachedRcSpace, getCachedUserSession } from "@/lib/offline-sync";
+import GpsLocationCapture from "@/components/GpsLocationCapture";
 
 export default function NouvelleReferenceCommunautairePage() {
   const router = useRouter();
@@ -58,13 +59,15 @@ export default function NouvelleReferenceCommunautairePage() {
   const [nomPatient, setNomPatient] = useState("");
   const [prenomsPatient, setPrenomsPatient] = useState("");
   const [sexe, setSexe] = useState<"M" | "F">("M");
-  const [ageValeur, setAgeValeur] = useState<number>(1);
+  const [ageValeur, setAgeValeur] = useState<number | string>(1);
   const [ageUnite, setAgeUnite] = useState<"ANS" | "MOIS" | "JOURS">("ANS");
   const [telephoneContact, setTelephoneContact] = useState("");
   const [nomParentTuteur, setNomParentTuteur] = useState("");
   const [villageNom, setVillageNom] = useState("");
   const [adresseExacte, setAdresseExacte] = useState("");
   const [premiersSecours, setPremiersSecours] = useState("");
+  const [gpsLatitude, setGpsLatitude] = useState<number | null>(null);
+  const [gpsLongitude, setGpsLongitude] = useState<number | null>(null);
 
   useEffect(() => {
     const init = async () => {
@@ -236,6 +239,8 @@ export default function NouvelleReferenceCommunautairePage() {
         p_nom_parent_tuteur: nomParentTuteur.trim() || null,
         p_adresse_exacte: adresseExacte.trim() || null,
         p_village_nom: villageNom.trim() || null,
+        p_gps_latitude: gpsLatitude,
+        p_gps_longitude: gpsLongitude,
       });
 
       if (error) {
@@ -272,6 +277,8 @@ export default function NouvelleReferenceCommunautairePage() {
             telephone_contact: telephoneContact.trim() || null,
             nom_parent_tuteur: nomParentTuteur.trim() || null,
             adresse_exacte: adresseExacte.trim() || null,
+            gps_latitude: gpsLatitude,
+            gps_longitude: gpsLongitude,
             statut: currentUser?.poste === "RC" ? "EN_ATTENTE_ASCQ" : "VALIDEE",
             relais_nom: currentUser ? `${currentUser.prenoms} ${currentUser.nom}` : "Relais Communautaire",
             relais_telephone: currentUser?.telephone || "",
@@ -305,6 +312,8 @@ export default function NouvelleReferenceCommunautairePage() {
             telephone_contact: telephoneContact.trim() || null,
             nom_parent_tuteur: nomParentTuteur.trim() || null,
             adresse_exacte: adresseExacte.trim() || null,
+            gps_latitude: gpsLatitude,
+            gps_longitude: gpsLongitude,
             statut: currentUser?.poste === "RC" ? "EN_ATTENTE_ASCQ" : "VALIDEE",
             relais_nom: currentUser ? `${currentUser.prenoms} ${currentUser.nom}` : "Relais Communautaire",
             relais_telephone: currentUser?.telephone || "",
@@ -752,7 +761,7 @@ export default function NouvelleReferenceCommunautairePage() {
                   min={0}
                   required
                   value={ageValeur}
-                  onChange={(e) => setAgeValeur(Number(e.target.value))}
+                  onChange={(e) => setAgeValeur(e.target.value === "" ? "" : (parseInt(e.target.value, 10) || ""))}
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-center font-bold"
                 />
               </div>
@@ -818,6 +827,18 @@ export default function NouvelleReferenceCommunautairePage() {
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
                 />
               </div>
+            </div>
+
+            <div className="pt-2 border-t border-slate-100">
+              <GpsLocationCapture
+                latitude={gpsLatitude}
+                longitude={gpsLongitude}
+                onLocationChange={(lat, lng) => {
+                  setGpsLatitude(lat);
+                  setGpsLongitude(lng);
+                }}
+                label="Géolocalisation GPS du lieu de la référence"
+              />
             </div>
           </div>
 

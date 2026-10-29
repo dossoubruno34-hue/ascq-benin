@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import { supabase } from "@/lib/supabase";
+import GpsLocationCapture from "@/components/GpsLocationCapture";
 import { 
   Calendar, 
   Printer, 
@@ -35,9 +36,11 @@ export default function FicheHebdoActivitesRcOfficielle({ rcProfile, isAscqSuper
   const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
   const semaineActuelle = Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
 
-  const [annee, setAnnee] = useState(now.getFullYear());
-  const [semaineNum, setSemaineNum] = useState(semaineActuelle);
+  const [annee, setAnnee] = useState<number | string>(now.getFullYear());
+  const [semaineNum, setSemaineNum] = useState<number | string>(semaineActuelle);
   const [dateSemaineDu, setDateSemaineDu] = useState(new Date().toISOString().split("T")[0]);
+  const [gpsLatitude, setGpsLatitude] = useState<number | null>(null);
+  const [gpsLongitude, setGpsLongitude] = useState<number | null>(null);
 
   // Champs de la fiche officielle
   const [vadPrevue, setVadPrevue] = useState<string>("5");
@@ -123,6 +126,8 @@ export default function FicheHebdoActivitesRcOfficielle({ rcProfile, isAscqSuper
           setEnfantsNutrition(String(data.enfants_nutrition ?? "0"));
           setPersonnesReferees(String(data.personnes_referees ?? "0"));
           setAutresActivites(data.autres_activites_texte || "");
+          if (data.gps_latitude) setGpsLatitude(Number(data.gps_latitude));
+          if (data.gps_longitude) setGpsLongitude(Number(data.gps_longitude));
           setLuEtApprouveAscq(data.lu_et_approuve_ascq || false);
           setObservationsAscq(data.observations_ascq || "");
         }
@@ -167,6 +172,8 @@ export default function FicheHebdoActivitesRcOfficielle({ rcProfile, isAscqSuper
         enfants_nutrition: parseInt(enfantsNutrition, 10) || 0,
         personnes_referees: parseInt(personnesReferees, 10) || 0,
         autres_activites_texte: autresActivites,
+        gps_latitude: gpsLatitude,
+        gps_longitude: gpsLongitude,
         updated_at: new Date().toISOString(),
       };
 
@@ -451,7 +458,7 @@ export default function FicheHebdoActivitesRcOfficielle({ rcProfile, isAscqSuper
             min={1}
             max={53}
             value={semaineNum}
-            onChange={(e) => setSemaineNum(parseInt(e.target.value, 10) || 1)}
+            onChange={(e) => setSemaineNum(e.target.value === "" ? "" : (parseInt(e.target.value, 10) || ""))}
             className="w-full px-3 py-1.5 rounded-xl border border-slate-200 bg-white font-bold"
           />
         </div>
@@ -460,10 +467,22 @@ export default function FicheHebdoActivitesRcOfficielle({ rcProfile, isAscqSuper
           <input
             type="number"
             value={annee}
-            onChange={(e) => setAnnee(parseInt(e.target.value, 10) || now.getFullYear())}
+            onChange={(e) => setAnnee(e.target.value === "" ? "" : (parseInt(e.target.value, 10) || ""))}
             className="w-full px-3 py-1.5 rounded-xl border border-slate-200 bg-white font-bold"
           />
         </div>
+      </div>
+
+      {/* Géolocalisation GPS Haute Précision */}
+      <div className="p-3 bg-white rounded-2xl border border-slate-200/80 shadow-xs">
+        <GpsLocationCapture
+          latitude={gpsLatitude}
+          longitude={gpsLongitude}
+          onLocationChange={(lat, lng) => {
+            setGpsLatitude(lat);
+            setGpsLongitude(lng);
+          }}
+        />
       </div>
 
       {/* Grille des 9 activités officielles de la PNSC */}

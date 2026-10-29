@@ -32,7 +32,7 @@ import {
   FileSpreadsheet
 } from "lucide-react";
 import { estCadreNonAscq, getTitreCadreOfficiel } from "@/lib/cadre-roles";
-import { getCachedUserSession } from "@/lib/offline-sync";
+import { getCachedUserSession, clearAllUserCaches } from "@/lib/offline-sync";
 
 interface Props {
   userProfile?: any;
@@ -77,6 +77,7 @@ export default function AscqNav({ userProfile }: Props) {
   const [filtrePole, setFiltrePole] = useState<string>("TOUS");
 
   const handleLogout = async () => {
+    clearAllUserCaches();
     await supabase.auth.signOut();
     router.push("/connexion");
   };
@@ -120,7 +121,7 @@ export default function AscqNav({ userProfile }: Props) {
   const cleanTelNav = (activeUser?.telephone || "").replace(/\D/g, "");
   const isBrunoSuperAdmin = cleanTelNav.includes("69031463");
 
-  const isCadre = estCadreNonAscq(activeUser) || (detectedRole && estCadreNonAscq({ role_technique: detectedRole }));
+  const isCadre = !isBrunoSuperAdmin && (estCadreNonAscq(activeUser) || (detectedRole && estCadreNonAscq({ role_technique: detectedRole })));
   const cadreTitreOfficiel = getTitreCadreOfficiel(activeUser || { role_technique: detectedRole });
 
   const isRepresentant = isBrunoSuperAdmin || rolesToCheck.some((r) => 
@@ -132,6 +133,7 @@ export default function AscqNav({ userProfile }: Props) {
   const isAdmin = isBrunoSuperAdmin || rolesToCheck.some((r) => ["SUPER_ADMIN", "ADMINISTRATEUR"].includes(r));
 
   const obtenirTitrePerimetre = () => {
+    if (isBrunoSuperAdmin) return "Super Admin & ASCQ";
     if (rolesToCheck.includes("SUPER_ADMIN")) return "Super Admin";
     if (rolesToCheck.includes("ADMINISTRATEUR")) return "Admin National";
     if (rolesToCheck.includes("DDS") || rolesToCheck.includes("REPRESENTANT_DEPARTEMENTAL") || rolesToCheck.includes("CADRE_DEPARTEMENTAL")) return "Cadre Dép.";

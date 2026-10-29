@@ -27,6 +27,7 @@ import {
   Download
 } from "lucide-react";
 import SignatureCanvas from "@/components/SignatureCanvas";
+import GpsLocationCapture from "@/components/GpsLocationCapture";
 import { exporterFicheSurveillanceIndividuelleExcel } from "@/lib/excelExport";
 import { 
   TYPES_ALERTES_OFFICIELS, 
@@ -64,7 +65,7 @@ export default function NouvelleAlertePage() {
   const [communeId, setCommuneId] = useState("");
   const [arrondissementId, setArrondissementId] = useState("");
   const [villageNom, setVillageNom] = useState("");
-  const [numeroGrappe, setNumeroGrappe] = useState<number>(1);
+  const [numeroGrappe, setNumeroGrappe] = useState<number | string>(1);
   const [nomGrappe, setNomGrappe] = useState("");
   const [gpsLatitude, setGpsLatitude] = useState<number | null>(null);
   const [gpsLongitude, setGpsLongitude] = useState<number | null>(null);
@@ -77,7 +78,7 @@ export default function NouvelleAlertePage() {
   const [telephoneCas, setTelephoneCas] = useState("");
   const [adresseCas, setAdresseCas] = useState("");
   const [sexe, setSexe] = useState<"M" | "F">("M");
-  const [ageValeur, setAgeValeur] = useState<number>(5);
+  const [ageValeur, setAgeValeur] = useState<number | string>(5);
   const [ageUnite, setAgeUnite] = useState<"ANS" | "MOIS" | "JOURS">("ANS");
 
   // Étape 2 : Événement sanitaire & Symptômes
@@ -96,10 +97,10 @@ export default function NouvelleAlertePage() {
   const [dateDetection, setDateDetection] = useState(todayStr);
   const [heureDetection, setHeureDetection] = useState("10:00");
 
-  const [nbPersonnesTouchees, setNbPersonnesTouchees] = useState<number>(1);
-  const [nbPersonnesMortes, setNbPersonnesMortes] = useState<number>(0);
-  const [nbAnimauxMalades, setNbAnimauxMalades] = useState<number>(0);
-  const [nbAnimauxMorts, setNbAnimauxMorts] = useState<number>(0);
+  const [nbPersonnesTouchees, setNbPersonnesTouchees] = useState<number | string>(1);
+  const [nbPersonnesMortes, setNbPersonnesMortes] = useState<number | string>(0);
+  const [nbAnimauxMalades, setNbAnimauxMalades] = useState<number | string>(0);
+  const [nbAnimauxMorts, setNbAnimauxMorts] = useState<number | string>(0);
   const [animauxImpliques, setAnimauxImpliques] = useState(false);
   const [evenementEnCours, setEvenementEnCours] = useState(true);
   const [mesuresPrises, setMesuresPrises] = useState("");
@@ -307,7 +308,7 @@ export default function NouvelleAlertePage() {
         p_arrondissement_id: arrondissementId,
         p_village_id: null,
         p_village_nom: villageNom.trim(),
-        p_numero_grappe: numeroGrappe || 1,
+        p_numero_grappe: Number(numeroGrappe) || 1,
         p_nom_grappe: nomGrappe.trim() || null,
         p_gps_latitude: gpsLatitude,
         p_gps_longitude: gpsLongitude,
@@ -315,14 +316,14 @@ export default function NouvelleAlertePage() {
         p_autre_evenement_precision: autreEvenementPrecision.trim() || null,
         p_symptomes_codes: symptomesCodes,
         p_autre_symptome_precision: autreSymptomePrecision.trim() || null,
-        p_nb_personnes_touchees: nbPersonnesTouchees || 1,
-        p_nb_personnes_mortes: nbPersonnesMortes || 0,
-        p_nb_animaux_malades: nbAnimauxMalades || 0,
-        p_nb_animaux_morts: nbAnimauxMorts || 0,
+        p_nb_personnes_touchees: Math.max(1, Number(nbPersonnesTouchees) || 1),
+        p_nb_personnes_mortes: Number(nbPersonnesMortes) || 0,
+        p_nb_animaux_malades: Number(nbAnimauxMalades) || 0,
+        p_nb_animaux_morts: Number(nbAnimauxMorts) || 0,
         p_evenement_en_cours: evenementEnCours,
         p_mesures_prises: mesuresPrises.trim() || null,
         p_sexe: sexe,
-        p_age_valeur: ageValeur,
+        p_age_valeur: Number(ageValeur) || 0,
         p_age_unite: ageUnite,
         p_signature_tactile: signatureTactile,
         p_npi_cas: npiCas.trim() || null,
@@ -634,7 +635,7 @@ export default function NouvelleAlertePage() {
                     type="number"
                     min={1}
                     value={numeroGrappe}
-                    onChange={(e) => setNumeroGrappe(parseInt(e.target.value) || 1)}
+                    onChange={(e) => setNumeroGrappe(e.target.value === "" ? "" : (parseInt(e.target.value, 10) || ""))}
                     className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-[#005c30]"
                   />
                 </div>
@@ -652,27 +653,16 @@ export default function NouvelleAlertePage() {
                 </div>
               </div>
 
-              {/* Coordonnées GPS */}
-              <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div className="text-xs">
-                  <span className="font-bold text-slate-700 block">Position GPS :</span>
-                  <span className="text-slate-500 text-[11px]">
-                    {gpsLatitude && gpsLongitude
-                      ? `Lat: ${gpsLatitude}, Lon: ${gpsLongitude}`
-                      : "Non renseignée"}
-                  </span>
-                  {gpsStatus && (
-                    <span className="block text-[10px] text-emerald-700 font-semibold">{gpsStatus}</span>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={detecterGps}
-                  className="px-3 py-1.5 rounded-xl bg-emerald-50 text-[#005c30] text-xs font-bold hover:bg-emerald-100 active:scale-95 transition-all inline-flex items-center gap-1.5 self-start sm:self-auto"
-                >
-                  <MapPin className="w-3.5 h-3.5" />
-                  <span>Capturer GPS</span>
-                </button>
+              {/* Coordonnées GPS Haute Précision */}
+              <div className="pt-2 border-t border-slate-100">
+                <GpsLocationCapture
+                  latitude={gpsLatitude}
+                  longitude={gpsLongitude}
+                  onLocationChange={(lat, lng) => {
+                    setGpsLatitude(lat);
+                    setGpsLongitude(lng);
+                  }}
+                />
               </div>
             </div>
 
@@ -759,7 +749,7 @@ export default function NouvelleAlertePage() {
                       type="number"
                       min={0}
                       value={ageValeur}
-                      onChange={(e) => setAgeValeur(parseInt(e.target.value) || 0)}
+                      onChange={(e) => setAgeValeur(e.target.value === "" ? "" : (parseInt(e.target.value, 10) || ""))}
                       className="w-16 px-2.5 py-2 rounded-xl border border-slate-200 text-xs font-bold text-center"
                     />
                     <select
@@ -1131,7 +1121,7 @@ export default function NouvelleAlertePage() {
                     type="number"
                     min={1}
                     value={nbPersonnesTouchees}
-                    onChange={(e) => setNbPersonnesTouchees(Math.max(1, parseInt(e.target.value) || 1))}
+                    onChange={(e) => setNbPersonnesTouchees(e.target.value === "" ? "" : (parseInt(e.target.value, 10) || ""))}
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-extrabold text-slate-900"
                   />
                 </div>
@@ -1144,7 +1134,7 @@ export default function NouvelleAlertePage() {
                     type="number"
                     min={0}
                     value={nbPersonnesMortes}
-                    onChange={(e) => setNbPersonnesMortes(Math.max(0, parseInt(e.target.value) || 0))}
+                    onChange={(e) => setNbPersonnesMortes(e.target.value === "" ? "" : (parseInt(e.target.value, 10) || ""))}
                     className="w-full px-3 py-2 rounded-xl border border-red-200 bg-white text-sm font-extrabold text-red-700"
                   />
                 </div>
@@ -1172,7 +1162,7 @@ export default function NouvelleAlertePage() {
                         type="number"
                         min={0}
                         value={nbAnimauxMalades}
-                        onChange={(e) => setNbAnimauxMalades(Math.max(0, parseInt(e.target.value) || 0))}
+                        onChange={(e) => setNbAnimauxMalades(e.target.value === "" ? "" : (parseInt(e.target.value, 10) || ""))}
                         className="w-full px-3 py-1.5 rounded-xl border border-amber-200 bg-white text-xs font-bold"
                       />
                     </div>
@@ -1184,7 +1174,7 @@ export default function NouvelleAlertePage() {
                         type="number"
                         min={0}
                         value={nbAnimauxMorts}
-                        onChange={(e) => setNbAnimauxMorts(Math.max(0, parseInt(e.target.value) || 0))}
+                        onChange={(e) => setNbAnimauxMorts(e.target.value === "" ? "" : (parseInt(e.target.value, 10) || ""))}
                         className="w-full px-3 py-1.5 rounded-xl border border-amber-200 bg-white text-xs font-bold"
                       />
                     </div>
