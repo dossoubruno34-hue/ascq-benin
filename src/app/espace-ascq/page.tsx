@@ -33,6 +33,7 @@ import {
   ChevronRight
 } from "lucide-react";
 import { getCachedMonEspace, saveCachedMonEspace, saveCachedUserSession, getCachedUserSession } from "@/lib/offline-sync";
+import { estCadreNonAscq } from "@/lib/cadre-roles";
 
 export default function MonEspacePage() {
   const router = useRouter();
@@ -77,6 +78,13 @@ export default function MonEspacePage() {
     setLoading(true);
     setLoadError("");
 
+    // Vérifier si l'utilisateur connecté est un Cadre / Responsable de santé (qui n'est pas ASCQ)
+    const session = getCachedUserSession();
+    if (session?.userProfile && estCadreNonAscq(session.userProfile)) {
+      router.replace("/perimetre");
+      return;
+    }
+
     // 1. Charger immédiatement le cache local hors-ligne pour affichage instantané (0ms)
     const cached = getCachedMonEspace();
     if (cached) {
@@ -101,6 +109,10 @@ export default function MonEspacePage() {
       try {
         const { data, error } = await supabase.rpc("obtenir_mon_espace");
         if (!error && data && data.nom) {
+          if (estCadreNonAscq(data)) {
+            router.replace("/perimetre");
+            return;
+          }
           setEspaceData(data);
           saveCachedMonEspace(data);
           setTelephone(data.telephone || "");
@@ -155,6 +167,11 @@ export default function MonEspacePage() {
           return;
         }
         router.push("/connexion");
+        return;
+      }
+
+      if (estCadreNonAscq(prof)) {
+        router.replace("/perimetre");
         return;
       }
 

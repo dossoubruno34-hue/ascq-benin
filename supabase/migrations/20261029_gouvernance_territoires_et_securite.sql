@@ -2184,3 +2184,101 @@ GRANT EXECUTE ON FUNCTION public.enregistrer_rapport_hebdo_rc TO authenticated;
 GRANT EXECUTE ON FUNCTION public.valider_rapport_hebdo_rc_par_ascq TO authenticated;
 GRANT EXECUTE ON FUNCTION public.obtenir_consolidation_mensuelle_relais TO authenticated;
 
+
+
+-- ---------------------------------------------------------------------
+-- 13. MODULE GOUVERNANCE AVANCEE : SUGGESTIONS DE MODIFICATION & ORDRES DE MISSION
+-- Pour les Cadres Hiérarchiques (CCD CDLS-TP, CSSPR, CSPSMEH, MCZS, MCC, PF CCLS-TP, DDS, Cadres...)
+-- Permet de :
+--  1. Suggérer des modifications ou observations sur les fiches des ASCQ de leur périmètre
+--  2. Alerter ou missionner selon leur périmètre sanitaire
+-- ---------------------------------------------------------------------
+
+-- 13.1. TABLE : SUGGESTIONS ET OBSERVATIONS DES CADRES SUR LES FICHES ASCQ
+CREATE TABLE IF NOT EXISTS public.suggestions_modifications_cadres (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    cadre_id UUID REFERENCES public.utilisateurs(id) ON DELETE SET NULL,
+    ascq_id UUID REFERENCES public.utilisateurs(id) ON DELETE CASCADE,
+    arrondissement_id UUID REFERENCES public.arrondissements(id) ON DELETE SET NULL,
+    commune_id UUID REFERENCES public.communes(id) ON DELETE SET NULL,
+    departement_id UUID REFERENCES public.departements(id) ON DELETE SET NULL,
+    module_concerne TEXT NOT NULL, -- 'RMA', 'PNSC_HEBDO', 'SIMR_ALERTE', 'PLANNING_ACTIVITES', 'MATERNITE_1000J', 'PEC_SOINS', 'AUTRE'
+    type_suggestion TEXT NOT NULL DEFAULT 'OBSERVATION', -- 'CORRECTION_DEMANDEE', 'PRECISION_REQUISE', 'RAPPEL_PROTOCOLE', 'OBSERVATION'
+    titre TEXT NOT NULL,
+    message TEXT NOT NULL,
+    statut TEXT NOT NULL DEFAULT 'EN_ATTENTE' CHECK (statut IN ('EN_ATTENTE', 'PRIS_EN_COMPTE', 'CLOTURE')),
+    reponse_ascq TEXT,
+    date_reponse TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_suggestions_cadres_ascq ON public.suggestions_modifications_cadres(ascq_id);
+CREATE INDEX IF NOT EXISTS idx_suggestions_cadres_cadre ON public.suggestions_modifications_cadres(cadre_id);
+CREATE INDEX IF NOT EXISTS idx_suggestions_cadres_statut ON public.suggestions_modifications_cadres(statut);
+
+-- 13.2. TABLE : ORDRES DE MISSION ET CONSIGNES DE TERRAIN TERRITORIALES
+CREATE TABLE IF NOT EXISTS public.ordres_mission_territoire (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    cadre_id UUID REFERENCES public.utilisateurs(id) ON DELETE SET NULL,
+    cible_type TEXT NOT NULL DEFAULT 'TOUS_ASCQ' CHECK (cible_type IN ('TOUS_ASCQ', 'ASCQ_SPECIFIQUE')),
+    ascq_cible_id UUID REFERENCES public.utilisateurs(id) ON DELETE SET NULL,
+    departement_id UUID REFERENCES public.departements(id) ON DELETE SET NULL,
+    commune_id UUID REFERENCES public.communes(id) ON DELETE SET NULL,
+    zone_sanitaire_id UUID REFERENCES public.zones_sanitaires(id) ON DELETE SET NULL,
+    titre TEXT NOT NULL,
+    type_mission TEXT NOT NULL, -- 'INVESTIGATION', 'RATISSAGE_VACCINAL', 'SUPERVISION_RELAIS', 'SENSIBILISATION', 'AUDIT_DECES', 'AUTRE'
+    priorite TEXT NOT NULL DEFAULT 'HAUTE' CHECK (priorite IN ('NORMALE', 'HAUTE', 'URGENTE')),
+    date_echeance DATE,
+    directives TEXT NOT NULL,
+    statut TEXT NOT NULL DEFAULT 'TRANSMIS' CHECK (statut IN ('TRANSMIS', 'EN_COURS', 'TERMINE')),
+    compte_rendu TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_ordres_mission_cadre ON public.ordres_mission_territoire(cadre_id);
+CREATE INDEX IF NOT EXISTS idx_ordres_mission_ascq ON public.ordres_mission_territoire(ascq_cible_id);
+CREATE INDEX IF NOT EXISTS idx_ordres_mission_commune ON public.ordres_mission_territoire(commune_id);
+
+-- RLS
+ALTER TABLE public.suggestions_modifications_cadres ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ordres_mission_territoire ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Lecture suggestions par cadre et ascq" ON public.suggestions_modifications_cadres;
+CREATE POLICY "Lecture suggestions par cadre et ascq" ON public.suggestions_modifications_cadres
+    FOR SELECT TO authenticated
+    USING (
+        cadre_id = auth.uid() 
+        OR ascq_id = auth.uid()
+        OR public.est_administrateur()
+    );
+
+DROP POLICY IF EXISTS "Insertion suggestions par cadres autorises" ON public.suggestions_modifications_cadres;
+CREATE POLICY "Insertion suggestions par cadres autorises" ON public.suggestions_modifications_cadres
+    FOR INSERT TO authenticated
+    WITH CHECK (cadre_id = auth.uid() OR public.est_administrateur());
+
+DROP POLICY IF EXISTS "Modification suggestions par auteurs ou cible" ON public.suggestions_modifications_cadres;
+CREATE POLICY "Modification suggestions par auteurs ou cible" ON public.suggestions_modifications_cadres
+    FOR UPDATE TO authenticated
+    USING (cadre_id = auth.uid() OR ascq_id = auth.uid() OR public.est_administrateur());
+
+DROP POLICY IF EXISTS "Lecture ordres de mission" ON public.ordres_mission_territoire;
+CREATE POLICY "Lecture ordres de mission" ON public.ordres_mission_territoire
+    FOR SELECT TO authenticated
+    USING (
+        cadre_id = auth.uid()
+        OR ascq_cible_id = auth.uid()
+        OR ascq_cible_id IS NULL
+        OR public.est_administrateur()
+    );
+
+DROP POLICY IF EXISTS "Insertion ordres de mission par cadres" ON public.ordres_mission_territoire;
+CREATE POLICY "Insertion ordres de mission par cadres" ON public.ordres_mission_territoire
+    FOR INSERT TO authenticated
+    WITH CHECK (cadre_id = auth.uid() OR public.est_administrateur());
+
+-- Permissions
+GRANT ALL ON TABLE public.suggestions_modifications_cadres TO authenticated;
+GRANT ALL ON TABLE public.ordres_mission_territoire TO authenticated;

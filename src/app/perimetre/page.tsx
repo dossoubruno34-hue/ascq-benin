@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import AscqNav from "@/components/AscqNav";
 import {
@@ -34,9 +34,16 @@ import {
   TrendingUp,
   Stethoscope,
   ChevronRight,
-  Info
+  Info,
+  Sparkles,
+  Target,
+  Compass,
+  MessageSquare,
+  Baby,
+  ClipboardList
 } from "lucide-react";
 import { getCachedUserSession, getCachedMonEspace } from "@/lib/offline-sync";
+import { estCadreNonAscq, getTitreCadreOfficiel } from "@/lib/cadre-roles";
 import {
   telechargerCsvBOM,
   telechargerExcelHtml,
@@ -46,13 +53,33 @@ import {
 } from "@/lib/gouvernanceExports";
 
 export default function PerimetreGouvernancePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#f4f7f5] flex items-center justify-center p-4">
+        <RefreshCw className="w-8 h-8 animate-spin text-[#005c30]" />
+      </div>
+    }>
+      <PerimetreGouvernanceContent />
+    </Suspense>
+  );
+}
+
+function PerimetreGouvernanceContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [unauthorized, setUnauthorized] = useState(false);
   
   // Onglets principaux de gouvernance
-  const [activeTab, setActiveTab] = useState<"dashboard_compile" | "suivi_individuel" | "inscriptions_ascq" | "diffusion_alertes" | "exports_journal">("dashboard_compile");
+  const [activeTab, setActiveTab] = useState<
+    | "dashboard_compile"
+    | "suivi_individuel"
+    | "inscriptions_ascq"
+    | "suggestions"
+    | "alertes_missions"
+    | "exports_journal"
+  >("dashboard_compile");
 
   // Inscriptions ASCQ en attente (Validation par le Représentant Communal)
   const [inscriptionsEnAttente, setInscriptionsEnAttente] = useState<any[]>([]);
@@ -109,26 +136,82 @@ export default function PerimetreGouvernancePage() {
 
   // Inspection individuelle 360° en CONSULTATION SEULE
   const [selectedAscq, setSelectedAscq] = useState<any | null>(null);
-  const [dossierAscq, setDossierAscq] = useState<{ plannings: any[]; activites: any[]; rma: any[]; hebdo: any[]; alertes: any[]; deces: any[] }>({
+  const [dossierAscq, setDossierAscq] = useState<{
+    plannings: any[];
+    activites: any[];
+    rma: any[];
+    hebdo: any[];
+    alertes: any[];
+    deces: any[];
+    relais: any[];
+    rapportsRc: any[];
+    femmes: any[];
+  }>({
     plannings: [],
     activites: [],
     rma: [],
     hebdo: [],
     alertes: [],
     deces: [],
+    relais: [],
+    rapportsRc: [],
+    femmes: []
   });
   const [loadingDossier, setLoadingDossier] = useState(false);
 
-  // Diffusion d'alerte officielle par le responsable
+  // Suggestions de modification & Observations des Cadres sur les fiches ASCQ
+  const [suggestionsList, setSuggestionsList] = useState<any[]>([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [suggestionAscqId, setSuggestionAscqId] = useState("");
+  const [suggestionModule, setSuggestionModule] = useState("RMA");
+  const [suggestionType, setSuggestionType] = useState("CORRECTION_DEMANDEE");
+  const [suggestionTitre, setSuggestionTitre] = useState("");
+  const [suggestionMessage, setSuggestionMessage] = useState("");
+  const [submittingSuggestion, setSubmittingSuggestion] = useState(false);
+
+  // Alertes Territoriales & Ordres de Mission
+  const [missionSubMode, setMissionSubMode] = useState<"ALERTE" | "MISSION">("MISSION");
   const [alerteTitre, setAlerteTitre] = useState("");
   const [alerteMessage, setAlerteMessage] = useState("");
   const [alertePriorite, setAlertePriorite] = useState<"NORMALE" | "HAUTE" | "URGENTE">("HAUTE");
   const [sendingAlerte, setSendingAlerte] = useState(false);
+
+  const [missionsList, setMissionsList] = useState<any[]>([]);
+  const [loadingMissions, setLoadingMissions] = useState(false);
+  const [missionCibleType, setMissionCibleType] = useState<"TOUS_ASCQ" | "ASCQ_SPECIFIQUE">("TOUS_ASCQ");
+  const [missionAscqId, setMissionAscqId] = useState("");
+  const [missionTitre, setMissionTitre] = useState("");
+  const [missionType, setMissionType] = useState("INVESTIGATION");
+  const [missionPriorite, setMissionPriorite] = useState<"NORMALE" | "HAUTE" | "URGENTE">("HAUTE");
+  const [missionDateEcheance, setMissionDateEcheance] = useState("");
+  const [missionDirectives, setMissionDirectives] = useState("");
+  const [submittingMission, setSubmittingMission] = useState(false);
+
   const [toastMsg, setToastMsg] = useState<{ text: string; error: boolean } | null>(null);
 
   // Historique des exports
   const [journalExports, setJournalExports] = useState<any[]>([]);
   const [loadingJournal, setLoadingJournal] = useState(false);
+
+  // Synchronisation du paramètre d'URL ?tab=...
+  useEffect(() => {
+    const tabParam = searchParams.get("tab");
+    if (tabParam) {
+      if (tabParam === "diffusion_alertes") setActiveTab("alertes_missions");
+      else if (
+        [
+          "dashboard_compile",
+          "suivi_individuel",
+          "inscriptions_ascq",
+          "suggestions",
+          "alertes_missions",
+          "exports_journal"
+        ].includes(tabParam)
+      ) {
+        setActiveTab(tabParam as any);
+      }
+    }
+  }, [searchParams]);
 
   // 1. INITIALISATION DU PROFIL ET VERIFICATION STRICTE DU NIVEAU
   const initialiserPerimetre = async () => {
@@ -601,13 +684,26 @@ export default function PerimetreGouvernancePage() {
     setSelectedAscq(ascq);
     setLoadingDossier(true);
     try {
-      const [planningsRes, activitesRes, rmaRes, hebdoRes, alertesRes, decesRes] = await Promise.all([
+      const [
+        planningsRes,
+        activitesRes,
+        rmaRes,
+        hebdoRes,
+        alertesRes,
+        decesRes,
+        relaisRes,
+        rcRapportsRes,
+        femmesRes
+      ] = await Promise.all([
         supabase.from("plannings_ascq").select("*, lignes_planning_ascq(*)").eq("ascq_id", ascq.id).order("annee", { ascending: false }).order("mois", { ascending: false }).limit(6),
         supabase.from("activites_menees").select("*").eq("ascq_id", ascq.id).order("date_activite", { ascending: false }).limit(10),
         supabase.from("rapports_mensuels_ascq").select("*").eq("ascq_id", ascq.id).order("annee", { ascending: false }).order("mois", { ascending: false }).limit(6),
         supabase.from("rapports_hebdo_pnsc").select("*").eq("ascq_id", ascq.id).order("annee", { ascending: false }).order("semaine", { ascending: false }).limit(8),
         supabase.from("alertes_communautaires").select("*").eq("notificateur_id", ascq.id).order("date_notification", { ascending: false }).limit(10),
         supabase.from("deces_communautaires").select("*").eq("notificateur_id", ascq.id).order("date_notification", { ascending: false }).limit(10),
+        supabase.from("relais_communautaires").select("*").eq("ascq_id", ascq.id),
+        supabase.from("rapports_hebdo_activites_relais").select("*").eq("ascq_id", ascq.id).order("date_rapport", { ascending: false }).limit(10),
+        supabase.from("suivi_femmes_enceintes").select("id, nom, prenoms, village_nom, statut_grossesse, date_dpa, terme_sa").eq("ascq_id", ascq.id).limit(10)
       ]);
 
       setDossierAscq({
@@ -617,6 +713,9 @@ export default function PerimetreGouvernancePage() {
         hebdo: hebdoRes.data || [],
         alertes: alertesRes.data || [],
         deces: decesRes.data || [],
+        relais: relaisRes.data || [],
+        rapportsRc: rcRapportsRes.data || [],
+        femmes: femmesRes.data || []
       });
     } catch (e) {
       console.warn("Erreur inspection 360°:", e);
@@ -625,7 +724,192 @@ export default function PerimetreGouvernancePage() {
     }
   };
 
-  // Envoi d'une alerte ou consigne officielle par le responsable
+  // Chargement des suggestions de modifications émises par le cadre
+  const chargerSuggestions = async () => {
+    if (!currentUser) return;
+    setLoadingSuggestions(true);
+    try {
+      const { data, error } = await supabase
+        .from("suggestions_modifications_cadres")
+        .select("*, ascq:utilisateurs!ascq_id(nom, prenoms, telephone)")
+        .order("created_at", { ascending: false })
+        .limit(30);
+
+      if (!error && data) {
+        setSuggestionsList(data);
+      } else {
+        const { data: notifData } = await supabase
+          .from("notifications")
+          .select("*")
+          .eq("type_notification", "SUGGESTION_CADRE")
+          .order("created_at", { ascending: false })
+          .limit(30);
+        setSuggestionsList(notifData || []);
+      }
+    } catch (e) {
+      console.warn("Erreur chargement suggestions:", e);
+    } finally {
+      setLoadingSuggestions(false);
+    }
+  };
+
+  // Soumission d'une suggestion de modification sur une fiche d'ASCQ
+  const handleCreerSuggestion = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!suggestionAscqId) {
+      alert("Veuillez sélectionner l'ASCQ concerné.");
+      return;
+    }
+    if (!suggestionTitre.trim() || !suggestionMessage.trim()) {
+      alert("Veuillez renseigner un titre et un message détaillé.");
+      return;
+    }
+
+    setSubmittingSuggestion(true);
+    const cadreTitre = getTitreCadreOfficiel(currentUser);
+    const targetAscq = ascqs.find(a => a.id === suggestionAscqId);
+    const ascqNom = targetAscq ? `${targetAscq.nom} ${targetAscq.prenoms}` : "l'agent";
+
+    try {
+      try {
+        await supabase.from("suggestions_modifications_cadres").insert({
+          cadre_id: currentUser.id,
+          ascq_id: suggestionAscqId,
+          commune_id: targetAscq?.commune_id || currentUser.commune_id,
+          arrondissement_id: targetAscq?.arrondissement_id,
+          departement_id: targetAscq?.departement_id || currentUser.departement_id,
+          module_concerne: suggestionModule,
+          type_suggestion: suggestionType,
+          titre: suggestionTitre.trim(),
+          message: suggestionMessage.trim(),
+          statut: "EN_ATTENTE"
+        });
+      } catch (errDb) {
+        console.warn("Fallback direct notifications:", errDb);
+      }
+
+      await supabase.from("notifications").insert([{
+        destinataire_id: suggestionAscqId,
+        titre: `💡 Remarque Superviseur (${cadreTitre}) : ${suggestionTitre.trim()}`,
+        message: `[Module: ${suggestionModule}] ${currentUser.nom || "Cadre"} ${currentUser.prenoms || ""} vous adresse l'observation suivante : ${suggestionMessage.trim()}`,
+        type: "SUGGESTION",
+        type_notification: "SUGGESTION_CADRE",
+        priorite: "HAUTE",
+        lu: false,
+      }]);
+
+      setToastMsg({ text: `Observation transmise avec succès à ${ascqNom} !`, error: false });
+      setSuggestionTitre("");
+      setSuggestionMessage("");
+      setTimeout(() => setToastMsg(null), 3500);
+      await chargerSuggestions();
+    } catch (err: any) {
+      setToastMsg({ text: "Erreur enregistrement observation : " + err.message, error: true });
+    } finally {
+      setSubmittingSuggestion(false);
+    }
+  };
+
+  // Chargement des ordres de mission du territoire
+  const chargerMissions = async () => {
+    if (!currentUser) return;
+    setLoadingMissions(true);
+    try {
+      const { data, error } = await supabase
+        .from("ordres_mission_territoire")
+        .select("*, ascq:utilisateurs!ascq_cible_id(nom, prenoms)")
+        .order("created_at", { ascending: false })
+        .limit(30);
+
+      if (!error && data) {
+        setMissionsList(data);
+      } else {
+        const { data: notifs } = await supabase
+          .from("notifications")
+          .select("*")
+          .eq("type_notification", "ORDRE_MISSION")
+          .order("created_at", { ascending: false })
+          .limit(30);
+        setMissionsList(notifs || []);
+      }
+    } catch (e) {
+      console.warn("Erreur chargement missions:", e);
+    } finally {
+      setLoadingMissions(false);
+    }
+  };
+
+  // Émission d'un ordre de mission ou d'une consigne de terrain
+  const handleCreerOrdreMission = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (missionCibleType === "ASCQ_SPECIFIQUE" && !missionAscqId) {
+      alert("Veuillez sélectionner l'ASCQ spécifique à missionner.");
+      return;
+    }
+    if (!missionTitre.trim() || !missionDirectives.trim()) {
+      alert("Veuillez préciser l'intitulé et les directives de la mission.");
+      return;
+    }
+
+    setSubmittingMission(true);
+    const cadreTitre = getTitreCadreOfficiel(currentUser);
+
+    const cibles = missionCibleType === "ASCQ_SPECIFIQUE" 
+      ? ascqs.filter(a => a.id === missionAscqId)
+      : ascqs;
+
+    if (cibles.length === 0) {
+      alert("Aucun agent cible trouvé dans votre territoire.");
+      setSubmittingMission(false);
+      return;
+    }
+
+    try {
+      try {
+        await supabase.from("ordres_mission_territoire").insert({
+          cadre_id: currentUser.id,
+          cible_type: missionCibleType,
+          ascq_cible_id: missionCibleType === "ASCQ_SPECIFIQUE" ? missionAscqId : null,
+          departement_id: currentUser.departement_id,
+          commune_id: currentUser.commune_id,
+          zone_sanitaire_id: currentUser.zone_sanitaire_id,
+          titre: missionTitre.trim(),
+          type_mission: missionType,
+          priorite: missionPriorite,
+          date_echeance: missionDateEcheance || null,
+          directives: missionDirectives.trim(),
+          statut: "TRANSMIS"
+        });
+      } catch (errDb) {
+        console.warn("Fallback ordres_mission:", errDb);
+      }
+
+      const notifs = cibles.map((a: any) => ({
+        destinataire_id: a.id,
+        titre: `🎯 Ordre de Mission (${cadreTitre}) : ${missionTitre.trim()}`,
+        message: `[Priorité: ${missionPriorite} • Échéance: ${missionDateEcheance || "Immédiate"}] ${currentUser.nom || "Cadre"} ${currentUser.prenoms || ""} vous assigne la mission suivante : ${missionDirectives.trim()}`,
+        type: "MISSION",
+        type_notification: "ORDRE_MISSION",
+        priorite: missionPriorite,
+        lu: false,
+      }));
+
+      await supabase.from("notifications").insert(notifs);
+
+      setToastMsg({ text: `Ordre de mission diffusé à ${cibles.length} agent(s) du territoire !`, error: false });
+      setMissionTitre("");
+      setMissionDirectives("");
+      setMissionDateEcheance("");
+      setTimeout(() => setToastMsg(null), 3500);
+      await chargerMissions();
+    } catch (err: any) {
+      setToastMsg({ text: "Erreur envoi ordre de mission : " + err.message, error: true });
+    } finally {
+      setSubmittingMission(false);
+    }
+  };
+
+  // Envoi d'une alerte sanitaire officielle par le responsable
   const handleDiffuserAlerte = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!alerteTitre.trim() || !alerteMessage.trim()) {
@@ -634,8 +918,8 @@ export default function PerimetreGouvernancePage() {
     }
 
     setSendingAlerte(true);
+    const cadreTitre = getTitreCadreOfficiel(currentUser);
     try {
-      // Notifier tous les ASCQ de son territoire
       const cibles = ascqs.map(a => a.id);
       if (cibles.length === 0) {
         alert("Aucun agent cible trouvé dans votre territoire.");
@@ -645,7 +929,7 @@ export default function PerimetreGouvernancePage() {
 
       const notifs = cibles.map(uid => ({
         destinataire_id: uid,
-        titre: `[OFFICIEL ${currentUser.poste || "SUPERVISEUR"}] ${alerteTitre.trim()}`,
+        titre: `[🚨 ALERTE SANITAIRE ${cadreTitre.toUpperCase()}] ${alerteTitre.trim()}`,
         message: alerteMessage.trim(),
         type: alertePriorite === "URGENTE" ? "URGENT" : "ALERTE",
         type_notification: alertePriorite === "URGENTE" ? "ALERTE_PRIORITAIRE" : "CONSIGNE_ADMIN",
@@ -655,7 +939,7 @@ export default function PerimetreGouvernancePage() {
 
       await supabase.from("notifications").insert(notifs);
 
-      setToastMsg({ text: `Alerte officielle transmise à ${cibles.length} agents de votre périmètre !`, error: false });
+      setToastMsg({ text: `Alerte sanitaire officielle transmise à ${cibles.length} agents de votre périmètre !`, error: false });
       setAlerteTitre("");
       setAlerteMessage("");
       setTimeout(() => setToastMsg(null), 3500);
@@ -691,8 +975,12 @@ export default function PerimetreGouvernancePage() {
   useEffect(() => {
     if (activeTab === "exports_journal" && currentUser) {
       chargerJournalExports();
+    } else if (activeTab === "suggestions" && currentUser) {
+      chargerSuggestions();
+    } else if (activeTab === "alertes_missions" && currentUser) {
+      chargerMissions();
     }
-  }, [activeTab]);
+  }, [activeTab, currentUser]);
 
   // Déclencheur des exports
   const executerExportCompilé = async (format: "EXCEL" | "CSV" | "PDF") => {
@@ -842,13 +1130,7 @@ export default function PerimetreGouvernancePage() {
                             currentUser?.departement_nom ? `Département du ${currentUser.departement_nom}` :
                             "Territoire National";
 
-  const libelleRole = currentUser?.poste === "REPRESENTANT_COMMUNAL" ? "Représentant Communal" :
-                      currentUser?.poste === "REPRESENTANT_DEPARTEMENTAL" ? "Représentant Départemental" :
-                      currentUser?.poste === "DDS" ? "Directeur Départemental de la Santé" :
-                      currentUser?.poste === "MCZS" ? "Médecin Coordonnateur Zone" :
-                      currentUser?.poste === "MCC" ? "Médecin Coordonnateur Commune" :
-                      currentUser?.poste === "PF_CCLS_TP" ? "Point Focal CCLS-TP" :
-                      currentUser?.poste || "Responsable de Santé";
+  const libelleRole = getTitreCadreOfficiel(currentUser);
 
   const isSuperAdmin = (currentUser?.telephone || "").includes("69031463") || currentUser?.role_technique === "SUPER_ADMIN";
   const isRepresentantCommunal = isSuperAdmin || 
@@ -868,20 +1150,37 @@ export default function PerimetreGouvernancePage() {
         <div className="bg-gradient-to-r from-emerald-950 via-[#005c30] to-teal-900 text-white rounded-3xl p-6 shadow-md space-y-3 relative overflow-hidden">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 relative z-10">
             <div>
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400 text-slate-950 text-xs font-black shadow-sm mb-2">
-                <Crown className="w-4 h-4 fill-current" />
-                <span>{libelleRole}</span>
-                <span className="text-[10px] bg-slate-900 text-amber-300 px-2 py-0.5 rounded-full uppercase">
-                  {isRepresentantCommunal ? "Supervision & Validation" : "Consultation Seule"}
+              <div className="flex flex-wrap items-center gap-1.5 mb-2">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400 text-slate-950 text-xs font-black shadow-sm">
+                  <Crown className="w-4 h-4 fill-current" />
+                  <span>{libelleRole}</span>
                 </span>
+                <span className="text-[10px] bg-slate-900 text-amber-300 px-2.5 py-0.5 rounded-full uppercase font-bold tracking-wide">
+                  {isRepresentantCommunal ? "Supervision & Validation" : "Supervision & Consultation"}
+                </span>
+                {currentUser?.departement_nom && (
+                  <span className="text-[10px] bg-white/10 text-emerald-100 px-2.5 py-0.5 rounded-full border border-white/20">
+                    Dép : {currentUser.departement_nom}
+                  </span>
+                )}
+                {currentUser?.zone_sanitaire_nom && (
+                  <span className="text-[10px] bg-white/10 text-emerald-100 px-2.5 py-0.5 rounded-full border border-white/20">
+                    Zone : {currentUser.zone_sanitaire_nom}
+                  </span>
+                )}
+                {currentUser?.commune_nom && (
+                  <span className="text-[10px] bg-white/10 text-emerald-100 px-2.5 py-0.5 rounded-full border border-white/20">
+                    Commune : {currentUser.commune_nom}
+                  </span>
+                )}
               </div>
               <h1 className="text-xl sm:text-2xl font-black tracking-tight">
                 Gouvernance Sanitaire • {libelleTerritoire}
               </h1>
               <p className="text-xs text-emerald-100 font-medium">
                 {isRepresentantCommunal
-                  ? "Validation des inscriptions ASCQ, contrôle et visa des rapports RMA/Hebdo, et suivi épidémiologique communal."
-                  : "Suivi épidémiologique territorial, ponctualité des rapports, supervision des ASCQ et exports audités."}
+                  ? "Validation des inscriptions ASCQ, contrôle et visa des rapports RMA/Hebdo, et pilotage sanitaire communal."
+                  : "Supervision du périmètre territorial, observation des fiches d'ASCQ, suggestions de corrections, alertes sanitaires et ordres de mission."}
               </p>
             </div>
 
@@ -931,7 +1230,7 @@ export default function PerimetreGouvernancePage() {
             }`}
           >
             <Users className="w-4 h-4" />
-            <span>2. ASCQ du Territoire</span>
+            <span>2. ASCQ & RC Territoire</span>
           </button>
 
           {(isRepresentantCommunal || isSuperAdmin) && (
@@ -952,13 +1251,28 @@ export default function PerimetreGouvernancePage() {
           )}
 
           <button
-            onClick={() => setActiveTab("diffusion_alertes")}
+            onClick={() => setActiveTab("suggestions")}
+            className={`flex-1 py-2.5 px-2 text-center rounded-xl transition-all flex items-center justify-center gap-1.5 whitespace-nowrap relative ${
+              activeTab === "suggestions" ? "bg-[#e0f2e9] text-[#005c30] shadow-sm font-black" : "hover:text-slate-900"
+            }`}
+          >
+            <Sparkles className="w-4 h-4 text-amber-500" />
+            <span>4. Suggestions & Remarques</span>
+            {suggestionsList.length > 0 && (
+              <span className="px-1.5 py-0.2 text-[10px] rounded-full bg-emerald-700 text-white font-black">
+                {suggestionsList.length}
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={() => setActiveTab("alertes_missions")}
             className={`flex-1 py-2.5 px-2 text-center rounded-xl transition-all flex items-center justify-center gap-1.5 whitespace-nowrap ${
-              activeTab === "diffusion_alertes" ? "bg-[#e0f2e9] text-[#005c30] shadow-sm font-black" : "hover:text-slate-900"
+              activeTab === "alertes_missions" ? "bg-[#e0f2e9] text-[#005c30] shadow-sm font-black" : "hover:text-slate-900"
             }`}
           >
             <Send className="w-4 h-4" />
-            <span>4. Diffuser Alerte</span>
+            <span>5. Alertes & Missions</span>
           </button>
 
           <button
@@ -968,7 +1282,7 @@ export default function PerimetreGouvernancePage() {
             }`}
           >
             <Download className="w-4 h-4" />
-            <span>5. Exports & Audit</span>
+            <span>6. Exports & Audit</span>
           </button>
         </div>
 
@@ -1459,19 +1773,94 @@ export default function PerimetreGouvernancePage() {
                             </div>
                           )}
                         </div>
+                        {/* Section 5 : Relais Communautaires (RC) rattachés */}
+                        <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2">
+                          <h4 className="font-bold text-slate-900 flex items-center justify-between">
+                            <span>👥 Relais Communautaires (RC) rattachés</span>
+                            <span className="text-[10px] text-slate-500">{dossierAscq.relais.length} RC déclarés</span>
+                          </h4>
+                          {dossierAscq.relais.length === 0 ? (
+                            <p className="text-slate-400 text-[11px]">Aucun RC rattaché à cet ASCQ.</p>
+                          ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {dossierAscq.relais.map((rc: any) => (
+                                <div key={rc.id} className="p-2.5 bg-white rounded-xl border border-slate-200 shadow-sm text-xs">
+                                  <p className="font-bold text-slate-900">{rc.nom} {rc.prenoms}</p>
+                                  <p className="text-[11px] text-slate-500">Village : <strong>{rc.village_nom || "Non affecté"}</strong> • Tél : {rc.telephone}</p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Section 6 : Suivi Maternité & 1000 Jours */}
+                        <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2">
+                          <h4 className="font-bold text-slate-900 flex items-center justify-between">
+                            <span>👶 Femmes enceintes & 1 000 Jours suivies</span>
+                            <span className="text-[10px] text-slate-500">{dossierAscq.femmes.length} cas récents</span>
+                          </h4>
+                          {dossierAscq.femmes.length === 0 ? (
+                            <p className="text-slate-400 text-[11px]">Aucune fiche maternité enregistrée.</p>
+                          ) : (
+                            <div className="space-y-1">
+                              {dossierAscq.femmes.map((f: any) => (
+                                <div key={f.id} className="p-2 bg-white rounded-xl border border-slate-200 flex items-center justify-between text-xs">
+                                  <div>
+                                    <span className="font-bold text-slate-900">{f.nom} {f.prenoms}</span>
+                                    <span className="text-[10px] text-slate-500 ml-2">Village : {f.village_nom}</span>
+                                  </div>
+                                  <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                                    {f.statut_grossesse || "EN COURS"} {f.terme_sa ? `(${f.terme_sa} SA)` : ""}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </>
                     )}
                   </div>
 
-                  {/* Pied */}
-                  <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedAscq(null)}
-                      className="px-4 py-2 bg-slate-200 hover:bg-slate-300 font-bold text-xs rounded-xl"
-                    >
-                      Fermer le dossier
-                    </button>
+                  {/* Actions Cadre directes sur cet ASCQ & Pied */}
+                  <div className="p-3.5 bg-emerald-50/70 border-t border-emerald-100 flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-[11px] text-[#005c30] font-bold">Action hiérarchique sur cet ASCQ :</span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSuggestionAscqId(selectedAscq.id);
+                          setSelectedAscq(null);
+                          setActiveTab("suggestions");
+                        }}
+                        className="px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Suggérer une modification</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMissionAscqId(selectedAscq.id);
+                          setMissionCibleType("ASCQ_SPECIFIQUE");
+                          setMissionSubMode("MISSION");
+                          setSelectedAscq(null);
+                          setActiveTab("alertes_missions");
+                        }}
+                        className="px-3 py-1.5 rounded-xl bg-[#005c30] hover:bg-[#004724] text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all"
+                      >
+                        <Target className="w-3.5 h-3.5" />
+                        <span>Missionner cet agent</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setSelectedAscq(null)}
+                        className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 font-bold text-xs rounded-xl"
+                      >
+                        Fermer
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1593,74 +1982,528 @@ export default function PerimetreGouvernancePage() {
         )}
 
         {/* ------------------------------------------------------------- */}
-        {/* ONGLET 3 : ENVOYER UNE ALERTE OFFICIELLE AU TERRITOIRE */}
+        {/* ONGLET 4 : SUGGESTIONS DE MODIFICATION & REMARQUES SUR LES FICHES */}
         {/* ------------------------------------------------------------- */}
-        {activeTab === "diffusion_alertes" && (
-          <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4 max-w-xl mx-auto text-xs">
-            <div className="space-y-1">
-              <span className="text-[10px] font-black uppercase text-amber-800 bg-amber-100 px-2.5 py-0.5 rounded-full border border-amber-300">
-                Prérogative Officielle de Supervision
-              </span>
-              <h2 className="text-base font-black text-slate-900">
-                Diffuser une Alerte ou Consigne au Territoire
-              </h2>
-              <p className="text-slate-500 text-[11px] leading-relaxed">
-                Transmettez instantanément une notification prioritaire ou une directive sanitaire à l'ensemble des {ascqs.length} ASCQ de votre périmètre ({libelleTerritoire}).
-              </p>
-            </div>
-
-            <form onSubmit={handleDiffuserAlerte} className="space-y-3 pt-2">
+        {activeTab === "suggestions" && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">Niveau d'Urgence *</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {(["NORMALE", "HAUTE", "URGENTE"] as const).map((p) => (
-                    <button
-                      key={p}
-                      type="button"
-                      onClick={() => setAlertePriorite(p)}
-                      className={`py-2 px-2 rounded-xl border text-center font-bold text-[11px] transition-all ${
-                        alertePriorite === p
-                          ? p === "URGENTE" ? "bg-red-500 text-white border-red-600" : "bg-[#005c30] text-white border-[#004724]"
-                          : "bg-slate-50 text-slate-600 border-slate-200"
-                      }`}
-                    >
-                      {p === "URGENTE" ? "🚨 Urgente" : p === "HAUTE" ? "⚠️ Haute" : "ℹ️ Normale"}
-                    </button>
-                  ))}
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 font-extrabold text-[10px] uppercase border border-amber-300 flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-amber-600" />
+                    <span>Prérogative de Suivi & Régulation</span>
+                  </span>
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">Objet / Titre de l'Alerte *</label>
-                <input
-                  type="text"
-                  placeholder="Ex : Riposte rougeole - Ratissage immédiat demandé..."
-                  value={alerteTitre}
-                  onChange={(e) => setAlerteTitre(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 font-bold"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">Directive ou Consigne Sanitaire *</label>
-                <textarea
-                  rows={4}
-                  placeholder="Détaillez la conduite à tenir, les délais et les consignes pour les ASCQ et Relais..."
-                  value={alerteMessage}
-                  onChange={(e) => setAlerteMessage(e.target.value)}
-                  className="w-full p-3 rounded-xl border border-slate-200 font-medium"
-                />
+                <h2 className="text-base font-black text-slate-900 mt-1">
+                  Suggestions de Modification & Observations Sanitaires
+                </h2>
+                <p className="text-xs text-slate-500">
+                  En tant que responsable de santé, vous observez les rapports et fiches des ASCQ de votre périmètre ({libelleTerritoire}). Vous pouvez leur notifier des demandes de correction chiffrée, des précisions ou des rappels protocolaires.
+                </p>
               </div>
 
               <button
-                type="submit"
-                disabled={sendingAlerte}
-                className="w-full py-3 rounded-2xl bg-[#005c30] hover:bg-[#004724] text-white font-extrabold text-xs shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
+                type="button"
+                onClick={chargerSuggestions}
+                disabled={loadingSuggestions}
+                className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1.5 self-start sm:self-auto transition-all"
               >
-                {sendingAlerte ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                <span>{sendingAlerte ? "Diffusion en cours..." : "Diffuser immédiatement aux ASCQ du périmètre"}</span>
+                <RefreshCw className={`w-3.5 h-3.5 ${loadingSuggestions ? "animate-spin text-[#005c30]" : ""}`} />
+                <span>Actualiser le registre</span>
               </button>
-            </form>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+              {/* Formulaire de formulation d'une remarque */}
+              <div className="lg:col-span-5 bg-white rounded-3xl p-5 border border-slate-200 shadow-sm space-y-3 text-xs">
+                <div className="flex items-center gap-2 pb-1 border-b border-slate-100">
+                  <Sparkles className="w-4 h-4 text-amber-500" />
+                  <h3 className="font-extrabold text-sm text-slate-900">Formuler une Remarque / Correction</h3>
+                </div>
+
+                <form onSubmit={handleCreerSuggestion} className="space-y-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">ASCQ Destinataire *</label>
+                    <select
+                      value={suggestionAscqId}
+                      onChange={(e) => setSuggestionAscqId(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 font-bold text-slate-800"
+                    >
+                      <option value="">-- Choisir un ASCQ du périmètre ({ascqs.length}) --</option>
+                      {ascqs.map((a: any) => (
+                        <option key={a.id} value={a.id}>
+                          {a.nom} {a.prenoms} ({a.arrondissement_nom || "Arrondissement"})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">Module / Document *</label>
+                      <select
+                        value={suggestionModule}
+                        onChange={(e) => setSuggestionModule(e.target.value)}
+                        className="w-full px-2.5 py-2 rounded-xl border border-slate-200 bg-slate-50 font-medium text-slate-800"
+                      >
+                        <option value="RMA">Rapport Mensuel (RMA)</option>
+                        <option value="PNSC_HEBDO">Suivi PNSC Hebdo</option>
+                        <option value="SIMR_ALERTE">Fiche SIMR / Décès</option>
+                        <option value="PLANNING_ACTIVITES">Planning & Activités</option>
+                        <option value="MATERNITE_1000J">Maternité & 1000 Jours</option>
+                        <option value="PEC_SOINS">Prise en charge iCCM</option>
+                        <option value="AUTRE">Autre observation</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">Type d'Intervention *</label>
+                      <select
+                        value={suggestionType}
+                        onChange={(e) => setSuggestionType(e.target.value)}
+                        className="w-full px-2.5 py-2 rounded-xl border border-slate-200 bg-slate-50 font-medium text-slate-800"
+                      >
+                        <option value="CORRECTION_DEMANDEE">✏️ Correction de chiffres</option>
+                        <option value="PRECISION_REQUISE">❓ Justification requise</option>
+                        <option value="RAPPEL_PROTOCOLE">📋 Rappel protocole</option>
+                        <option value="OBSERVATION">💬 Observation générale</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Objet de la Remarque *</label>
+                    <input
+                      type="text"
+                      placeholder="Ex : Incohérence entre VAD déclarées et plannings des RC..."
+                      value={suggestionTitre}
+                      onChange={(e) => setSuggestionTitre(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 font-bold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Instructions détaillées pour l'ASCQ *</label>
+                    <textarea
+                      rows={4}
+                      placeholder="Précisez les lignes à modifier, les vérifications à faire auprès des relais du village ou les règles à appliquer..."
+                      value={suggestionMessage}
+                      onChange={(e) => setSuggestionMessage(e.target.value)}
+                      className="w-full p-3 rounded-xl border border-slate-200 font-medium"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={submittingSuggestion}
+                    className="w-full py-2.5 rounded-xl bg-[#005c30] hover:bg-[#004724] text-white font-extrabold text-xs shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
+                  >
+                    {submittingSuggestion ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                    <span>{submittingSuggestion ? "Transmission en cours..." : "Notifier l'ASCQ de cette remarque"}</span>
+                  </button>
+                </form>
+              </div>
+
+              {/* Registre des suggestions émises */}
+              <div className="lg:col-span-7 bg-white rounded-3xl p-5 border border-slate-200 shadow-sm space-y-3 text-xs">
+                <div className="flex items-center justify-between pb-1 border-b border-slate-100">
+                  <div className="flex items-center gap-2">
+                    <History className="w-4 h-4 text-[#005c30]" />
+                    <h3 className="font-extrabold text-sm text-slate-900">Historique des Observations Émises</h3>
+                  </div>
+                  <span className="text-[11px] text-slate-400 font-mono font-bold">
+                    {suggestionsList.length} observation(s)
+                  </span>
+                </div>
+
+                {loadingSuggestions ? (
+                  <div className="p-8 text-center text-slate-400">
+                    <RefreshCw className="w-6 h-6 animate-spin mx-auto text-[#005c30] mb-2" />
+                    Chargement des observations...
+                  </div>
+                ) : suggestionsList.length === 0 ? (
+                  <div className="p-8 text-center text-slate-400 space-y-2">
+                    <Sparkles className="w-8 h-8 text-slate-300 mx-auto" />
+                    <p className="font-bold text-slate-600">Aucune observation émise récemment</p>
+                    <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
+                      Utilisez le formulaire pour faire part de vos recommandations ou remarques aux ASCQ de votre périmètre.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-1">
+                    {suggestionsList.map((s: any) => (
+                      <div key={s.id} className="p-3 bg-slate-50/70 hover:bg-slate-50 rounded-2xl border border-slate-200/80 space-y-1.5 transition-all">
+                        <div className="flex flex-wrap items-center justify-between gap-1.5">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-bold text-slate-900">
+                              {s.ascq ? `${s.ascq.nom} ${s.ascq.prenoms}` : "Agent ASCQ"}
+                            </span>
+                            <span className="px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 text-[10px] font-bold">
+                              {s.module_concerne || "Rapport"}
+                            </span>
+                            <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 text-[10px] font-bold">
+                              {s.type_suggestion === "CORRECTION_DEMANDEE" ? "✏️ Correction demandée" :
+                               s.type_suggestion === "PRECISION_REQUISE" ? "❓ Précision requise" :
+                               s.type_suggestion === "RAPPEL_PROTOCOLE" ? "📋 Rappel protocole" : "💬 Observation"}
+                            </span>
+                          </div>
+
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            s.statut === "CLOTURE" ? "bg-slate-200 text-slate-700" :
+                            s.statut === "PRIS_EN_COMPTE" ? "bg-emerald-100 text-emerald-800" :
+                            "bg-amber-100 text-amber-800"
+                          }`}>
+                            {s.statut === "CLOTURE" ? "🔒 Clôturé" :
+                             s.statut === "PRIS_EN_COMPTE" ? "✅ Pris en compte" : "⏳ Transmis à l'ASCQ"}
+                          </span>
+                        </div>
+
+                        <p className="font-bold text-slate-800 text-xs">
+                          {s.titre}
+                        </p>
+                        <p className="text-slate-600 text-[11px] leading-relaxed line-clamp-3">
+                          {s.message}
+                        </p>
+
+                        <div className="flex items-center justify-between pt-1 text-[10px] text-slate-400 font-mono border-t border-slate-200/60 mt-1">
+                          <span>Émis le {new Date(s.created_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+                          {s.reponse_ascq && (
+                            <span className="text-emerald-700 font-bold">Réponse ASCQ reçue</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ------------------------------------------------------------- */}
+        {/* ONGLET 5 : ALERTES SANITAIRES & ORDRES DE MISSION */}
+        {/* ------------------------------------------------------------- */}
+        {activeTab === "alertes_missions" && (
+          <div className="space-y-4">
+            {/* Bascule Volet Alertes vs Volet Ordres de mission */}
+            <div className="bg-white rounded-3xl p-4 border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <span className="text-[10px] font-black uppercase text-amber-800 bg-amber-100 px-2.5 py-0.5 rounded-full border border-amber-300">
+                  Direction Opérationnelle de Santé
+                </span>
+                <h2 className="text-base font-black text-slate-900 mt-1">
+                  Alertes Territoriales & Ordres de Mission de Terrain
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Périmètre d'action : <strong>{libelleTerritoire}</strong> ({ascqs.length} agents de santé communautaire qualifiés rattachés).
+                </p>
+              </div>
+
+              <div className="inline-flex p-1 bg-slate-100 rounded-2xl border border-slate-200 self-start sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => setMissionSubMode("MISSION")}
+                  className={`px-3.5 py-1.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 ${
+                    missionSubMode === "MISSION"
+                      ? "bg-[#005c30] text-white shadow-sm font-black"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <Target className="w-3.5 h-3.5" />
+                  <span>🎯 Ordres de Mission</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMissionSubMode("ALERTE")}
+                  className={`px-3.5 py-1.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 ${
+                    missionSubMode === "ALERTE"
+                      ? "bg-red-600 text-white shadow-sm font-black"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  <span>🚨 Alerte Sanitaire</span>
+                </button>
+              </div>
+            </div>
+
+            {/* VOLET A : ORDRES DE MISSION / CONSIGNES DE TERRAIN */}
+            {missionSubMode === "MISSION" && (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+                {/* Formulaire émission ordre de mission */}
+                <div className="lg:col-span-5 bg-white rounded-3xl p-5 border border-slate-200 shadow-sm space-y-3 text-xs">
+                  <div className="flex items-center gap-2 pb-1 border-b border-slate-100">
+                    <Target className="w-4 h-4 text-[#005c30]" />
+                    <h3 className="font-extrabold text-sm text-slate-900">Assigner une Mission de Terrain</h3>
+                  </div>
+
+                  <form onSubmit={handleCreerOrdreMission} className="space-y-3">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">Cible de la mission *</label>
+                      <div className="grid grid-cols-2 gap-2 mb-2">
+                        <button
+                          type="button"
+                          onClick={() => setMissionCibleType("TOUS_ASCQ")}
+                          className={`py-2 px-2 rounded-xl border text-center font-bold text-[11px] transition-all ${
+                            missionCibleType === "TOUS_ASCQ"
+                              ? "bg-[#005c30] text-white border-[#004724]"
+                              : "bg-slate-50 text-slate-600 border-slate-200"
+                          }`}
+                        >
+                          👥 Tout le territoire ({ascqs.length} ASCQ)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setMissionCibleType("ASCQ_SPECIFIQUE")}
+                          className={`py-2 px-2 rounded-xl border text-center font-bold text-[11px] transition-all ${
+                            missionCibleType === "ASCQ_SPECIFIQUE"
+                              ? "bg-[#005c30] text-white border-[#004724]"
+                              : "bg-slate-50 text-slate-600 border-slate-200"
+                          }`}
+                        >
+                          👤 ASCQ spécifique
+                        </button>
+                      </div>
+
+                      {missionCibleType === "ASCQ_SPECIFIQUE" && (
+                        <select
+                          value={missionAscqId}
+                          onChange={(e) => setMissionAscqId(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 font-bold text-slate-800"
+                        >
+                          <option value="">-- Sélectionner l'ASCQ à missionner --</option>
+                          {ascqs.map((a: any) => (
+                            <option key={a.id} value={a.id}>
+                              {a.nom} {a.prenoms} ({a.arrondissement_nom || "Arrondissement"})
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">Type de Mission *</label>
+                        <select
+                          value={missionType}
+                          onChange={(e) => setMissionType(e.target.value)}
+                          className="w-full px-2.5 py-2 rounded-xl border border-slate-200 bg-slate-50 font-medium text-slate-800"
+                        >
+                          <option value="INVESTIGATION">🔍 Investigation de foyer</option>
+                          <option value="RATISSAGE_VACCINAL">💉 Ratissage vaccinal</option>
+                          <option value="SUPERVISION_RELAIS">👥 Supervision des RC</option>
+                          <option value="SENSIBILISATION">📢 Sensibilisation ciblée</option>
+                          <option value="AUDIT_DECES">⚠️ Audit de décès</option>
+                          <option value="AUTRE">📌 Directive de terrain</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">Date d'Échéance</label>
+                        <input
+                          type="date"
+                          value={missionDateEcheance}
+                          onChange={(e) => setMissionDateEcheance(e.target.value)}
+                          className="w-full px-2.5 py-2 rounded-xl border border-slate-200 bg-slate-50 font-medium text-slate-800"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">Priorité *</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {(["NORMALE", "HAUTE", "URGENTE"] as const).map((p) => (
+                          <button
+                            key={p}
+                            type="button"
+                            onClick={() => setMissionPriorite(p)}
+                            className={`py-1.5 px-2 rounded-xl border text-center font-bold text-[11px] transition-all ${
+                              missionPriorite === p
+                                ? p === "URGENTE" ? "bg-red-500 text-white border-red-600" : "bg-[#005c30] text-white border-[#004724]"
+                                : "bg-slate-50 text-slate-600 border-slate-200"
+                            }`}
+                          >
+                            {p === "URGENTE" ? "🚨 Urgente" : p === "HAUTE" ? "⚠️ Haute" : "ℹ️ Normale"}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">Intitulé de la Mission *</label>
+                      <input
+                        type="text"
+                        placeholder="Ex : Recherche active des enfants zéro dose ou perdus de vue..."
+                        value={missionTitre}
+                        onChange={(e) => setMissionTitre(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 font-bold"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">Directives Opérationnelles & Livrables *</label>
+                      <textarea
+                        rows={4}
+                        placeholder="Détaillez les villages cibles, la méthode d'intervention, le rôle attendu des Relais et les chiffres à rapporter..."
+                        value={missionDirectives}
+                        onChange={(e) => setMissionDirectives(e.target.value)}
+                        className="w-full p-3 rounded-xl border border-slate-200 font-medium"
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={submittingMission}
+                      className="w-full py-2.5 rounded-xl bg-[#005c30] hover:bg-[#004724] text-white font-extrabold text-xs shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
+                    >
+                      {submittingMission ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Target className="w-4 h-4" />}
+                      <span>{submittingMission ? "Diffusion en cours..." : "Transmettre l'Ordre de Mission"}</span>
+                    </button>
+                  </form>
+                </div>
+
+                {/* Historique des missions */}
+                <div className="lg:col-span-7 bg-white rounded-3xl p-5 border border-slate-200 shadow-sm space-y-3 text-xs">
+                  <div className="flex items-center justify-between pb-1 border-b border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <Compass className="w-4 h-4 text-[#005c30]" />
+                      <h3 className="font-extrabold text-sm text-slate-900">Missions & Consignes Transmises</h3>
+                    </div>
+                    <span className="text-[11px] text-slate-400 font-mono font-bold">
+                      {missionsList.length} mission(s)
+                    </span>
+                  </div>
+
+                  {loadingMissions ? (
+                    <div className="p-8 text-center text-slate-400">
+                      <RefreshCw className="w-6 h-6 animate-spin mx-auto text-[#005c30] mb-2" />
+                      Chargement des missions...
+                    </div>
+                  ) : missionsList.length === 0 ? (
+                    <div className="p-8 text-center text-slate-400 space-y-2">
+                      <Target className="w-8 h-8 text-slate-300 mx-auto" />
+                      <p className="font-bold text-slate-600">Aucun ordre de mission émis</p>
+                      <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
+                        Assignez une consigne ou un ordre de mission de terrain aux agents de votre territoire.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-1">
+                      {missionsList.map((m: any) => (
+                        <div key={m.id} className="p-3 bg-slate-50/70 hover:bg-slate-50 rounded-2xl border border-slate-200/80 space-y-1.5 transition-all">
+                          <div className="flex flex-wrap items-center justify-between gap-1.5">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-bold text-slate-900">
+                                {m.cible_type === "TOUS_ASCQ" || !m.ascq_cible_id
+                                  ? "👥 Tous les ASCQ du territoire"
+                                  : m.ascq ? `👤 ${m.ascq.nom} ${m.ascq.prenoms}` : "👤 Agent ciblé"}
+                              </span>
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                m.priorite === "URGENTE" ? "bg-red-100 text-red-800" :
+                                m.priorite === "HAUTE" ? "bg-amber-100 text-amber-900" : "bg-blue-100 text-blue-900"
+                              }`}>
+                                {m.priorite}
+                              </span>
+                              <span className="px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 text-[10px] font-bold">
+                                {m.type_mission || "Mission"}
+                              </span>
+                            </div>
+
+                            <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                              {m.statut || "TRANSMIS"}
+                            </span>
+                          </div>
+
+                          <p className="font-bold text-slate-800 text-xs">
+                            {m.titre}
+                          </p>
+                          <p className="text-slate-600 text-[11px] leading-relaxed line-clamp-3">
+                            {m.directives || m.message}
+                          </p>
+
+                          <div className="flex items-center justify-between pt-1 text-[10px] text-slate-400 font-mono border-t border-slate-200/60 mt-1">
+                            <span>Émis le {new Date(m.created_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+                            {m.date_echeance && (
+                              <span className="text-amber-800 font-bold">Échéance : {m.date_echeance}</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* VOLET B : ALERTE SANITAIRE TERRITORIALE */}
+            {missionSubMode === "ALERTE" && (
+              <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4 max-w-xl mx-auto text-xs">
+                <div className="space-y-1">
+                  <span className="text-[10px] font-black uppercase text-red-800 bg-red-100 px-2.5 py-0.5 rounded-full border border-red-300">
+                    Alerte Sanitaire Officielle
+                  </span>
+                  <h2 className="text-base font-black text-slate-900">
+                    Diffuser une Alerte Sanitaire Prioritaire
+                  </h2>
+                  <p className="text-slate-500 text-[11px] leading-relaxed">
+                    Transmettez instantanément une notification prioritaire de vigilance ou de riposte épidémiologique à l'ensemble des {ascqs.length} ASCQ de votre périmètre ({libelleTerritoire}).
+                  </p>
+                </div>
+
+                <form onSubmit={handleDiffuserAlerte} className="space-y-3 pt-2">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Niveau d'Urgence *</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {(["NORMALE", "HAUTE", "URGENTE"] as const).map((p) => (
+                        <button
+                          key={p}
+                          type="button"
+                          onClick={() => setAlertePriorite(p)}
+                          className={`py-2 px-2 rounded-xl border text-center font-bold text-[11px] transition-all ${
+                            alertePriorite === p
+                              ? p === "URGENTE" ? "bg-red-500 text-white border-red-600" : "bg-[#005c30] text-white border-[#004724]"
+                              : "bg-slate-50 text-slate-600 border-slate-200"
+                          }`}
+                        >
+                          {p === "URGENTE" ? "🚨 Urgente" : p === "HAUTE" ? "⚠️ Haute" : "ℹ️ Normale"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Objet / Pathologie Cible *</label>
+                    <input
+                      type="text"
+                      placeholder="Ex : Alerte Choléra / Rougeole - Signalement cas suspects immédiat..."
+                      value={alerteTitre}
+                      onChange={(e) => setAlerteTitre(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 font-bold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Directive ou Consigne Sanitaire *</label>
+                    <textarea
+                      rows={4}
+                      placeholder="Détaillez la définition de cas, la conduite à tenir, les mesures barrières et consignes pour les ASCQ et Relais..."
+                      value={alerteMessage}
+                      onChange={(e) => setAlerteMessage(e.target.value)}
+                      className="w-full p-3 rounded-xl border border-slate-200 font-medium"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={sendingAlerte}
+                    className="w-full py-3 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-extrabold text-xs shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
+                  >
+                    {sendingAlerte ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                    <span>{sendingAlerte ? "Diffusion en cours..." : "Diffuser immédiatement l'Alerte Sanitaire"}</span>
+                  </button>
+                </form>
+              </div>
+            )}
           </div>
         )}
 

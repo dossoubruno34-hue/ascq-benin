@@ -20,6 +20,7 @@ import {
   WifiOff
 } from "lucide-react";
 import { saveCachedUserSession, getCachedUserSession, isOnline } from "@/lib/offline-sync";
+import { estCadreNonAscq } from "@/lib/cadre-roles";
 
 export default function ConnexionPage() {
   const router = useRouter();
@@ -274,33 +275,20 @@ export default function ConnexionPage() {
       setLoginSuccess(userProfile);
 
       setTimeout(async () => {
-        const isCadreOuRepresentant = [
-          "REPRESENTANT_COMMUNAL",
-          "REPRESENTANT_DEPARTEMENTAL",
-          "PF_CCLS_TP",
-          "MCC",
-          "MCZS",
-          "RCSE",
-          "C_RAMS",
-          "DDS",
-          "ADMIN_COMMUNAL",
-          "ADMIN_DEPARTEMENTAL"
-        ].includes(userProfile.poste) || [
-          "ADMIN_COMMUNAL",
-          "ADMIN_DEPARTEMENTAL"
-        ].includes(userProfile.role_technique);
-
-        if (userProfile.poste === "ASCQ" || isCadreOuRepresentant) {
-          // Si l'ASCQ s'est connecté avec le mot de passe temporaire '000000', le diriger vers le changement de mot de passe
-          if (motDePasse === "000000") {
-            router.push("/relais/premiere-connexion");
-            return;
+        // 1. Distinction stricte Cadres & Responsables (NON-ASCQ) vs Agents de terrain
+        if (estCadreNonAscq(userProfile)) {
+          // Les Cadres (CCD CDLS-TP, CSSPR, CSPSMEH, MCZS, MCC, PF CCLS-TP, DDS, Cadres...) 
+          // n'ont pas accès aux fiches de soins de terrain mais pilotent leur périmètre
+          if (userProfile.role_technique === "SUPER_ADMIN") {
+            router.push("/perimetre");
+          } else {
+            router.push("/perimetre");
           }
-          // L'ASCQ et les représentants territoriaux arrivent sur leur espace de travail complet
-          router.push("/espace-ascq");
-        } else if (userProfile.role_technique === "SUPER_ADMIN" || userProfile.role_technique === "ADMINISTRATEUR") {
-          router.push("/admin");
-        } else if (userProfile.poste === "RC") {
+          return;
+        }
+
+        // 2. Relais Communautaires (RC)
+        if (userProfile.poste === "RC") {
           // Vérifier si le RC a déjà défini son mot de passe personnel
           const { data: rcData } = await supabase
             .from("relais_communautaires")
@@ -313,6 +301,12 @@ export default function ConnexionPage() {
           } else {
             router.push("/espace-rc");
           }
+          return;
+        }
+
+        // 3. ASCQ de terrain et Représentants Communaux / Départementaux (qui sont ASCQ)
+        if (motDePasse === "000000") {
+          router.push("/relais/premiere-connexion");
         } else {
           router.push("/espace-ascq");
         }
