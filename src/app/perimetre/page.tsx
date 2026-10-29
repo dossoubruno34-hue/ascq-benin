@@ -40,10 +40,11 @@ import {
   Compass,
   MessageSquare,
   Baby,
-  ClipboardList
+  ClipboardList,
+  HeartPulse
 } from "lucide-react";
 import { getCachedUserSession, getCachedMonEspace } from "@/lib/offline-sync";
-import { estCadreNonAscq, getTitreCadreOfficiel } from "@/lib/cadre-roles";
+import { estCadreNonAscq, getTitreCadreOfficiel, getPerimetreScope, PerimetreScope } from "@/lib/cadre-roles";
 import {
   telechargerCsvBOM,
   telechargerExcelHtml,
@@ -75,6 +76,7 @@ function PerimetreGouvernanceContent() {
   const [activeTab, setActiveTab] = useState<
     | "dashboard_compile"
     | "suivi_individuel"
+    | "fiches_territoire"
     | "inscriptions_ascq"
     | "suggestions"
     | "alertes_missions"
@@ -136,6 +138,7 @@ function PerimetreGouvernanceContent() {
 
   // Inspection individuelle 360° en CONSULTATION SEULE
   const [selectedAscq, setSelectedAscq] = useState<any | null>(null);
+  const [dossierSubTab, setDossierSubTab] = useState<"ICCM" | "MATERNITE" | "REFERENCES" | "RAPPORTS" | "SIMR" | "RELAIS" | "PLANNING">("ICCM");
   const [dossierAscq, setDossierAscq] = useState<{
     plannings: any[];
     activites: any[];
@@ -145,7 +148,11 @@ function PerimetreGouvernanceContent() {
     deces: any[];
     relais: any[];
     rapportsRc: any[];
+    planningsRc: any[];
+    consultations: any[];
+    references: any[];
     femmes: any[];
+    enfants: any[];
   }>({
     plannings: [],
     activites: [],
@@ -155,9 +162,26 @@ function PerimetreGouvernanceContent() {
     deces: [],
     relais: [],
     rapportsRc: [],
-    femmes: []
+    planningsRc: [],
+    consultations: [],
+    references: [],
+    femmes: [],
+    enfants: []
   });
   const [loadingDossier, setLoadingDossier] = useState(false);
+
+  // Modal de consultation approfondie d'une fiche officielle (Lecture seule)
+  const [ficheAffichee, setFicheAffichee] = useState<{
+    type: "ICCM" | "MATERNITE" | "ENFANTS_1000J" | "REFERENCES" | "ALERTES" | "DECES" | "RMA" | "PNSC_HEBDO" | "RAPPORT_RC" | "PLANNING_RC";
+    donnees: any;
+    ascq?: any;
+  } | null>(null);
+
+  // Registre global des Fiches du Territoire
+  const [registreFiches, setRegistreFiches] = useState<any[]>([]);
+  const [loadingRegistre, setLoadingRegistre] = useState(false);
+  const [filtreTypeFiche, setFiltreTypeFiche] = useState<string>("TOUT");
+  const [rechercheRegistre, setRechercheRegistre] = useState<string>("");
 
   // Suggestions de modification & Observations des Cadres sur les fiches ASCQ
   const [suggestionsList, setSuggestionsList] = useState<any[]>([]);
@@ -202,6 +226,7 @@ function PerimetreGouvernanceContent() {
         [
           "dashboard_compile",
           "suivi_individuel",
+          "fiches_territoire",
           "inscriptions_ascq",
           "suggestions",
           "alertes_missions",
@@ -317,21 +342,17 @@ function PerimetreGouvernanceContent() {
   // Chargement des territoires inférieurs (ex: Département -> Communes, Commune -> Arrondissements)
   const chargerTerritoiresInferieurs = async (profil: any) => {
     try {
-      const role = (profil.role_technique || "").toUpperCase();
-      const poste = (profil.poste || "").toUpperCase();
-      const isNational = ["SUPER_ADMIN", "ADMINISTRATEUR", "CADRE_NATIONAL"].includes(role) || ["SUPER_ADMIN", "ADMINISTRATEUR"].includes(poste);
-      const isDept = ["CADRE_DEPARTEMENTAL", "REPRESENTANT_DEPARTEMENTAL", "ADMIN_DEPARTEMENTAL"].includes(role) || ["DDS", "CCD_CDLS_TP", "CSSPR", "CSPSMEMH"].includes(poste);
-      const isZone = ["CADRE_ZONE_SANITAIRE"].includes(role) || ["MCZS", "RCSE", "C_RAMS"].includes(poste);
+      const scope = getPerimetreScope(profil);
 
-      if (isNational) {
+      if (scope.level === "NATIONAL") {
         // Niveau National -> Territoires inférieurs : Départements
         const { data } = await supabase.from("departements").select("id, nom").order("nom");
         setListeTerritoiresInf(data || []);
-      } else if (isDept && profil.departement_id) {
-        // Niveau Départemental -> Territoires inférieurs : Communes
+      } else if (scope.level === "DEPARTEMENTAL" && profil.departement_id) {
+        // Niveau Départemental -> Territoires inférieurs : Communes du département
         const { data } = await supabase.from("communes").select("id, nom").eq("departement_id", profil.departement_id).order("nom");
         setListeTerritoiresInf(data || []);
-      } else if (isZone && profil.zone_sanitaire_id) {
+      } else if (scope.level === "ZONE_SANITAIRE" && profil.zone_sanitaire_id) {
         // Niveau Zone Sanitaire -> Territoires inférieurs : Communes de la zone
         const { data } = await supabase.from("communes").select("id, nom").eq("zone_sanitaire_id", profil.zone_sanitaire_id).order("nom");
         setListeTerritoiresInf(data || []);
@@ -349,36 +370,47 @@ function PerimetreGouvernanceContent() {
   const chargerIndicateursCompiles = async (profil: any) => {
     setLoadingStats(true);
     try {
+      const scope = getPerimetreScope(profil);
+
       // 1. Récupérer les alertes du territoire
-      let queryAlertes = supabase.from("alertes_communautaires").select("id, est_prioritaire, type_alerte_nom, investigation_faite, delai_detection_notification_heures, delai_notification_investigation_heures, commune_id, arrondissement_id, semaine_epidemio, created_at").eq("annee", annee);
-      if (profil.commune_id) queryAlertes = queryAlertes.eq("commune_id", profil.commune_id);
-      else if (profil.departement_id) queryAlertes = queryAlertes.eq("departement_id", profil.departement_id);
+      let queryAlertes = supabase.from("alertes_communautaires").select("id, est_prioritaire, type_alerte_nom, investigation_faite, delai_detection_notification_heures, delai_notification_investigation_heures, commune_id, arrondissement_id, departement_id, zone_sanitaire_id, semaine_epidemio, created_at").eq("annee", annee);
+      if (scope.filterType === "commune_id" && scope.id) queryAlertes = queryAlertes.eq("commune_id", scope.id);
+      else if (scope.filterType === "zone_sanitaire_id" && scope.id) queryAlertes = queryAlertes.eq("zone_sanitaire_id", scope.id);
+      else if (scope.filterType === "departement_id" && scope.id) queryAlertes = queryAlertes.eq("departement_id", scope.id);
 
       const { data: alertesData } = await queryAlertes;
       const alertes = alertesData || [];
 
       // 2. Récupérer les décès du territoire
-      let queryDeces = supabase.from("deces_communautaires").select("id, type_deces_nom, commune_id, arrondissement_id, created_at").eq("annee", annee);
-      if (profil.commune_id) queryDeces = queryDeces.eq("commune_id", profil.commune_id);
-      else if (profil.departement_id) queryDeces = queryDeces.eq("departement_id", profil.departement_id);
+      let queryDeces = supabase.from("deces_communautaires").select("id, type_deces_nom, commune_id, arrondissement_id, departement_id, zone_sanitaire_id, created_at").eq("annee", annee);
+      if (scope.filterType === "commune_id" && scope.id) queryDeces = queryDeces.eq("commune_id", scope.id);
+      else if (scope.filterType === "zone_sanitaire_id" && scope.id) queryDeces = queryDeces.eq("zone_sanitaire_id", scope.id);
+      else if (scope.filterType === "departement_id" && scope.id) queryDeces = queryDeces.eq("departement_id", scope.id);
 
       const { data: decesData } = await queryDeces;
       const deces = decesData || [];
 
-      // 3. Récupérer les RMA et rapports hebdo PNSC
-      let queryRma = supabase.from("rapports_mensuels_ascq").select("id, ascq_id, mois, annee, date_depot, commune_id, arrondissement_id").eq("annee", annee).eq("mois", mois);
-      if (profil.commune_id) queryRma = queryRma.eq("commune_id", profil.commune_id);
-
-      const { data: rmaData } = await queryRma;
-      const rmas = rmaData || [];
-
-      // 4. Récupérer les ASCQ pour complétude
-      let queryAscq = supabase.from("utilisateurs").select("id, nom, prenoms, telephone, commune_id, arrondissement_id").eq("statut_compte", "VALIDE").or("poste.eq.ASCQ,role_technique.eq.ASCQ_OPERATEUR");
-      if (profil.commune_id) queryAscq = queryAscq.eq("commune_id", profil.commune_id);
-      else if (profil.departement_id) queryAscq = queryAscq.eq("departement_id", profil.departement_id);
+      // 3. Récupérer les ASCQ pour complétude
+      let queryAscq = supabase.from("utilisateurs").select("id, nom, prenoms, telephone, commune_id, arrondissement_id, departement_id, zone_sanitaire_id").eq("statut_compte", "VALIDE").or("poste.eq.ASCQ,role_technique.eq.ASCQ_OPERATEUR");
+      if (scope.filterType === "commune_id" && scope.id) queryAscq = queryAscq.eq("commune_id", scope.id);
+      else if (scope.filterType === "zone_sanitaire_id" && scope.id) queryAscq = queryAscq.eq("zone_sanitaire_id", scope.id);
+      else if (scope.filterType === "departement_id" && scope.id) queryAscq = queryAscq.eq("departement_id", scope.id);
 
       const { data: ascqsList } = await queryAscq;
       const totalAscq = (ascqsList || []).length;
+      const ascqIds = (ascqsList || []).map((a: any) => a.id);
+
+      // 4. Récupérer les RMA
+      let rmas: any[] = [];
+      if (ascqIds.length > 0) {
+        const { data: rmaData } = await supabase
+          .from("rapports_mensuels_ascq")
+          .select("id, ascq_id, mois, annee, date_depot, commune_id, arrondissement_id")
+          .eq("annee", annee)
+          .eq("mois", mois)
+          .in("ascq_id", ascqIds);
+        rmas = rmaData || [];
+      }
 
       // Calcul RMA déposés à temps vs en retard vs manquants (délai : 5 du mois suivant)
       let rmaDeposes = 0;
@@ -408,22 +440,24 @@ function PerimetreGouvernanceContent() {
         });
       });
 
+      const ventilationKey = scope.level === "COMMUNAL" ? "arrondissement_id" : (scope.level === "NATIONAL" ? "departement_id" : "commune_id");
+
       (ascqsList || []).forEach((u: any) => {
-        const key = profil.commune_id ? u.arrondissement_id : u.commune_id;
+        const key = u[ventilationKey];
         if (ventilationMap.has(key)) {
           ventilationMap.get(key).ascq_count++;
         }
       });
 
       alertes.forEach((a: any) => {
-        const key = profil.commune_id ? a.arrondissement_id : a.commune_id;
+        const key = a[ventilationKey];
         if (ventilationMap.has(key)) {
           ventilationMap.get(key).alertes++;
         }
       });
 
       deces.forEach((d: any) => {
-        const key = profil.commune_id ? d.arrondissement_id : d.commune_id;
+        const key = d[ventilationKey];
         if (ventilationMap.has(key)) {
           ventilationMap.get(key).deces++;
         }
@@ -455,28 +489,36 @@ function PerimetreGouvernanceContent() {
   // 3. CHARGEMENT DE LA LISTE DES ASCQ ET STATUT DU MOIS
   const chargerListeAscq = async (profil: any) => {
     try {
+      const scope = getPerimetreScope(profil);
       let query = supabase
         .from("utilisateurs")
-        .select("id, nom, prenoms, telephone, poste, role_technique, statut_compte, commune_id, arrondissement_id, second_arrondissement_id")
+        .select("id, nom, prenoms, telephone, poste, role_technique, statut_compte, commune_id, arrondissement_id, second_arrondissement_id, departement_id, zone_sanitaire_id")
         .eq("statut_compte", "VALIDE")
         .or("poste.eq.ASCQ,role_technique.eq.ASCQ_OPERATEUR");
 
-      if (profil.commune_id) query = query.eq("commune_id", profil.commune_id);
-      else if (profil.departement_id) query = query.eq("departement_id", profil.departement_id);
+      if (scope.filterType === "commune_id" && scope.id) query = query.eq("commune_id", scope.id);
+      else if (scope.filterType === "zone_sanitaire_id" && scope.id) query = query.eq("zone_sanitaire_id", scope.id);
+      else if (scope.filterType === "departement_id" && scope.id) query = query.eq("departement_id", scope.id);
 
       const { data: users } = await query.order("nom");
 
       if (users && users.length > 0) {
-        // Croiser avec les RMA du mois
+        const ascqIds = users.map((u: any) => u.id);
         const { data: rmas } = await supabase
           .from("rapports_mensuels_ascq")
           .select("ascq_id, date_depot, created_at")
           .eq("annee", annee)
-          .eq("mois", mois);
+          .eq("mois", mois)
+          .in("ascq_id", ascqIds);
 
         const rmaMap = new Map((rmas || []).map((r: any) => [r.ascq_id, r]));
 
-        const arrNames = new Map(listeTerritoiresInf.map(t => [t.id, t.nom]));
+        const arrIds = Array.from(new Set(users.map((u: any) => u.arrondissement_id).filter(Boolean)));
+        let arrMap = new Map();
+        if (arrIds.length > 0) {
+          const { data: arrData } = await supabase.from("arrondissements").select("id, nom").in("id", arrIds);
+          arrMap = new Map((arrData || []).map((a: any) => [a.id, a.nom]));
+        }
 
         const enriched = users.map((u: any) => {
           const rma = rmaMap.get(u.id) as any;
@@ -488,7 +530,7 @@ function PerimetreGouvernanceContent() {
 
           return {
             ...u,
-            arrondissement_nom: arrNames.get(u.arrondissement_id) || "Arrondissement",
+            arrondissement_nom: arrMap.get(u.arrondissement_id) || "Arrondissement",
             statut_rapport_mois: statutRapport,
           };
         });
@@ -507,17 +549,19 @@ function PerimetreGouvernanceContent() {
     if (!profil) return;
     setLoadingInscriptions(true);
     try {
-      const isSuperAdmin = (profil.telephone || "").includes("69031463") || profil.role_technique === "SUPER_ADMIN";
+      const scope = getPerimetreScope(profil);
       let query = supabase
         .from("utilisateurs")
         .select("id, nom, prenoms, telephone, poste, role_technique, statut_compte, commune_id, arrondissement_id, second_arrondissement_id, created_at")
         .eq("statut_compte", "EN_ATTENTE")
         .or("poste.eq.ASCQ,role_technique.eq.ASCQ_OPERATEUR");
 
-      if (!isSuperAdmin && profil.commune_id) {
-        query = query.eq("commune_id", profil.commune_id);
-      } else if (!isSuperAdmin && profil.departement_id) {
-        query = query.eq("departement_id", profil.departement_id);
+      if (scope.filterType === "commune_id" && scope.id) {
+        query = query.eq("commune_id", scope.id);
+      } else if (scope.filterType === "zone_sanitaire_id" && scope.id) {
+        query = query.eq("zone_sanitaire_id", scope.id);
+      } else if (scope.filterType === "departement_id" && scope.id) {
+        query = query.eq("departement_id", scope.id);
       }
 
       const { data } = await query.order("created_at", { ascending: false });
@@ -683,6 +727,7 @@ function PerimetreGouvernanceContent() {
   const inspecterAscq360 = async (ascq: any) => {
     setSelectedAscq(ascq);
     setLoadingDossier(true);
+    setDossierSubTab("ICCM");
     try {
       const [
         planningsRes,
@@ -693,17 +738,25 @@ function PerimetreGouvernanceContent() {
         decesRes,
         relaisRes,
         rcRapportsRes,
-        femmesRes
+        rcPlanningsRes,
+        consultationsRes,
+        referencesRes,
+        femmesRes,
+        enfantsRes
       ] = await Promise.all([
         supabase.from("plannings_ascq").select("*, lignes_planning_ascq(*)").eq("ascq_id", ascq.id).order("annee", { ascending: false }).order("mois", { ascending: false }).limit(6),
-        supabase.from("activites_menees").select("*").eq("ascq_id", ascq.id).order("date_activite", { ascending: false }).limit(10),
-        supabase.from("rapports_mensuels_ascq").select("*").eq("ascq_id", ascq.id).order("annee", { ascending: false }).order("mois", { ascending: false }).limit(6),
-        supabase.from("rapports_hebdo_pnsc").select("*").eq("ascq_id", ascq.id).order("annee", { ascending: false }).order("semaine", { ascending: false }).limit(8),
-        supabase.from("alertes_communautaires").select("*").eq("notificateur_id", ascq.id).order("date_notification", { ascending: false }).limit(10),
-        supabase.from("deces_communautaires").select("*").eq("notificateur_id", ascq.id).order("date_notification", { ascending: false }).limit(10),
+        supabase.from("activites_menees").select("*").eq("ascq_id", ascq.id).order("date_activite", { ascending: false }).limit(20),
+        supabase.from("rapports_mensuels_ascq").select("*").eq("ascq_id", ascq.id).order("annee", { ascending: false }).order("mois", { ascending: false }).limit(12),
+        supabase.from("rapports_hebdo_pnsc").select("*").eq("ascq_id", ascq.id).order("annee", { ascending: false }).order("semaine", { ascending: false }).limit(12),
+        supabase.from("alertes_communautaires").select("*").eq("notificateur_id", ascq.id).order("date_notification", { ascending: false }).limit(20),
+        supabase.from("deces_communautaires").select("*").eq("notificateur_id", ascq.id).order("date_notification", { ascending: false }).limit(20),
         supabase.from("relais_communautaires").select("*").eq("ascq_id", ascq.id),
-        supabase.from("rapports_hebdo_activites_relais").select("*").eq("ascq_id", ascq.id).order("date_rapport", { ascending: false }).limit(10),
-        supabase.from("suivi_femmes_enceintes").select("id, nom, prenoms, village_nom, statut_grossesse, date_dpa, terme_sa").eq("ascq_id", ascq.id).limit(10)
+        supabase.from("rapports_hebdo_activites_relais").select("*").eq("ascq_id", ascq.id).order("date_rapport", { ascending: false }).limit(20),
+        supabase.from("plannings_hebdo_relais").select("*").eq("ascq_id", ascq.id).order("created_at", { ascending: false }).limit(20),
+        supabase.from("consultations_communautaires").select("*").eq("ascq_id", ascq.id).order("date_consultation", { ascending: false }).limit(50),
+        supabase.from("references_communautaires").select("*").eq("ascq_id", ascq.id).order("created_at", { ascending: false }).limit(30),
+        supabase.from("suivi_femmes_enceintes").select("*").eq("ascq_id", ascq.id).order("created_at", { ascending: false }).limit(30),
+        supabase.from("suivi_enfants_1000_jours").select("*").eq("ascq_id", ascq.id).order("created_at", { ascending: false }).limit(30)
       ]);
 
       setDossierAscq({
@@ -715,12 +768,198 @@ function PerimetreGouvernanceContent() {
         deces: decesRes.data || [],
         relais: relaisRes.data || [],
         rapportsRc: rcRapportsRes.data || [],
-        femmes: femmesRes.data || []
+        planningsRc: rcPlanningsRes.data || [],
+        consultations: consultationsRes.data || [],
+        references: referencesRes.data || [],
+        femmes: femmesRes.data || [],
+        enfants: enfantsRes.data || []
       });
     } catch (e) {
       console.warn("Erreur inspection 360°:", e);
     } finally {
       setLoadingDossier(false);
+    }
+  };
+
+  // Chargement du registre global des fiches du territoire
+  const chargerRegistreFichesTerritoire = async () => {
+    if (!currentUser) return;
+    setLoadingRegistre(true);
+    try {
+      const scope = getPerimetreScope(currentUser);
+      let ascqQuery = supabase
+        .from("utilisateurs")
+        .select("id, nom, prenoms, telephone, commune_id, arrondissement_id")
+        .eq("statut_compte", "VALIDE")
+        .or("poste.eq.ASCQ,role_technique.eq.ASCQ_OPERATEUR");
+
+      if (scope.filterType === "commune_id" && scope.id) ascqQuery = ascqQuery.eq("commune_id", scope.id);
+      else if (scope.filterType === "zone_sanitaire_id" && scope.id) ascqQuery = ascqQuery.eq("zone_sanitaire_id", scope.id);
+      else if (scope.filterType === "departement_id" && scope.id) ascqQuery = ascqQuery.eq("departement_id", scope.id);
+
+      const { data: usersData } = await ascqQuery;
+      const ascqsTerritoire = usersData || [];
+      const ascqMap = new Map(ascqsTerritoire.map(u => [u.id, u]));
+      const ids = ascqsTerritoire.map(u => u.id);
+
+      if (ids.length === 0) {
+        setRegistreFiches([]);
+        setLoadingRegistre(false);
+        return;
+      }
+
+      const [
+        consultationsRes,
+        femmesRes,
+        enfantsRes,
+        referencesRes,
+        alertesRes,
+        decesRes,
+        rmaRes
+      ] = await Promise.all([
+        supabase.from("consultations_communautaires").select("*").in("ascq_id", ids).order("date_consultation", { ascending: false }).limit(40),
+        supabase.from("suivi_femmes_enceintes").select("*").in("ascq_id", ids).order("created_at", { ascending: false }).limit(30),
+        supabase.from("suivi_enfants_1000_jours").select("*").in("ascq_id", ids).order("created_at", { ascending: false }).limit(30),
+        supabase.from("references_communautaires").select("*").in("ascq_id", ids).order("created_at", { ascending: false }).limit(30),
+        supabase.from("alertes_communautaires").select("*").in("notificateur_id", ids).order("date_notification", { ascending: false }).limit(30),
+        supabase.from("deces_communautaires").select("*").in("notificateur_id", ids).order("date_notification", { ascending: false }).limit(30),
+        supabase.from("rapports_mensuels_ascq").select("*").in("ascq_id", ids).order("annee", { ascending: false }).order("mois", { ascending: false }).limit(30)
+      ]);
+
+      const allItems: any[] = [];
+
+      (consultationsRes.data || []).forEach(c => {
+        const u = ascqMap.get(c.ascq_id);
+        allItems.push({
+          id: c.id,
+          type: "ICCM",
+          typeLibelle: "Consultation iCCM",
+          badgeColor: "bg-emerald-100 text-emerald-800 border-emerald-300",
+          titre: `${c.prenoms_patient} ${c.nom_patient} (${c.age_valeur} ${c.age_unite || "ans"})`,
+          sousTitre: `Village: ${c.village} • Diag: ${c.diagnostic_possible || "Symptômes"} • TDR: ${c.tdr_paludisme}`,
+          decision: c.decision === "REFERER_CS" ? "Référé au CS" : "PEC Communautaire",
+          decisionBadge: c.decision === "REFERER_CS" ? "bg-red-100 text-red-800" : "bg-emerald-100 text-emerald-800",
+          dateFiche: c.date_consultation || c.created_at,
+          ascqNom: u ? `${u.nom} ${u.prenoms}` : (c.ascq_nom || "ASCQ"),
+          ascqId: c.ascq_id,
+          raw: c
+        });
+      });
+
+      (femmesRes.data || []).forEach(f => {
+        const u = ascqMap.get(f.ascq_id);
+        allItems.push({
+          id: f.id,
+          type: "MATERNITE",
+          typeLibelle: "Grossesse & Maternité",
+          badgeColor: "bg-pink-100 text-pink-800 border-pink-300",
+          titre: `${f.prenoms} ${f.nom}`,
+          sousTitre: `Village: ${f.village_nom || "-"} • Terme: ${f.terme_sa || "?"} SA`,
+          decision: f.statut_grossesse || "En cours",
+          decisionBadge: "bg-pink-100 text-pink-800",
+          dateFiche: f.created_at,
+          ascqNom: u ? `${u.nom} ${u.prenoms}` : "ASCQ",
+          ascqId: f.ascq_id,
+          raw: f
+        });
+      });
+
+      (enfantsRes.data || []).forEach(enf => {
+        const u = ascqMap.get(enf.ascq_id);
+        allItems.push({
+          id: enf.id,
+          type: "ENFANTS_1000J",
+          typeLibelle: "Enfant 1000 Jours",
+          badgeColor: "bg-amber-100 text-amber-800 border-amber-300",
+          titre: `${enf.prenoms || ""} ${enf.nom || ""}`,
+          sousTitre: `Village: ${enf.village_nom || "-"} • Vaccins: ${enf.statut_vaccinal || "Non précisé"}`,
+          decision: enf.etat_nutritionnel || "Suivi régulier",
+          decisionBadge: "bg-amber-100 text-amber-800",
+          dateFiche: enf.created_at,
+          ascqNom: u ? `${u.nom} ${u.prenoms}` : "ASCQ",
+          ascqId: enf.ascq_id,
+          raw: enf
+        });
+      });
+
+      (referencesRes.data || []).forEach(r => {
+        const u = ascqMap.get(r.ascq_id);
+        allItems.push({
+          id: r.id,
+          type: "REFERENCES",
+          typeLibelle: "Référence CS/GUPS",
+          badgeColor: "bg-red-100 text-red-800 border-red-300",
+          titre: `Évacuation : ${r.motif_reference || "Urgence médicale"}`,
+          sousTitre: `Vers : ${r.centre_sante_destination || "Centre de Santé"} • Urgence: ${r.degre_urgence || "Moyenne"}`,
+          decision: r.statut_reference || "EN_COURS",
+          decisionBadge: "bg-red-100 text-red-800",
+          dateFiche: r.date_reference || r.created_at,
+          ascqNom: u ? `${u.nom} ${u.prenoms}` : "ASCQ",
+          ascqId: r.ascq_id,
+          raw: r
+        });
+      });
+
+      (alertesRes.data || []).forEach(a => {
+        const u = ascqMap.get(a.notificateur_id);
+        allItems.push({
+          id: a.id,
+          type: "ALERTES",
+          typeLibelle: "Alerte SIMR",
+          badgeColor: "bg-purple-100 text-purple-800 border-purple-300",
+          titre: `${a.type_alerte_nom || "Alerte Épidémio"} (Sem. ${a.semaine_epidemio})`,
+          sousTitre: `Prioritaire: ${a.est_prioritaire ? "OUI" : "NON"} • Détection: ${a.delai_detection_notification_heures || "?"}h`,
+          decision: a.investigation_faite ? "Investiguée" : "Non investiguée",
+          decisionBadge: a.investigation_faite ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800",
+          dateFiche: a.date_notification || a.created_at,
+          ascqNom: u ? `${u.nom} ${u.prenoms}` : "ASCQ",
+          ascqId: a.notificateur_id,
+          raw: a
+        });
+      });
+
+      (decesRes.data || []).forEach(d => {
+        const u = ascqMap.get(d.notificateur_id);
+        allItems.push({
+          id: d.id,
+          type: "DECES",
+          typeLibelle: "Décès Communautaire",
+          badgeColor: "bg-slate-200 text-slate-800 border-slate-400",
+          titre: `${d.type_deces_nom || "Décès"}`,
+          sousTitre: `Village: ${d.village || "-"} • Défunt: ${d.defunt_nom_prenom || "Non précisé"}`,
+          decision: "Déclaré",
+          decisionBadge: "bg-slate-200 text-slate-800",
+          dateFiche: d.date_notification || d.created_at,
+          ascqNom: u ? `${u.nom} ${u.prenoms}` : "ASCQ",
+          ascqId: d.notificateur_id,
+          raw: d
+        });
+      });
+
+      (rmaRes.data || []).forEach(rma => {
+        const u = ascqMap.get(rma.ascq_id);
+        allItems.push({
+          id: rma.id,
+          type: "RMA",
+          typeLibelle: "RMA Mensuel",
+          badgeColor: "bg-blue-100 text-blue-800 border-blue-300",
+          titre: `RMA Mois ${rma.mois}/${rma.annee}`,
+          sousTitre: `Soins: ${rma.total_enfants_pris_en_charge || 0} • Palu: ${rma.total_paludisme_confirme || 0} • Référés: ${rma.total_references || 0}`,
+          decision: rma.statut_validation || "TRANSMIS",
+          decisionBadge: rma.statut_validation === "VALIDE" ? "bg-emerald-100 text-emerald-800" : "bg-blue-100 text-blue-800",
+          dateFiche: rma.date_depot || rma.created_at,
+          ascqNom: u ? `${u.nom} ${u.prenoms}` : "ASCQ",
+          ascqId: rma.ascq_id,
+          raw: rma
+        });
+      });
+
+      allItems.sort((a, b) => new Date(b.dateFiche).getTime() - new Date(a.dateFiche).getTime());
+      setRegistreFiches(allItems);
+    } catch (e) {
+      console.warn("Erreur chargement registre fiches:", e);
+    } finally {
+      setLoadingRegistre(false);
     }
   };
 
@@ -979,6 +1218,8 @@ function PerimetreGouvernanceContent() {
       chargerSuggestions();
     } else if (activeTab === "alertes_missions" && currentUser) {
       chargerMissions();
+    } else if (activeTab === "fiches_territoire" && currentUser) {
+      chargerRegistreFichesTerritoire();
     }
   }, [activeTab, currentUser]);
 
@@ -1616,207 +1857,518 @@ function PerimetreGouvernanceContent() {
                     </button>
                   </div>
 
-                  {/* Contenu */}
-                  <div className="p-5 overflow-y-auto space-y-4 text-xs">
+                  {/* Barre de navigation des sous-onglets 360° */}
+                  <div className="px-4 py-2 border-b border-slate-200 bg-white flex items-center gap-1 overflow-x-auto scrollbar-none text-[11px] font-bold">
+                    <button
+                      type="button"
+                      onClick={() => setDossierSubTab("ICCM")}
+                      className={`px-3 py-1.5 rounded-xl whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                        dossierSubTab === "ICCM" ? "bg-emerald-700 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      }`}
+                    >
+                      <Stethoscope className="w-3.5 h-3.5" />
+                      <span>Soins iCCM ({dossierAscq.consultations.length})</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setDossierSubTab("MATERNITE")}
+                      className={`px-3 py-1.5 rounded-xl whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                        dossierSubTab === "MATERNITE" ? "bg-pink-700 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      }`}
+                    >
+                      <Baby className="w-3.5 h-3.5" />
+                      <span>Maternité & 1000J ({dossierAscq.femmes.length + dossierAscq.enfants.length})</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setDossierSubTab("REFERENCES")}
+                      className={`px-3 py-1.5 rounded-xl whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                        dossierSubTab === "REFERENCES" ? "bg-red-700 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      }`}
+                    >
+                      <HeartPulse className="w-3.5 h-3.5" />
+                      <span>Références ({dossierAscq.references.length})</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setDossierSubTab("RAPPORTS")}
+                      className={`px-3 py-1.5 rounded-xl whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                        dossierSubTab === "RAPPORTS" ? "bg-blue-700 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      }`}
+                    >
+                      <BarChart3 className="w-3.5 h-3.5" />
+                      <span>Rapports ({dossierAscq.rma.length + dossierAscq.hebdo.length})</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setDossierSubTab("SIMR")}
+                      className={`px-3 py-1.5 rounded-xl whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                        dossierSubTab === "SIMR" ? "bg-purple-700 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      }`}
+                    >
+                      <Activity className="w-3.5 h-3.5" />
+                      <span>Alertes & Décès ({dossierAscq.alertes.length + dossierAscq.deces.length})</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setDossierSubTab("RELAIS")}
+                      className={`px-3 py-1.5 rounded-xl whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                        dossierSubTab === "RELAIS" ? "bg-slate-800 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      }`}
+                    >
+                      <Users className="w-3.5 h-3.5" />
+                      <span>Relais RC ({dossierAscq.relais.length})</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setDossierSubTab("PLANNING")}
+                      className={`px-3 py-1.5 rounded-xl whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                        dossierSubTab === "PLANNING" ? "bg-amber-700 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      }`}
+                    >
+                      <Calendar className="w-3.5 h-3.5" />
+                      <span>Activités ({dossierAscq.activites.length})</span>
+                    </button>
+                  </div>
+
+                  {/* Contenu filtré par sous-onglet */}
+                  <div className="p-5 overflow-y-auto space-y-3 text-xs max-h-[60vh]">
                     {loadingDossier ? (
                       <div className="py-12 text-center text-slate-400">
                         <RefreshCw className="w-6 h-6 animate-spin mx-auto text-[#005c30] mb-2" />
-                        Chargement du dossier complet de l'ASCQ...
+                        Chargement des fiches et données complètes de l'agent...
                       </div>
                     ) : (
                       <>
-                        {/* Section 1 : Rapports Mensuels (RMA) */}
-                        <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2">
-                          <h4 className="font-bold text-slate-900 flex items-center justify-between">
-                            <span>📊 Rapports Mensuels d'Activités (RMA)</span>
-                            <span className="text-[10px] text-slate-500">{dossierAscq.rma.length} trouvés</span>
-                          </h4>
-                          {dossierAscq.rma.length === 0 ? (
-                            <p className="text-slate-400 text-[11px]">Aucun rapport mensuel déposé.</p>
-                          ) : (
-                            <div className="space-y-2">
-                              {dossierAscq.rma.map((r: any) => (
-                                <div key={r.id} className="p-3 bg-white rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-sm">
-                                  <div>
-                                    <div className="flex items-center gap-2">
-                                      <span className="font-extrabold text-slate-900">Mois {r.mois} / {r.annee}</span>
-                                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                        r.statut === "VALIDE" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-900"
-                                      }`}>
-                                        {r.statut === "VALIDE" ? "✅ Validé" : "⏳ En attente de validation"}
-                                      </span>
-                                    </div>
-                                    <p className="text-[11px] text-slate-500 mt-0.5">
-                                      Déposé le {new Date(r.created_at).toLocaleDateString("fr-FR")}
-                                      {r.date_validation && ` • Validé le ${new Date(r.date_validation).toLocaleDateString("fr-FR")}`}
-                                    </p>
-                                    <div className="text-[10px] text-slate-600 mt-1 flex flex-wrap gap-2">
-                                      <span>VAD : <strong>{r.total_visites_domiciliaires || 0}</strong></span>
-                                      <span>Causeries : <strong>{r.total_seances_sensibilisation || 0}</strong></span>
-                                      <span>Femmes suivies : <strong>{r.femmes_enceintes_suivies || 0}</strong></span>
-                                      <span>Enfants : <strong>{r.enfants_0_59_mois_suivis || 0}</strong></span>
-                                    </div>
-                                  </div>
-
-                                  {isRepresentantCommunal && (
-                                    <div className="flex items-center gap-1.5 self-end sm:self-auto shrink-0">
-                                      {r.statut !== "VALIDE" && (
-                                        <button
-                                          type="button"
-                                          disabled={actionInProgress === r.id}
-                                          onClick={() => handleValiderRma(r.id)}
-                                          className="py-1.5 px-3 rounded-lg bg-[#005c30] hover:bg-[#004724] text-white font-bold text-[11px] flex items-center gap-1 transition-all"
-                                        >
-                                          {actionInProgress === r.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
-                                          <span>Valider RMA</span>
-                                        </button>
-                                      )}
-                                      <button
-                                        type="button"
-                                        onClick={() => setEditingRma(r)}
-                                        className="py-1.5 px-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] transition-all"
-                                      >
-                                        Modifier / Corriger
-                                      </button>
-                                    </div>
-                                  )}
-                                </div>
-                              ))}
+                        {/* 1. SOUS-ONGLET : SOINS iCCM */}
+                        {dossierSubTab === "ICCM" && (
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between pb-1">
+                              <h4 className="font-extrabold text-slate-900 text-xs">🩺 Consultations et Soins Communautaires iCCM</h4>
+                              <span className="text-[10px] text-slate-500">{dossierAscq.consultations.length} fiches enregistrées</span>
                             </div>
-                          )}
-                        </div>
 
-                        {/* Section 2 : Rapports Hebdomadaires PNSC */}
-                        <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2">
-                          <h4 className="font-bold text-slate-900 flex items-center justify-between">
-                            <span>📋 Rapports Hebdomadaires PNSC</span>
-                            <span className="text-[10px] text-slate-500">{dossierAscq.hebdo.length} trouvés</span>
-                          </h4>
-                          {dossierAscq.hebdo.length === 0 ? (
-                            <p className="text-slate-400 text-[11px]">Aucun rapport hebdomadaire PNSC déposé.</p>
-                          ) : (
-                            <div className="space-y-2">
-                              {dossierAscq.hebdo.map((h: any) => (
-                                <div key={h.id} className="p-3 bg-white rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-sm">
-                                  <div>
-                                    <div className="flex items-center gap-2">
-                                      <span className="font-bold text-slate-900">Semaine {h.semaine} / {h.annee}</span>
-                                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                        h.statut === "VALIDE" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-900"
-                                      }`}>
-                                        {h.statut === "VALIDE" ? "✅ Validé" : "⏳ Soumis"}
-                                      </span>
-                                    </div>
-                                    <p className="text-[11px] text-slate-500 mt-0.5">
-                                      GAP RH : <strong>{h.rh_gap ?? 0}</strong> • GAP Moto : <strong>{h.motos_gap ?? 0}</strong> • Forfait : <strong>{h.forfait_internet_recu ? "Reçu" : "Non reçu"}</strong>
-                                    </p>
-                                    {h.activites_realisees && (
-                                      <p className="text-[10px] text-slate-600 line-clamp-1 mt-0.5">
-                                        Activité : {h.activites_realisees}
+                            {dossierAscq.consultations.length === 0 ? (
+                              <div className="py-8 text-center bg-slate-50 rounded-2xl border border-slate-200/80 text-slate-400">
+                                Aucune consultation enregistrée par cet agent.
+                              </div>
+                            ) : (
+                              dossierAscq.consultations.map((c: any) => (
+                                <div key={c.id} className="p-3.5 bg-white rounded-2xl border border-slate-200 shadow-sm space-y-2">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div>
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-black text-slate-900 text-sm">{c.prenoms_patient} {c.nom_patient}</span>
+                                        <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-bold">
+                                          {c.age_valeur} {c.age_unite || "ans"} • Sexe: {c.sexe}
+                                        </span>
+                                      </div>
+                                      <p className="text-[11px] text-slate-500 mt-0.5">
+                                        Village : <strong>{c.village}</strong> • Date : {c.date_consultation || new Date(c.created_at).toLocaleDateString("fr-FR")}
                                       </p>
-                                    )}
+                                    </div>
+
+                                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-black ${
+                                      c.decision === "REFERER_CS" ? "bg-red-100 text-red-800 border border-red-200" : "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                                    }`}>
+                                      {c.decision === "REFERER_CS" ? "🚨 Référé vers CS" : "✅ PEC Communautaire"}
+                                    </span>
                                   </div>
 
-                                  {isRepresentantCommunal && h.statut !== "VALIDE" && (
+                                  <div className="bg-slate-50 rounded-xl p-2.5 text-[11px] grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-700 border border-slate-100">
+                                    <div>
+                                      <span className="text-slate-400 block text-[10px] uppercase font-bold">Signe Principal & Diagnostic</span>
+                                      <p className="font-bold text-slate-900">{c.signe_principal || "Non spécifié"}</p>
+                                      <p className="text-slate-600 text-[10px]">Diag : {c.diagnostic_possible || "iCCM"}</p>
+                                    </div>
+                                    <div>
+                                      <span className="text-slate-400 block text-[10px] uppercase font-bold">Test TDR Paludisme</span>
+                                      <p className={`font-black text-[11px] ${
+                                        c.tdr_paludisme === "POSITIF" ? "text-red-700" : c.tdr_paludisme === "NEGATIF" ? "text-emerald-700" : "text-slate-500"
+                                      }`}>
+                                        TDR : {c.tdr_paludisme}
+                                      </p>
+                                      {c.structure_cs_destination && (
+                                        <p className="text-slate-600 text-[10px]">Vers : {c.structure_cs_destination}</p>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center justify-between pt-1">
                                     <button
                                       type="button"
-                                      disabled={actionInProgress === h.id}
-                                      onClick={() => handleValiderHebdoPnsc(h.id)}
-                                      className="py-1.5 px-3 rounded-lg bg-[#005c30] hover:bg-[#004724] text-white font-bold text-[11px] flex items-center gap-1 self-end sm:self-auto shrink-0 transition-all"
+                                      onClick={() => setFicheAffichee({ type: "ICCM", donnees: c, ascq: selectedAscq })}
+                                      className="py-1 px-2.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-[#005c30] font-bold text-[11px] flex items-center gap-1 transition-all"
                                     >
-                                      {actionInProgress === h.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
-                                      <span>Valider Hebdo</span>
+                                      <Eye className="w-3.5 h-3.5" />
+                                      <span>Consulter la fiche complète</span>
                                     </button>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
 
-                        {/* Section 3 : Plannings et Activités */}
-                        <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2">
-                          <h4 className="font-bold text-slate-900 flex items-center justify-between">
-                            <span>📅 Plannings & Activités menées</span>
-                            <span className="text-[10px] text-slate-500">{dossierAscq.activites.length} activités</span>
-                          </h4>
-                          {dossierAscq.activites.length === 0 ? (
-                            <p className="text-slate-400 text-[11px]">Aucune activité enregistrée récemment.</p>
-                          ) : (
-                            <div className="space-y-1">
-                              {dossierAscq.activites.slice(0, 5).map((a: any) => (
-                                <div key={a.id} className="p-2 bg-white rounded-xl border border-slate-200/60 flex items-center justify-between">
-                                  <span className="font-bold">{a.titre_activite}</span>
-                                  <span className="text-slate-500">{a.date_activite}</span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Section 4 : Alertes Épidémiologiques Notifiées */}
-                        <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2">
-                          <h4 className="font-bold text-slate-900 flex items-center justify-between">
-                            <span>🚨 Alertes épidémiologiques notifiées</span>
-                            <span className="text-[10px] text-slate-500">{dossierAscq.alertes.length} alertes</span>
-                          </h4>
-                          {dossierAscq.alertes.length === 0 ? (
-                            <p className="text-slate-400 text-[11px]">Aucune alerte signalée par cet agent.</p>
-                          ) : (
-                            <div className="space-y-1">
-                              {dossierAscq.alertes.map((al: any) => (
-                                <div key={al.id} className="p-2 bg-white rounded-xl border border-slate-200/60 flex items-center justify-between">
-                                  <span className="font-bold text-slate-800">{al.type_alerte_nom}</span>
-                                  <span className="text-emerald-700 font-bold">{al.date_notification} (Sem. {al.semaine_epidemio})</span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                        {/* Section 5 : Relais Communautaires (RC) rattachés */}
-                        <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2">
-                          <h4 className="font-bold text-slate-900 flex items-center justify-between">
-                            <span>👥 Relais Communautaires (RC) rattachés</span>
-                            <span className="text-[10px] text-slate-500">{dossierAscq.relais.length} RC déclarés</span>
-                          </h4>
-                          {dossierAscq.relais.length === 0 ? (
-                            <p className="text-slate-400 text-[11px]">Aucun RC rattaché à cet ASCQ.</p>
-                          ) : (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                              {dossierAscq.relais.map((rc: any) => (
-                                <div key={rc.id} className="p-2.5 bg-white rounded-xl border border-slate-200 shadow-sm text-xs">
-                                  <p className="font-bold text-slate-900">{rc.nom} {rc.prenoms}</p>
-                                  <p className="text-[11px] text-slate-500">Village : <strong>{rc.village_nom || "Non affecté"}</strong> • Tél : {rc.telephone}</p>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Section 6 : Suivi Maternité & 1000 Jours */}
-                        <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2">
-                          <h4 className="font-bold text-slate-900 flex items-center justify-between">
-                            <span>👶 Femmes enceintes & 1 000 Jours suivies</span>
-                            <span className="text-[10px] text-slate-500">{dossierAscq.femmes.length} cas récents</span>
-                          </h4>
-                          {dossierAscq.femmes.length === 0 ? (
-                            <p className="text-slate-400 text-[11px]">Aucune fiche maternité enregistrée.</p>
-                          ) : (
-                            <div className="space-y-1">
-                              {dossierAscq.femmes.map((f: any) => (
-                                <div key={f.id} className="p-2 bg-white rounded-xl border border-slate-200 flex items-center justify-between text-xs">
-                                  <div>
-                                    <span className="font-bold text-slate-900">{f.nom} {f.prenoms}</span>
-                                    <span className="text-[10px] text-slate-500 ml-2">Village : {f.village_nom}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setSuggestionAscqId(selectedAscq.id);
+                                        setSuggestionModule("ICCM");
+                                        setSuggestionTitre(`Observation Fiche Consultation ${c.prenoms_patient} ${c.nom_patient}`);
+                                        setActiveTab("suggestions");
+                                        setSelectedAscq(null);
+                                      }}
+                                      className="py-1 px-2.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-[11px] flex items-center gap-1 transition-all"
+                                    >
+                                      <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                                      <span>Remarque</span>
+                                    </button>
                                   </div>
-                                  <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
-                                    {f.statut_grossesse || "EN COURS"} {f.terme_sa ? `(${f.terme_sa} SA)` : ""}
-                                  </span>
                                 </div>
-                              ))}
+                              ))
+                            )}
+                          </div>
+                        )}
+
+                        {/* 2. SOUS-ONGLET : MATERNITÉ & 1000 PREMIERS JOURS */}
+                        {dossierSubTab === "MATERNITE" && (
+                          <div className="space-y-3">
+                            <div>
+                              <h4 className="font-extrabold text-pink-900 text-xs mb-2">🤰 Femmes Enceintes Suivies ({dossierAscq.femmes.length})</h4>
+                              {dossierAscq.femmes.length === 0 ? (
+                                <p className="text-slate-400 text-[11px] bg-slate-50 p-4 rounded-xl text-center">Aucune femme enceinte suivie enregistrée.</p>
+                              ) : (
+                                <div className="space-y-2">
+                                  {dossierAscq.femmes.map((f: any) => (
+                                    <div key={f.id} className="p-3 bg-white rounded-2xl border border-pink-100 shadow-sm flex items-center justify-between gap-2">
+                                      <div>
+                                        <div className="flex items-center gap-2">
+                                          <span className="font-bold text-slate-900">{f.prenoms} {f.nom}</span>
+                                          <span className="px-2 py-0.5 rounded-full bg-pink-100 text-pink-800 text-[10px] font-bold">
+                                            {f.statut_grossesse || "En cours"} {f.terme_sa ? `(${f.terme_sa} SA)` : ""}
+                                          </span>
+                                        </div>
+                                        <p className="text-[11px] text-slate-500 mt-0.5">
+                                          Village : {f.village_nom || "-"} • DPA : {f.date_dpa || "Non définie"}
+                                        </p>
+                                      </div>
+                                      <div className="flex items-center gap-1.5 shrink-0">
+                                        <button
+                                          type="button"
+                                          onClick={() => setFicheAffichee({ type: "MATERNITE", donnees: f, ascq: selectedAscq })}
+                                          className="p-1.5 rounded-lg bg-pink-50 hover:bg-pink-100 text-pink-800 font-bold"
+                                          title="Voir détails"
+                                        >
+                                          <Eye className="w-4 h-4" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setSuggestionAscqId(selectedAscq.id);
+                                            setSuggestionModule("MATERNITE");
+                                            setSuggestionTitre(`Remarque Suivi Grossesse ${f.prenoms} ${f.nom}`);
+                                            setActiveTab("suggestions");
+                                            setSelectedAscq(null);
+                                          }}
+                                          className="p-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold"
+                                          title="Suggérer correction"
+                                        >
+                                          <Sparkles className="w-4 h-4" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
+
+                            <div className="pt-2 border-t border-slate-100">
+                              <h4 className="font-extrabold text-amber-900 text-xs mb-2">👶 Enfants 1000 Premiers Jours & Nutrition ({dossierAscq.enfants.length})</h4>
+                              {dossierAscq.enfants.length === 0 ? (
+                                <p className="text-slate-400 text-[11px] bg-slate-50 p-4 rounded-xl text-center">Aucun suivi enfant 1000 jours enregistré.</p>
+                              ) : (
+                                <div className="space-y-2">
+                                  {dossierAscq.enfants.map((enf: any) => (
+                                    <div key={enf.id} className="p-3 bg-white rounded-2xl border border-amber-100 shadow-sm flex items-center justify-between gap-2">
+                                      <div>
+                                        <div className="flex items-center gap-2">
+                                          <span className="font-bold text-slate-900">{enf.prenoms} {enf.nom}</span>
+                                          <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold">
+                                            PB: {enf.perimetre_brachial_mm || "?"} mm
+                                          </span>
+                                        </div>
+                                        <p className="text-[11px] text-slate-500 mt-0.5">
+                                          Village : {enf.village_nom || "-"} • Vaccins : {enf.statut_vaccinal || "Non renseigné"}
+                                        </p>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => setFicheAffichee({ type: "ENFANTS_1000J", donnees: enf, ascq: selectedAscq })}
+                                        className="p-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold"
+                                      >
+                                        <Eye className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 3. SOUS-ONGLET : RÉFÉRENCES CS & GUPS */}
+                        {dossierSubTab === "REFERENCES" && (
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between pb-1">
+                              <h4 className="font-extrabold text-slate-900 text-xs">🚑 Références & Évacuations vers CS / GUPS</h4>
+                              <span className="text-[10px] text-slate-500">{dossierAscq.references.length} références</span>
+                            </div>
+                            {dossierAscq.references.length === 0 ? (
+                              <div className="py-8 text-center bg-slate-50 rounded-2xl border border-slate-200/80 text-slate-400">
+                                Aucune évacuation ou référence enregistrée.
+                              </div>
+                            ) : (
+                              dossierAscq.references.map((r: any) => (
+                                <div key={r.id} className="p-3 bg-white rounded-2xl border border-red-100 shadow-sm flex items-center justify-between gap-2">
+                                  <div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-black text-slate-900">{r.motif_reference || "Urgence médicale"}</span>
+                                      <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-800 text-[10px] font-bold">
+                                        Urgence : {r.degre_urgence || "Moyenne"}
+                                      </span>
+                                    </div>
+                                    <p className="text-[11px] text-slate-500 mt-0.5">
+                                      Destination : <strong>{r.centre_sante_destination || "Centre de Santé"}</strong> • Date : {r.date_reference || new Date(r.created_at).toLocaleDateString("fr-FR")}
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center gap-1.5 shrink-0">
+                                    <button
+                                      type="button"
+                                      onClick={() => setFicheAffichee({ type: "REFERENCES", donnees: r, ascq: selectedAscq })}
+                                      className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-800 font-bold"
+                                    >
+                                      <Eye className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        )}
+
+                        {/* 4. SOUS-ONGLET : RAPPORTS RMA & PNSC */}
+                        {dossierSubTab === "RAPPORTS" && (
+                          <div className="space-y-3">
+                            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2">
+                              <h4 className="font-bold text-slate-900 flex items-center justify-between">
+                                <span>📊 Rapports Mensuels d'Activités (RMA)</span>
+                                <span className="text-[10px] text-slate-500">{dossierAscq.rma.length} trouvés</span>
+                              </h4>
+                              {dossierAscq.rma.length === 0 ? (
+                                <p className="text-slate-400 text-[11px]">Aucun rapport mensuel déposé.</p>
+                              ) : (
+                                <div className="space-y-2">
+                                  {dossierAscq.rma.map((r: any) => (
+                                    <div key={r.id} className="p-3 bg-white rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-sm">
+                                      <div>
+                                        <div className="flex items-center gap-2">
+                                          <span className="font-extrabold text-slate-900">Mois {r.mois} / {r.annee}</span>
+                                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                            r.statut === "VALIDE" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-900"
+                                          }`}>
+                                            {r.statut === "VALIDE" ? "✅ Validé" : "⏳ En attente de validation"}
+                                          </span>
+                                        </div>
+                                        <p className="text-[11px] text-slate-500 mt-0.5">
+                                          Déposé le {new Date(r.created_at).toLocaleDateString("fr-FR")}
+                                          {r.date_validation && ` • Validé le ${new Date(r.date_validation).toLocaleDateString("fr-FR")}`}
+                                        </p>
+                                        <div className="text-[10px] text-slate-600 mt-1 flex flex-wrap gap-2">
+                                          <span>VAD : <strong>{r.total_visites_domiciliaires || 0}</strong></span>
+                                          <span>Causeries : <strong>{r.total_seances_sensibilisation || 0}</strong></span>
+                                          <span>Femmes : <strong>{r.femmes_enceintes_suivies || 0}</strong></span>
+                                          <span>Enfants : <strong>{r.enfants_0_59_mois_suivis || 0}</strong></span>
+                                        </div>
+                                      </div>
+
+                                      <div className="flex items-center gap-1.5 self-end sm:self-auto shrink-0">
+                                        <button
+                                          type="button"
+                                          onClick={() => setFicheAffichee({ type: "RMA", donnees: r, ascq: selectedAscq })}
+                                          className="py-1 px-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-800 font-bold text-[11px] flex items-center gap-1"
+                                        >
+                                          <Eye className="w-3.5 h-3.5" />
+                                          <span>Consulter</span>
+                                        </button>
+
+                                        {isRepresentantCommunal && (
+                                          <>
+                                            {r.statut !== "VALIDE" && (
+                                              <button
+                                                type="button"
+                                                disabled={actionInProgress === r.id}
+                                                onClick={() => handleValiderRma(r.id)}
+                                                className="py-1 px-2 rounded-lg bg-[#005c30] hover:bg-[#004724] text-white font-bold text-[11px] flex items-center gap-1 transition-all"
+                                              >
+                                                {actionInProgress === r.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
+                                                <span>Valider</span>
+                                              </button>
+                                            )}
+                                            <button
+                                              type="button"
+                                              onClick={() => setEditingRma(r)}
+                                              className="py-1 px-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] transition-all"
+                                            >
+                                              Modifier
+                                            </button>
+                                          </>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2">
+                              <h4 className="font-bold text-slate-900 flex items-center justify-between">
+                                <span>📋 Rapports Hebdomadaires PNSC</span>
+                                <span className="text-[10px] text-slate-500">{dossierAscq.hebdo.length} trouvés</span>
+                              </h4>
+                              {dossierAscq.hebdo.length === 0 ? (
+                                <p className="text-slate-400 text-[11px]">Aucun rapport hebdomadaire PNSC déposé.</p>
+                              ) : (
+                                <div className="space-y-2">
+                                  {dossierAscq.hebdo.map((h: any) => (
+                                    <div key={h.id} className="p-3 bg-white rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-sm">
+                                      <div>
+                                        <div className="flex items-center gap-2">
+                                          <span className="font-bold text-slate-900">Semaine {h.semaine} / {h.annee}</span>
+                                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                            h.statut === "VALIDE" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-900"
+                                          }`}>
+                                            {h.statut === "VALIDE" ? "✅ Validé" : "⏳ Soumis"}
+                                          </span>
+                                        </div>
+                                        <p className="text-[11px] text-slate-500 mt-0.5">
+                                          GAP RH : <strong>{h.rh_gap ?? 0}</strong> • Moto : <strong>{h.motos_gap ?? 0}</strong> • Forfait : <strong>{h.forfait_internet_recu ? "Reçu" : "Non reçu"}</strong>
+                                        </p>
+                                      </div>
+
+                                      {isRepresentantCommunal && h.statut !== "VALIDE" && (
+                                        <button
+                                          type="button"
+                                          disabled={actionInProgress === h.id}
+                                          onClick={() => handleValiderHebdoPnsc(h.id)}
+                                          className="py-1 px-2.5 rounded-lg bg-[#005c30] hover:bg-[#004724] text-white font-bold text-[11px] flex items-center gap-1 self-end sm:self-auto shrink-0 transition-all"
+                                        >
+                                          {actionInProgress === h.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
+                                          <span>Valider</span>
+                                        </button>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 5. SOUS-ONGLET : ALERTES SIMR & DÉCÈS */}
+                        {dossierSubTab === "SIMR" && (
+                          <div className="space-y-2">
+                            <h4 className="font-extrabold text-slate-900 text-xs">🚨 Alertes Épidémiologiques & Décès Communautaires</h4>
+                            {dossierAscq.alertes.length === 0 && dossierAscq.deces.length === 0 ? (
+                              <div className="py-8 text-center bg-slate-50 rounded-2xl border border-slate-200 text-slate-400">
+                                Aucune alerte ni aucun décès notifié par cet agent.
+                              </div>
+                            ) : (
+                              <div className="space-y-2">
+                                {dossierAscq.alertes.map((al: any) => (
+                                  <div key={al.id} className="p-3 bg-white rounded-xl border border-purple-100 shadow-sm flex items-center justify-between">
+                                    <div>
+                                      <span className="font-bold text-slate-900">{al.type_alerte_nom} (Sem. {al.semaine_epidemio})</span>
+                                      <p className="text-[10px] text-slate-500">Notifié le {al.date_notification} • Délai: {al.delai_detection_notification_heures}h</p>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => setFicheAffichee({ type: "ALERTES", donnees: al, ascq: selectedAscq })}
+                                      className="p-1.5 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-800"
+                                    >
+                                      <Eye className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                ))}
+
+                                {dossierAscq.deces.map((d: any) => (
+                                  <div key={d.id} className="p-3 bg-white rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                                    <div>
+                                      <span className="font-bold text-slate-900">{d.type_deces_nom} ({d.village || "-"})</span>
+                                      <p className="text-[10px] text-slate-500">Défunt : {d.defunt_nom_prenom || "Non précisé"} • Date: {d.date_notification}</p>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => setFicheAffichee({ type: "DECES", donnees: d, ascq: selectedAscq })}
+                                      className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800"
+                                    >
+                                      <Eye className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* 6. SOUS-ONGLET : RELAIS COMMUNAUTAIRES */}
+                        {dossierSubTab === "RELAIS" && (
+                          <div className="space-y-2">
+                            <h4 className="font-extrabold text-slate-900 text-xs">👥 Relais Communautaires (RC) sous la responsabilité de cet ASCQ</h4>
+                            {dossierAscq.relais.length === 0 ? (
+                              <div className="py-8 text-center bg-slate-50 rounded-2xl border border-slate-200 text-slate-400">
+                                Aucun Relais Communautaire enrôlé.
+                              </div>
+                            ) : (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                {dossierAscq.relais.map((rc: any) => (
+                                  <div key={rc.id} className="p-3 bg-white rounded-2xl border border-slate-200 shadow-sm space-y-1">
+                                    <p className="font-black text-slate-900">{rc.nom} {rc.prenoms}</p>
+                                    <p className="text-[11px] text-slate-500">Village : <strong>{rc.village_nom || "Non affecté"}</strong></p>
+                                    <p className="text-[11px] text-slate-500">Tél : {rc.telephone}</p>
+                                    <span className="inline-block px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[9px] font-bold">
+                                      Enrôlé & Actif
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* 7. SOUS-ONGLET : PLANNINGS & ACTIVITÉS */}
+                        {dossierSubTab === "PLANNING" && (
+                          <div className="space-y-2">
+                            <h4 className="font-extrabold text-slate-900 text-xs">📅 Activités Menées et Plannings de l'ASCQ</h4>
+                            {dossierAscq.activites.length === 0 ? (
+                              <div className="py-8 text-center bg-slate-50 rounded-2xl border border-slate-200 text-slate-400">
+                                Aucune activité enregistrée.
+                              </div>
+                            ) : (
+                              <div className="space-y-1.5">
+                                {dossierAscq.activites.map((a: any) => (
+                                  <div key={a.id} className="p-2.5 bg-white rounded-xl border border-slate-200/80 flex items-center justify-between">
+                                    <div>
+                                      <span className="font-bold text-slate-900">{a.titre_activite}</span>
+                                      <p className="text-[10px] text-slate-500">Date : {a.date_activite} • Type : {a.type_activite || "Terrain"}</p>
+                                    </div>
+                                    <span className="text-slate-400 text-[10px] font-bold">Enregistré</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </>
                     )}
                   </div>
@@ -1866,6 +2418,162 @@ function PerimetreGouvernanceContent() {
               </div>
             )}
 
+          </div>
+        )}
+
+        {/* ------------------------------------------------------------- */}
+        {/* ONGLET 3 : TOUTES LES FICHES & REGISTRES DU TERRITOIRE */}
+        {/* ------------------------------------------------------------- */}
+        {activeTab === "fiches_territoire" && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/80 shadow-sm space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-extrabold text-base text-slate-900 flex items-center gap-2">
+                    <ClipboardList className="w-5 h-5 text-emerald-700" />
+                    <span>Registre Central des Fiches du Territoire</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Consultez toutes les fiches d'activité et dossiers cliniques remplis par les ASCQ de votre périmètre territorial.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={chargerRegistreFichesTerritoire}
+                  disabled={loadingRegistre}
+                  className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-2 self-start sm:self-auto transition-all shadow-sm"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${loadingRegistre ? "animate-spin text-[#005c30]" : ""}`} />
+                  <span>Actualiser le registre</span>
+                </button>
+              </div>
+
+              {/* Filtres par module */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-[11px] font-bold">
+                {[
+                  { id: "TOUT", label: "Toutes les fiches" },
+                  { id: "ICCM", label: "🩺 Soins iCCM" },
+                  { id: "MATERNITE", label: "🤰 Maternité" },
+                  { id: "ENFANTS_1000J", label: "👶 1000 Jours" },
+                  { id: "REFERENCES", label: "🚑 Références CS" },
+                  { id: "ALERTES", label: "🚨 Alertes SIMR" },
+                  { id: "DECES", label: "⚰️ Décès" },
+                  { id: "RMA", label: "📊 Rapports RMA" },
+                ].map((f) => (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => setFiltreTypeFiche(f.id)}
+                    className={`px-3 py-1.5 rounded-xl whitespace-nowrap transition-all ${
+                      filtreTypeFiche === f.id
+                        ? "bg-[#005c30] text-white shadow-sm font-black"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Barre de recherche */}
+              <div className="relative">
+                <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Rechercher par nom de patient, village, nom d'ASCQ, diagnostic..."
+                  value={rechercheRegistre}
+                  onChange={(e) => setRechercheRegistre(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 rounded-2xl border border-slate-200 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              {/* Liste des fiches */}
+              <div className="space-y-2 pt-1">
+                {loadingRegistre ? (
+                  <div className="py-16 text-center text-slate-400 text-xs">
+                    <RefreshCw className="w-6 h-6 animate-spin mx-auto text-[#005c30] mb-2" />
+                    Chargement du registre des fiches du territoire...
+                  </div>
+                ) : (
+                  (() => {
+                    const fichesFiltrees = registreFiches.filter((item) => {
+                      if (filtreTypeFiche !== "TOUT" && item.type !== filtreTypeFiche) return false;
+                      if (!rechercheRegistre.trim()) return true;
+                      const q = rechercheRegistre.toLowerCase();
+                      return (
+                        item.titre?.toLowerCase().includes(q) ||
+                        item.sousTitre?.toLowerCase().includes(q) ||
+                        item.ascqNom?.toLowerCase().includes(q) ||
+                        item.typeLibelle?.toLowerCase().includes(q)
+                      );
+                    });
+
+                    if (fichesFiltrees.length === 0) {
+                      return (
+                        <div className="py-12 text-center bg-slate-50/80 rounded-2xl border border-slate-200/80 text-slate-400 text-xs">
+                          Aucune fiche trouvée correspondant à vos critères de recherche.
+                        </div>
+                      );
+                    }
+
+                    return fichesFiltrees.map((item) => (
+                      <div
+                        key={`${item.type}_${item.id}`}
+                        className="p-3.5 bg-white rounded-2xl border border-slate-200 hover:border-emerald-300 shadow-sm transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                      >
+                        <div className="space-y-1 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black border ${item.badgeColor}`}>
+                              {item.typeLibelle}
+                            </span>
+                            <span className="font-extrabold text-slate-900 text-sm">{item.titre}</span>
+                            {item.decision && (
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${item.decisionBadge || "bg-slate-100 text-slate-700"}`}>
+                                {item.decision}
+                              </span>
+                            )}
+                          </div>
+
+                          <p className="text-slate-600 text-[11px]">{item.sousTitre}</p>
+
+                          <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-500 pt-0.5">
+                            <span>ASCQ : <strong className="text-slate-700">{item.ascqNom}</strong></span>
+                            <span>•</span>
+                            <span>Date : <strong>{new Date(item.dateFiche).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })}</strong></span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                          <button
+                            type="button"
+                            onClick={() => setFicheAffichee({ type: item.type, donnees: item.raw, ascq: { id: item.ascqId, nom: item.ascqNom } })}
+                            className="py-1.5 px-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-[#005c30] font-bold text-xs flex items-center gap-1.5 transition-all shadow-sm"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>Consulter</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSuggestionAscqId(item.ascqId);
+                              setSuggestionModule(item.type);
+                              setSuggestionTitre(`Remarque sur ${item.typeLibelle} (${item.titre})`);
+                              setActiveTab("suggestions");
+                            }}
+                            className="py-1.5 px-3 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs flex items-center gap-1.5 transition-all"
+                            title="Suggérer une remarque sur cette fiche"
+                          >
+                            <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                            <span>Remarque</span>
+                          </button>
+                        </div>
+                      </div>
+                    ));
+                  })()
+                )}
+              </div>
+            </div>
           </div>
         )}
 
@@ -2711,6 +3419,235 @@ function PerimetreGouvernanceContent() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+
+        {/* MODAL OFFICIEL DE CONSULTATION DE FICHE (SUPERVISION EN LECTURE SEULE) */}
+        {ficheAffichee && (
+          <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl max-w-xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden text-xs">
+              
+              {/* En-tête officiel */}
+              <div className="p-5 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-[#005c30] text-[10px] font-black uppercase tracking-wide border border-emerald-300">
+                      Supervision Officielle • Lecture Seule
+                    </span>
+                    <Lock className="w-3.5 h-3.5 text-slate-400" />
+                  </div>
+                  <h3 className="text-base font-black text-slate-900 mt-1">
+                    {ficheAffichee.type === "ICCM" && `Fiche Consultation iCCM : ${ficheAffichee.donnees.prenoms_patient} ${ficheAffichee.donnees.nom_patient}`}
+                    {ficheAffichee.type === "MATERNITE" && `Fiche Maternité : ${ficheAffichee.donnees.prenoms} ${ficheAffichee.donnees.nom}`}
+                    {ficheAffichee.type === "ENFANTS_1000J" && `Fiche Enfant 1000 Jours : ${ficheAffichee.donnees.prenoms || ""} ${ficheAffichee.donnees.nom || ""}`}
+                    {ficheAffichee.type === "REFERENCES" && `Fiche Référence CS / GUPS : ${ficheAffichee.donnees.motif_reference || "Urgence"}`}
+                    {ficheAffichee.type === "ALERTES" && `Notification Alerte SIMR : ${ficheAffichee.donnees.type_alerte_nom}`}
+                    {ficheAffichee.type === "DECES" && `Notification Décès Communautaire : ${ficheAffichee.donnees.type_deces_nom}`}
+                    {ficheAffichee.type === "RMA" && `Rapport Mensuel d'Activité (Mois ${ficheAffichee.donnees.mois} / ${ficheAffichee.donnees.annee})`}
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Agent responsable : <strong>{ficheAffichee.ascq?.nom || "ASCQ"}</strong> • Village/Aire : <strong>{ficheAffichee.donnees.village || ficheAffichee.donnees.village_nom || "Territoire"}</strong>
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setFicheAffichee(null)}
+                  className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-200"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Corps de la fiche */}
+              <div className="p-5 overflow-y-auto space-y-3.5 max-h-[65vh]">
+                
+                {/* 1. FICHE ICCM */}
+                {ficheAffichee.type === "ICCM" && (
+                  <div className="space-y-3">
+                    <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1.5">
+                      <h4 className="font-extrabold text-slate-900 text-xs">Identité de l'Enfant</h4>
+                      <div className="grid grid-cols-2 gap-2 text-slate-700 text-[11px]">
+                        <p>Nom & Prénoms : <strong>{ficheAffichee.donnees.prenoms_patient} {ficheAffichee.donnees.nom_patient}</strong></p>
+                        <p>Âge : <strong>{ficheAffichee.donnees.age_valeur} {ficheAffichee.donnees.age_unite || "ans"}</strong> (Sexe: {ficheAffichee.donnees.sexe})</p>
+                        <p>Village : <strong>{ficheAffichee.donnees.village}</strong></p>
+                        <p>Parent / Tuteur : <strong>{ficheAffichee.donnees.nom_parent_tuteur || "Non précisé"}</strong></p>
+                        <p>Téléphone : <strong>{ficheAffichee.donnees.telephone_contact || "Aucun"}</strong></p>
+                        <p>Date : <strong>{ficheAffichee.donnees.date_consultation}</strong></p>
+                      </div>
+                    </div>
+
+                    <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1.5">
+                      <h4 className="font-extrabold text-slate-900 text-xs">Signes Cliniques & Dépistage</h4>
+                      <p className="text-slate-700">Signe principal : <strong className="text-slate-900">{ficheAffichee.donnees.signe_principal}</strong></p>
+                      {ficheAffichee.donnees.signes_secondaires && ficheAffichee.donnees.signes_secondaires.length > 0 && (
+                        <p className="text-slate-600">Signes secondaires : {ficheAffichee.donnees.signes_secondaires.join(", ")}</p>
+                      )}
+                      <div className="flex items-center gap-2 pt-1">
+                        <span className="font-bold">Test TDR Paludisme :</span>
+                        <span className={`px-2.5 py-0.5 rounded-full font-black text-[10px] ${
+                          ficheAffichee.donnees.tdr_paludisme === "POSITIF" ? "bg-red-100 text-red-800" : ficheAffichee.donnees.tdr_paludisme === "NEGATIF" ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-700"
+                        }`}>
+                          {ficheAffichee.donnees.tdr_paludisme}
+                        </span>
+                      </div>
+                      <p className="text-slate-700">Diagnostic posé : <strong className="text-slate-900">{ficheAffichee.donnees.diagnostic_possible}</strong></p>
+                    </div>
+
+                    <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1.5">
+                      <h4 className="font-extrabold text-slate-900 text-xs">Décision Thérapeutique & Conduite</h4>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold">Décision :</span>
+                        <span className={`px-2.5 py-1 rounded-full font-black text-xs ${
+                          ficheAffichee.donnees.decision === "REFERER_CS" ? "bg-red-600 text-white" : "bg-[#005c30] text-white"
+                        }`}>
+                          {ficheAffichee.donnees.decision === "REFERER_CS" ? "🚨 Référence Immédiate vers Centre de Santé" : "✅ Prise en charge à domicile / communauté"}
+                        </span>
+                      </div>
+                      {ficheAffichee.donnees.structure_cs_destination && (
+                        <p className="text-slate-700">Structure de destination : <strong>{ficheAffichee.donnees.structure_cs_destination}</strong></p>
+                      )}
+                      {ficheAffichee.donnees.premier_geste_pose && (
+                        <p className="text-slate-700">Premier geste posé : <strong>{ficheAffichee.donnees.premier_geste_pose}</strong></p>
+                      )}
+                      {ficheAffichee.donnees.theme_sensibilisation && (
+                        <p className="text-slate-700">Sensibilisation : <strong>{ficheAffichee.donnees.theme_sensibilisation}</strong></p>
+                      )}
+                      {ficheAffichee.donnees.observations && (
+                        <p className="text-slate-600 italic">Observations : "{ficheAffichee.donnees.observations}"</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. FICHE MATERNITE */}
+                {ficheAffichee.type === "MATERNITE" && (
+                  <div className="space-y-3">
+                    <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1.5">
+                      <h4 className="font-extrabold text-slate-900 text-xs">Informations Patiente</h4>
+                      <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-700">
+                        <p>Nom & Prénoms : <strong>{ficheAffichee.donnees.prenoms} {ficheAffichee.donnees.nom}</strong></p>
+                        <p>Âge : <strong>{ficheAffichee.donnees.age || "Non précisé"} ans</strong></p>
+                        <p>Village : <strong>{ficheAffichee.donnees.village_nom || "-"}</strong></p>
+                        <p>Statut Grossesse : <strong className="text-pink-800">{ficheAffichee.donnees.statut_grossesse || "En cours"}</strong></p>
+                        <p>Terme actuel : <strong>{ficheAffichee.donnees.terme_sa || "?"} SA</strong></p>
+                        <p>Date DPA : <strong>{ficheAffichee.donnees.date_dpa || "Non définie"}</strong></p>
+                      </div>
+                    </div>
+
+                    <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1.5">
+                      <h4 className="font-extrabold text-slate-900 text-xs">Consultations Prénatales & Prévention</h4>
+                      <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-700">
+                        <p>CPN1 : <strong>{ficheAffichee.donnees.date_cpn1 || "Non effectuée"}</strong></p>
+                        <p>CPN2 : <strong>{ficheAffichee.donnees.date_cpn2 || "Non effectuée"}</strong></p>
+                        <p>CPN3 : <strong>{ficheAffichee.donnees.date_cpn3 || "Non effectuée"}</strong></p>
+                        <p>CPN4 : <strong>{ficheAffichee.donnees.date_cpn4 || "Non effectuée"}</strong></p>
+                        <p>TPI / SP (Doses) : <strong>{ficheAffichee.donnees.doses_tpi || 0}</strong></p>
+                        <p>Supplémentation Enov'Mum : <strong>{ficheAffichee.donnees.enov_mum_recu ? "Reçu" : "Non"}</strong></p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 3. FICHE ENFANT 1000 JOURS */}
+                {ficheAffichee.type === "ENFANTS_1000J" && (
+                  <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-2">
+                    <h4 className="font-extrabold text-slate-900 text-xs">Suivi Nutritionnel & Vaccinal</h4>
+                    <p>Enfant : <strong>{ficheAffichee.donnees.prenoms} {ficheAffichee.donnees.nom}</strong></p>
+                    <p>Village : <strong>{ficheAffichee.donnees.village_nom || "-"}</strong></p>
+                    <p>Périmètre Brachial (PB) : <strong>{ficheAffichee.donnees.perimetre_brachial_mm || "?"} mm</strong></p>
+                    <p>Poids mesuré : <strong>{ficheAffichee.donnees.poids_kg ? `${ficheAffichee.donnees.poids_kg} kg` : "Non mesuré"}</strong></p>
+                    <p>Statut Vaccinal : <strong>{ficheAffichee.donnees.statut_vaccinal || "Non renseigné"}</strong></p>
+                  </div>
+                )}
+
+                {/* 4. FICHE REFERENCES */}
+                {ficheAffichee.type === "REFERENCES" && (
+                  <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-2">
+                    <h4 className="font-extrabold text-slate-900 text-xs">Détails de l'Évacuation</h4>
+                    <p>Motif de la Référence : <strong className="text-red-700">{ficheAffichee.donnees.motif_reference || "Urgence médicale"}</strong></p>
+                    <p>Degré d'Urgence : <strong>{ficheAffichee.donnees.degre_urgence || "Moyenne"}</strong></p>
+                    <p>Centre de Santé de Destination : <strong>{ficheAffichee.donnees.centre_sante_destination || "Centre de Santé"}</strong></p>
+                    <p>Moyen de Transport : <strong>{ficheAffichee.donnees.moyen_transport || "Non renseigné"}</strong></p>
+                    <p>Date : <strong>{ficheAffichee.donnees.date_reference}</strong></p>
+                  </div>
+                )}
+
+                {/* 5. FICHE ALERTE */}
+                {ficheAffichee.type === "ALERTES" && (
+                  <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-2">
+                    <h4 className="font-extrabold text-purple-900 text-xs">Détails Alerte Épidémiologique</h4>
+                    <p>Pathologie / Événement : <strong className="text-purple-900">{ficheAffichee.donnees.type_alerte_nom}</strong></p>
+                    <p>Semaine Épidémiologique : <strong>Semaine {ficheAffichee.donnees.semaine_epidemio} / {ficheAffichee.donnees.annee}</strong></p>
+                    <p>Alerte Prioritaire : <strong>{ficheAffichee.donnees.est_prioritaire ? "OUI" : "NON"}</strong></p>
+                    <p>Statut Investigation : <strong>{ficheAffichee.donnees.investigation_faite ? "Investigation Réalisée" : "Non encore investiguée"}</strong></p>
+                    <p>Délai Détection & Notification : <strong>{ficheAffichee.donnees.delai_detection_notification_heures || "?"} heures</strong></p>
+                  </div>
+                )}
+
+                {/* 6. FICHE DECES */}
+                {ficheAffichee.type === "DECES" && (
+                  <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-2">
+                    <h4 className="font-extrabold text-slate-900 text-xs">Notification de Décès</h4>
+                    <p>Type de Décès : <strong className="text-slate-900">{ficheAffichee.donnees.type_deces_nom}</strong></p>
+                    <p>Défunt : <strong>{ficheAffichee.donnees.defunt_nom_prenom || "Non précisé"}</strong></p>
+                    <p>Village : <strong>{ficheAffichee.donnees.village || "-"}</strong></p>
+                    <p>Date Notification : <strong>{ficheAffichee.donnees.date_notification}</strong></p>
+                  </div>
+                )}
+
+                {/* 7. FICHE RMA */}
+                {ficheAffichee.type === "RMA" && (
+                  <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-2">
+                    <h4 className="font-extrabold text-blue-900 text-xs">Synthèse RMA Mois {ficheAffichee.donnees.mois} / {ficheAffichee.donnees.annee}</h4>
+                    <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-700">
+                      <p>VAD Réalisées : <strong>{ficheAffichee.donnees.total_visites_domiciliaires || 0}</strong></p>
+                      <p>Causeries Éducatives : <strong>{ficheAffichee.donnees.total_seances_sensibilisation || 0}</strong></p>
+                      <p>Femmes Enceintes Suivies : <strong>{ficheAffichee.donnees.femmes_enceintes_suivies || 0}</strong></p>
+                      <p>Enfants 0-59m Suivis : <strong>{ficheAffichee.donnees.enfants_0_59_mois_suivis || 0}</strong></p>
+                      <p>Cas Paludisme Pris en charge : <strong>{ficheAffichee.donnees.total_paludisme_confirme || 0}</strong></p>
+                      <p>Références Évacuées : <strong>{ficheAffichee.donnees.total_references || 0}</strong></p>
+                    </div>
+                  </div>
+                )}
+
+              </div>
+
+              {/* Pied de la modale */}
+              <div className="p-3.5 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
+                <span className="text-[10px] text-slate-500 font-bold">
+                  🔒 Donnée officielle sous traçabilité
+                </span>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (ficheAffichee.ascq?.id) {
+                        setSuggestionAscqId(ficheAffichee.ascq.id);
+                        setSuggestionModule(ficheAffichee.type);
+                        setSuggestionTitre(`Remarque sur ${ficheAffichee.type}`);
+                        setActiveTab("suggestions");
+                      }
+                      setFicheAffichee(null);
+                    }}
+                    className="py-1.5 px-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-sm transition-all"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>💡 Suggérer une remarque sur cette fiche</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setFicheAffichee(null)}
+                    className="py-1.5 px-3 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs"
+                  >
+                    Fermer
+                  </button>
+                </div>
+              </div>
+
             </div>
           </div>
         )}

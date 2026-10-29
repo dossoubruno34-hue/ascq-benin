@@ -6,7 +6,25 @@ import { estCadreNonAscq } from "@/lib/cadre-roles";
 import { supabase } from "@/lib/supabase";
 
 export default function EspaceAscqLayout({ children }: { children: React.ReactNode }) {
-  const [isCadre, setIsCadre] = useState(false);
+  const [isCadre, setIsCadre] = useState(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const session = getCachedUserSession();
+        if (session?.profile && estCadreNonAscq(session.profile)) {
+          window.location.replace("/perimetre");
+          return true;
+        }
+        const cachedEspace = getCachedMonEspace();
+        if (cachedEspace && estCadreNonAscq(cachedEspace)) {
+          window.location.replace("/perimetre");
+          return true;
+        }
+      } catch (e) {
+        // Ignore
+      }
+    }
+    return false;
+  });
 
   useEffect(() => {
     // 1. Détection synchrone immédiate (0ms) depuis les données de session en cache

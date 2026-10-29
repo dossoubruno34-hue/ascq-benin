@@ -36,7 +36,8 @@ import {
   TrendingUp,
   CheckSquare,
   Eye,
-  Edit3
+  Edit3,
+  Save
 } from "lucide-react";
 import { getCachedRcSpace, saveCachedRcSpace, saveCachedUserSession } from "@/lib/offline-sync";
 import FicheHebdoActivitesRcOfficielle from "@/components/FicheHebdoActivitesRcOfficielle";
@@ -551,7 +552,7 @@ export default function EspaceRelaisPage() {
                   type="button"
                   onClick={() => {
                     setActiveTab("planning");
-                    setPlanningMode("officielle");
+                    setSousOngletPlanning("officielle");
                   }}
                   className="px-4 py-2 rounded-xl text-xs font-black bg-[#005c30] hover:bg-[#004724] text-white shadow-md active:scale-95 transition-all flex items-center gap-1.5"
                 >

@@ -102,3 +102,79 @@ export function getTitreCadreOfficiel(user: any): string {
 
   return user.poste || user.role_technique || "Cadre Hiérarchique";
 }
+
+export interface PerimetreScope {
+  level: "NATIONAL" | "DEPARTEMENTAL" | "ZONE_SANITAIRE" | "COMMUNAL";
+  filterType: "all" | "departement_id" | "zone_sanitaire_id" | "commune_id";
+  id: string | null;
+  libelle: string;
+}
+
+/**
+ * Détermine le périmètre territorial exact d'un cadre pour le filtrage strict des données.
+ * Priorité absolue au niveau de supervision du rôle officiel (National > Départemental > Zone > Communal).
+ */
+export function getPerimetreScope(user: any): PerimetreScope {
+  if (!user) {
+    return { level: "COMMUNAL", filterType: "commune_id", id: null, libelle: "Périmètre restreint" };
+  }
+
+  const role = String(user.role_technique || "").toUpperCase();
+  const poste = String(user.poste || "").toUpperCase();
+  const nomination = String(user.role_nomination || "").toUpperCase();
+  const cleanTel = String(user.telephone || "").replace(/\D/g, "");
+
+  const isNational = cleanTel.includes("69031463") ||
+    ["SUPER_ADMIN", "ADMINISTRATEUR", "CADRE_NATIONAL", "RESPONSABLE_NATIONAL"].includes(role) ||
+    ["SUPER_ADMIN", "ADMINISTRATEUR"].includes(poste);
+
+  if (isNational) {
+    return { level: "NATIONAL", filterType: "all", id: null, libelle: "National (Tout le Bénin)" };
+  }
+
+  const isDept = ["CADRE_DEPARTEMENTAL", "REPRESENTANT_DEPARTEMENTAL", "ADMIN_DEPARTEMENTAL"].includes(role) ||
+    ["DDS", "CCD_CDLS_TP", "CSSPR", "CSPSMEH", "CSPSMEMH"].includes(poste) ||
+    nomination.includes("DEPARTEMENT");
+
+  if (isDept && user.departement_id) {
+    return { 
+      level: "DEPARTEMENTAL", 
+      filterType: "departement_id", 
+      id: user.departement_id, 
+      libelle: user.departement_nom ? `Département : ${user.departement_nom}` : "Périmètre Départemental" 
+    };
+  }
+
+  const isZone = ["CADRE_ZONE_SANITAIRE", "RESPONSABLE_ZONE_SANITAIRE"].includes(role) ||
+    ["MCZS", "RCSE", "C_RAMS", "C-RAMS"].includes(poste) ||
+    nomination.includes("ZONE");
+
+  if (isZone && user.zone_sanitaire_id) {
+    return { 
+      level: "ZONE_SANITAIRE", 
+      filterType: "zone_sanitaire_id", 
+      id: user.zone_sanitaire_id, 
+      libelle: user.zone_sanitaire_nom ? `Zone Sanitaire : ${user.zone_sanitaire_nom}` : "Zone Sanitaire" 
+    };
+  }
+
+  if (user.commune_id) {
+    return { 
+      level: "COMMUNAL", 
+      filterType: "commune_id", 
+      id: user.commune_id, 
+      libelle: user.commune_nom ? `Commune : ${user.commune_nom}` : "Périmètre Communal" 
+    };
+  }
+
+  if (user.departement_id) {
+    return { 
+      level: "DEPARTEMENTAL", 
+      filterType: "departement_id", 
+      id: user.departement_id, 
+      libelle: user.departement_nom ? `Département : ${user.departement_nom}` : "Périmètre Départemental" 
+    };
+  }
+
+  return { level: "NATIONAL", filterType: "all", id: null, libelle: "National" };
+}

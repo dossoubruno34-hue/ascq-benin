@@ -145,7 +145,7 @@ export default function MonEspacePage() {
       const [uRes, pRes, rcCountRes, reqCountRes] = await Promise.all([
         supabase
           .from("utilisateurs")
-          .select("id, nom, prenoms, telephone, poste, role_technique, statut_compte, departement_id, commune_id, arrondissement_id, zone_sanitaire_id, photo_url")
+          .select("id, nom, prenoms, telephone, poste, role_technique, role_nomination, poste_autre, structure_sante_id, statut_compte, departement_id, commune_id, arrondissement_id, zone_sanitaire_id, photo_url")
           .eq("id", user.id)
           .maybeSingle(),
         supabase
@@ -164,7 +164,7 @@ export default function MonEspacePage() {
           .in("statut", ["ENVOYEE", "EN_COURS"]),
       ]);
 
-      const prof = uRes.data;
+      const prof: any = uRes.data;
       if (!prof) {
         if (cached) {
           setIsOfflineMode(true);
@@ -182,10 +182,10 @@ export default function MonEspacePage() {
       const ascqP = pRes.data || {};
 
       // Récupérer les libellés géographiques
-      let depNom = "ZOU";
-      let comNom = "OUINHI";
-      let arrNom = "TOHOUES";
-      let zsNom = "COVE-ZAGNANADO-OUINHI (COZO)";
+      let depNom = "Non défini";
+      let comNom = prof.commune_id ? "Commune" : "Tout le département";
+      let arrNom = prof.arrondissement_id ? "Arrondissement" : "Tous les arrondissements";
+      let zsNom = "Zone Sanitaire";
 
       const [dRes, cRes, aRes, zRes] = await Promise.all([
         prof.departement_id ? supabase.from("departements").select("nom").eq("id", prof.departement_id).maybeSingle() : Promise.resolve({ data: null }),
@@ -205,6 +205,9 @@ export default function MonEspacePage() {
         prenoms: prof.prenoms,
         telephone: prof.telephone,
         poste: prof.poste,
+        role_technique: prof.role_technique,
+        role_nomination: prof.role_nomination,
+        poste_autre: prof.poste_autre,
         photo_url: prof.photo_url || null,
         departement_id: prof.departement_id,
         departement_nom: depNom,
@@ -215,7 +218,7 @@ export default function MonEspacePage() {
         second_arrondissement_nom: null,
         cumul_deux_arrondissements: ascqP.cumul_deux_arrondissements || false,
         zone_sanitaire_nom: zsNom,
-        structure_sante_nom: "CENTRE DE SANTÉ COMMUNAL",
+        structure_sante_nom: prof.structure_sante_id ? "Structure Sanitaire" : "Direction Départementale de la Santé / Supervision",
         source_financement: ascqP.source_financement || "LLF",
         source_financement_autre: ascqP.source_financement_autre || "",
         nombre_rc_declare: ascqP.nombre_rc || 5,

@@ -145,6 +145,7 @@ export default function AscqNav({ userProfile }: Props) {
   const cadreNavItems = [
     { href: "/perimetre", label: "Tableau de bord", icon: Crown },
     { href: "/perimetre?tab=suivi_individuel", label: "ASCQ & RC Territoire", icon: Users },
+    { href: "/perimetre?tab=fiches_territoire", label: "Fiches & Données ASCQ", icon: ClipboardCheck },
     { href: "/perimetre?tab=suggestions", label: "Suggestions & Observations", icon: Sparkles },
     { href: "/perimetre?tab=alertes_missions", label: "Alertes & Missions", icon: HeartPulse },
     { href: "/perimetre?tab=exports_journal", label: "Exports & Audit", icon: FileSpreadsheet },
