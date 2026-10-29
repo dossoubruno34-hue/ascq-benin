@@ -224,6 +224,123 @@ FOR EACH ROW
 EXECUTE FUNCTION public.verifier_changement_perimetre_responsable();
 
 -- ---------------------------------------------------------------------
+-- 3. INITIALISATION PREALABLE DES TABLES SI NON EXISTANTES
+-- (Garantit l'existence des tables pour éliminer toute erreur 42P01)
+-- ---------------------------------------------------------------------
+
+-- A. Table des rapports hebdomadaires de suivi PNSC
+CREATE TABLE IF NOT EXISTS public.rapports_hebdo_pnsc (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    ascq_id UUID NOT NULL REFERENCES public.utilisateurs(id) ON DELETE CASCADE,
+    departement_id UUID REFERENCES public.departements(id),
+    departement_nom TEXT,
+    commune_id UUID REFERENCES public.communes(id),
+    commune_nom TEXT,
+    arrondissement_id UUID REFERENCES public.arrondissements(id),
+    arrondissement_nom TEXT,
+    annee INTEGER NOT NULL,
+    semaine INTEGER NOT NULL CHECK (semaine BETWEEN 1 AND 53),
+    date_debut DATE,
+    date_fin DATE,
+    statut TEXT NOT NULL DEFAULT 'BROUILLON' CHECK (statut IN ('BROUILLON', 'VALIDE')),
+    date_validation TIMESTAMPTZ,
+    signature_tactile TEXT,
+    rh_besoins_normes INTEGER NOT NULL DEFAULT 0,
+    rh_fonctionnel INTEGER NOT NULL DEFAULT 0,
+    rh_gap INTEGER GENERATED ALWAYS AS (GREATEST(0, rh_besoins_normes - rh_fonctionnel)) STORED,
+    motos_mise_a_dispo INTEGER NOT NULL DEFAULT 0,
+    motos_fonctionnel INTEGER NOT NULL DEFAULT 0,
+    motos_gap INTEGER GENERATED ALWAYS AS (GREATEST(0, motos_mise_a_dispo - motos_fonctionnel)) STORED,
+    ordinateurs_mise_a_dispo INTEGER NOT NULL DEFAULT 0,
+    ordinateurs_fonctionnel INTEGER NOT NULL DEFAULT 0,
+    ordinateurs_gap INTEGER GENERATED ALWAYS AS (GREATEST(0, ordinateurs_mise_a_dispo - ordinateurs_fonctionnel)) STORED,
+    remuneration_due_llf NUMERIC(5,1) NOT NULL DEFAULT 0,
+    remuneration_due_fadec NUMERIC(5,1) NOT NULL DEFAULT 0,
+    remuneration_due_srhr NUMERIC(5,1) NOT NULL DEFAULT 0,
+    activites_realisees TEXT NOT NULL DEFAULT '',
+    difficultes TEXT NOT NULL DEFAULT '',
+    suggestions TEXT NOT NULL DEFAULT '',
+    forfait_internet_recu BOOLEAN NOT NULL DEFAULT FALSE,
+    forfait_internet_details TEXT DEFAULT '',
+    carburant_recu BOOLEAN NOT NULL DEFAULT FALSE,
+    carburant_details TEXT DEFAULT '',
+    autres_recus TEXT DEFAULT '',
+    observations TEXT DEFAULT '',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT uq_rapport_hebdo_pnsc_ascq_semaine UNIQUE(ascq_id, annee, semaine)
+);
+
+CREATE INDEX IF NOT EXISTS idx_rapports_hebdo_pnsc_commune ON public.rapports_hebdo_pnsc(commune_id, annee, semaine);
+CREATE INDEX IF NOT EXISTS idx_rapports_hebdo_pnsc_ascq ON public.rapports_hebdo_pnsc(ascq_id, annee, semaine);
+ALTER TABLE public.rapports_hebdo_pnsc ENABLE ROW LEVEL SECURITY;
+
+-- B. Table des fiches hebdomadaires officielles d'activités du Relais Communautaire
+CREATE TABLE IF NOT EXISTS public.fiches_activites_hebdo_relais (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    relais_id UUID NOT NULL REFERENCES public.utilisateurs(id) ON DELETE CASCADE,
+    ascq_id UUID REFERENCES public.utilisateurs(id) ON DELETE SET NULL,
+    departement_id UUID REFERENCES public.departements(id),
+    zone_sanitaire_id UUID REFERENCES public.zones_sanitaires(id),
+    commune_id UUID REFERENCES public.communes(id),
+    arrondissement_id UUID REFERENCES public.arrondissements(id),
+    village_nom TEXT NOT NULL,
+    grappe INTEGER DEFAULT 1,
+    semaine_du DATE NOT NULL,
+    annee INTEGER NOT NULL,
+    semaine_num INTEGER NOT NULL,
+    lignes_activites JSONB NOT NULL DEFAULT '[]'::jsonb,
+    nbre_vad_prevu INT DEFAULT 0,
+    nbre_vad_realise INT DEFAULT 0,
+    nbre_menages_visites INT DEFAULT 0,
+    total_menages_en_charge INT DEFAULT 0,
+    nbre_causeries INT DEFAULT 0,
+    themes_causeries TEXT,
+    nbre_salubrite INT DEFAULT 0,
+    sante_animale_sites INT DEFAULT 0,
+    affaires_sociales_visites INT DEFAULT 0,
+    femmes_enceintes_suivies INT DEFAULT 0,
+    femmes_suivi_cpn INT DEFAULT 0,
+    femmes_suivi_vat INT DEFAULT 0,
+    enfants_0_59_suivis INT DEFAULT 0,
+    enfants_vaccination INT DEFAULT 0,
+    enfants_nutrition INT DEFAULT 0,
+    personnes_referees INT DEFAULT 0,
+    autres_activites_texte TEXT,
+    signature_rc TEXT,
+    date_signature_rc TIMESTAMPTZ DEFAULT NOW(),
+    lu_et_approuve_ascq BOOLEAN DEFAULT FALSE,
+    date_approbation_ascq TIMESTAMPTZ,
+    observations_ascq TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_fiches_rc_relais ON public.fiches_activites_hebdo_relais(relais_id);
+CREATE INDEX IF NOT EXISTS idx_fiches_rc_ascq ON public.fiches_activites_hebdo_relais(ascq_id);
+CREATE INDEX IF NOT EXISTS idx_fiches_rc_semaine ON public.fiches_activites_hebdo_relais(annee, semaine_num);
+ALTER TABLE public.fiches_activites_hebdo_relais ENABLE ROW LEVEL SECURITY;
+
+-- C. Table du journal d'audit des exports responsables
+CREATE TABLE IF NOT EXISTS public.journal_exports_responsables (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES public.utilisateurs(id) ON DELETE SET NULL,
+    user_nom_complet TEXT NOT NULL,
+    user_role TEXT NOT NULL,
+    type_export TEXT NOT NULL,
+    format_export TEXT NOT NULL CHECK (format_export IN ('EXCEL', 'CSV', 'PDF')),
+    territoire_nom TEXT NOT NULL,
+    niveau_territoire TEXT NOT NULL,
+    parametres JSONB DEFAULT '{}'::jsonb,
+    nb_lignes INTEGER DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_journal_exports_user ON public.journal_exports_responsables(user_id);
+CREATE INDEX IF NOT EXISTS idx_journal_exports_created ON public.journal_exports_responsables(created_at DESC);
+ALTER TABLE public.journal_exports_responsables ENABLE ROW LEVEL SECURITY;
+
+-- ---------------------------------------------------------------------
 -- 4. POLITIQUES RLS : CONSULTATION SEULE POUR LES RESPONSABLES
 -- Lecture stricte au territoire via ce_responsable_peut_il_voir_cet_arrondissement
 -- Ecriture formellement interdite aux responsables (INSERT, UPDATE, DELETE)
@@ -359,29 +476,14 @@ CREATE TRIGGER trg_bloquer_ecriture_hebdo
 BEFORE INSERT OR UPDATE OR DELETE ON public.rapports_hebdo_pnsc
 FOR EACH ROW EXECUTE FUNCTION public.bloquer_ecriture_responsable();
 
+DROP TRIGGER IF EXISTS trg_bloquer_ecriture_hebdomadaires ON public.rapports_hebdomadaires;
+CREATE TRIGGER trg_bloquer_ecriture_hebdomadaires
+BEFORE INSERT OR UPDATE OR DELETE ON public.rapports_hebdomadaires
+FOR EACH ROW EXECUTE FUNCTION public.bloquer_ecriture_responsable();
+
 -- ---------------------------------------------------------------------
--- 5. JOURNAL D'AUDIT DES EXPORTS RESPONSABLES
--- Chaque export est enregistré : qui, quand, quoi, quel territoire
+-- 5. POLITIQUES RLS DU JOURNAL D'AUDIT DES EXPORTS RESPONSABLES
 -- ---------------------------------------------------------------------
-
-CREATE TABLE IF NOT EXISTS public.journal_exports_responsables (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID REFERENCES public.utilisateurs(id) ON DELETE SET NULL,
-    user_nom_complet TEXT NOT NULL,
-    user_role TEXT NOT NULL,
-    type_export TEXT NOT NULL, -- 'PLANNING', 'ACTIVITES', 'RMA_COMPILE', 'RMA_INDIVIDUEL', 'HEBDO_COMPILE', 'HEBDO_INDIVIDUEL', 'ALERTES_COMPILES', 'DECES_COMPILES', 'LISTE_ASCQ'
-    format_export TEXT NOT NULL CHECK (format_export IN ('EXCEL', 'CSV', 'PDF')),
-    territoire_nom TEXT NOT NULL,
-    niveau_territoire TEXT NOT NULL, -- 'NATIONAL', 'DEPARTEMENT', 'ZONE', 'COMMUNE'
-    parametres JSONB DEFAULT '{}'::jsonb,
-    nb_lignes INTEGER DEFAULT 0,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_journal_exports_user ON public.journal_exports_responsables(user_id);
-CREATE INDEX IF NOT EXISTS idx_journal_exports_created ON public.journal_exports_responsables(created_at DESC);
-
-ALTER TABLE public.journal_exports_responsables ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Lecture journal exports responsable ou admin" ON public.journal_exports_responsables;
 CREATE POLICY "Lecture journal exports responsable ou admin" ON public.journal_exports_responsables
@@ -652,6 +754,7 @@ GRANT EXECUTE ON FUNCTION public.est_responsable_consultation TO anon, authentic
 GRANT EXECUTE ON FUNCTION public.gouvernance_enregistrer_export TO authenticated;
 GRANT ALL ON TABLE public.journal_exports_responsables TO authenticated;
 GRANT ALL ON TABLE public.fiches_activites_hebdo_relais TO authenticated;
+GRANT ALL ON TABLE public.rapports_hebdo_pnsc TO authenticated;
 
 -- ---------------------------------------------------------------------
 -- 10. EXTENSION DES DESTINATIONS DE RÉFÉRENCE COMMUNAUTAIRE : ASCQ, CS, GUPS
