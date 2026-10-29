@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { corrigerAccents, getNomTypeAlerte } from "@/lib/fiches";
 import { exporterFicheSurveillanceIndividuelleExcel } from "@/lib/excelExport";
+import BeninPhoneAction from "@/components/BeninPhoneAction";
 
 export default function DetailAlertePage() {
   const params = useParams();
@@ -347,12 +348,12 @@ export default function DetailAlertePage() {
               </div>
 
               {alerte.cas_prive.telephone && (
-                <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between">
+                <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between flex-wrap gap-2">
                   <span className="text-slate-500 flex items-center gap-1">
                     <Phone className="w-3.5 h-3.5" />
-                    <span>Téléphone :</span>
+                    <span>Téléphone du cas :</span>
                   </span>
-                  <strong className="text-slate-900 font-bold">{alerte.cas_prive.telephone}</strong>
+                  <BeninPhoneAction telephone={alerte.cas_prive.telephone} variant="button-group" />
                 </div>
               )}
 
@@ -483,9 +484,9 @@ export default function DetailAlertePage() {
             <span className="text-slate-400">Agent notificateur :</span>
             <strong className="text-slate-900">{alerte.notificateur_titre} : {alerte.notificateur_nom_complet}</strong>
           </div>
-          <div className="flex justify-between">
+          <div className="flex justify-between items-center flex-wrap gap-2">
             <span className="text-slate-400">Téléphone de l'agent :</span>
-            <strong className="text-slate-900">{alerte.notificateur_telephone}</strong>
+            <BeninPhoneAction telephone={alerte.notificateur_telephone} variant="button-group" />
           </div>
           <div className="flex justify-between">
             <span className="text-slate-400">Centre de santé :</span>

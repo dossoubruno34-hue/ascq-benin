@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import AscqNav from "@/components/AscqNav";
+import BeninPhoneAction from "@/components/BeninPhoneAction";
 import { 
   Baby, 
   Heart, 
@@ -1215,18 +1216,13 @@ export default function MaterniteEnfancePage() {
                         {/* Téléphone & Contact */}
                         <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap">
                           {femme.telephone && (
-                            <a
-                              href={`tel:${femme.telephone}`}
-                              className="inline-flex items-center gap-1 text-emerald-700 font-bold hover:underline"
-                            >
-                              <Phone className="w-3.5 h-3.5" />
-                              <span>{femme.telephone}</span>
-                            </a>
+                            <BeninPhoneAction telephone={femme.telephone} variant="button-group" />
                           )}
                           {femme.telephone_conjoint && (
-                            <span className="text-slate-400">
-                              Conjoint : {femme.telephone_conjoint}
-                            </span>
+                            <div className="flex items-center gap-1 text-slate-500">
+                              <span>Conjoint :</span>
+                              <BeninPhoneAction telephone={femme.telephone_conjoint} variant="compact" />
+                            </div>
                           )}
                         </div>
                       </div>
@@ -1446,13 +1442,7 @@ export default function MaterniteEnfancePage() {
                             <span>Mère : <strong>{enfant.nom_mere}</strong></span>
                           )}
                           {enfant.telephone_parent && (
-                            <a
-                              href={`tel:${enfant.telephone_parent}`}
-                              className="inline-flex items-center gap-1 text-emerald-700 font-bold hover:underline"
-                            >
-                              <Phone className="w-3 h-3" />
-                              <span>{enfant.telephone_parent}</span>
-                            </a>
+                            <BeninPhoneAction telephone={enfant.telephone_parent} variant="button-group" />
                           )}
                         </div>
                       </div>

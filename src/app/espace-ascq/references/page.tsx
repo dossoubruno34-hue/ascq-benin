@@ -31,6 +31,7 @@ import {
   FileSpreadsheet
 } from "lucide-react";
 import { exporterFicheReferenceExcel } from "@/lib/excelExport";
+import BeninPhoneAction from "@/components/BeninPhoneAction";
 
 export default function GestionReferencesPage() {
   const router = useRouter();
@@ -655,11 +656,21 @@ export default function GestionReferencesPage() {
                     <div>
                       <span className="text-slate-400 block text-[10px]">Localisation & Contact :</span>
                       <strong className="text-slate-900">Village {selectedRef.village_nom}</strong>
-                      <span className="text-slate-500 block text-[11px]">Parent : {selectedRef.nom_parent_tuteur || 'Non précisé'} • Tél : {selectedRef.telephone_contact || 'N/A'}</span>
+                      <div className="text-slate-500 flex items-center gap-1.5 flex-wrap text-[11px] mt-0.5">
+                        <span>Parent : {selectedRef.nom_parent_tuteur || 'Non précisé'}</span>
+                        {selectedRef.telephone_contact && (
+                          <BeninPhoneAction telephone={selectedRef.telephone_contact} variant="compact" />
+                        )}
+                      </div>
                     </div>
 
-                    <div className="col-span-2 pt-1 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500">
-                      <span>Relais déclarant : <strong>{selectedRef.relais_nom}</strong> ({selectedRef.relais_telephone || 'N/A'})</span>
+                    <div className="col-span-2 pt-1 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500 flex-wrap gap-2">
+                      <div className="flex items-center gap-1.5">
+                        <span>Relais déclarant : <strong>{selectedRef.relais_nom}</strong></span>
+                        {selectedRef.relais_telephone && (
+                          <BeninPhoneAction telephone={selectedRef.relais_telephone} variant="compact" />
+                        )}
+                      </div>
                       <span>ASCQ Superviseur : <strong>{selectedRef.ascq_nom || currentUser?.nom}</strong></span>
                     </div>
                   </div>

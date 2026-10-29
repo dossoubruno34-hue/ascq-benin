@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { exporterRegistreConsultationsExcel } from "@/lib/excelExport";
 import { getOfflineList, getCachedUserSession, getCachedMonEspace } from "@/lib/offline-sync";
+import BeninPhoneAction from "@/components/BeninPhoneAction";
 
 export default function RegistreConsultationsPage() {
   const router = useRouter();
@@ -473,9 +474,14 @@ export default function RegistreConsultationsPage() {
                   <strong>Village {selectedConsultation.village}</strong>
                 </div>
                 {selectedConsultation.nom_parent_tuteur && (
-                  <div className="flex justify-between">
+                  <div className="flex justify-between items-center flex-wrap gap-1">
                     <span className="text-slate-400">Parent / Tuteur :</span>
-                    <span>{selectedConsultation.nom_parent_tuteur} ({selectedConsultation.telephone_contact || "N/A"})</span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <strong>{selectedConsultation.nom_parent_tuteur}</strong>
+                      {selectedConsultation.telephone_contact && (
+                        <BeninPhoneAction telephone={selectedConsultation.telephone_contact} variant="compact" />
+                      )}
+                    </span>
                   </div>
                 )}
               </div>
