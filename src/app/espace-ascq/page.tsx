@@ -478,8 +478,8 @@ export default function MonEspacePage() {
             <h1 className="text-base sm:text-lg font-black text-slate-900 leading-tight">
               Mon Espace Professionnel
             </h1>
-            <p className="text-xs text-slate-500">
-              Agent de Santé Communautaire Qualifié (ASCQ)
+            <p className="text-xs text-slate-500 font-bold">
+              ASCQ
             </p>
           </div>
         </div>

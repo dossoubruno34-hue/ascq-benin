@@ -145,12 +145,12 @@ export default function InscriptionPage() {
 
     if (isTerrainRc) {
       if (motDePasse.length !== 4 || !/^\d{4}$/.test(motDePasse)) {
-        setErrorMsg("Le mot de passe pour le Relais Communautaire doit comporter exactement 4 chiffres (ex: 1234).");
+        setErrorMsg("Le mot de passe pour le RC doit comporter exactement 4 chiffres (ex: 1234).");
         setLoading(false);
         return;
       }
       if (!selectedDep || !selectedCom || !selectedArr) {
-        setErrorMsg("Veuillez sélectionner le département, la commune et l'arrondissement pour votre rattachement en tant que Relais Communautaire.");
+        setErrorMsg("Veuillez sélectionner le département, la commune et l'arrondissement pour votre rattachement en tant que RC.");
         setLoading(false);
         return;
       }
@@ -459,33 +459,33 @@ export default function InscriptionPage() {
                     }}
                     className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-slate-800"
                   >
-                    <optgroup label="Agents de Terrain & Communauté">
-                      <option value="ASCQ">Agent de Santé Communautaire Qualifié (ASCQ)</option>
-                      <option value="RC">Relais Communautaire (RC)</option>
+                    <optgroup label="Terrain">
+                      <option value="ASCQ">ASCQ</option>
+                      <option value="RC">RC</option>
                     </optgroup>
-                    <optgroup label="Niveau Communal (Périmètre Commune)">
-                      <option value="MCC">Médecin Coordonnateur de Commune (MCC)</option>
-                      <option value="PF_CCLS_TP">Point Focal CCLS-TP</option>
-                      <option value="CADRE_COMMUNAL">Responsable / Cadre Communal de Santé</option>
+                    <optgroup label="Commune">
+                      <option value="MCC">MCC</option>
+                      <option value="PF_CCLS_TP">PF CCLS-TP</option>
+                      <option value="CADRE_COMMUNAL">CADRE COMMUNE</option>
                     </optgroup>
-                    <optgroup label="Niveau Zone Sanitaire (Périmètre Zone)">
-                      <option value="MCZS">Médecin Coordonnateur de Zone Sanitaire (MCZS)</option>
-                      <option value="RCSE">Responsable CSE (RCSE)</option>
+                    <optgroup label="Zone Sanitaire">
+                      <option value="MCZS">MCZS</option>
+                      <option value="RCSE">RCSE</option>
                       <option value="C_RAMS">C-RAMS</option>
-                      <option value="CADRE_ZONE_SANITAIRE">Responsable / Cadre de Zone Sanitaire</option>
+                      <option value="CADRE_ZONE_SANITAIRE">CADRE ZONE</option>
                     </optgroup>
-                    <optgroup label="Niveau Départemental (Périmètre Département)">
-                      <option value="DDS">Directeur Départemental de la Santé (DDS)</option>
+                    <optgroup label="Département">
+                      <option value="DDS">DDS</option>
                       <option value="CCD_CDLS_TP">CCD CDLS-TP</option>
                       <option value="CSSPR">CSSPR</option>
                       <option value="CSPSMEMH">CSPSMEMH</option>
-                      <option value="CADRE_DEPARTEMENTAL">Responsable / Cadre Départemental</option>
+                      <option value="CADRE_DEPARTEMENTAL">CADRE DEPARTEMENT</option>
                     </optgroup>
-                    <optgroup label="Niveau National (Tout le Bénin)">
-                      <option value="CADRE_NATIONAL">Cadre / Responsable National (Ministère, DNSP, ANSSP)</option>
+                    <optgroup label="National">
+                      <option value="CADRE_NATIONAL">CADRE NATIONAL</option>
                     </optgroup>
                     <optgroup label="Autre">
-                      <option value="AUTRE">Autre fonction sanitaire</option>
+                      <option value="AUTRE">AUTRE</option>
                     </optgroup>
                   </select>
                 </div>
@@ -493,7 +493,7 @@ export default function InscriptionPage() {
                 {isTerrainRc && (
                   <div className="sm:col-span-2 p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs text-emerald-950 space-y-1">
                     <p className="font-extrabold text-emerald-900">
-                      ℹ️ Inscription d'un Relais Communautaire (RC)
+                      ℹ️ Inscription RC
                     </p>
                     <p className="text-[11px] leading-relaxed text-emerald-800">
                       Renseignez votre département, zone sanitaire, commune et arrondissement. Dès validation par l'ASCQ de votre arrondissement, votre compte sera affecté à votre village d'intervention et actif pour la connexion.
@@ -711,7 +711,7 @@ export default function InscriptionPage() {
             {showAscqProfil && (
               <div className="space-y-4 pt-2">
                 <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-2">
-                  4. Financement et Équipe de Relais
+                  4. Financement et Équipe RC
                 </h2>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -749,7 +749,7 @@ export default function InscriptionPage() {
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Nombre de Relais Communautaires (RC) en charge *
+                      Nombre de RC en charge *
                     </label>
                     <input
                       type="number"

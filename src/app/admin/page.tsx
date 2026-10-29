@@ -3306,25 +3306,25 @@ export default function AdminPage() {
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white"
                   >
                     <optgroup label="Niveau National">
-                      <option value="SUPER_ADMIN">👑 Super Administrateur National</option>
-                      <option value="ASCQ">ASCQ (Agent de Santé Communautaire Qualifié)</option>
+                      <option value="SUPER_ADMIN">SUPER ADMIN</option>
+                      <option value="ASCQ">ASCQ</option>
                     </optgroup>
                     <optgroup label="Niveau Départemental">
-                      <option value="REPRESENTANT_DEPARTEMENTAL">Représentant Départemental des ASCQ</option>
-                      <option value="DDS">DDS (Directeur Départemental de la Santé)</option>
-                      <option value="CCD_CDLS_TP">CCD CDLS-TP (Coordination Dép. CDLS-TP)</option>
-                      <option value="CSSPR">CSSPR (Chef Service Santé Publique & Réponse)</option>
-                      <option value="CSPSMEMH">CSPSMEMH (Chef Service Pharmacie & Santé Mère-Enfant)</option>
+                      <option value="REPRESENTANT_DEPARTEMENTAL">REP. DEPARTEMENTAL</option>
+                      <option value="DDS">DDS</option>
+                      <option value="CCD_CDLS_TP">CCD CDLS-TP</option>
+                      <option value="CSSPR">CSSPR</option>
+                      <option value="CSPSMEMH">CSPSMEMH</option>
                     </optgroup>
                     <optgroup label="Niveau Zone Sanitaire">
-                      <option value="MCZS">MCZS (Médecin Coordonnateur Zone Sanitaire)</option>
-                      <option value="RCSE">RCSE (Resp. Cellule Surveillance Épidémiologique)</option>
-                      <option value="C_RAMS">C-RAMS (Chargé Registre & Audit Mortalité)</option>
+                      <option value="MCZS">MCZS</option>
+                      <option value="RCSE">RCSE</option>
+                      <option value="C_RAMS">C-RAMS</option>
                     </optgroup>
                     <optgroup label="Niveau Communal">
-                      <option value="MCC">MCC (Médecin Coordonnateur de Commune)</option>
-                      <option value="REPRESENTANT_COMMUNAL">Représentant Communal des ASCQ</option>
-                      <option value="PF_CCLS_TP">PF CCLS-TP (Point Focal Santé Commune)</option>
+                      <option value="MCC">MCC</option>
+                      <option value="REPRESENTANT_COMMUNAL">REP. COMMUNAL</option>
+                      <option value="PF_CCLS_TP">PF CCLS-TP</option>
                     </optgroup>
                   </select>
                 </div>
@@ -3347,7 +3347,7 @@ export default function AdminPage() {
                     <option value="REPRESENTANT_COMMUNAL">REPRESENTANT_COMMUNAL (Valide ASCQ commune, alertes, rapports commune)</option>
                     <option value="ADMIN_COMMUNAL">ADMIN_COMMUNAL (PF CCLS-TP : Valide ASCQ commune, alertes)</option>
                     <option value="CADRE_COMMUNAL">CADRE_COMMUNAL (MCC : Rapports commune, alerte au représentant)</option>
-                    <option value="ASCQ">ASCQ (Agent de santé communautaire terrain)</option>
+                    <option value="ASCQ">ASCQ</option>
                   </select>
                 </div>
 

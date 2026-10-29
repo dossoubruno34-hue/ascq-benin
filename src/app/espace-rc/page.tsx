@@ -1427,7 +1427,7 @@ export default function EspaceRelaisPage() {
                   {rcData.ascq_nom} {rcData.ascq_prenoms}
                 </p>
                 <p className="text-xs text-slate-600 mt-0.5">
-                  Agent de Santé Communautaire Qualifié
+                  ASCQ
                 </p>
               </div>
 
