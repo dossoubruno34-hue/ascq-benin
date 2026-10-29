@@ -80,14 +80,18 @@ export default function MonEspacePage() {
 
     // Vérifier si l'utilisateur connecté est un Cadre / Responsable de santé (qui n'est pas ASCQ)
     const session = getCachedUserSession();
-    if (session?.userProfile && estCadreNonAscq(session.userProfile)) {
-      router.replace("/perimetre");
+    if (session?.profile && estCadreNonAscq(session.profile)) {
+      window.location.replace("/perimetre");
       return;
     }
 
     // 1. Charger immédiatement le cache local hors-ligne pour affichage instantané (0ms)
     const cached = getCachedMonEspace();
     if (cached) {
+      if (estCadreNonAscq(cached)) {
+        window.location.replace("/perimetre");
+        return;
+      }
       setEspaceData(cached);
       setTelephone(cached.telephone || "");
       setSourceFinancement(cached.source_financement || "LLF");
@@ -110,7 +114,7 @@ export default function MonEspacePage() {
         const { data, error } = await supabase.rpc("obtenir_mon_espace");
         if (!error && data && data.nom) {
           if (estCadreNonAscq(data)) {
-            router.replace("/perimetre");
+            window.location.replace("/perimetre");
             return;
           }
           setEspaceData(data);
@@ -171,7 +175,7 @@ export default function MonEspacePage() {
       }
 
       if (estCadreNonAscq(prof)) {
-        router.replace("/perimetre");
+        window.location.replace("/perimetre");
         return;
       }
 
@@ -244,6 +248,17 @@ export default function MonEspacePage() {
   };
 
   useEffect(() => {
+    // 0. Garde-fou immédiat synchrone dès le premier cycle
+    const session = getCachedUserSession();
+    if (session?.profile && estCadreNonAscq(session.profile)) {
+      window.location.replace("/perimetre");
+      return;
+    }
+    const cached = getCachedMonEspace();
+    if (cached && estCadreNonAscq(cached)) {
+      window.location.replace("/perimetre");
+      return;
+    }
     loadEspaceData();
   }, []);
 
@@ -391,6 +406,19 @@ export default function MonEspacePage() {
             </div>
           )}
         </div>
+      </div>
+    );
+  }
+
+  // Si l'utilisateur chargé est un Cadre (NON-ASCQ), bascule immédiate vers /perimetre
+  if (espaceData && estCadreNonAscq(espaceData)) {
+    if (typeof window !== "undefined") {
+      window.location.replace("/perimetre");
+    }
+    return (
+      <div className="min-h-screen bg-[#f4f7f5] flex flex-col items-center justify-center p-4 text-center space-y-3">
+        <RefreshCw className="w-8 h-8 animate-spin text-[#005c30]" />
+        <p className="text-xs font-bold text-slate-700">Redirection vers votre Périmètre de Gouvernance...</p>
       </div>
     );
   }

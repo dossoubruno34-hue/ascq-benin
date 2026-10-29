@@ -32,6 +32,7 @@ import {
   FileSpreadsheet
 } from "lucide-react";
 import { estCadreNonAscq, getTitreCadreOfficiel } from "@/lib/cadre-roles";
+import { getCachedUserSession } from "@/lib/offline-sync";
 
 interface Props {
   userProfile?: any;
@@ -66,8 +67,11 @@ export default function AscqNav({ userProfile }: Props) {
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
+  const cachedProfile = typeof window !== "undefined" ? getCachedUserSession()?.profile : null;
+  const activeUser = userProfile || cachedProfile;
+
   const [detectedRole, setDetectedRole] = useState<string | null>(
-    userProfile?.role_technique || null
+    activeUser?.role_technique || null
   );
 
   const [filtrePole, setFiltrePole] = useState<string>("TOUS");
@@ -93,8 +97,8 @@ export default function AscqNav({ userProfile }: Props) {
   };
 
   useEffect(() => {
-    if (userProfile?.role_technique) {
-      setDetectedRole(userProfile.role_technique);
+    if (activeUser?.role_technique) {
+      setDetectedRole(activeUser.role_technique);
     } else {
       supabase.rpc("obtenir_mon_profil").then(({ data }) => {
         if (data && data.length > 0) {
@@ -106,18 +110,18 @@ export default function AscqNav({ userProfile }: Props) {
   }, [userProfile]);
 
   const rolesToCheck = [
-    userProfile?.role_nomination,
-    userProfile?.role_technique,
-    userProfile?.poste,
-    userProfile?.poste_autre,
+    activeUser?.role_nomination,
+    activeUser?.role_technique,
+    activeUser?.poste,
+    activeUser?.poste_autre,
     detectedRole
   ].filter(Boolean) as string[];
 
-  const cleanTelNav = (userProfile?.telephone || "").replace(/\D/g, "");
+  const cleanTelNav = (activeUser?.telephone || "").replace(/\D/g, "");
   const isBrunoSuperAdmin = cleanTelNav.includes("69031463");
 
-  const isCadre = estCadreNonAscq(userProfile) || (detectedRole && estCadreNonAscq({ role_technique: detectedRole }));
-  const cadreTitreOfficiel = getTitreCadreOfficiel(userProfile || { role_technique: detectedRole });
+  const isCadre = estCadreNonAscq(activeUser) || (detectedRole && estCadreNonAscq({ role_technique: detectedRole }));
+  const cadreTitreOfficiel = getTitreCadreOfficiel(activeUser || { role_technique: detectedRole });
 
   const isRepresentant = isBrunoSuperAdmin || rolesToCheck.some((r) => 
     REPRESENTANT_ROLES.includes(r) ||
@@ -244,7 +248,7 @@ export default function AscqNav({ userProfile }: Props) {
                   )}
                 </div>
                 <p className="text-[11px] text-white/80">
-                  {userProfile ? `${userProfile.prenoms} ${userProfile.nom}` : isCadre ? "Cadre de Supervision" : "Espace ASCQ"}
+                  {activeUser ? `${activeUser.prenoms} ${activeUser.nom}` : isCadre ? "Cadre de Supervision" : "Espace ASCQ"}
                 </p>
               </div>
             </Link>
