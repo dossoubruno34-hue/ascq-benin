@@ -2,7 +2,6 @@
 
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import AscqNav from "@/components/AscqNav";
@@ -13,6 +12,17 @@ import {
   LIGNES_GRILLE_OFFICIELLE_UNICEF,
   MaladieSimr 
 } from "@/data/guideMaladiesEtVaccins";
+import {
+  TABLE_ORIENTATION_SIGNES,
+  PROTOCOLES_SECOURISME,
+  GUIDE_SANTE_MATERNELLE,
+  ATTRIBUTIONS_OFFICIELLES_ASC,
+  PROTOCOLE_VAD_OFFICIEL,
+  NUMEROS_URGENCE_BENIN,
+  SigneOrientation,
+  ProtocoleSecourisme,
+  FichePratiqueMaternelle
+} from "@/data/guideCliniquePratique";
 import { 
   Search, 
   AlertTriangle, 
@@ -24,7 +34,6 @@ import {
   MapPin, 
   Activity, 
   Printer, 
-  ExternalLink, 
   HelpCircle,
   Clock,
   Sparkles,
@@ -33,22 +42,55 @@ import {
   Flame,
   Globe2,
   FileText,
-  Lock
+  PhoneCall,
+  HeartPulse,
+  Ban,
+  ShieldCheck,
+  Thermometer,
+  Droplets,
+  Wind,
+  Brain,
+  Heart,
+  ChevronDown,
+  ChevronUp,
+  Stethoscope,
+  Info
 } from "lucide-react";
+
+type MainTab = 
+  | "signes" 
+  | "maladies" 
+  | "vaccins" 
+  | "maternelle" 
+  | "secourisme" 
+  | "organisation";
+
+type MaladieSubFilter = 
+  | "tous" 
+  | "epidemies" 
+  | "elimination" 
+  | "sante_publique" 
+  | "portee_internationale";
 
 export default function BriefingPage() {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
 
-  const [activeTab, setActiveTab] = useState<
-    "tous" | "epidemies" | "elimination" | "sante_publique" | "portee_internationale" | "vaccins"
-  >("vaccins");
+  // Navigation par Onglets
+  const [activeTab, setActiveTab] = useState<MainTab>("signes");
+  const [maladieFilter, setMaladieFilter] = useState<MaladieSubFilter>("tous");
+  const [signeCategoryFilter, setSigneCategoryFilter] = useState<string>("tous");
+  
+  // Recherche globale
   const [searchQuery, setSearchQuery] = useState("");
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  
+  // Modes d'affichage
   const [vueVaccinMode, setVueVaccinMode] = useState<"grille" | "detail">("grille");
+  const [expandedDiseaseId, setExpandedDiseaseId] = useState<string | null>(null);
+  const [selectedSecourismeId, setSelectedSecourismeId] = useState<string | null>(null);
 
-  // Vérification de sécurité : espace strictement réservé aux utilisateurs connectés à un compte
+  // Vérification de sécurité de la session
   useEffect(() => {
     async function verifierConnexion() {
       try {
@@ -75,15 +117,29 @@ export default function BriefingPage() {
     verifierConnexion();
   }, [router]);
 
-  // Filtrage intelligent selon l'onglet et le mot-clé
-  const filteredMaladies = useMemo(() => {
-    return GUIDE_MALADIES_SIMR.filter((m) => {
-      // Filtre catégorie
-      if (activeTab !== "tous" && activeTab !== "vaccins" && m.categorieId !== activeTab) {
+  // Filtrage des signes cliniques (« Je vois... je pense à... »)
+  const filteredSignes = useMemo(() => {
+    return TABLE_ORIENTATION_SIGNES.filter((s) => {
+      if (signeCategoryFilter !== "tous" && s.iconType !== signeCategoryFilter) {
         return false;
       }
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase();
+      return (
+        s.signePrincipal.toLowerCase().includes(q) ||
+        s.descriptionSigne.toLowerCase().includes(q) ||
+        s.maladieCible.toLowerCase().includes(q) ||
+        s.conduiteImmediate.toLowerCase().includes(q)
+      );
+    });
+  }, [signeCategoryFilter, searchQuery]);
 
-      // Filtre texte
+  // Filtrage des maladies SIMR (34)
+  const filteredMaladies = useMemo(() => {
+    return GUIDE_MALADIES_SIMR.filter((m) => {
+      if (maladieFilter !== "tous" && m.categorieId !== maladieFilter) {
+        return false;
+      }
       if (!searchQuery.trim()) return true;
       const q = searchQuery.toLowerCase();
       const inNom = m.nom.toLowerCase().includes(q);
@@ -91,10 +147,31 @@ export default function BriefingPage() {
       const inSignes = m.signesAlerte.some((s) => s.toLowerCase().includes(q));
       const inContexte = m.contexteBenin.toLowerCase().includes(q);
       const inConduite = m.conduiteAscq.toLowerCase().includes(q);
-
       return inNom || inDesc || inSignes || inContexte || inConduite;
     });
-  }, [activeTab, searchQuery]);
+  }, [maladieFilter, searchQuery]);
+
+  // Filtrage secourisme
+  const filteredSecourisme = useMemo(() => {
+    if (!searchQuery.trim()) return PROTOCOLES_SECOURISME;
+    const q = searchQuery.toLowerCase();
+    return PROTOCOLES_SECOURISME.filter(p => 
+      p.titre.toLowerCase().includes(q) ||
+      p.situation.toLowerCase().includes(q) ||
+      p.gestesCles.some(g => g.toLowerCase().includes(q))
+    );
+  }, [searchQuery]);
+
+  // Filtrage santé maternelle
+  const filteredMaternelle = useMemo(() => {
+    if (!searchQuery.trim()) return GUIDE_SANTE_MATERNELLE;
+    const q = searchQuery.toLowerCase();
+    return GUIDE_SANTE_MATERNELLE.filter(m => 
+      m.titre.toLowerCase().includes(q) ||
+      m.pointsCles.some(p => p.toLowerCase().includes(q)) ||
+      m.signesDanger.some(s => s.toLowerCase().includes(q))
+    );
+  }, [searchQuery]);
 
   if (authLoading) {
     return (
@@ -102,7 +179,7 @@ export default function BriefingPage() {
         <div className="text-center space-y-3">
           <div className="w-10 h-10 border-4 border-[#005c30] border-t-transparent rounded-full animate-spin mx-auto"></div>
           <p className="font-bold text-xs sm:text-sm text-slate-700">
-            Vérification de l'accès sécurisé au Guide SIMR...
+            Chargement du Centre de Référence Clinique & Guides Nationaux...
           </p>
         </div>
       </div>
@@ -111,18 +188,35 @@ export default function BriefingPage() {
 
   const retourLien = currentUser?.poste === "RC" ? "/espace-rc" : "/espace-ascq";
 
+  // Helper pour l'icône de signe clinique
+  const renderSigneIcon = (type: string) => {
+    switch (type) {
+      case "fever": return <Thermometer className="w-5 h-5 text-red-600" />;
+      case "diarrhea": return <Droplets className="w-5 h-5 text-amber-600" />;
+      case "lungs": return <Wind className="w-5 h-5 text-blue-600" />;
+      case "neuro": return <Brain className="w-5 h-5 text-purple-600" />;
+      case "skin": return <Sparkles className="w-5 h-5 text-rose-600" />;
+      case "maternal": return <Baby className="w-5 h-5 text-pink-600" />;
+      case "bite": return <AlertTriangle className="w-5 h-5 text-orange-600" />;
+      default: return <Activity className="w-5 h-5 text-emerald-600" />;
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-[#f8faf9] text-slate-800 antialiased pb-20">
+    <div className="min-h-screen bg-[#f8faf9] text-slate-800 antialiased pb-24">
       
-      {/* 1. En-tête : AscqNav pour ASCQ / Cadres, ou header dédié pour RC */}
+      {/* 1. Header Officiel */}
       {currentUser?.poste === "RC" ? (
         <header className="bg-[#005c30] text-white shadow-md print:hidden">
-          <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between gap-3">
+          <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between gap-3">
             <Link href={retourLien} className="flex items-center gap-2 text-white hover:text-emerald-200 transition-colors">
               <ArrowLeft className="w-4 h-4" />
               <span className="text-xs font-bold">Retour Espace RC</span>
             </Link>
-            <h1 className="text-sm font-extrabold truncate">Guide SIMR & Calendrier Vaccinal</h1>
+            <div className="text-center truncate">
+              <h1 className="text-xs sm:text-sm font-extrabold truncate">Guide Clinique & Pratique ASCQ / RC</h1>
+              <span className="text-[10px] text-emerald-200">République du Bénin • Ministère de la Santé</span>
+            </div>
             <button
               onClick={() => window.print()}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-xs"
@@ -141,24 +235,25 @@ export default function BriefingPage() {
         <AscqNav userProfile={currentUser} />
       )}
 
-      {/* 2. Titre et Bandeau du module */}
-      <div className="bg-gradient-to-b from-[#005c30]/10 to-transparent pt-6 pb-4">
-        <div className="max-w-5xl mx-auto px-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      {/* 2. Bandeau National & Numéros d'urgence */}
+      <div className="bg-gradient-to-b from-[#005c30]/15 via-[#005c30]/5 to-transparent pt-6 pb-4">
+        <div className="max-w-6xl mx-auto px-4 space-y-4">
+          
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div>
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 text-emerald-900 font-black text-[11px] uppercase tracking-wider mb-2">
-                <BookOpen className="w-3.5 h-3.5" />
-                <span>Référentiel National SIMR & PEV</span>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 text-emerald-950 font-black text-[11px] uppercase tracking-wider mb-2 border border-emerald-200 shadow-2xs">
+                <BookOpen className="w-3.5 h-3.5 text-emerald-700" />
+                <span>Centre National de Référence Clinique Communautaire</span>
               </div>
               <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-                Guide des Maladies & Calendrier Vaccinal
+                Guide des Pratiques, Maladies SIMR & PEV
               </h1>
-              <p className="text-xs sm:text-sm text-slate-600 mt-1 max-w-2xl">
-                Définitions simples au niveau communautaire pour les ASCQ, Relais Communautaires, professionnels de santé et citoyens. Conforme aux protocoles officiels de la Surveillance Intégrée des Maladies et Riposte (SIMR) et du Programme Élargi de Vaccination (PEV) du Bénin.
+              <p className="text-xs sm:text-sm text-slate-600 mt-1 max-w-3xl leading-relaxed">
+                Référentiel officiel standardisé à l'usage des <strong>ASCQ</strong>, <strong>Relais Communautaires</strong>, équipes d'arrondissement et superviseurs. Conforme au <em>Guide de l'ASC (CNLS-TP Présidence du Bénin, 2020)</em> et au <em>Guide Communautaire des Maladies sous Surveillance (SIMR & PEV, Octobre 2026)</em>.
               </p>
             </div>
 
-            <div className="flex sm:flex-col items-center sm:items-end gap-2 shrink-0">
+            <div className="flex items-center gap-2 shrink-0 flex-wrap">
               <Link
                 href="/fiches/alerte/nouvelle"
                 className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-black text-xs shadow-md active:scale-95 transition-all"
@@ -168,8 +263,8 @@ export default function BriefingPage() {
               </Link>
               <button
                 onClick={() => window.print()}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white text-slate-700 hover:bg-slate-50 font-bold text-xs border border-slate-200 shadow-xs transition-colors"
-                title="Imprimer ce guide ou l'enregistrer en PDF"
+                className="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-2xl bg-white text-slate-700 hover:bg-slate-50 font-bold text-xs border border-slate-200 shadow-xs transition-colors"
+                title="Imprimer ce guide complet ou sauvegarder en PDF"
               >
                 <Printer className="w-3.5 h-3.5 text-slate-500" />
                 <span>Imprimer / PDF</span>
@@ -177,8 +272,39 @@ export default function BriefingPage() {
             </div>
           </div>
 
-          {/* Barre de recherche */}
-          <div className="mt-6 relative">
+          {/* Bandeau permanent des numéros d'urgence nationaux */}
+          <div className="bg-white rounded-2xl p-3 sm:p-4 border border-slate-200/90 shadow-2xs">
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <span className="text-[11px] font-black uppercase text-slate-600 flex items-center gap-1.5 tracking-wider">
+                <PhoneCall className="w-3.5 h-3.5 text-red-600" />
+                Lignes d'Urgence Sanitaire & Secours au Bénin (Appel Direct) :
+              </span>
+              <span className="text-[10px] text-slate-400 hidden sm:inline">24h/24 • 7j/7</span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+              {NUMEROS_URGENCE_BENIN.map((num, nIdx) => (
+                <a
+                  key={nIdx}
+                  href={num.call}
+                  className="p-2 rounded-xl bg-slate-50 hover:bg-emerald-50 border border-slate-200/80 hover:border-emerald-300 transition-all group flex flex-col justify-between"
+                  title={`Appeler ${num.nom}`}
+                >
+                  <span className="text-[10px] text-slate-500 font-bold block truncate">
+                    {num.badge}
+                  </span>
+                  <div className="flex items-center justify-between mt-1">
+                    <span className="font-black text-xs text-slate-900 group-hover:text-emerald-700">
+                      {num.numero}
+                    </span>
+                    <PhoneCall className="w-3 h-3 text-emerald-600 group-hover:scale-110 transition-transform" />
+                  </div>
+                </a>
+              ))}
+            </div>
+          </div>
+
+          {/* Barre de Recherche Globale */}
+          <div className="relative">
             <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
               <Search className="w-5 h-5" />
             </span>
@@ -186,114 +312,459 @@ export default function BriefingPage() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Rechercher une maladie, un vaccin, un signe (ex: fièvre, lassa, choléra, sang, nuque, vaccin...)"
-              className="w-full text-sm sm:text-base rounded-2xl border border-slate-200/90 bg-white pl-11 pr-4 py-3 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent placeholder:text-slate-400"
+              placeholder="Rechercher par signe, maladie, vaccin, urgence, geste ou mot-clé (ex: diarrhée riz, lassa, cordon 7,1%, shakir, étouffement, samu...)"
+              className="w-full text-xs sm:text-sm rounded-2xl border border-slate-200 bg-white pl-11 pr-10 py-3 shadow-xs focus:outline-none focus:ring-2 focus:ring-[#005c30] focus:border-transparent placeholder:text-slate-400"
             />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-xs font-bold text-slate-400 hover:text-slate-700"
+              >
+                ✕
+              </button>
+            )}
           </div>
 
-          {/* 3. Sélecteur d'onglets horizontaux (scrollable mobile) */}
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pt-4 pb-1">
+          {/* 3. Sélecteur des Grands Thèmes Professionnels */}
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pt-2 pb-1">
+            
+            {/* Onglet 1 : Orientation par le signe */}
             <button
-              onClick={() => setActiveTab("vaccins")}
-              className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all shadow-sm ${
+              onClick={() => { setActiveTab("signes"); }}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-black whitespace-nowrap transition-all shadow-2xs ${
+                activeTab === "signes"
+                  ? "bg-[#005c30] text-white ring-2 ring-[#005c30]/20"
+                  : "bg-white text-slate-700 hover:bg-slate-100 border border-slate-200"
+              }`}
+            >
+              <Stethoscope className="w-3.5 h-3.5 text-emerald-300" />
+              <span>« Je vois... je pense à... » ({TABLE_ORIENTATION_SIGNES.length})</span>
+            </button>
+
+            {/* Onglet 2 : Maladies SIMR */}
+            <button
+              onClick={() => { setActiveTab("maladies"); }}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-black whitespace-nowrap transition-all shadow-2xs ${
+                activeTab === "maladies"
+                  ? "bg-[#005c30] text-white ring-2 ring-[#005c30]/20"
+                  : "bg-white text-slate-700 hover:bg-slate-100 border border-slate-200"
+              }`}
+            >
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+              <span>Maladies SIMR ({GUIDE_MALADIES_SIMR.length})</span>
+            </button>
+
+            {/* Onglet 3 : Calendrier PEV */}
+            <button
+              onClick={() => { setActiveTab("vaccins"); }}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-black whitespace-nowrap transition-all shadow-2xs ${
                 activeTab === "vaccins"
                   ? "bg-[#005c30] text-white ring-2 ring-[#005c30]/20"
-                  : "bg-white text-slate-700 hover:bg-slate-100 border border-slate-200/80"
+                  : "bg-white text-slate-700 hover:bg-slate-100 border border-slate-200"
               }`}
             >
-              <Syringe className="w-3.5 h-3.5 text-amber-300" />
-              <span>Calendrier Vaccinal Bénin (PEV)</span>
+              <Syringe className="w-3.5 h-3.5 text-teal-300" />
+              <span>Calendrier Vaccinal (PEV)</span>
             </button>
 
+            {/* Onglet 4 : Santé Maternelle & CPN */}
             <button
-              onClick={() => setActiveTab("tous")}
-              className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all shadow-sm ${
-                activeTab === "tous"
+              onClick={() => { setActiveTab("maternelle"); }}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-black whitespace-nowrap transition-all shadow-2xs ${
+                activeTab === "maternelle"
                   ? "bg-[#005c30] text-white ring-2 ring-[#005c30]/20"
-                  : "bg-white text-slate-700 hover:bg-slate-100 border border-slate-200/80"
+                  : "bg-white text-slate-700 hover:bg-slate-100 border border-slate-200"
               }`}
             >
-              <BookOpen className="w-3.5 h-3.5" />
-              <span>Toutes les maladies ({GUIDE_MALADIES_SIMR.length})</span>
+              <Baby className="w-3.5 h-3.5 text-pink-300" />
+              <span>Santé Maternelle & Nouveau-Né</span>
             </button>
 
+            {/* Onglet 5 : Secourisme d'Urgence */}
             <button
-              onClick={() => setActiveTab("epidemies")}
-              className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all shadow-sm ${
-                activeTab === "epidemies"
+              onClick={() => { setActiveTab("secourisme"); }}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-black whitespace-nowrap transition-all shadow-2xs ${
+                activeTab === "secourisme"
                   ? "bg-red-700 text-white ring-2 ring-red-700/20"
                   : "bg-white text-red-700 hover:bg-red-50 border border-red-200"
               }`}
             >
-              <Flame className="w-3.5 h-3.5 text-red-500" />
-              <span>Potentiel Épidémique (Urgent)</span>
+              <HeartPulse className="w-3.5 h-3.5 text-red-300" />
+              <span>Secourisme & Premiers Gestes</span>
             </button>
 
+            {/* Onglet 6 : Organisation ASC & VAD */}
             <button
-              onClick={() => setActiveTab("elimination")}
-              className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all shadow-sm ${
-                activeTab === "elimination"
-                  ? "bg-purple-700 text-white ring-2 ring-purple-700/20"
-                  : "bg-white text-purple-700 hover:bg-purple-50 border border-purple-200"
+              onClick={() => { setActiveTab("organisation"); }}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-black whitespace-nowrap transition-all shadow-2xs ${
+                activeTab === "organisation"
+                  ? "bg-[#005c30] text-white ring-2 ring-[#005c30]/20"
+                  : "bg-white text-slate-700 hover:bg-slate-100 border border-slate-200"
               }`}
             >
-              <ShieldAlert className="w-3.5 h-3.5 text-purple-500" />
-              <span>Élimination & Éradication</span>
+              <ShieldCheck className="w-3.5 h-3.5 text-blue-300" />
+              <span>Organisation & VAD Terrain</span>
             </button>
 
-            <button
-              onClick={() => setActiveTab("sante_publique")}
-              className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all shadow-sm ${
-                activeTab === "sante_publique"
-                  ? "bg-blue-700 text-white ring-2 ring-blue-700/20"
-                  : "bg-white text-blue-700 hover:bg-blue-50 border border-blue-200"
-              }`}
-            >
-              <Activity className="w-3.5 h-3.5 text-blue-500" />
-              <span>Santé Publique & Urgences</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab("portee_internationale")}
-              className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all shadow-sm ${
-                activeTab === "portee_internationale"
-                  ? "bg-amber-600 text-white ring-2 ring-amber-600/20"
-                  : "bg-white text-amber-700 hover:bg-amber-50 border border-amber-200"
-              }`}
-            >
-              <Globe2 className="w-3.5 h-3.5 text-amber-500" />
-              <span>Portée Internationale</span>
-            </button>
           </div>
+
         </div>
       </div>
 
       {/* 4. Contenu Principal */}
-      <main className="max-w-5xl mx-auto px-4 mt-4">
+      <main className="max-w-6xl mx-auto px-4 mt-4">
         
         {/* ========================================================= */}
-        {/* ONGLET 1 : CALENDRIER VACCINAL OFFICIEL DU BÉNIN          */}
+        {/* THÈME 1 : TABLE D'ORIENTATION RAPIDE (« Je vois... »)      */}
+        {/* ========================================================= */}
+        {activeTab === "signes" && (
+          <div className="space-y-4">
+            
+            {/* Entête thématique */}
+            <div className="bg-white rounded-3xl p-5 sm:p-6 border border-emerald-200 shadow-2xs relative overflow-hidden">
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-md bg-emerald-100 text-emerald-950">
+                    Outil de Triage Clinique Communautaire
+                  </span>
+                  <h2 className="text-lg sm:text-xl font-black text-slate-900">
+                    Table d'Orientation Clinique : « Je vois… je pense à… »
+                  </h2>
+                  <p className="text-xs text-slate-600 max-w-3xl leading-relaxed">
+                    Face à un patient ou un événement sanitaire inhabituel dans la communauté, identifiez immédiatement le tableau clinique, la pathologie sous surveillance suspectée et la conduite à tenir sans perte de temps.
+                  </p>
+                </div>
+                <div className="text-right shrink-0">
+                  <span className="text-xs font-bold text-slate-500">
+                    {filteredSignes.length} situation(s) listée(s)
+                  </span>
+                </div>
+              </div>
+
+              {/* Sous-filtres par catégorie de signes */}
+              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+                {[
+                  { id: "tous", label: "Tous les signes" },
+                  { id: "fever", label: "🌡️ Fièvre" },
+                  { id: "diarrhea", label: "💧 Diarrhée & Digestif" },
+                  { id: "lungs", label: "🫁 Respiration & Toux" },
+                  { id: "neuro", label: "🧠 Neurologique & Paralysie" },
+                  { id: "skin", label: "🩹 Peau & Éruptions" },
+                  { id: "bite", label: "🐍 Morsures & Venins" },
+                  { id: "maternal", label: "🤰 Mère & Nouveau-né" }
+                ].map((cat) => (
+                  <button
+                    key={cat.id}
+                    onClick={() => setSigneCategoryFilter(cat.id)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                      signeCategoryFilter === cat.id
+                        ? "bg-[#005c30] text-white shadow-2xs"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
+                  >
+                    {cat.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Grille des cartes de signes */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+              {filteredSignes.map((signe) => {
+                const badgeAlert = {
+                  URGENCE_IMMEDIATE: { bg: "bg-red-50 text-red-800 border-red-200", label: "Urgence Immédiate" },
+                  ELIMINATION: { bg: "bg-purple-50 text-purple-800 border-purple-200", label: "Élimination" },
+                  SANTE_PUBLIQUE: { bg: "bg-blue-50 text-blue-800 border-blue-200", label: "Santé Publique" },
+                  ALERTE_MONDIALE: { bg: "bg-amber-50 text-amber-900 border-amber-200", label: "Alerte RSI" },
+                }[signe.niveauAlerte];
+
+                return (
+                  <div
+                    key={signe.id}
+                    className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-200/90 shadow-2xs hover:shadow-md transition-shadow flex flex-col justify-between space-y-3"
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
+                            {renderSigneIcon(signe.iconType)}
+                          </div>
+                          <div>
+                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">
+                              Je vois...
+                            </span>
+                            <h3 className="font-black text-sm sm:text-base text-slate-900 leading-snug">
+                              {signe.signePrincipal}
+                            </h3>
+                          </div>
+                        </div>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border uppercase tracking-wider shrink-0 ${badgeAlert.bg}`}>
+                          {badgeAlert.label}
+                        </span>
+                      </div>
+
+                      <p className="text-xs text-slate-600 leading-relaxed pl-10">
+                        {signe.descriptionSigne}
+                      </p>
+
+                      <div className="bg-emerald-50/70 rounded-2xl p-3 border border-emerald-200/80 space-y-1">
+                        <span className="text-[10px] font-black uppercase text-emerald-800 tracking-wider block">
+                          👉 Je pense immédiatement à :
+                        </span>
+                        <p className="font-extrabold text-xs sm:text-sm text-emerald-950">
+                          {signe.maladieCible}
+                        </p>
+                      </div>
+
+                      <div className="bg-slate-50 rounded-2xl p-3 border border-slate-200/80 space-y-1">
+                        <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider block">
+                          ⚡ Conduite réflexe de l'ASCQ / RC :
+                        </span>
+                        <p className="text-xs text-slate-800 leading-relaxed">
+                          {signe.conduiteImmediate}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+                      <button
+                        onClick={() => {
+                          setActiveTab("maladies");
+                          setSearchQuery(signe.maladieCible.split(" ")[0]);
+                        }}
+                        className="text-xs font-bold text-[#005c30] hover:underline inline-flex items-center gap-1"
+                      >
+                        <BookOpen className="w-3.5 h-3.5" />
+                        <span>Consulter la fiche maladie</span>
+                      </button>
+
+                      <Link
+                        href={`/fiches/alerte/nouvelle?motif=${encodeURIComponent(signe.maladieCible)}`}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 font-bold text-xs border border-red-200 transition-colors"
+                      >
+                        <ShieldAlert className="w-3.5 h-3.5" />
+                        <span>Alerter</span>
+                      </Link>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {filteredSignes.length === 0 && (
+              <div className="bg-white rounded-3xl p-8 border border-slate-200 text-center space-y-2">
+                <HelpCircle className="w-10 h-10 text-slate-400 mx-auto" />
+                <p className="font-bold text-sm text-slate-700">Aucun signe ne correspond à votre recherche « {searchQuery} ».</p>
+                <button
+                  onClick={() => { setSearchQuery(""); setSigneCategoryFilter("tous"); }}
+                  className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold hover:bg-slate-200"
+                >
+                  Réinitialiser
+                </button>
+              </div>
+            )}
+
+          </div>
+        )}
+
+        {/* ========================================================= */}
+        {/* THÈME 2 : LES 34 MALADIES SIMR BÉNIN                       */}
+        {/* ========================================================= */}
+        {activeTab === "maladies" && (
+          <div className="space-y-4">
+            
+            {/* Sélecteur de sous-catégories SIMR */}
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
+              <button
+                onClick={() => setMaladieFilter("tous")}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                  maladieFilter === "tous"
+                    ? "bg-[#005c30] text-white shadow-2xs"
+                    : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-100"
+                }`}
+              >
+                Toutes ({GUIDE_MALADIES_SIMR.length})
+              </button>
+              <button
+                onClick={() => setMaladieFilter("epidemies")}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                  maladieFilter === "epidemies"
+                    ? "bg-red-700 text-white shadow-2xs"
+                    : "bg-white text-red-700 border border-red-200 hover:bg-red-50"
+                }`}
+              >
+                <Flame className="w-3.5 h-3.5 inline mr-1" />
+                Potentiel Épidémique (13)
+              </button>
+              <button
+                onClick={() => setMaladieFilter("elimination")}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                  maladieFilter === "elimination"
+                    ? "bg-purple-700 text-white shadow-2xs"
+                    : "bg-white text-purple-700 border border-purple-200 hover:bg-purple-50"
+                }`}
+              >
+                <ShieldAlert className="w-3.5 h-3.5 inline mr-1" />
+                Élimination & Éradication (9)
+              </button>
+              <button
+                onClick={() => setMaladieFilter("sante_publique")}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                  maladieFilter === "sante_publique"
+                    ? "bg-blue-700 text-white shadow-2xs"
+                    : "bg-white text-blue-700 border border-blue-200 hover:bg-blue-50"
+                }`}
+              >
+                <Activity className="w-3.5 h-3.5 inline mr-1" />
+                Santé Publique & iCCM (10)
+              </button>
+              <button
+                onClick={() => setMaladieFilter("portee_internationale")}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                  maladieFilter === "portee_internationale"
+                    ? "bg-amber-600 text-white shadow-2xs"
+                    : "bg-white text-amber-700 border border-amber-200 hover:bg-amber-50"
+                }`}
+              >
+                <Globe2 className="w-3.5 h-3.5 inline mr-1" />
+                Portée Internationale (2)
+              </button>
+            </div>
+
+            {/* Compteur */}
+            <div className="flex items-center justify-between px-1 text-xs text-slate-500 font-medium">
+              <span>{filteredMaladies.length} maladie(s) répertoriée(s)</span>
+              {searchQuery && (
+                <button onClick={() => setSearchQuery("")} className="text-emerald-700 font-bold hover:underline">
+                  Effacer le filtre
+                </button>
+              )}
+            </div>
+
+            {/* Liste des Fiches SIMR */}
+            <div className="grid grid-cols-1 gap-4">
+              {filteredMaladies.map((m) => {
+                const isExpanded = expandedDiseaseId === m.id || searchQuery.length > 0;
+                const badgeAlert = {
+                  URGENCE_IMMEDIATE: { bg: "bg-red-50 text-red-800 border-red-200", label: "Urgence Immédiate" },
+                  ELIMINATION: { bg: "bg-purple-50 text-purple-800 border-purple-200", label: "Élimination" },
+                  SANTE_PUBLIQUE: { bg: "bg-blue-50 text-blue-800 border-blue-200", label: "Santé Publique" },
+                  ALERTE_MONDIALE: { bg: "bg-amber-50 text-amber-900 border-amber-200", label: "Alerte RSI" },
+                }[m.badgeUrgence];
+
+                return (
+                  <article
+                    key={m.id}
+                    className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/90 shadow-2xs hover:shadow-md transition-shadow space-y-4"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black border uppercase tracking-wider ${badgeAlert.bg}`}>
+                            {badgeAlert.label}
+                          </span>
+                          <span className="text-[11px] text-slate-400 font-medium">
+                            {m.categorieNom}
+                          </span>
+                        </div>
+                        <h3 className="text-lg sm:text-xl font-black text-slate-900">
+                          {m.nom}
+                        </h3>
+                      </div>
+
+                      <div className="flex items-center gap-2 self-start sm:self-auto">
+                        {m.boutonAlerte && (
+                          <Link
+                            href={`/fiches/alerte/nouvelle?motif=${encodeURIComponent(m.nom)}`}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 font-bold text-xs border border-red-200 shrink-0 transition-colors"
+                          >
+                            <ShieldAlert className="w-3.5 h-3.5" />
+                            <span>Alerter sur ce cas</span>
+                          </Link>
+                        )}
+                        <button
+                          onClick={() => setExpandedDiseaseId(isExpanded ? null : m.id)}
+                          className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 sm:hidden"
+                          title="Déplier / Replier"
+                        >
+                          {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="text-xs sm:text-sm text-slate-700 leading-relaxed">
+                      <strong className="text-slate-900 font-bold">C'est quoi ?</strong> {m.description}
+                    </div>
+
+                    {/* Signes d'alerte */}
+                    <div className="bg-amber-50/70 rounded-2xl p-3.5 sm:p-4 border border-amber-200/80 space-y-2">
+                      <div className="flex items-center gap-1.5 text-xs font-black text-amber-900 uppercase tracking-wide">
+                        <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                        <span>Signes communautaires qui doivent alerter</span>
+                      </div>
+                      <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs text-amber-950 font-medium">
+                        {m.signesAlerte.map((signe, sIdx) => (
+                          <li key={sIdx} className="flex items-start gap-1.5">
+                            <span className="text-amber-600 font-bold">•</span>
+                            <span>{signe}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {/* Bloc repliable sur mobile si non cherché */}
+                    <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 text-xs ${!isExpanded ? "hidden sm:grid" : "grid"}`}>
+                      {/* Contexte Bénin */}
+                      <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-200/80 space-y-1">
+                        <div className="flex items-center gap-1.5 font-bold text-slate-900">
+                          <MapPin className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>Contexte & zones à risque au Bénin</span>
+                        </div>
+                        <p className="text-slate-600 leading-relaxed text-[11px] sm:text-xs">
+                          {m.contexteBenin}
+                        </p>
+                      </div>
+
+                      {/* Conduite immédiate */}
+                      <div className="bg-emerald-50/60 rounded-2xl p-3.5 border border-emerald-200/80 space-y-1">
+                        <div className="flex items-center gap-1.5 font-bold text-emerald-950">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
+                          <span>Que faire immédiatement (ASCQ / Relais)</span>
+                        </div>
+                        <p className="text-emerald-900 leading-relaxed text-[11px] sm:text-xs">
+                          {m.conduiteAscq}
+                        </p>
+                      </div>
+                    </div>
+
+                  </article>
+                );
+              })}
+            </div>
+
+          </div>
+        )}
+
+        {/* ========================================================= */}
+        {/* THÈME 3 : CALENDRIER VACCINAL OFFICIEL PEV BÉNIN          */}
         {/* ========================================================= */}
         {activeTab === "vaccins" && (
           <div className="space-y-6">
             
-            {/* Carte d'introduction officielle */}
-            <div className="bg-white rounded-3xl p-5 sm:p-6 border border-emerald-200 shadow-sm relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-50 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none"></div>
-              
+            <div className="bg-white rounded-3xl p-5 sm:p-6 border border-emerald-200 shadow-2xs relative overflow-hidden">
               <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                 <div className="flex items-start gap-3">
                   <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
                     <Syringe className="w-5 h-5" />
                   </div>
-                  <div className="space-y-1.5">
+                  <div className="space-y-1">
                     <span className="text-[10px] font-black tracking-wider uppercase px-2.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800">
                       Programme Élargi de Vaccination (PEV Bénin) & UNICEF
                     </span>
                     <h2 className="text-lg sm:text-xl font-black text-slate-900">
                       Calendrier Vaccinal de Routine & Supplémentation Nutritionnelle
                     </h2>
-                    <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                    <p className="text-xs sm:text-sm text-slate-600 leading-relaxed max-w-2xl">
                       {CALENDRIER_VACCINAL_BENIN.introduction}
                     </p>
                   </div>
@@ -302,21 +773,21 @@ export default function BriefingPage() {
                 <button
                   type="button"
                   onClick={() => window.print()}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold text-xs hover:bg-emerald-100 transition-colors shrink-0 print:hidden shadow-xs"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold text-xs hover:bg-emerald-100 transition-colors shrink-0 print:hidden"
                 >
                   <Printer className="w-4 h-4 text-emerald-600" />
                   <span>Imprimer le Calendrier</span>
                 </button>
               </div>
 
-              {/* Sélecteur de vue : Grille officielle UNICEF vs Vue chronologique */}
+              {/* Mode d'affichage */}
               <div className="mt-5 pt-4 border-t border-slate-100 flex items-center gap-2 print:hidden">
                 <button
                   type="button"
                   onClick={() => setVueVaccinMode("grille")}
                   className={`flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${
                     vueVaccinMode === "grille"
-                      ? "bg-[#005c30] text-white shadow-sm ring-2 ring-[#005c30]/20"
+                      ? "bg-[#005c30] text-white shadow-2xs ring-2 ring-[#005c30]/20"
                       : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                   }`}
                 >
@@ -328,7 +799,7 @@ export default function BriefingPage() {
                   onClick={() => setVueVaccinMode("detail")}
                   className={`flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${
                     vueVaccinMode === "detail"
-                      ? "bg-[#005c30] text-white shadow-sm ring-2 ring-[#005c30]/20"
+                      ? "bg-[#005c30] text-white shadow-2xs ring-2 ring-[#005c30]/20"
                       : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                   }`}
                 >
@@ -338,11 +809,9 @@ export default function BriefingPage() {
               </div>
             </div>
 
-            {/* ========================================================= */}
-            {/* VUE 1 : GRILLE SYNTHÉTIQUE OFFICIELLE UNICEF / PEV BÉNIN  */}
-            {/* ========================================================= */}
+            {/* VUE 1 : GRILLE UNICEF */}
             {vueVaccinMode === "grille" && (
-              <div className="bg-white rounded-3xl border border-slate-200/90 shadow-sm overflow-hidden space-y-4">
+              <div className="bg-white rounded-3xl border border-slate-200/90 shadow-2xs overflow-hidden space-y-4">
                 <div className="p-4 sm:p-5 bg-gradient-to-r from-emerald-50 via-teal-50 to-white border-b border-emerald-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <div className="p-1.5 rounded-lg bg-emerald-600 text-white">
@@ -357,14 +826,13 @@ export default function BriefingPage() {
                       </p>
                     </div>
                   </div>
-                  <span className="text-[10px] font-extrabold text-emerald-900 bg-emerald-100/90 border border-emerald-200 px-3 py-1 rounded-full uppercase tracking-wider self-start sm:self-auto">
+                  <span className="text-[10px] font-extrabold text-emerald-900 bg-emerald-100 border border-emerald-200 px-3 py-1 rounded-full uppercase tracking-wider self-start sm:self-auto">
                     Norme Nationale Bénin
                   </span>
                 </div>
 
-                {/* Tableau à défilement horizontal */}
                 <div className="overflow-x-auto px-2 sm:px-4 pb-2">
-                  <table className="w-full min-w-[980px] border-collapse text-xs border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+                  <table className="w-full min-w-[980px] border-collapse text-xs border border-slate-200 rounded-2xl overflow-hidden shadow-2xs">
                     <thead>
                       <tr className="bg-slate-800 text-white text-[11px] font-bold">
                         <th className="p-2.5 text-left sticky left-0 z-20 bg-slate-900 min-w-[210px] border-r border-slate-700 shadow-sm">
@@ -388,7 +856,6 @@ export default function BriefingPage() {
                     </thead>
                     <tbody className="divide-y divide-slate-200 text-slate-800">
                       {LIGNES_GRILLE_OFFICIELLE_UNICEF.map((ligne, lIdx) => {
-                        // Couleurs de fond de ligne
                         const bgLigne = 
                           ligne.couleurLigne === "PALUDISME" ? "bg-amber-100/80 hover:bg-amber-100 text-amber-950 font-medium" :
                           ligne.couleurLigne === "TPIN" ? "bg-emerald-100/90 hover:bg-emerald-100 text-emerald-950 font-medium" :
@@ -405,29 +872,22 @@ export default function BriefingPage() {
 
                         return (
                           <tr key={lIdx} className={`${bgLigne} transition-colors border-b border-slate-200`}>
-                            {/* Nom du vaccin / intervention (sticky à gauche) */}
-                            <td className="p-2 sm:p-2.5 sticky left-0 z-10 bg-inherit border-r border-slate-200 shadow-xs">
+                            <td className="p-2 sm:p-2.5 sticky left-0 z-10 bg-inherit border-r border-slate-200 shadow-2xs">
                               <div className="leading-tight">
-                                <span className="font-black text-xs block">
-                                  {ligne.nom}
-                                </span>
+                                <span className="font-black text-xs block">{ligne.nom}</span>
                                 <span className="text-[10px] text-slate-500 block truncate max-w-[200px]" title={ligne.nomComplet}>
                                   {ligne.nomComplet}
                                 </span>
                               </div>
                             </td>
 
-                            {/* Doses par colonne d'âge */}
                             {COLONNES_AGES_CALENDRIER.map((col) => {
                               const dose = (ligne.doses as any)[col.id];
                               return (
-                                <td
-                                  key={col.id}
-                                  className="p-1.5 text-center border-l border-slate-200 align-middle"
-                                >
+                                <td key={col.id} className="p-1.5 text-center border-l border-slate-200 align-middle">
                                   {dose ? (
                                     <span
-                                      className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-black shadow-xs ${pillColor}`}
+                                      className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-black shadow-2xs ${pillColor}`}
                                       title={`${ligne.nom} - ${col.label} (${dose})`}
                                     >
                                       {dose}
@@ -445,7 +905,7 @@ export default function BriefingPage() {
                   </table>
                 </div>
 
-                {/* Légende officielle UNICEF & Ministère */}
+                {/* Légende officielle */}
                 <div className="p-4 sm:p-5 bg-slate-50 border-t border-slate-200 space-y-3 text-xs text-slate-700">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -470,49 +930,40 @@ export default function BriefingPage() {
                       </span>
                     </div>
 
-                    {/* Logo UNICEF / Ministère */}
-                    <div className="flex items-center gap-2 text-right">
-                      <div className="leading-tight">
-                        <span className="text-[11px] font-black text-[#005c30] block">
-                          Direction de la Vaccination (PEV)
-                        </span>
-                        <span className="text-[10px] font-bold text-sky-700 block tracking-tight">
-                          unicef | for every child
-                        </span>
-                      </div>
+                    <div className="leading-tight text-right">
+                      <span className="text-[11px] font-black text-[#005c30] block">
+                        Direction de la Vaccination (PEV)
+                      </span>
+                      <span className="text-[10px] font-bold text-sky-700 block tracking-tight">
+                        unicef | for every child
+                      </span>
                     </div>
                   </div>
-
-                  <p className="text-[11px] text-slate-500 italic leading-relaxed">
-                    Les pastilles chiffrées (① à ⑨) indiquent l'ordre chronologique des doses prescrites. Tout enfant zéro-dose ou en retard vaccinal doit être activement ratissé par le Relais Communautaire et orienté sans délai vers le centre de santé le plus proche.
+                  <p className="text-[11px] text-slate-500 italic">
+                    Tout enfant zéro-dose ou en retard vaccinal doit être activement recherché par le Relais Communautaire et orienté sans délai vers le centre de santé.
                   </p>
                 </div>
               </div>
             )}
 
-            {/* ========================================================= */}
-            {/* VUE 2 : TABLEAU DÉTAILLÉ DU NOURRISSON (0 à 18 mois)      */}
-            {/* ========================================================= */}
+            {/* VUE 2 : DÉTAIL CHRONOLOGIQUE */}
             {vueVaccinMode === "detail" && (
-            <div className="bg-white rounded-3xl border border-slate-200/90 shadow-sm overflow-hidden">
-              <div className="p-4 sm:p-5 bg-gradient-to-r from-emerald-50 via-teal-50 to-white border-b border-emerald-100 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <Baby className="w-5 h-5 text-emerald-700" />
-                  <h3 className="font-black text-sm sm:text-base text-emerald-950">
-                    Schéma de Routine : Du Nouveau-né au Jeune Enfant (0 à 18 mois)
-                  </h3>
+              <div className="bg-white rounded-3xl border border-slate-200/90 shadow-2xs overflow-hidden divide-y divide-slate-100">
+                <div className="p-4 sm:p-5 bg-gradient-to-r from-emerald-50 via-teal-50 to-white border-b border-emerald-100 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <Baby className="w-5 h-5 text-emerald-700" />
+                    <h3 className="font-black text-sm sm:text-base text-emerald-950">
+                      Schéma de Routine : Du Nouveau-né au Jeune Enfant (0 à 18 mois)
+                    </h3>
+                  </div>
+                  <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-lg">
+                    9 rendez-vous clés
+                  </span>
                 </div>
-                <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-lg">
-                  9 rendez-vous clés
-                </span>
-              </div>
 
-              <div className="divide-y divide-slate-100">
                 {CALENDRIER_VACCINAL_BENIN.nourrisson.map((etape, idx) => (
                   <div key={idx} className="p-4 sm:p-5 hover:bg-slate-50/70 transition-colors">
                     <div className="flex flex-col md:flex-row md:items-start justify-between gap-3">
-                      
-                      {/* Période / Âge */}
                       <div className="md:w-1/4 shrink-0">
                         <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-100 text-slate-900 font-extrabold text-xs">
                           <Clock className="w-3.5 h-3.5 text-emerald-600" />
@@ -520,7 +971,6 @@ export default function BriefingPage() {
                         </div>
                       </div>
 
-                      {/* Vaccins administrés */}
                       <div className="md:w-1/3 shrink-0 space-y-1.5">
                         <span className="text-[11px] font-bold uppercase text-slate-400 block tracking-wider">
                           Vaccins administrés
@@ -533,15 +983,12 @@ export default function BriefingPage() {
                               title={`${v.nomComplet} (${v.voie})`}
                             >
                               <span className="text-emerald-950">{v.sigle}</span>
-                              <span className="text-[10px] text-emerald-700 font-medium block">
-                                {v.voie}
-                              </span>
+                              <span className="text-[10px] text-emerald-700 font-medium block">{v.voie}</span>
                             </div>
                           ))}
                         </div>
                       </div>
 
-                      {/* Maladies ciblées & Observations */}
                       <div className="md:w-5/12 space-y-1">
                         <span className="text-[11px] font-bold uppercase text-slate-400 block tracking-wider">
                           Protection conférée
@@ -553,52 +1000,38 @@ export default function BriefingPage() {
                           ℹ️ {etape.observations}
                         </p>
                       </div>
-
                     </div>
                   </div>
                 ))}
               </div>
-            </div>
             )}
 
-            {/* Autres cibles prioritaires du PEV Bénin (Jeunes filles HPV & Femmes enceintes Td) */}
+            {/* Cibles spéciales : Jeunes filles HPV & Femmes enceintes Td */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {CALENDRIER_VACCINAL_BENIN.ciblesSpeciales.map((spec, sIdx) => (
-                <div
-                  key={sIdx}
-                  className="bg-white rounded-3xl p-5 border border-purple-200/80 shadow-sm space-y-3"
-                >
+                <div key={sIdx} className="bg-white rounded-3xl p-5 border border-purple-200 shadow-2xs space-y-3">
                   <div className="flex items-center gap-2">
                     <span className="p-2 rounded-xl bg-purple-100 text-purple-800">
                       <Users className="w-4 h-4" />
                     </span>
                     <div>
-                      <h4 className="font-black text-sm text-slate-900">
-                        {spec.cible}
-                      </h4>
-                      <p className="text-xs font-bold text-purple-700">
-                        {spec.vaccin}
-                      </p>
+                      <h4 className="font-black text-sm text-slate-900">{spec.cible}</h4>
+                      <p className="text-xs font-bold text-purple-700">{spec.vaccin}</p>
                     </div>
                   </div>
-
-                  <div className="space-y-1.5 text-xs text-slate-700 bg-purple-50/50 p-3 rounded-2xl border border-purple-100">
-                    <p>
-                      <strong>Schéma :</strong> {spec.schema}
-                    </p>
-                    <p className="text-slate-600 leading-relaxed">
-                      <strong>Objectif national :</strong> {spec.justification}
-                    </p>
+                  <div className="space-y-1 text-xs text-slate-700 bg-purple-50/50 p-3 rounded-2xl border border-purple-100">
+                    <p><strong>Schéma :</strong> {spec.schema}</p>
+                    <p className="text-slate-600 leading-relaxed"><strong>Objectif national :</strong> {spec.justification}</p>
                   </div>
                 </div>
               ))}
             </div>
 
-            {/* Rôle et Directives pour l'ASCQ et le Relais Communautaire */}
-            <div className="bg-amber-50/80 border border-amber-200 rounded-3xl p-5 sm:p-6 shadow-sm space-y-3">
+            {/* Directives de terrain */}
+            <div className="bg-amber-50/80 border border-amber-200 rounded-3xl p-5 sm:p-6 shadow-2xs space-y-3">
               <div className="flex items-center gap-2 font-black text-amber-950 text-sm sm:text-base">
                 <ShieldAlert className="w-5 h-5 text-amber-600" />
-                <span>Rôle de l'ASCQ et des Relais Communautaires dans la Vaccination</span>
+                <span>Rôle de l'ASCQ et du Relais Communautaire dans la Vaccination</span>
               </div>
               <ul className="space-y-2 text-xs sm:text-sm text-amber-950">
                 {CALENDRIER_VACCINAL_BENIN.directivesTerrain.map((dir, dIdx) => (
@@ -614,157 +1047,392 @@ export default function BriefingPage() {
         )}
 
         {/* ========================================================= */}
-        {/* ONGLET 2+ : GUIDE DES MALADIES SIMR BÉNIN                */}
+        {/* THÈME 4 : SANTÉ MATERNELLE, NOUVEAU-NÉ & PLANIFICATION PF */}
         {/* ========================================================= */}
-        {activeTab !== "vaccins" && (
-          <div className="space-y-4">
+        {activeTab === "maternelle" && (
+          <div className="space-y-6">
             
-            {/* Compteur de résultats */}
-            <div className="flex items-center justify-between px-1 text-xs text-slate-500 font-medium">
-              <span>
-                {filteredMaladies.length} maladie(s) identifiée(s) pour cette sélection
-              </span>
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery("")}
-                  className="text-emerald-700 font-bold hover:underline"
-                >
-                  Effacer la recherche
-                </button>
-              )}
+            <div className="bg-white rounded-3xl p-5 sm:p-6 border border-pink-200 shadow-2xs relative overflow-hidden">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-pink-100 text-pink-700 flex items-center justify-center shrink-0">
+                  <Baby className="w-5 h-5" />
+                </div>
+                <div className="space-y-1">
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-md bg-pink-100 text-pink-900">
+                    Guide National de l'ASC • CNLS-TP Bénin
+                  </span>
+                  <h2 className="text-lg sm:text-xl font-black text-slate-900">
+                    Santé Maternelle, Nouveau-Né & Planification Familiale (PF)
+                  </h2>
+                  <p className="text-xs sm:text-sm text-slate-600 max-w-3xl leading-relaxed">
+                    Protocoles officiels pour le suivi de la grossesse (8 CPN), les soins essentiels au nouveau-né (Chlorhexidine 7,1%, méthode Kangourou), les consultations postnatales (CPoN) et l'espacement sain des naissances.
+                  </p>
+                </div>
+              </div>
             </div>
 
-            {/* Liste des fiches de maladies */}
-            <div className="grid grid-cols-1 gap-4">
-              {filteredMaladies.map((m) => {
-                const isExpanded = expandedId === m.id || searchQuery.length > 0;
-                
-                // Couleurs du badge
-                const badgeConfig = {
-                  URGENCE_IMMEDIATE: {
-                    bg: "bg-red-50 text-red-800 border-red-200",
-                    label: "Alerte Immédiate"
-                  },
-                  ELIMINATION: {
-                    bg: "bg-purple-50 text-purple-800 border-purple-200",
-                    label: "Élimination"
-                  },
-                  SANTE_PUBLIQUE: {
-                    bg: "bg-blue-50 text-blue-800 border-blue-200",
-                    label: "Santé Publique"
-                  },
-                  ALERTE_MONDIALE: {
-                    bg: "bg-amber-50 text-amber-900 border-amber-200",
-                    label: "Alerte Internationale"
-                  }
-                }[m.badgeUrgence];
+            <div className="grid grid-cols-1 gap-5">
+              {filteredMaternelle.map((fiche) => (
+                <div
+                  key={fiche.id}
+                  className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/90 shadow-2xs space-y-4"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                    <div>
+                      <span className="text-[10px] font-black uppercase tracking-wider text-pink-700 block">
+                        {fiche.periode}
+                      </span>
+                      <h3 className="text-base sm:text-lg font-black text-slate-900">
+                        {fiche.titre}
+                      </h3>
+                    </div>
+                    <span className="px-3 py-1 rounded-full bg-pink-50 text-pink-800 border border-pink-200 text-xs font-bold self-start sm:self-auto">
+                      Norme Nationale Bénin
+                    </span>
+                  </div>
 
-                return (
-                  <article
-                    key={m.id}
-                    className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/90 shadow-sm hover:shadow-md transition-shadow space-y-4"
+                  {/* Points clés */}
+                  <div className="space-y-2">
+                    <span className="text-[11px] font-black uppercase text-slate-700 tracking-wider flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      Prescriptions & Recommandations Officielles :
+                    </span>
+                    <ul className="space-y-1.5 text-xs text-slate-700 pl-2">
+                      {fiche.pointsCles.map((pt, pIdx) => (
+                        <li key={pIdx} className="flex items-start gap-2">
+                          <span className="text-emerald-600 font-bold">•</span>
+                          <span className="leading-relaxed">{pt}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Signes de danger (Alerte Rouge) */}
+                  <div className="bg-red-50/80 rounded-2xl p-4 border border-red-200 space-y-2">
+                    <span className="text-xs font-black uppercase text-red-900 tracking-wider flex items-center gap-1.5">
+                      <AlertTriangle className="w-4 h-4 text-red-600" />
+                      Signes de Danger Absolu (Référer d'URGENCE à la maternité) :
+                    </span>
+                    <ul className="space-y-1.5 text-xs text-red-950 font-medium pl-2">
+                      {fiche.signesDanger.map((sd, sIdx) => (
+                        <li key={sIdx} className="flex items-start gap-2">
+                          <span className="text-red-600 font-bold">⚠️</span>
+                          <span className="leading-relaxed">{sd}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Conduite ASCQ */}
+                  <div className="bg-emerald-50/70 rounded-2xl p-4 border border-emerald-200/80 space-y-2">
+                    <span className="text-xs font-black uppercase text-emerald-950 tracking-wider flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-700" />
+                      Actions de Terrain de l'ASCQ et du Relais :
+                    </span>
+                    <ul className="space-y-1.5 text-xs text-emerald-950 pl-2">
+                      {fiche.conduiteAscq.map((ca, cIdx) => (
+                        <li key={cIdx} className="flex items-start gap-2">
+                          <span className="text-emerald-700 font-bold">✓</span>
+                          <span className="leading-relaxed">{ca}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                </div>
+              ))}
+            </div>
+
+          </div>
+        )}
+
+        {/* ========================================================= */}
+        {/* THÈME 5 : SECOURISME D'URGENCE & PREMIERS GESTES           */}
+        {/* ========================================================= */}
+        {activeTab === "secourisme" && (
+          <div className="space-y-6">
+            
+            <div className="bg-white rounded-3xl p-5 sm:p-6 border border-red-200 shadow-2xs relative overflow-hidden">
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-red-100 text-red-700 flex items-center justify-center shrink-0">
+                    <HeartPulse className="w-5 h-5" />
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-md bg-red-100 text-red-900">
+                      Module Secourisme • CNLS-TP Bénin & SAMU
+                    </span>
+                    <h2 className="text-lg sm:text-xl font-black text-slate-900">
+                      Protocoles de Secourisme & Premiers Gestes Vitaux
+                    </h2>
+                    <p className="text-xs sm:text-sm text-slate-600 max-w-3xl leading-relaxed">
+                      Conduite réflexe de l'ASCQ et du Relais Communautaire face aux défaillances vitales et traumatismes graves dans les ménages et la communauté avant l'évacuation médicale.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="shrink-0 flex items-center gap-2">
+                  <a
+                    href="tel:+22921307336"
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-black text-xs shadow-md transition-all"
                   >
-                    
-                    {/* En-tête de la maladie */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black border uppercase tracking-wider ${badgeConfig.bg}`}>
-                            {badgeConfig.label}
-                          </span>
-                          <span className="text-[11px] text-slate-400 font-medium">
-                            {m.categorieNom}
-                          </span>
-                        </div>
-                        <h3 className="text-lg sm:text-xl font-black text-slate-900">
-                          {m.nom}
+                    <PhoneCall className="w-3.5 h-3.5" />
+                    <span>SAMU : 21 30 73 36</span>
+                  </a>
+                  <a
+                    href="tel:118"
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-black text-xs shadow-md transition-all"
+                  >
+                    <PhoneCall className="w-3.5 h-3.5" />
+                    <span>Pompiers : 118</span>
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            {/* Liste des protocoles de secourisme */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {filteredSecourisme.map((protocole) => (
+                <div
+                  key={protocole.id}
+                  className="bg-white rounded-3xl p-5 border border-slate-200/90 shadow-2xs hover:shadow-md transition-all flex flex-col justify-between space-y-4"
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-2.5">
+                      <div>
+                        <span className="text-[10px] font-black uppercase text-red-600 tracking-wider block">
+                          Situation d'Urgence
+                        </span>
+                        <h3 className="font-black text-base text-slate-900 leading-snug">
+                          {protocole.titre}
                         </h3>
                       </div>
-
-                      {/* Bouton direct d'alerte */}
-                      {m.boutonAlerte && (
-                        <Link
-                          href={`/fiches/alerte/nouvelle?motif=${encodeURIComponent(m.nom)}`}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 font-bold text-xs border border-red-200 shrink-0 self-start sm:self-auto transition-colors"
-                        >
-                          <ShieldAlert className="w-3.5 h-3.5" />
-                          <span>Alerter sur ce cas</span>
-                        </Link>
-                      )}
+                      <span className="w-8 h-8 rounded-xl bg-red-50 text-red-600 flex items-center justify-center shrink-0">
+                        <HeartPulse className="w-4 h-4" />
+                      </span>
                     </div>
 
-                    {/* C'est quoi ? (Définition simple) */}
-                    <div className="text-xs sm:text-sm text-slate-700 leading-relaxed">
-                      <strong className="text-slate-900 font-bold">C'est quoi ?</strong> {m.description}
+                    <p className="text-xs text-slate-600 italic">
+                      🎯 {protocole.situation}
+                    </p>
+
+                    {/* Gestes clés obligatoires */}
+                    <div className="space-y-2">
+                      <span className="text-[11px] font-black uppercase text-emerald-800 tracking-wider block">
+                        ✅ Gestes Clés Immédiats :
+                      </span>
+                      <ol className="space-y-1.5 text-xs text-slate-800 pl-1">
+                        {protocole.gestesCles.map((geste, gIdx) => (
+                          <li key={gIdx} className="flex items-start gap-2">
+                            <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-emerald-100 text-emerald-800 font-black text-[10px] shrink-0 mt-0.5">
+                              {gIdx + 1}
+                            </span>
+                            <span className="leading-relaxed">{geste}</span>
+                          </li>
+                        ))}
+                      </ol>
                     </div>
 
-                    {/* Signes qui alertent (Symptômes communautaires) */}
-                    <div className="bg-amber-50/60 rounded-2xl p-3.5 sm:p-4 border border-amber-200/80 space-y-2">
-                      <div className="flex items-center gap-1.5 text-xs font-black text-amber-900 uppercase tracking-wide">
-                        <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
-                        <span>Signes qui doivent alerter la communauté</span>
-                      </div>
-                      <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs text-amber-950 font-medium">
-                        {m.signesAlerte.map((signe, sIdx) => (
-                          <li key={sIdx} className="flex items-start gap-1.5">
-                            <span className="text-amber-600 font-bold">•</span>
-                            <span>{signe}</span>
+                    {/* Ce qui est STRICTEMENT INTERDIT */}
+                    <div className="bg-red-50/90 rounded-2xl p-3.5 border border-red-200 space-y-1.5">
+                      <span className="text-[11px] font-black uppercase text-red-900 tracking-wider flex items-center gap-1.5">
+                        <Ban className="w-3.5 h-3.5 text-red-600" />
+                        Ce qui est STRICTEMENT INTERDIT :
+                      </span>
+                      <ul className="space-y-1 text-xs text-red-950 font-medium pl-1">
+                        {protocole.interdictions.map((interdit, iIdx) => (
+                          <li key={iIdx} className="flex items-start gap-1.5">
+                            <span className="text-red-600 font-bold">✕</span>
+                            <span className="leading-relaxed">{interdit}</span>
                           </li>
                         ))}
                       </ul>
                     </div>
+                  </div>
 
-                    {/* Contexte spécifique Bénin & Conduite à tenir */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 text-xs">
-                      
-                      {/* Contexte Bénin */}
-                      <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-200/80 space-y-1">
-                        <div className="flex items-center gap-1.5 font-bold text-slate-900">
-                          <MapPin className="w-3.5 h-3.5 text-emerald-600" />
-                          <span>Contexte & zones à risque au Bénin</span>
-                        </div>
-                        <p className="text-slate-600 leading-relaxed text-[11px] sm:text-xs">
-                          {m.contexteBenin}
-                        </p>
-                      </div>
-
-                      {/* Conduite de l'ASCQ et du Relais */}
-                      <div className="bg-emerald-50/60 rounded-2xl p-3.5 border border-emerald-200/80 space-y-1">
-                        <div className="flex items-center gap-1.5 font-bold text-emerald-950">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
-                          <span>Que faire immédiatement (ASCQ / Relais)</span>
-                        </div>
-                        <p className="text-emerald-900 leading-relaxed text-[11px] sm:text-xs">
-                          {m.conduiteAscq}
-                        </p>
-                      </div>
-
-                    </div>
-
-                  </article>
-                );
-              })}
-
-              {filteredMaladies.length === 0 && (
-                <div className="bg-white rounded-3xl p-8 border border-slate-200 text-center space-y-3">
-                  <HelpCircle className="w-10 h-10 text-slate-400 mx-auto" />
-                  <h4 className="font-bold text-base text-slate-800">
-                    Aucune maladie ne correspond à votre recherche « {searchQuery} »
-                  </h4>
-                  <p className="text-xs text-slate-500">
-                    Essayez avec un mot-clé plus simple comme « fièvre », « sang », « toux » ou « vaccin ».
-                  </p>
-                  <button
-                    onClick={() => {
-                      setSearchQuery("");
-                      setActiveTab("tous");
-                    }}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700"
-                  >
-                    Réinitialiser les filtres
-                  </button>
+                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                    <span className="text-slate-500 font-bold truncate max-w-[200px]">
+                      🚨 {protocole.alerteNumero}
+                    </span>
+                    <a
+                      href={protocole.alerteNumero.includes("118") ? "tel:118" : "tel:+22921307336"}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-red-600 text-white font-black hover:bg-red-700 transition-colors shrink-0"
+                    >
+                      <PhoneCall className="w-3 h-3" />
+                      <span>Appeler Secours</span>
+                    </a>
+                  </div>
                 </div>
-              )}
+              ))}
+            </div>
+
+          </div>
+        )}
+
+        {/* ========================================================= */}
+        {/* THÈME 6 : ORGANISATION, VAD & ATTRIBUTIONS ASCQ / RC       */}
+        {/* ========================================================= */}
+        {activeTab === "organisation" && (
+          <div className="space-y-6">
+            
+            <div className="bg-white rounded-3xl p-5 sm:p-6 border border-emerald-200 shadow-2xs relative overflow-hidden">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div className="space-y-1">
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-md bg-emerald-100 text-emerald-900">
+                    Cadre Opérationnel & Déontologique • Présidence du Bénin
+                  </span>
+                  <h2 className="text-lg sm:text-xl font-black text-slate-900">
+                    Attributions Officielles, Protocole VAD & Règle PEPS/FEFO
+                  </h2>
+                  <p className="text-xs sm:text-sm text-slate-600 max-w-3xl leading-relaxed">
+                    Normes d'encadrement, répartition des rôles entre le Relais Communautaire (RC) et l'ASCQ, les 6 étapes officielles de la Visite à Domicile (VAD), et les règles d'intégrité déontologique.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Protocole Standardisé de VAD en 6 Étapes */}
+            <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/90 shadow-2xs space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                <div>
+                  <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 block">
+                    Méthodologie Officielle
+                  </span>
+                  <h3 className="text-base sm:text-lg font-black text-slate-900">
+                    {PROTOCOLE_VAD_OFFICIEL.titre}
+                  </h3>
+                </div>
+                <span className="text-xs font-bold text-slate-600 bg-slate-100 px-3 py-1 rounded-full">
+                  {PROTOCOLE_VAD_OFFICIEL.normePortefeuille}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {PROTOCOLE_VAD_OFFICIEL.etapesDeroulement.map((et) => (
+                  <div key={et.etape} className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="w-6 h-6 rounded-full bg-[#005c30] text-white font-black text-xs flex items-center justify-center shrink-0">
+                        {et.etape}
+                      </span>
+                      <h4 className="font-black text-xs sm:text-sm text-slate-900">
+                        {et.titre}
+                      </h4>
+                    </div>
+                    <p className="text-xs text-slate-600 leading-relaxed pl-8">
+                      {et.actions}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Règles d'or ASC */}
+              <div className="bg-emerald-50/80 border border-emerald-200 rounded-2xl p-4 space-y-2">
+                <span className="text-xs font-black uppercase text-emerald-950 tracking-wider flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-700" />
+                  Les 4 Règles d'Or Déontologiques pendant la VAD :
+                </span>
+                <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-emerald-950 font-medium pl-1">
+                  {PROTOCOLE_VAD_OFFICIEL.reglesOrAscq.map((ro, rIdx) => (
+                    <li key={rIdx} className="flex items-start gap-1.5">
+                      <span className="text-emerald-700 font-bold">•</span>
+                      <span>{ro}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+
+            {/* Attributions comparatives RC vs ASCQ */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+              {ATTRIBUTIONS_OFFICIELLES_ASC.map((profil) => (
+                <div
+                  key={profil.poste}
+                  className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/90 shadow-2xs space-y-4"
+                >
+                  <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                    <div className="flex items-center gap-2">
+                      <span className={`w-8 h-8 rounded-xl font-black text-xs flex items-center justify-center text-white ${
+                        profil.poste === "ASCQ" ? "bg-[#005c30]" : "bg-teal-700"
+                      }`}>
+                        {profil.poste}
+                      </span>
+                      <div>
+                        <h4 className="font-black text-sm sm:text-base text-slate-900">
+                          {profil.titre}
+                        </h4>
+                        <span className="text-[10px] text-slate-400 font-medium">Niveau réglementaire</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-slate-600 leading-relaxed italic bg-slate-50 p-3 rounded-2xl border border-slate-100">
+                    « {profil.missionGenerale} »
+                  </p>
+
+                  <div className="space-y-2">
+                    <span className="text-[11px] font-black uppercase text-slate-700 tracking-wider block">
+                      📌 Activités Principales Réglementaires :
+                    </span>
+                    <ul className="space-y-1 text-xs text-slate-700 pl-1">
+                      {profil.activitesPrincipales.map((act, aIdx) => (
+                        <li key={aIdx} className="flex items-start gap-1.5">
+                          <span className="text-[#005c30] font-bold">✓</span>
+                          <span>{act}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Actes interdits */}
+                  <div className="bg-red-50/90 rounded-2xl p-4 border border-red-200 space-y-2">
+                    <span className="text-xs font-black uppercase text-red-900 tracking-wider flex items-center gap-1.5">
+                      <Ban className="w-4 h-4 text-red-600" />
+                      Actes STRICTEMENT INTERDITS au {profil.poste} :
+                    </span>
+                    <ul className="space-y-1.5 text-xs text-red-950 font-medium pl-1">
+                      {profil.actesInterdits.map((interdit, iIdx) => (
+                        <li key={iIdx} className="flex items-start gap-1.5">
+                          <span className="text-red-600 font-bold">✕</span>
+                          <span>{interdit}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                </div>
+              ))}
+            </div>
+
+            {/* Règle de gestion des intrants FEFO / PEPS */}
+            <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/90 shadow-2xs space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="p-2 rounded-xl bg-amber-100 text-amber-900">
+                  <ShieldCheck className="w-4 h-4" />
+                </span>
+                <h4 className="font-black text-sm sm:text-base text-slate-900">
+                  Gestion Logistique des Produits de Santé : Règle PEPS / FEFO
+                </h4>
+              </div>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Tout produit de santé (tests de dépistage rapide TDR, combinaisons thérapeutiques à base d'artémisinine CTA, sachets de SRO, comprimés de Zinc, Aquatabs) doit être conservé dans un <strong>caisson métallique étanche et sécurisé</strong> à l'abri de l'humidité et des rongeurs.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 text-xs">
+                <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
+                  <strong className="text-slate-900 block font-black">1. Règle FEFO / PEPS</strong>
+                  <span className="text-slate-600 text-[11px]">« Premier Périmé, Premier Sorti ». Toujours distribuer en priorité les lots ayant la date d'expiration la plus proche.</span>
+                </div>
+                <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
+                  <strong className="text-slate-900 block font-black">2. Inventaire Physique</strong>
+                  <span className="text-slate-600 text-[11px]">Inventaire mensuel obligatoire avec fiche de stock à jour. Signalement immédiat de tout risque de rupture de stock.</span>
+                </div>
+                <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
+                  <strong className="text-slate-900 block font-black">3. Gratuité Absolue</strong>
+                  <span className="text-slate-600 text-[11px]">Interdiction formelle de vendre ou d'échanger les médicaments et intrants fournis gratuitement par l'État.</span>
+                </div>
+              </div>
             </div>
 
           </div>
