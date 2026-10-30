@@ -3,6 +3,7 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import QuiEstAscqCard from "@/components/QuiEstAscqCard";
 import SuggestionsCard from "@/components/SuggestionsCard";
+import { SocialPlatformsCard } from "@/components/SocialLinks";
 
 export const dynamic = "force-dynamic";
 
@@ -220,64 +221,8 @@ export default async function HomePage() {
           <SuggestionsCard departements={departements} />
         </section>
 
-        {/* 9. Carte « Suivez-nous » avec 4 icônes */}
-        <section className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm text-center space-y-4">
-          <h2 className="text-sm font-bold text-slate-900">
-            Suivez-nous
-          </h2>
-
-          <div className="flex items-center justify-center gap-3">
-            {/* Facebook */}
-            <a
-              href="https://www.facebook.com/profile.php?id=61595028870500"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-12 h-12 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-center hover:bg-slate-50 hover:border-blue-300 transition-all active:scale-95"
-              title="Facebook"
-            >
-              <svg className="w-5 h-5 text-[#1877F2]" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-              </svg>
-            </a>
-
-            {/* LinkedIn */}
-            <a
-              href="https://www.linkedin.com/company/ascq-benin/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-12 h-12 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-center hover:bg-slate-50 hover:border-sky-300 transition-all active:scale-95"
-              title="LinkedIn"
-            >
-              <svg className="w-5 h-5 text-[#0A66C2]" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.28 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.75M6.88 8.56a1.68 1.68 0 0 0 1.68-1.68c0-.93-.75-1.69-1.68-1.69a1.69 1.69 0 0 0-1.69 1.69c0 .93.76 1.68 1.69 1.68m1.39 9.94v-8.37H5.5v8.37h2.77z"/>
-              </svg>
-            </a>
-
-            {/* Email */}
-            <a
-              href="mailto:ascqbenin@gmail.com"
-              className="w-12 h-12 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-center hover:bg-slate-50 hover:border-emerald-300 transition-all active:scale-95"
-              title="E-mail"
-            >
-              <svg className="w-5 h-5 text-[#0e7f47]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-              </svg>
-            </a>
-
-            {/* WhatsApp */}
-            <a
-              href="https://whatsapp.com/channel/0029VbE6MZcHbFV2YFxXoe05"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-12 h-12 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-center hover:bg-slate-50 hover:border-emerald-300 transition-all active:scale-95"
-              title="WhatsApp"
-            >
-              <svg className="w-5 h-5 text-[#25D366]" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981z"/>
-              </svg>
-            </a>
-          </div>
-        </section>
+        {/* 9. Réseaux sociaux & Plateformes officielles */}
+        <SocialPlatformsCard />
 
       </main>
     </div>

@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { saveCachedUserSession, getCachedUserSession, isOnline } from "@/lib/offline-sync";
 import { estCadreNonAscq } from "@/lib/cadre-roles";
+import { SocialLinksRow } from "@/components/SocialLinks";
 
 export default function ConnexionPage() {
   const router = useRouter();
@@ -492,6 +493,14 @@ export default function ConnexionPage() {
             </div>
           </form>
         )}
+
+        {/* Plateformes et Réseaux Officiels */}
+        <div className="text-center space-y-2 pt-2">
+          <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+            Rejoignez la communauté officielle
+          </p>
+          <SocialLinksRow size="sm" />
+        </div>
 
         {/* MODALE ASSISTANCE MOT DE PASSE OUBLIÉ */}
         {showOubliModal && (
