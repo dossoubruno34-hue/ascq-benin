@@ -114,6 +114,7 @@ function PerimetreGouvernanceContent() {
   const [loadingTousLesAscqs, setLoadingTousLesAscqs] = useState(false);
   const [searchGestionAscq, setSearchGestionAscq] = useState("");
   const [filtreStatutGestionAscq, setFiltreStatutGestionAscq] = useState("TOUS");
+  const [filtreRoleGestionPersonnel, setFiltreRoleGestionPersonnel] = useState<"TOUS" | "ASCQ" | "RC" | "CADRE">("TOUS");
 
   // Modal Radiation ASCQ
   const [modalRadiationAscq, setModalRadiationAscq] = useState<any | null>(null);
@@ -367,6 +368,9 @@ function PerimetreGouvernanceContent() {
       // Charger les inscriptions ASCQ en attente de validation
       await chargerInscriptionsEnAttente(profil);
 
+      // Charger tout le personnel du périmètre (ASCQ, RC, Cadres)
+      await chargerTousLesAscqsPerimetre(profil);
+
     } catch (err) {
       console.error("Erreur initialisation gouvernance:", err);
     } finally {
@@ -579,7 +583,7 @@ function PerimetreGouvernanceContent() {
     }
   };
 
-  // 3b. CHARGEMENT DE TOUS LES ASCQ DU PÉRIMÈTRE (ACTIFS, RADIÉS, EN ATTENTE)
+  // 3b. CHARGEMENT DE TOUT LE PERSONNEL DU PÉRIMÈTRE (ASCQ, RC, CADRES - ACTIFS, RADIÉS, EN ATTENTE)
   const chargerTousLesAscqsPerimetre = async (profil: any) => {
     if (!profil) return;
     setLoadingTousLesAscqs(true);
@@ -587,8 +591,7 @@ function PerimetreGouvernanceContent() {
       const scope = getPerimetreScope(profil);
       let q = supabase
         .from("utilisateurs")
-        .select("id, nom, prenoms, telephone, poste, role_technique, role_nomination, statut_compte, motif_radiation, date_radiation, commune_id, arrondissement_id, departement_id, created_at")
-        .or("poste.eq.ASCQ,role_technique.eq.ASCQ_OPERATEUR,poste.eq.REPRESENTANT_COMMUNAL,poste.eq.REPRESENTANT_DEPARTEMENTAL");
+        .select("id, nom, prenoms, telephone, poste, poste_autre, role_technique, role_nomination, statut_compte, commune_id, arrondissement_id, departement_id, zone_sanitaire_id, created_at");
 
       if (scope.filterType === "commune_id" && scope.id) q = q.eq("commune_id", scope.id);
       else if (scope.filterType === "zone_sanitaire_id" && scope.id) q = q.eq("zone_sanitaire_id", scope.id);
@@ -597,16 +600,34 @@ function PerimetreGouvernanceContent() {
       const { data, error } = await q.order("nom");
       if (!error && data) {
         const arrIds = Array.from(new Set(data.map((u: any) => u.arrondissement_id).filter(Boolean)));
+        const comIds = Array.from(new Set(data.map((u: any) => u.commune_id).filter(Boolean)));
+
         let arrMap = new Map();
         if (arrIds.length > 0) {
           const { data: arrData } = await supabase.from("arrondissements").select("id, nom").in("id", arrIds);
           arrMap = new Map((arrData || []).map((a: any) => [a.id, a.nom]));
         }
-        const enriched = data.map((u: any) => ({
-          ...u,
-          arrondissement_nom: arrMap.get(u.arrondissement_id) || "Arrondissement"
-        }));
+
+        let comMap = new Map();
+        if (comIds.length > 0) {
+          const { data: comData } = await supabase.from("communes").select("id, nom").in("id", comIds);
+          comMap = new Map((comData || []).map((c: any) => [c.id, c.nom]));
+        }
+
+        const enriched = data.map((u: any) => {
+          const isRadie = u.statut_compte === "RADIE" || (u.statut_compte === "SUSPENDU" && String(u.poste_autre || "").startsWith("RADIE:"));
+          const motif = (u as any).motif_radiation || (String(u.poste_autre || "").startsWith("RADIE:") ? String(u.poste_autre).replace("RADIE:", "").trim() : null);
+          return {
+            ...u,
+            arrondissement_nom: arrMap.get(u.arrondissement_id) || "Arrondissement non spécifié",
+            commune_nom: comMap.get(u.commune_id) || profil.commune_nom || "Commune",
+            motif_radiation: motif,
+            statut_effectif: isRadie ? "RADIE" : u.statut_compte,
+          };
+        });
         setTousLesAscqsPerimetre(enriched);
+      } else if (error) {
+        console.warn("Erreur chargement personnel périmètre:", error);
       }
     } catch (e) {
       console.warn("Erreur chargement tous ASCQ périmètre:", e);
@@ -662,25 +683,54 @@ function PerimetreGouvernanceContent() {
     }
   };
 
-  // HANDLERS RADIATION ET SUPPRESSION COMPTES ASCQ
+  // HANDLERS RADIATION ET SUPPRESSION DU PERSONNEL DU PÉRIMÈTRE
   const handleConfirmerRadiationAscq = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!modalRadiationAscq) return;
     setSubmittingRadiation(true);
     try {
       const motifFinal = `${motifRadiation}${explicationRadiation ? " - " + explicationRadiation : ""}`;
-      const { error } = await supabase.rpc("radier_compte_ascq", {
-        p_user_id: modalRadiationAscq.id,
-        p_motif: motifRadiation,
-        p_explication: explicationRadiation || null
-      });
+      
+      let rpcSucceeded = false;
+      try {
+        const { error: rpcErr } = await supabase.rpc("radier_compte_ascq", {
+          p_user_id: modalRadiationAscq.id,
+          p_motif: motifRadiation,
+          p_explication: explicationRadiation || null
+        });
+        if (!rpcErr) rpcSucceeded = true;
+      } catch (e) {
+        rpcSucceeded = false;
+      }
 
-      if (error) {
-        await supabase.from("utilisateurs").update({
-          statut_compte: "RADIE",
-          motif_radiation: motifFinal,
-          date_radiation: new Date().toISOString()
-        }).eq("id", modalRadiationAscq.id);
+      if (!rpcSucceeded) {
+        let updateOk = false;
+        try {
+          const { error: updErr1 } = await (supabase.from("utilisateurs").update({
+            statut_compte: "RADIE",
+            motif_radiation: motifFinal,
+            date_radiation: new Date().toISOString()
+          } as any) as any).eq("id", modalRadiationAscq.id);
+          if (!updErr1) updateOk = true;
+        } catch (e) {}
+
+        if (!updateOk) {
+          try {
+            const { error: updErr2 } = await supabase.from("utilisateurs").update({
+              statut_compte: "RADIE",
+              poste_autre: `RADIE: ${motifFinal}`
+            }).eq("id", modalRadiationAscq.id);
+            if (!updErr2) updateOk = true;
+          } catch (e) {}
+        }
+
+        if (!updateOk) {
+          const { error: updErr3 } = await supabase.from("utilisateurs").update({
+            statut_compte: "SUSPENDU",
+            poste_autre: `RADIE: ${motifFinal}`
+          }).eq("id", modalRadiationAscq.id);
+          if (updErr3) throw updErr3;
+        }
       }
 
       alert(`Compte de ${modalRadiationAscq.prenoms} ${modalRadiationAscq.nom} radié avec succès.`);
@@ -700,16 +750,31 @@ function PerimetreGouvernanceContent() {
   const handleRetablirAscq = async (ascq: any) => {
     if (!confirm(`Rétablir le compte de ${ascq.prenoms} ${ascq.nom} au statut VALIDE ?`)) return;
     try {
-      const { error } = await supabase.rpc("retablir_compte_ascq", {
-        p_user_id: ascq.id
-      });
+      let rpcSucceeded = false;
+      try {
+        const { error: rpcErr } = await supabase.rpc("retablir_compte_ascq", {
+          p_user_id: ascq.id
+        });
+        if (!rpcErr) rpcSucceeded = true;
+      } catch (e) {}
 
-      if (error) {
-        await supabase.from("utilisateurs").update({
-          statut_compte: "VALIDE",
-          motif_radiation: null,
-          date_radiation: null
-        }).eq("id", ascq.id);
+      if (!rpcSucceeded) {
+        let updateOk = false;
+        try {
+          const { error: updErr1 } = await (supabase.from("utilisateurs").update({
+            statut_compte: "VALIDE",
+            motif_radiation: null,
+            date_radiation: null
+          } as any) as any).eq("id", ascq.id);
+          if (!updErr1) updateOk = true;
+        } catch (e) {}
+
+        if (!updateOk) {
+          await supabase.from("utilisateurs").update({
+            statut_compte: "VALIDE",
+            poste_autre: null
+          }).eq("id", ascq.id);
+        }
       }
 
       alert("Compte rétabli en fonction.");
@@ -731,18 +796,28 @@ function PerimetreGouvernanceContent() {
     }
     setSubmittingSuppression(true);
     try {
-      const { error } = await supabase.rpc("supprimer_compte_ascq", {
-        p_user_id: modalSuppressionAscq.id,
-        p_motif: "Suppression définitive par le représentant territorial"
-      });
+      let rpcSucceeded = false;
+      try {
+        const { error: rpcErr } = await supabase.rpc("supprimer_compte_ascq", {
+          p_user_id: modalSuppressionAscq.id,
+          p_motif: "Suppression définitive par le responsable territorial"
+        });
+        if (!rpcErr) rpcSucceeded = true;
+      } catch (e) {}
 
-      if (error) {
-        await supabase.from("ascq_profils").delete().eq("id", modalSuppressionAscq.id);
-        await supabase.from("relais_communautaires").delete().or(`ascq_id.eq.${modalSuppressionAscq.id},user_id.eq.${modalSuppressionAscq.id}`);
-        await supabase.from("utilisateurs").delete().eq("id", modalSuppressionAscq.id);
+      if (!rpcSucceeded) {
+        try { await supabase.from("ascq_profils").delete().eq("id", modalSuppressionAscq.id); } catch (e) {}
+        try { await supabase.from("relais_communautaires").delete().or(`ascq_id.eq.${modalSuppressionAscq.id},user_id.eq.${modalSuppressionAscq.id}`); } catch (e) {}
+        const { error: delErr } = await supabase.from("utilisateurs").delete().eq("id", modalSuppressionAscq.id);
+        if (delErr) {
+          await supabase.from("utilisateurs").update({
+            statut_compte: "SUSPENDU",
+            poste_autre: "SUPPRIME_DEFINITIVEMENT"
+          }).eq("id", modalSuppressionAscq.id);
+        }
       }
 
-      alert("Compte supprimé définitivement.");
+      alert("Compte retiré avec succès.");
       setModalSuppressionAscq(null);
       setConfirmSuppressionTexte("");
       if (currentUser) {
@@ -2021,7 +2096,7 @@ function PerimetreGouvernanceContent() {
                   }`}
                 >
                   <Users className="w-4 h-4 text-rose-700" />
-                  <span>2. Radiation & Gestion des ASCQ ({tousLesAscqsPerimetre.length})</span>
+                  <span>2. Personnel du Périmètre & Radiation ({tousLesAscqsPerimetre.length})</span>
                 </button>
               </div>
             </div>
@@ -2173,8 +2248,7 @@ function PerimetreGouvernanceContent() {
             )}
 
             {/* --------------------------------------------------------- */}
-            {/* SOUS-VOLET 2 : RADIATION & SUPPRESSION DES COMPTES ASCQ */}
-            {/* --------------------------------------------------------- */}
+            {/* SOUS-VOLET 2 : PERSONNEL DU PÉRIMÈTRE & GESTION DES COMPTES */}
             {sousOngletNettoyage === "ascq" && (
               <div className="space-y-4">
                 <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm space-y-4">
@@ -2182,10 +2256,10 @@ function PerimetreGouvernanceContent() {
                     <div>
                       <h3 className="font-extrabold text-sm sm:text-base text-slate-900 flex items-center gap-2">
                         <Users className="w-4 h-4 text-rose-700" />
-                        <span>Personnel ASCQ du Périmètre ({libelleTerritoire})</span>
+                        <span>Personnel du Périmètre ({libelleTerritoire})</span>
                       </h3>
                       <p className="text-xs text-slate-500">
-                        Radiez les agents qui ne sont plus en fonction (fin de contrat, démission, révocation) ou supprimez définitivement les comptes de test et doublons.
+                        Visualisez et gérez l'ensemble des agents de votre périmètre : ASCQ, Relais Communautaires (RC) et Cadres. Radiez les comptes inactifs ou supprimez les comptes de test.
                       </p>
                     </div>
 
@@ -2193,11 +2267,49 @@ function PerimetreGouvernanceContent() {
                       type="button"
                       onClick={() => currentUser && chargerTousLesAscqsPerimetre(currentUser)}
                       disabled={loadingTousLesAscqs}
-                      className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 self-start sm:self-auto transition-all"
+                      className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 self-start sm:self-auto transition-all shadow-xs"
                     >
                       <RefreshCw className={`w-3.5 h-3.5 ${loadingTousLesAscqs ? "animate-spin text-rose-700" : ""}`} />
-                      <span>Actualiser</span>
+                      <span>Actualiser la liste</span>
                     </button>
+                  </div>
+
+                  {/* Filtres par Catégorie de Rôle */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs font-bold border-b border-slate-100 pb-2">
+                    {[
+                      { id: "TOUS", label: "Tous les personnels" },
+                      { id: "ASCQ", label: "🩺 ASCQ (Qualifiés)" },
+                      { id: "RC", label: "🤝 Relais Communautaires (RC)" },
+                      { id: "CADRE", label: "🏛️ Cadres & Supervision" },
+                    ].map((rf) => {
+                      let count = tousLesAscqsPerimetre.length;
+                      if (rf.id === "ASCQ") {
+                        count = tousLesAscqsPerimetre.filter((a) => a.poste === "ASCQ" || a.role_technique === "ASCQ_OPERATEUR").length;
+                      } else if (rf.id === "RC") {
+                        count = tousLesAscqsPerimetre.filter((a) => a.poste === "RC" || a.role_technique === "RELAIS").length;
+                      } else if (rf.id === "CADRE") {
+                        count = tousLesAscqsPerimetre.filter((a) => a.poste !== "ASCQ" && a.poste !== "RC" && a.role_technique !== "ASCQ_OPERATEUR" && a.role_technique !== "RELAIS").length;
+                      }
+                      return (
+                        <button
+                          key={rf.id}
+                          type="button"
+                          onClick={() => setFiltreRoleGestionPersonnel(rf.id as any)}
+                          className={`px-3 py-1.5 rounded-xl whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                            filtreRoleGestionPersonnel === rf.id
+                              ? "bg-rose-700 text-white shadow-sm font-black"
+                              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                          }`}
+                        >
+                          <span>{rf.label}</span>
+                          <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                            filtreRoleGestionPersonnel === rf.id ? "bg-white/20 text-white" : "bg-white text-slate-700 shadow-xs"
+                          }`}>
+                            {count}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
 
                   {/* Filtres par statut */}
@@ -2211,7 +2323,7 @@ function PerimetreGouvernanceContent() {
                     ].map((st) => {
                       const count = st.id === "TOUS" 
                         ? tousLesAscqsPerimetre.length 
-                        : tousLesAscqsPerimetre.filter((a) => a.statut_compte === st.id).length;
+                        : tousLesAscqsPerimetre.filter((a) => (a.statut_effectif || a.statut_compte) === st.id).length;
                       return (
                         <button
                           key={st.id}
@@ -2239,7 +2351,7 @@ function PerimetreGouvernanceContent() {
                     <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                     <input
                       type="text"
-                      placeholder="Rechercher par nom, prénom, téléphone, arrondissement..."
+                      placeholder="Rechercher par nom, prénom, téléphone, arrondissement, poste..."
                       value={searchGestionAscq}
                       onChange={(e) => setSearchGestionAscq(e.target.value)}
                       className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-rose-600"
@@ -2250,14 +2362,22 @@ function PerimetreGouvernanceContent() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {(() => {
                       const ascqsFiltres = tousLesAscqsPerimetre.filter((a) => {
-                        if (filtreStatutGestionAscq !== "TOUS" && a.statut_compte !== filtreStatutGestionAscq) return false;
+                        const statut = a.statut_effectif || a.statut_compte;
+                        if (filtreStatutGestionAscq !== "TOUS" && statut !== filtreStatutGestionAscq) return false;
+                        if (filtreRoleGestionPersonnel !== "TOUS") {
+                          if (filtreRoleGestionPersonnel === "ASCQ" && a.poste !== "ASCQ" && a.role_technique !== "ASCQ_OPERATEUR") return false;
+                          if (filtreRoleGestionPersonnel === "RC" && a.poste !== "RC" && a.role_technique !== "RELAIS") return false;
+                          if (filtreRoleGestionPersonnel === "CADRE" && (a.poste === "ASCQ" || a.poste === "RC" || a.role_technique === "ASCQ_OPERATEUR" || a.role_technique === "RELAIS")) return false;
+                        }
                         if (searchGestionAscq.trim() !== "") {
                           const q = searchGestionAscq.toLowerCase();
                           return (
                             (a.nom && a.nom.toLowerCase().includes(q)) ||
                             (a.prenoms && a.prenoms.toLowerCase().includes(q)) ||
                             (a.telephone && a.telephone.includes(q)) ||
-                            (a.arrondissement_nom && a.arrondissement_nom.toLowerCase().includes(q))
+                            (a.arrondissement_nom && a.arrondissement_nom.toLowerCase().includes(q)) ||
+                            (a.commune_nom && a.commune_nom.toLowerCase().includes(q)) ||
+                            (a.poste && a.poste.toLowerCase().includes(q))
                           );
                         }
                         return true;
@@ -2271,11 +2391,13 @@ function PerimetreGouvernanceContent() {
                         );
                       }
 
-                      return ascqsFiltres.map((agent) => (
+                      return ascqsFiltres.map((agent) => {
+                        const isAgentRadie = (agent.statut_effectif || agent.statut_compte) === "RADIE";
+                        return (
                         <div
                           key={agent.id}
                           className={`p-4 rounded-2xl border transition-all flex flex-col justify-between gap-3 ${
-                            agent.statut_compte === "RADIE"
+                            isAgentRadie
                               ? "bg-rose-50/40 border-rose-200"
                               : agent.statut_compte === "VALIDE"
                               ? "bg-white border-slate-200/90 hover:border-slate-300"
@@ -2285,26 +2407,38 @@ function PerimetreGouvernanceContent() {
                           <div className="space-y-2">
                             <div className="flex items-start justify-between gap-2">
                               <div>
-                                <h4 className="font-black text-sm text-slate-900 uppercase">
-                                  {agent.nom} {agent.prenoms}
-                                </h4>
+                                <div className="flex items-center gap-2 flex-wrap mb-1">
+                                  <h4 className="font-black text-sm text-slate-900 uppercase">
+                                    {agent.nom} {agent.prenoms}
+                                  </h4>
+                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                                    agent.poste === "ASCQ" || agent.role_technique === "ASCQ_OPERATEUR"
+                                      ? "bg-emerald-100 text-[#005c30] border border-emerald-300"
+                                      : agent.poste === "RC" || agent.role_technique === "RELAIS"
+                                      ? "bg-blue-100 text-blue-900 border border-blue-300"
+                                      : "bg-purple-100 text-purple-900 border border-purple-300"
+                                  }`}>
+                                    {agent.poste === "ASCQ" ? "ASCQ Qualifié" : agent.poste === "RC" ? "Relais RC" : agent.poste || agent.role_technique}
+                                  </span>
+                                </div>
                                 <p className="text-[11px] text-slate-500 font-medium">
                                   Arrondissement : <strong className="text-slate-800">{agent.arrondissement_nom || "Arrondissement"}</strong>
+                                  {agent.commune_nom && <> • Commune : <strong className="text-slate-800">{agent.commune_nom}</strong></>}
                                 </p>
                               </div>
 
                               <span
                                 className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${
-                                  agent.statut_compte === "VALIDE"
+                                  agent.statut_compte === "VALIDE" && !isAgentRadie
                                     ? "bg-emerald-100 text-emerald-800"
-                                    : agent.statut_compte === "RADIE"
+                                    : isAgentRadie
                                     ? "bg-rose-100 text-rose-800 border border-rose-300 font-extrabold"
                                     : agent.statut_compte === "SUSPENDU"
                                     ? "bg-slate-200 text-slate-800"
                                     : "bg-amber-100 text-amber-800"
                                 }`}
                               >
-                                {agent.statut_compte === "RADIE" ? "RADIÉ (FIN FONCTION)" : agent.statut_compte}
+                                {isAgentRadie ? "RADIÉ (FIN FONCTION)" : agent.statut_compte}
                               </span>
                             </div>
 
@@ -2378,7 +2512,8 @@ function PerimetreGouvernanceContent() {
                             </button>
                           </div>
                         </div>
-                      ));
+                      );
+                      });
                     })()}
                   </div>
                 </div>

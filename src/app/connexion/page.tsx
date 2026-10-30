@@ -282,9 +282,11 @@ export default function ConnexionPage() {
         return;
       }
 
-      if (userProfile.statut_compte === "RADIE") {
+      const isRadie = userProfile.statut_compte === "RADIE" || (userProfile.statut_compte === "SUSPENDU" && String(userProfile.poste_autre || "").startsWith("RADIE:"));
+      if (isRadie) {
         await supabase.auth.signOut();
-        const motif = userProfile.motif_radiation ? ` (Motif : ${userProfile.motif_radiation})` : "";
+        const motifExtracted = userProfile.motif_radiation || (String(userProfile.poste_autre || "").startsWith("RADIE:") ? String(userProfile.poste_autre).replace("RADIE:", "").trim() : "");
+        const motif = motifExtracted ? ` (Motif : ${motifExtracted})` : "";
         setErrorMsg(`Ce compte a été radié de la plateforme suite à une fin de fonction${motif}. Veuillez contacter votre Représentant ou l'administration pour plus d'informations.`);
         setLoading(false);
         return;

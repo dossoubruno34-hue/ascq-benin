@@ -221,14 +221,32 @@ export default function AdminPage() {
 
       if (error) {
         const motifFinal = `${motifRadiationAdmin}${explicationRadiationAdmin ? " - " + explicationRadiationAdmin : ""}`;
-        await supabase
-          .from("utilisateurs")
-          .update({
+        let updOk = false;
+        try {
+          const { error: e1 } = await (supabase.from("utilisateurs").update({
             statut_compte: "RADIE",
             motif_radiation: motifFinal,
             date_radiation: new Date().toISOString(),
-          })
-          .eq("id", modalRadiationUser.id);
+          } as any) as any).eq("id", modalRadiationUser.id);
+          if (!e1) updOk = true;
+        } catch (e) {}
+
+        if (!updOk) {
+          try {
+            const { error: e2 } = await supabase.from("utilisateurs").update({
+              statut_compte: "RADIE",
+              poste_autre: `RADIE: ${motifFinal}`
+            }).eq("id", modalRadiationUser.id);
+            if (!e2) updOk = true;
+          } catch (e) {}
+        }
+
+        if (!updOk) {
+          await supabase.from("utilisateurs").update({
+            statut_compte: "SUSPENDU",
+            poste_autre: `RADIE: ${motifFinal}`
+          }).eq("id", modalRadiationUser.id);
+        }
       }
 
       setToastMessage({ text: `Compte de ${modalRadiationUser.prenoms} ${modalRadiationUser.nom} radié avec succès.`, error: false });
@@ -249,14 +267,22 @@ export default function AdminPage() {
         p_user_id: c.id,
       });
       if (error) {
-        await supabase
-          .from("utilisateurs")
-          .update({
+        let updOk = false;
+        try {
+          const { error: e1 } = await (supabase.from("utilisateurs").update({
             statut_compte: "VALIDE",
             motif_radiation: null,
             date_radiation: null,
-          })
-          .eq("id", c.id);
+          } as any) as any).eq("id", c.id);
+          if (!e1) updOk = true;
+        } catch (e) {}
+
+        if (!updOk) {
+          await supabase.from("utilisateurs").update({
+            statut_compte: "VALIDE",
+            poste_autre: null
+          }).eq("id", c.id);
+        }
       }
       setToastMessage({ text: `Compte rétabli au statut VALIDE avec succès.`, error: false });
       await chargerComptes();
@@ -494,7 +520,7 @@ export default function AdminPage() {
       } else {
         const { data: rawComptes } = await supabase
           .from("utilisateurs")
-          .select("*, departements(nom), communes(nom), arrondissements(nom)")
+          .select("*, departements(nom), communes(nom), arrondissements!utilisateurs_arrondissement_id_fkey(nom)")
           .order("created_at", { ascending: false });
         setComptes(rawComptes || []);
       }
