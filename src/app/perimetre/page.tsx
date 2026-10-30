@@ -41,7 +41,9 @@ import {
   MessageSquare,
   Baby,
   ClipboardList,
-  HeartPulse
+  HeartPulse,
+  Trash2,
+  UserX
 } from "lucide-react";
 import { getCachedUserSession, getCachedMonEspace } from "@/lib/offline-sync";
 import { estCadreNonAscq, getTitreCadreOfficiel, getPerimetreScope, PerimetreScope } from "@/lib/cadre-roles";
@@ -82,6 +84,7 @@ function PerimetreGouvernanceContent() {
     | "suggestions"
     | "alertes_missions"
     | "exports_journal"
+    | "nettoyage_radiation"
   >("dashboard_compile");
 
   // Inscriptions ASCQ en attente (Validation par le Représentant Communal)
@@ -92,6 +95,36 @@ function PerimetreGouvernanceContent() {
   // Modal d'édition/correction d'un RMA par le Représentant Communal
   const [editingRma, setEditingRma] = useState<any | null>(null);
   const [savingRma, setSavingRma] = useState(false);
+
+  // -------------------------------------------------------------------
+  // NETTOYAGE DES DONNÉES ERRONÉES & GESTION / RADIATION DES ASCQ
+  // -------------------------------------------------------------------
+  const [sousOngletNettoyage, setSousOngletNettoyage] = useState<"donnees" | "ascq">("donnees");
+  const [searchNettoyageDonnees, setSearchNettoyageDonnees] = useState("");
+  const [filtreTypeDonneeNettoyage, setFiltreTypeDonneeNettoyage] = useState("TOUT");
+
+  // Modal Nettoyage de Donnée
+  const [modalNettoyageDonnee, setModalNettoyageDonnee] = useState<{ record: any; table: string } | null>(null);
+  const [motifNettoyage, setMotifNettoyage] = useState("DONNEE_TEST");
+  const [explicationNettoyage, setExplicationNettoyage] = useState("");
+  const [submittingNettoyage, setSubmittingNettoyage] = useState(false);
+
+  // Gestion & Radiation des ASCQ dans le périmètre
+  const [tousLesAscqsPerimetre, setTousLesAscqsPerimetre] = useState<any[]>([]);
+  const [loadingTousLesAscqs, setLoadingTousLesAscqs] = useState(false);
+  const [searchGestionAscq, setSearchGestionAscq] = useState("");
+  const [filtreStatutGestionAscq, setFiltreStatutGestionAscq] = useState("TOUS");
+
+  // Modal Radiation ASCQ
+  const [modalRadiationAscq, setModalRadiationAscq] = useState<any | null>(null);
+  const [motifRadiation, setMotifRadiation] = useState("FIN_CONTRAT");
+  const [explicationRadiation, setExplicationRadiation] = useState("");
+  const [submittingRadiation, setSubmittingRadiation] = useState(false);
+
+  // Modal Suppression définitive ASCQ
+  const [modalSuppressionAscq, setModalSuppressionAscq] = useState<any | null>(null);
+  const [confirmSuppressionTexte, setConfirmSuppressionTexte] = useState("");
+  const [submittingSuppression, setSubmittingSuppression] = useState(false);
 
   // Période d'analyse
   const now = new Date();
@@ -231,7 +264,8 @@ function PerimetreGouvernanceContent() {
           "inscriptions_ascq",
           "suggestions",
           "alertes_missions",
-          "exports_journal"
+          "exports_journal",
+          "nettoyage_radiation"
         ].includes(tabParam)
       ) {
         setActiveTab(tabParam as any);
@@ -542,6 +576,183 @@ function PerimetreGouvernanceContent() {
       }
     } catch (e) {
       console.warn("Erreur liste ASCQ:", e);
+    }
+  };
+
+  // 3b. CHARGEMENT DE TOUS LES ASCQ DU PÉRIMÈTRE (ACTIFS, RADIÉS, EN ATTENTE)
+  const chargerTousLesAscqsPerimetre = async (profil: any) => {
+    if (!profil) return;
+    setLoadingTousLesAscqs(true);
+    try {
+      const scope = getPerimetreScope(profil);
+      let q = supabase
+        .from("utilisateurs")
+        .select("id, nom, prenoms, telephone, poste, role_technique, role_nomination, statut_compte, motif_radiation, date_radiation, commune_id, arrondissement_id, departement_id, created_at")
+        .or("poste.eq.ASCQ,role_technique.eq.ASCQ_OPERATEUR,poste.eq.REPRESENTANT_COMMUNAL,poste.eq.REPRESENTANT_DEPARTEMENTAL");
+
+      if (scope.filterType === "commune_id" && scope.id) q = q.eq("commune_id", scope.id);
+      else if (scope.filterType === "zone_sanitaire_id" && scope.id) q = q.eq("zone_sanitaire_id", scope.id);
+      else if (scope.filterType === "departement_id" && scope.id) q = q.eq("departement_id", scope.id);
+
+      const { data, error } = await q.order("nom");
+      if (!error && data) {
+        const arrIds = Array.from(new Set(data.map((u: any) => u.arrondissement_id).filter(Boolean)));
+        let arrMap = new Map();
+        if (arrIds.length > 0) {
+          const { data: arrData } = await supabase.from("arrondissements").select("id, nom").in("id", arrIds);
+          arrMap = new Map((arrData || []).map((a: any) => [a.id, a.nom]));
+        }
+        const enriched = data.map((u: any) => ({
+          ...u,
+          arrondissement_nom: arrMap.get(u.arrondissement_id) || "Arrondissement"
+        }));
+        setTousLesAscqsPerimetre(enriched);
+      }
+    } catch (e) {
+      console.warn("Erreur chargement tous ASCQ périmètre:", e);
+    } finally {
+      setLoadingTousLesAscqs(false);
+    }
+  };
+
+  // HANDLERS NETTOYAGE DES DONNEES ERRONÉES
+  const ouvrirModalNettoyage = (record: any) => {
+    let tableName = "consultations_communautaires";
+    if (record.type === "ICCM") tableName = "consultations_communautaires";
+    else if (record.type === "MATERNITE") tableName = "suivi_femmes_enceintes";
+    else if (record.type === "ENFANTS_1000J") tableName = "suivi_enfants_1000_jours";
+    else if (record.type === "REFERENCES") tableName = "references_communautaires";
+    else if (record.type === "ALERTES") tableName = "alertes_communautaires";
+    else if (record.type === "DECES") tableName = "deces_communautaires";
+    else if (record.type === "RMA") tableName = "rapports_mensuels_ascq";
+
+    setModalNettoyageDonnee({ record, table: tableName });
+    setMotifNettoyage("DONNEE_TEST");
+    setExplicationNettoyage("");
+  };
+
+  const handleConfirmerNettoyageDonnee = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!modalNettoyageDonnee) return;
+    setSubmittingNettoyage(true);
+    try {
+      const { record, table } = modalNettoyageDonnee;
+      const { error } = await supabase.rpc("nettoyer_donnee_erronee", {
+        p_table: table,
+        p_id: record.id,
+        p_motif: motifNettoyage,
+        p_explication: explicationNettoyage || null
+      });
+
+      if (error) {
+        await supabase.from(table).delete().eq("id", record.id);
+      }
+
+      setRegistreFiches(prev => prev.filter(f => f.id !== record.id));
+      setModalNettoyageDonnee(null);
+      setExplicationNettoyage("");
+      if (ficheAffichee && ((ficheAffichee as any).id === record.id || (ficheAffichee as any).donnees?.id === record.id)) {
+        setFicheAffichee(null);
+      }
+      alert("Donnée erronée nettoyée et archivée dans l'audit avec succès.");
+    } catch (err: any) {
+      alert("Erreur lors du nettoyage : " + err.message);
+    } finally {
+      setSubmittingNettoyage(false);
+    }
+  };
+
+  // HANDLERS RADIATION ET SUPPRESSION COMPTES ASCQ
+  const handleConfirmerRadiationAscq = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!modalRadiationAscq) return;
+    setSubmittingRadiation(true);
+    try {
+      const motifFinal = `${motifRadiation}${explicationRadiation ? " - " + explicationRadiation : ""}`;
+      const { error } = await supabase.rpc("radier_compte_ascq", {
+        p_user_id: modalRadiationAscq.id,
+        p_motif: motifRadiation,
+        p_explication: explicationRadiation || null
+      });
+
+      if (error) {
+        await supabase.from("utilisateurs").update({
+          statut_compte: "RADIE",
+          motif_radiation: motifFinal,
+          date_radiation: new Date().toISOString()
+        }).eq("id", modalRadiationAscq.id);
+      }
+
+      alert(`Compte de ${modalRadiationAscq.prenoms} ${modalRadiationAscq.nom} radié avec succès.`);
+      setModalRadiationAscq(null);
+      setExplicationRadiation("");
+      if (currentUser) {
+        await chargerTousLesAscqsPerimetre(currentUser);
+        await chargerListeAscq(currentUser);
+      }
+    } catch (err: any) {
+      alert("Erreur lors de la radiation : " + err.message);
+    } finally {
+      setSubmittingRadiation(false);
+    }
+  };
+
+  const handleRetablirAscq = async (ascq: any) => {
+    if (!confirm(`Rétablir le compte de ${ascq.prenoms} ${ascq.nom} au statut VALIDE ?`)) return;
+    try {
+      const { error } = await supabase.rpc("retablir_compte_ascq", {
+        p_user_id: ascq.id
+      });
+
+      if (error) {
+        await supabase.from("utilisateurs").update({
+          statut_compte: "VALIDE",
+          motif_radiation: null,
+          date_radiation: null
+        }).eq("id", ascq.id);
+      }
+
+      alert("Compte rétabli en fonction.");
+      if (currentUser) {
+        await chargerTousLesAscqsPerimetre(currentUser);
+        await chargerListeAscq(currentUser);
+      }
+    } catch (err: any) {
+      alert("Erreur rétablissement : " + err.message);
+    }
+  };
+
+  const handleConfirmerSuppressionAscq = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!modalSuppressionAscq) return;
+    if (confirmSuppressionTexte !== "SUPPRIMER") {
+      alert("Veuillez saisir exactement le mot 'SUPPRIMER'.");
+      return;
+    }
+    setSubmittingSuppression(true);
+    try {
+      const { error } = await supabase.rpc("supprimer_compte_ascq", {
+        p_user_id: modalSuppressionAscq.id,
+        p_motif: "Suppression définitive par le représentant territorial"
+      });
+
+      if (error) {
+        await supabase.from("ascq_profils").delete().eq("id", modalSuppressionAscq.id);
+        await supabase.from("relais_communautaires").delete().or(`ascq_id.eq.${modalSuppressionAscq.id},user_id.eq.${modalSuppressionAscq.id}`);
+        await supabase.from("utilisateurs").delete().eq("id", modalSuppressionAscq.id);
+      }
+
+      alert("Compte supprimé définitivement.");
+      setModalSuppressionAscq(null);
+      setConfirmSuppressionTexte("");
+      if (currentUser) {
+        await chargerTousLesAscqsPerimetre(currentUser);
+        await chargerListeAscq(currentUser);
+      }
+    } catch (err: any) {
+      alert("Erreur lors de la suppression : " + err.message);
+    } finally {
+      setSubmittingSuppression(false);
     }
   };
 
@@ -1385,6 +1596,15 @@ function PerimetreGouvernanceContent() {
     (currentUser?.role_nomination || "").toUpperCase().includes("COMMUNAL") ||
     currentUser?.poste === "PF_CCLS_TP";
 
+  const isRepresentantDepartemental = isSuperAdmin ||
+    currentUser?.poste === "REPRESENTANT_DEPARTEMENTAL" ||
+    currentUser?.role_technique === "REPRESENTANT_DEPARTEMENTAL" ||
+    (currentUser?.role_nomination || "").toUpperCase().includes("DEPARTEMENTAL") ||
+    currentUser?.poste === "DDS" ||
+    currentUser?.poste === "CCD_CDLS_TP";
+
+  const peutGererNettoyageEtRadiation = isSuperAdmin || isRepresentantCommunal || isRepresentantDepartemental;
+
   return (
     <div className="min-h-screen bg-[#f4f7f5] text-slate-800 antialiased pb-28">
       <AscqNav userProfile={currentUser} />
@@ -1529,6 +1749,23 @@ function PerimetreGouvernanceContent() {
             <Download className="w-4 h-4" />
             <span>6. Exports & Audit</span>
           </button>
+
+          {peutGererNettoyageEtRadiation && (
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab("nettoyage_radiation");
+                if (tousLesAscqsPerimetre.length === 0 && currentUser) chargerTousLesAscqsPerimetre(currentUser);
+                if (registreFiches.length === 0) chargerRegistreFichesTerritoire();
+              }}
+              className={`flex-1 py-2.5 px-2 text-center rounded-xl transition-all flex items-center justify-center gap-1.5 whitespace-nowrap ${
+                activeTab === "nettoyage_radiation" ? "bg-rose-100 text-rose-950 shadow-sm font-black border border-rose-300" : "hover:text-slate-900 text-rose-900"
+              }`}
+            >
+              <Trash2 className="w-4 h-4 text-rose-600" />
+              <span>7. Nettoyage & Radiation</span>
+            </button>
+          )}
         </div>
 
         {/* ------------------------------------------------------------- */}
@@ -1722,6 +1959,431 @@ function PerimetreGouvernanceContent() {
                 </table>
               </div>
             </div>
+
+          </div>
+        )}
+
+        {/* ------------------------------------------------------------- */}
+        {/* ONGLET 7 : NETTOYAGE DES DONNEES ERRONÉES & GESTION ASCQ */}
+        {/* ------------------------------------------------------------- */}
+        {activeTab === "nettoyage_radiation" && (
+          <div className="space-y-4">
+            
+            {/* BANDEAU SUPERIEUR D'INFORMATION */}
+            <div className="bg-gradient-to-r from-rose-900 via-rose-800 to-slate-900 text-white rounded-3xl p-6 shadow-md space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="px-3 py-0.5 rounded-full bg-rose-500/30 text-rose-200 text-[10px] font-black uppercase border border-rose-400/30">
+                      Gouvernance & Assainissement
+                    </span>
+                    <span className="text-[10px] text-rose-200 font-bold">
+                      {libelleTerritoire}
+                    </span>
+                  </div>
+                  <h2 className="text-xl sm:text-2xl font-black tracking-tight flex items-center gap-2">
+                    <Trash2 className="w-6 h-6 text-rose-300 shrink-0" />
+                    <span>Nettoyage & Radiation des Comptes</span>
+                  </h2>
+                  <p className="text-xs text-rose-100 max-w-2xl leading-relaxed">
+                    Espace habilité pour les Représentants Communaux, Représentants Départementaux et le Super Administrateur National. Supprimez les données jugées erronées sur le terrain avec traçabilité d'audit obligatoire, et gérez la fin de fonction des agents qui ne sont plus ASCQ.
+                  </p>
+                </div>
+              </div>
+
+              {/* COMMUTATEUR DES 2 SOUS-VOLETS */}
+              <div className="flex items-center gap-2 bg-black/20 p-1 rounded-2xl w-full sm:w-auto self-start border border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setSousOngletNettoyage("donnees")}
+                  className={`flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                    sousOngletNettoyage === "donnees"
+                      ? "bg-white text-slate-900 shadow-md font-black"
+                      : "text-white/80 hover:text-white"
+                  }`}
+                >
+                  <ClipboardList className="w-4 h-4 text-rose-700" />
+                  <span>1. Nettoyage des Données Erronées ({registreFiches.length})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSousOngletNettoyage("ascq");
+                    if (tousLesAscqsPerimetre.length === 0 && currentUser) {
+                      chargerTousLesAscqsPerimetre(currentUser);
+                    }
+                  }}
+                  className={`flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                    sousOngletNettoyage === "ascq"
+                      ? "bg-white text-slate-900 shadow-md font-black"
+                      : "text-white/80 hover:text-white"
+                  }`}
+                >
+                  <Users className="w-4 h-4 text-rose-700" />
+                  <span>2. Radiation & Gestion des ASCQ ({tousLesAscqsPerimetre.length})</span>
+                </button>
+              </div>
+            </div>
+
+            {/* --------------------------------------------------------- */}
+            {/* SOUS-VOLET 1 : NETTOYAGE DES DONNÉES ERRONÉES */}
+            {/* --------------------------------------------------------- */}
+            {sousOngletNettoyage === "donnees" && (
+              <div className="space-y-4">
+                <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <h3 className="font-extrabold text-sm sm:text-base text-slate-900 flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4 text-amber-600" />
+                        <span>Fiches d'activité et déclarations du périmètre</span>
+                      </h3>
+                      <p className="text-xs text-slate-500">
+                        Sélectionnez une donnée signalée erronée (test, doublon, fausse alerte) pour la retirer et l'archiver dans l'audit.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={chargerRegistreFichesTerritoire}
+                      disabled={loadingRegistre}
+                      className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 self-start sm:self-auto transition-all"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${loadingRegistre ? "animate-spin text-[#005c30]" : ""}`} />
+                      <span>Actualiser</span>
+                    </button>
+                  </div>
+
+                  {/* Filtres par Module / Type */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-[11px] font-bold">
+                    {[
+                      { id: "TOUT", label: "Toutes les fiches" },
+                      { id: "ICCM", label: "🩺 Soins iCCM" },
+                      { id: "MATERNITE", label: "🤰 Maternité" },
+                      { id: "ENFANTS_1000J", label: "👶 1000 Jours" },
+                      { id: "REFERENCES", label: "🚑 Références CS" },
+                      { id: "ALERTES", label: "🚨 Alertes SIMR" },
+                      { id: "DECES", label: "⚰️ Décès" },
+                      { id: "RMA", label: "📊 Rapports RMA" },
+                    ].map((f) => (
+                      <button
+                        key={f.id}
+                        type="button"
+                        onClick={() => setFiltreTypeDonneeNettoyage(f.id)}
+                        className={`px-3 py-1.5 rounded-xl whitespace-nowrap transition-all ${
+                          filtreTypeDonneeNettoyage === f.id
+                            ? "bg-rose-900 text-white shadow-sm font-black"
+                            : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                        }`}
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Recherche rapide */}
+                  <div className="relative">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                    <input
+                      type="text"
+                      placeholder="Rechercher par nom de patient, titre, village ou ASCQ..."
+                      value={searchNettoyageDonnees}
+                      onChange={(e) => setSearchNettoyageDonnees(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-rose-600"
+                    />
+                  </div>
+
+                  {/* Liste des données */}
+                  <div className="divide-y divide-slate-100 border border-slate-200/80 rounded-2xl overflow-hidden bg-white">
+                    {(() => {
+                      const fichesFiltrees = registreFiches.filter((f) => {
+                        if (filtreTypeDonneeNettoyage !== "TOUT" && f.type !== filtreTypeDonneeNettoyage) return false;
+                        if (searchNettoyageDonnees.trim() !== "") {
+                          const q = searchNettoyageDonnees.toLowerCase();
+                          return (
+                            (f.titre && f.titre.toLowerCase().includes(q)) ||
+                            (f.sousTitre && f.sousTitre.toLowerCase().includes(q)) ||
+                            (f.ascqNom && f.ascqNom.toLowerCase().includes(q)) ||
+                            (f.typeLibelle && f.typeLibelle.toLowerCase().includes(q))
+                          );
+                        }
+                        return true;
+                      });
+
+                      if (fichesFiltrees.length === 0) {
+                        return (
+                          <div className="p-8 text-center text-slate-400 text-xs">
+                            Aucune fiche ou donnée trouvée selon vos filtres.
+                          </div>
+                        );
+                      }
+
+                      return fichesFiltrees.map((item) => (
+                        <div key={item.id} className="p-3.5 hover:bg-rose-50/30 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div className="space-y-1 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border ${item.badgeColor}`}>
+                                {item.typeLibelle}
+                              </span>
+                              <span className="text-xs font-black text-slate-900">
+                                {item.titre}
+                              </span>
+                              {item.decision && (
+                                <span className={`px-2 py-0.2 rounded-full text-[10px] font-bold ${item.decisionBadge || "bg-slate-100 text-slate-700"}`}>
+                                  {item.decision}
+                                </span>
+                              )}
+                            </div>
+
+                            <p className="text-[11px] text-slate-500 font-medium">
+                              {item.sousTitre}
+                            </p>
+
+                            <p className="text-[10px] text-slate-400">
+                              Enregistré par : <strong className="text-slate-700">{item.ascqNom}</strong> • Date : {new Date(item.dateFiche).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                            </p>
+                          </div>
+
+                          <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => setFicheAffichee(item)}
+                              className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1 active:scale-95 transition-all"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>Consulter</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => ouvrirModalNettoyage(item)}
+                              className="px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-bold text-xs flex items-center gap-1 active:scale-95 transition-all shadow-xs"
+                              title="Supprimer cette donnée erronée"
+                            >
+                              <Trash2 className="w-3.5 h-3.5 text-red-600" />
+                              <span>Nettoyer</span>
+                            </button>
+                          </div>
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* --------------------------------------------------------- */}
+            {/* SOUS-VOLET 2 : RADIATION & SUPPRESSION DES COMPTES ASCQ */}
+            {/* --------------------------------------------------------- */}
+            {sousOngletNettoyage === "ascq" && (
+              <div className="space-y-4">
+                <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <h3 className="font-extrabold text-sm sm:text-base text-slate-900 flex items-center gap-2">
+                        <Users className="w-4 h-4 text-rose-700" />
+                        <span>Personnel ASCQ du Périmètre ({libelleTerritoire})</span>
+                      </h3>
+                      <p className="text-xs text-slate-500">
+                        Radiez les agents qui ne sont plus en fonction (fin de contrat, démission, révocation) ou supprimez définitivement les comptes de test et doublons.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => currentUser && chargerTousLesAscqsPerimetre(currentUser)}
+                      disabled={loadingTousLesAscqs}
+                      className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 self-start sm:self-auto transition-all"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${loadingTousLesAscqs ? "animate-spin text-rose-700" : ""}`} />
+                      <span>Actualiser</span>
+                    </button>
+                  </div>
+
+                  {/* Filtres par statut */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs font-bold">
+                    {[
+                      { id: "TOUS", label: "Tous les statuts" },
+                      { id: "VALIDE", label: "✅ En fonction (Validés)" },
+                      { id: "RADIE", label: "⛔ Radiés (Fin de fonction)" },
+                      { id: "EN_ATTENTE", label: "⏳ En attente" },
+                      { id: "SUSPENDU", label: "⏸️ Suspendus" },
+                    ].map((st) => {
+                      const count = st.id === "TOUS" 
+                        ? tousLesAscqsPerimetre.length 
+                        : tousLesAscqsPerimetre.filter((a) => a.statut_compte === st.id).length;
+                      return (
+                        <button
+                          key={st.id}
+                          type="button"
+                          onClick={() => setFiltreStatutGestionAscq(st.id)}
+                          className={`px-3 py-1.5 rounded-xl whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                            filtreStatutGestionAscq === st.id
+                              ? "bg-slate-900 text-white shadow-sm font-black"
+                              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                          }`}
+                        >
+                          <span>{st.label}</span>
+                          <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                            filtreStatutGestionAscq === st.id ? "bg-white/20 text-white" : "bg-white text-slate-700 shadow-xs"
+                          }`}>
+                            {count}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Recherche rapide */}
+                  <div className="relative">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                    <input
+                      type="text"
+                      placeholder="Rechercher par nom, prénom, téléphone, arrondissement..."
+                      value={searchGestionAscq}
+                      onChange={(e) => setSearchGestionAscq(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-rose-600"
+                    />
+                  </div>
+
+                  {/* Grille / Liste des comptes ASCQ */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {(() => {
+                      const ascqsFiltres = tousLesAscqsPerimetre.filter((a) => {
+                        if (filtreStatutGestionAscq !== "TOUS" && a.statut_compte !== filtreStatutGestionAscq) return false;
+                        if (searchGestionAscq.trim() !== "") {
+                          const q = searchGestionAscq.toLowerCase();
+                          return (
+                            (a.nom && a.nom.toLowerCase().includes(q)) ||
+                            (a.prenoms && a.prenoms.toLowerCase().includes(q)) ||
+                            (a.telephone && a.telephone.includes(q)) ||
+                            (a.arrondissement_nom && a.arrondissement_nom.toLowerCase().includes(q))
+                          );
+                        }
+                        return true;
+                      });
+
+                      if (ascqsFiltres.length === 0) {
+                        return (
+                          <div className="col-span-full p-8 text-center text-slate-400 text-xs">
+                            Aucun agent ASCQ correspondant aux critères dans ce périmètre.
+                          </div>
+                        );
+                      }
+
+                      return ascqsFiltres.map((agent) => (
+                        <div
+                          key={agent.id}
+                          className={`p-4 rounded-2xl border transition-all flex flex-col justify-between gap-3 ${
+                            agent.statut_compte === "RADIE"
+                              ? "bg-rose-50/40 border-rose-200"
+                              : agent.statut_compte === "VALIDE"
+                              ? "bg-white border-slate-200/90 hover:border-slate-300"
+                              : "bg-amber-50/30 border-amber-200"
+                          }`}
+                        >
+                          <div className="space-y-2">
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <h4 className="font-black text-sm text-slate-900 uppercase">
+                                  {agent.nom} {agent.prenoms}
+                                </h4>
+                                <p className="text-[11px] text-slate-500 font-medium">
+                                  Arrondissement : <strong className="text-slate-800">{agent.arrondissement_nom || "Arrondissement"}</strong>
+                                </p>
+                              </div>
+
+                              <span
+                                className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                                  agent.statut_compte === "VALIDE"
+                                    ? "bg-emerald-100 text-emerald-800"
+                                    : agent.statut_compte === "RADIE"
+                                    ? "bg-rose-100 text-rose-800 border border-rose-300 font-extrabold"
+                                    : agent.statut_compte === "SUSPENDU"
+                                    ? "bg-slate-200 text-slate-800"
+                                    : "bg-amber-100 text-amber-800"
+                                }`}
+                              >
+                                {agent.statut_compte === "RADIE" ? "RADIÉ (FIN FONCTION)" : agent.statut_compte}
+                              </span>
+                            </div>
+
+                            {/* Contact Benin WhatsApp et Appel */}
+                            <div>
+                              <BeninPhoneAction telephone={agent.telephone} variant="button-group" />
+                            </div>
+
+                            {/* Alerte si Radié */}
+                            {agent.statut_compte === "RADIE" && (
+                              <div className="text-[11px] bg-rose-100/70 border border-rose-200 text-rose-950 p-2.5 rounded-xl space-y-1">
+                                <p className="font-extrabold flex items-center gap-1.5 text-rose-900">
+                                  <UserX className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                                  <span>Agent radié - Accès révoqué</span>
+                                </p>
+                                {agent.motif_radiation && (
+                                  <p className="text-rose-900 text-xs">
+                                    <strong>Motif :</strong> {agent.motif_radiation}
+                                  </p>
+                                )}
+                                {agent.date_radiation && (
+                                  <p className="text-rose-700 text-[10px]">
+                                    Date : {new Date(agent.date_radiation).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Boutons d'action territoriale */}
+                          <div className="flex items-center gap-1.5 pt-2 border-t border-slate-100 flex-wrap justify-end">
+                            {agent.statut_compte === "VALIDE" && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setModalRadiationAscq(agent);
+                                  setMotifRadiation("FIN_CONTRAT");
+                                  setExplicationRadiation("");
+                                }}
+                                className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs flex items-center gap-1 active:scale-95 transition-all shadow-xs"
+                                title="Radier cet agent suite à fin de contrat ou cessation d'activité"
+                              >
+                                <UserX className="w-3.5 h-3.5 text-rose-600" />
+                                <span>Radier (Fin de fonction)</span>
+                              </button>
+                            )}
+
+                            {(agent.statut_compte === "RADIE" || agent.statut_compte === "SUSPENDU") && (
+                              <button
+                                type="button"
+                                onClick={() => handleRetablirAscq(agent)}
+                                className="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-xs flex items-center gap-1 active:scale-95 transition-all shadow-xs"
+                                title="Rétablir les fonctions de cet agent"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>Rétablir en fonction</span>
+                              </button>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setModalSuppressionAscq(agent);
+                                setConfirmSuppressionTexte("");
+                              }}
+                              className="px-2 py-1.5 rounded-xl text-slate-400 hover:text-red-700 hover:bg-red-50 border border-transparent hover:border-red-200 font-bold text-xs flex items-center gap-1 active:scale-95 transition-all"
+                              title="Supprimer définitivement ce compte (doublon ou test)"
+                            >
+                              <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                              <span>Supprimer</span>
+                            </button>
+                          </div>
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                </div>
+              </div>
+            )}
 
           </div>
         )}
@@ -3324,6 +3986,238 @@ function PerimetreGouvernanceContent() {
           </div>
         )}
 
+        {/* MODAL NETTOYAGE DE DONNEE ERRONEE */}
+        {modalNettoyageDonnee && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
+              <div className="flex items-center gap-3 border-b pb-3">
+                <div className="w-10 h-10 rounded-2xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-sm text-slate-900">
+                    Nettoyage d'une Donnée Erronée
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Module : {modalNettoyageDonnee.record.typeLibelle || modalNettoyageDonnee.record.type}
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 text-xs text-amber-900 space-y-1">
+                <p className="font-bold flex items-center gap-1.5 text-amber-800">
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600" />
+                  <span>Traçabilité & Audit</span>
+                </p>
+                <p>
+                  Élément ciblé : <strong>{modalNettoyageDonnee.record.titre || "Fiche sélectionnée"}</strong>
+                </p>
+                <p className="text-[11px] text-amber-700">
+                  Cette donnée sera supprimée des registres actifs mais conservée dans le journal d'audit de nettoyage au nom de votre profil de supervision.
+                </p>
+              </div>
+
+              <form onSubmit={handleConfirmerNettoyageDonnee} className="space-y-3 text-xs">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">
+                    Motif du nettoyage *
+                  </label>
+                  <select
+                    value={motifNettoyage}
+                    onChange={(e) => setMotifNettoyage(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-slate-300 font-semibold focus:ring-2 focus:ring-rose-500"
+                    required
+                  >
+                    <option value="DONNEE_TEST">Donnée de test / Saisie fictive d'entraînement</option>
+                    <option value="DOUBLON">Doublon de déclaration (déjà enregistrée)</option>
+                    <option value="ERREUR_CIBLE">Erreur manifeste de cible ou hors territoire</option>
+                    <option value="FAUSSE_ALERTE">Fausse alerte confirmée après investigation</option>
+                    <option value="SAISIE_ERRONEE">Saisie incomplète ou informations erronées</option>
+                    <option value="AUTRE">Autre motif justifié</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">
+                    Explication & Justification de terrain
+                  </label>
+                  <textarea
+                    value={explicationNettoyage}
+                    onChange={(e) => setExplicationNettoyage(e.target.value)}
+                    placeholder="Précisez le contexte du constat d'erreur ou la concertation avec l'agent..."
+                    rows={3}
+                    className="w-full p-2.5 rounded-xl border border-slate-300 font-semibold focus:ring-2 focus:ring-rose-500"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t">
+                  <button
+                    type="button"
+                    onClick={() => setModalNettoyageDonnee(null)}
+                    className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submittingNettoyage}
+                    className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs shadow-md transition-all active:scale-95 disabled:opacity-50"
+                  >
+                    {submittingNettoyage ? "Nettoyage en cours..." : "Confirmer le nettoyage"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL RADIATION ASCQ */}
+        {modalRadiationAscq && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
+              <div className="flex items-center gap-3 border-b pb-3">
+                <div className="w-10 h-10 rounded-2xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+                  <UserX className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-sm text-slate-900">
+                    Radier un ASCQ (Fin de fonction)
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    {modalRadiationAscq.nom} {modalRadiationAscq.prenoms} ({modalRadiationAscq.arrondissement_nom || "Arrondissement"})
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-rose-50 border border-rose-200 rounded-2xl p-3 text-xs text-rose-800 space-y-1">
+                <p className="font-bold flex items-center gap-1.5 text-rose-900">
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600" />
+                  <span>Conséquence de la radiation</span>
+                </p>
+                <p>
+                  L'accès de cet agent à l'application sera bloqué avec mention du motif de fin de fonction. Son compte est archivé dans le statut <strong>RADIÉ</strong>.
+                </p>
+              </div>
+
+              <form onSubmit={handleConfirmerRadiationAscq} className="space-y-3 text-xs">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">
+                    Motif officiel de radiation *
+                  </label>
+                  <select
+                    value={motifRadiation}
+                    onChange={(e) => setMotifRadiation(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-slate-300 font-semibold focus:ring-2 focus:ring-rose-500"
+                    required
+                  >
+                    <option value="FIN_CONTRAT">Fin de contrat / Mission achevée</option>
+                    <option value="DEMISSION">Démission volontaire</option>
+                    <option value="MUTATION_HORS_COMMUNAUTAIRE">Mutation / Réaffectation hors santé communautaire</option>
+                    <option value="ABANDON_POSTE">Abandon de poste / Inactivité prolongée</option>
+                    <option value="REVOCATION_DISCIPLINAIRE">Révocation / Décision disciplinaire</option>
+                    <option value="DECES">Décès de l'agent</option>
+                    <option value="AUTRE">Autre motif justifié</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">
+                    Précisions & Références (Optionnel)
+                  </label>
+                  <textarea
+                    value={explicationRadiation}
+                    onChange={(e) => setExplicationRadiation(e.target.value)}
+                    placeholder="Numéro de note de service, date de passation, observations..."
+                    rows={3}
+                    className="w-full p-2.5 rounded-xl border border-slate-300 font-semibold focus:ring-2 focus:ring-rose-500"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t">
+                  <button
+                    type="button"
+                    onClick={() => setModalRadiationAscq(null)}
+                    className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submittingRadiation}
+                    className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs shadow-md transition-all active:scale-95 disabled:opacity-50"
+                  >
+                    {submittingRadiation ? "Radiation en cours..." : "Confirmer la radiation"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL SUPPRESSION DEFINITIVE COMPTE ASCQ */}
+        {modalSuppressionAscq && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
+              <div className="flex items-center gap-3 border-b pb-3">
+                <div className="w-10 h-10 rounded-2xl bg-red-100 text-red-700 flex items-center justify-center shrink-0">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-sm text-slate-900">
+                    Suppression Définitive de Compte
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    {modalSuppressionAscq.nom} {modalSuppressionAscq.prenoms} ({modalSuppressionAscq.telephone})
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-red-50 border border-red-200 rounded-2xl p-3 text-xs text-red-800 space-y-1">
+                <p className="font-black flex items-center gap-1.5 text-red-900">
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
+                  <span>Action Irréversible</span>
+                </p>
+                <p>
+                  Ce compte sera <strong>définitivement supprimé</strong> de la base de données. Utilisez cette action uniquement pour éliminer les comptes de test ou les doublons créés par erreur.
+                </p>
+              </div>
+
+              <form onSubmit={handleConfirmerSuppressionAscq} className="space-y-3 text-xs">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">
+                    Pour confirmer, tapez le mot <strong className="text-red-700">SUPPRIMER</strong> ci-dessous :
+                  </label>
+                  <input
+                    type="text"
+                    value={confirmSuppressionTexte}
+                    onChange={(e) => setConfirmSuppressionTexte(e.target.value)}
+                    placeholder="SUPPRIMER"
+                    className="w-full p-2.5 rounded-xl border border-red-300 font-black tracking-widest text-center focus:ring-2 focus:ring-red-500 uppercase"
+                    required
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t">
+                  <button
+                    type="button"
+                    onClick={() => setModalSuppressionAscq(null)}
+                    className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submittingSuppression || confirmSuppressionTexte !== "SUPPRIMER"}
+                    className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-extrabold text-xs shadow-md transition-all active:scale-95 disabled:opacity-40"
+                  >
+                    {submittingSuppression ? "Suppression..." : "Supprimer définitivement"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
         {/* MODAL CORRECTION / VALIDATION DE RMA PAR LE REPRESENTANT COMMUNAL */}
         {editingRma && (
           <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
@@ -3652,6 +4546,25 @@ function PerimetreGouvernanceContent() {
                     <Sparkles className="w-3.5 h-3.5" />
                     <span>💡 Suggérer une remarque sur cette fiche</span>
                   </button>
+
+                  {peutGererNettoyageEtRadiation && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const targetItem = ficheAffichee.donnees ? {
+                          id: ficheAffichee.donnees.id,
+                          type: ficheAffichee.type,
+                          typeLibelle: ficheAffichee.type,
+                          titre: ficheAffichee.donnees.titre_alerte || ficheAffichee.donnees.nom_defunt || ficheAffichee.donnees.nom_patient || "Fiche"
+                        } : ficheAffichee;
+                        ouvrirModalNettoyage(targetItem);
+                      }}
+                      className="py-1.5 px-3 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-bold text-xs flex items-center gap-1 shadow-xs transition-all"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 text-red-600" />
+                      <span>Nettoyer cette fiche</span>
+                    </button>
+                  )}
 
                   <button
                     type="button"

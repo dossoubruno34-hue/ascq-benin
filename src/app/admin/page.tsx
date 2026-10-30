@@ -94,6 +94,19 @@ export default function AdminPage() {
   const [comptes, setComptes] = useState<any[]>([]);
   const [searchCompte, setSearchCompte] = useState("");
   const [filtreStatutCompte, setFiltreStatutCompte] = useState("EN_ATTENTE");
+  // Filtre par Niveau Hiérarchique (Super Admin - Demande officielle)
+  const [filtreNiveauCompte, setFiltreNiveauCompte] = useState<string>("TOUS");
+
+  // Modal Radiation compte (Super Admin / Représentant)
+  const [modalRadiationUser, setModalRadiationUser] = useState<any | null>(null);
+  const [motifRadiationAdmin, setMotifRadiationAdmin] = useState("FIN_CONTRAT");
+  const [explicationRadiationAdmin, setExplicationRadiationAdmin] = useState("");
+  const [submittingRadiationAdmin, setSubmittingRadiationAdmin] = useState(false);
+
+  // Modal Suppression définitive (Test / Doublon)
+  const [modalSuppressionUser, setModalSuppressionUser] = useState<any | null>(null);
+  const [confirmTexteSuppressionAdmin, setConfirmTexteSuppressionAdmin] = useState("");
+  const [submittingSuppressionAdmin, setSubmittingSuppressionAdmin] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [vueSousOngletComptes, setVueSousOngletComptes] = useState<"validation" | "referentiel">("validation");
   const [referentielAscq, setReferentielAscq] = useState<any[]>([]);
@@ -145,6 +158,141 @@ export default function AdminPage() {
   const [nouveauDocFormat, setNouveauDocFormat] = useState("PDF");
   const [nouveauDocAuteur, setNouveauDocAuteur] = useState("MINISTERE DE LA SANTE");
   const [ajouterDocLoading, setAjouterDocLoading] = useState(false);
+
+  // -------------------------------------------------------------------
+  // DÉTERMINATION DU NIVEAU HIÉRARCHIQUE & CONFIGURATION BADGES
+  // -------------------------------------------------------------------
+  const determinerNiveauCompte = (c: any): "NATIONAL" | "DEPARTEMENTAL" | "ZONE_SANITAIRE" | "COMMUNAL" | "ASCQ" | "RELAIS" => {
+    const tel = (c.telephone || "").replace(/\D/g, "");
+    const role = (c.role_technique || "").toUpperCase();
+    const poste = (c.poste || "").toUpperCase();
+    const nom = (c.role_nomination || "").toUpperCase();
+    
+    if (tel.includes("69031463") || role.includes("SUPER_ADMIN") || role === "ADMINISTRATEUR" || poste === "CADRE_NATIONAL" || role === "CADRE_NATIONAL" || nom.includes("NATIONAL")) {
+      return "NATIONAL";
+    }
+    if (poste === "RC" || role === "RELAIS_COMMUNAUTAIRE" || role === "RC") {
+      return "RELAIS";
+    }
+    if (["DDS", "CCD_CDLS_TP", "CSSPR", "CSPSMEH", "CSPSMEMH", "CADRE_DEPARTEMENTAL", "REPRESENTANT_DEPARTEMENTAL"].includes(poste) ||
+        role.includes("DEPARTEMENTAL") || nom.includes("DEPARTEMENTAL")) {
+      return "DEPARTEMENTAL";
+    }
+    if (["MCZS", "RCSE", "C_RAMS", "C-RAMS", "CADRE_ZONE_SANITAIRE"].includes(poste) ||
+        role.includes("ZONE_SANITAIRE") || role === "MCZS" || nom.includes("ZONE")) {
+      return "ZONE_SANITAIRE";
+    }
+    if (["MCC", "PF_CCLS_TP", "REPRESENTANT_COMMUNAL", "CADRE_COMMUNAL", "ADMIN_COMMUNAL"].includes(poste) ||
+        role.includes("COMMUNAL") || nom.includes("COMMUNAL")) {
+      return "COMMUNAL";
+    }
+    return "ASCQ";
+  };
+
+  const getNiveauBadgeConfig = (niveau: string) => {
+    switch (niveau) {
+      case "NATIONAL":
+        return { label: "Niveau National", bg: "bg-purple-100 text-purple-900 border-purple-300", icon: ShieldCheck };
+      case "DEPARTEMENTAL":
+        return { label: "Niveau Département", bg: "bg-indigo-100 text-indigo-900 border-indigo-300", icon: Crown };
+      case "ZONE_SANITAIRE":
+        return { label: "Niveau Zone Sanitaire", bg: "bg-cyan-100 text-cyan-900 border-cyan-300", icon: Activity };
+      case "COMMUNAL":
+        return { label: "Niveau Commune", bg: "bg-blue-100 text-blue-900 border-blue-300", icon: Building };
+      case "RELAIS":
+        return { label: "Niveau Village (RC)", bg: "bg-amber-100 text-amber-900 border-amber-300", icon: Users };
+      case "ASCQ":
+      default:
+        return { label: "Niveau Arrondissement (ASCQ)", bg: "bg-emerald-100 text-emerald-900 border-emerald-300", icon: UserCheck };
+    }
+  };
+
+  // Actions de Radiation, Rétablissement et Suppression Définitive
+  const handleRadierCompteAdmin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!modalRadiationUser) return;
+    setSubmittingRadiationAdmin(true);
+    try {
+      const { error } = await supabase.rpc("radier_compte_ascq", {
+        p_user_id: modalRadiationUser.id,
+        p_motif: motifRadiationAdmin,
+        p_explication: explicationRadiationAdmin || null,
+      });
+
+      if (error) {
+        const motifFinal = `${motifRadiationAdmin}${explicationRadiationAdmin ? " - " + explicationRadiationAdmin : ""}`;
+        await supabase
+          .from("utilisateurs")
+          .update({
+            statut_compte: "RADIE",
+            motif_radiation: motifFinal,
+            date_radiation: new Date().toISOString(),
+          })
+          .eq("id", modalRadiationUser.id);
+      }
+
+      setToastMessage({ text: `Compte de ${modalRadiationUser.prenoms} ${modalRadiationUser.nom} radié avec succès.`, error: false });
+      setModalRadiationUser(null);
+      setExplicationRadiationAdmin("");
+      await chargerComptes();
+    } catch (err: any) {
+      setToastMessage({ text: `Erreur radiation : ${err.message}`, error: true });
+    } finally {
+      setSubmittingRadiationAdmin(false);
+    }
+  };
+
+  const handleRetablirCompteAdmin = async (c: any) => {
+    if (!confirm(`Rétablir le compte de ${c.prenoms} ${c.nom} au statut VALIDE ?`)) return;
+    try {
+      const { error } = await supabase.rpc("retablir_compte_ascq", {
+        p_user_id: c.id,
+      });
+      if (error) {
+        await supabase
+          .from("utilisateurs")
+          .update({
+            statut_compte: "VALIDE",
+            motif_radiation: null,
+            date_radiation: null,
+          })
+          .eq("id", c.id);
+      }
+      setToastMessage({ text: `Compte rétabli au statut VALIDE avec succès.`, error: false });
+      await chargerComptes();
+    } catch (err: any) {
+      setToastMessage({ text: `Erreur rétablissement : ${err.message}`, error: true });
+    }
+  };
+
+  const handleSupprimerCompteAdmin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!modalSuppressionUser) return;
+    if (confirmTexteSuppressionAdmin !== "SUPPRIMER") {
+      alert("Veuillez saisir exactement le mot 'SUPPRIMER' pour confirmer.");
+      return;
+    }
+    setSubmittingSuppressionAdmin(true);
+    try {
+      const { error } = await supabase.rpc("supprimer_compte_ascq", {
+        p_user_id: modalSuppressionUser.id,
+        p_motif: "Suppression définitive par l'administrateur",
+      });
+      if (error) {
+        await supabase.from("ascq_profils").delete().eq("id", modalSuppressionUser.id);
+        await supabase.from("relais_communautaires").delete().or(`ascq_id.eq.${modalSuppressionUser.id},user_id.eq.${modalSuppressionUser.id}`);
+        await supabase.from("utilisateurs").delete().eq("id", modalSuppressionUser.id);
+      }
+      setToastMessage({ text: `Compte supprimé définitivement.`, error: false });
+      setModalSuppressionUser(null);
+      setConfirmTexteSuppressionAdmin("");
+      await chargerComptes();
+    } catch (err: any) {
+      setToastMessage({ text: `Erreur suppression : ${err.message}`, error: true });
+    } finally {
+      setSubmittingSuppressionAdmin(false);
+    }
+  };
 
   // Nomination & Assignation de responsabilité (Super Admin exclusif)
   const [nominationModalUser, setNominationModalUser] = useState<any | null>(null);
@@ -1485,7 +1633,7 @@ export default function AdminPage() {
                   </div>
 
                   <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 w-full sm:w-auto overflow-x-auto">
-                    {["EN_ATTENTE", "VALIDE", "REJETE", "TOUS"].map((st) => (
+                    {["EN_ATTENTE", "VALIDE", "SUSPENDU", "RADIE", "REJETE", "TOUS"].map((st) => (
                       <button
                         key={st}
                         onClick={() => setFiltreStatutCompte(st)}
@@ -1495,7 +1643,7 @@ export default function AdminPage() {
                             : "text-slate-600 hover:text-slate-900"
                         }`}
                       >
-                        {st === "EN_ATTENTE" ? "En attente" : st === "VALIDE" ? "Validés" : st === "REJETE" ? "Rejetés" : "Tous"}
+                        {st === "EN_ATTENTE" ? "En attente" : st === "VALIDE" ? "Validés" : st === "SUSPENDU" ? "Suspendus" : st === "RADIE" ? "Radiés" : st === "REJETE" ? "Rejetés" : "Tous"}
                       </button>
                     ))}
                   </div>
@@ -3235,6 +3383,153 @@ export default function AdminPage() {
         {/* ========================================================= */}
         {/* MODALE 1 : NOMINATION & RESPONSABILITÉ (SUPER ADMIN) */}
         {/* ========================================================= */}
+        {/* MODAL RADIATION OFFICIELLE DE COMPTE */}
+        {modalRadiationUser && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
+              <div className="flex items-center gap-3 border-b pb-3">
+                <div className="w-10 h-10 rounded-2xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+                  <UserX className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-sm text-slate-900">
+                    Radier un compte (Fin de fonction)
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    {modalRadiationUser.nom} {modalRadiationUser.prenoms} ({modalRadiationUser.poste})
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-rose-50 border border-rose-200 rounded-2xl p-3 text-xs text-rose-800 space-y-1">
+                <p className="font-bold flex items-center gap-1.5 text-rose-900">
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600" />
+                  <span>Conséquence de la radiation</span>
+                </p>
+                <p>
+                  L'accès de cet agent sera immédiatement bloqué. Son statut sera marqué <strong>RADIÉ</strong> et le motif sera archivé dans le registre de traçabilité.
+                </p>
+              </div>
+
+              <form onSubmit={handleRadierCompteAdmin} className="space-y-3 text-xs">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">
+                    Motif officiel de la fin de fonction *
+                  </label>
+                  <select
+                    value={motifRadiationAdmin}
+                    onChange={(e) => setMotifRadiationAdmin(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-slate-300 font-semibold focus:ring-2 focus:ring-rose-500"
+                    required
+                  >
+                    <option value="FIN_CONTRAT">Fin de contrat / Mission achevée</option>
+                    <option value="DEMISSION">Démission volontaire de l'agent</option>
+                    <option value="MUTATION_HORS_COMMUNAUTAIRE">Mutation / Réaffectation hors santé communautaire</option>
+                    <option value="ABANDON_POSTE">Abandon de poste / Inactivité prolongée</option>
+                    <option value="REVOCATION_DISCIPLINAIRE">Révocation / Décision disciplinaire</option>
+                    <option value="DECES">Décès de l'agent</option>
+                    <option value="AUTRE">Autre motif justifié</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">
+                    Précisions & Références (Optionnel)
+                  </label>
+                  <textarea
+                    value={explicationRadiationAdmin}
+                    onChange={(e) => setExplicationRadiationAdmin(e.target.value)}
+                    placeholder="Numéro de note de service, date de passation, observations..."
+                    rows={3}
+                    className="w-full p-2.5 rounded-xl border border-slate-300 font-semibold focus:ring-2 focus:ring-rose-500"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t">
+                  <button
+                    type="button"
+                    onClick={() => setModalRadiationUser(null)}
+                    className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submittingRadiationAdmin}
+                    className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs shadow-md transition-all active:scale-95 disabled:opacity-50"
+                  >
+                    {submittingRadiationAdmin ? "Radiation en cours..." : "Confirmer la radiation"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL SUPPRESSION DÉFINITIVE DE COMPTE */}
+        {modalSuppressionUser && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
+              <div className="flex items-center gap-3 border-b pb-3">
+                <div className="w-10 h-10 rounded-2xl bg-red-100 text-red-700 flex items-center justify-center shrink-0">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-sm text-slate-900">
+                    Suppression Définitive de Compte
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    {modalSuppressionUser.nom} {modalSuppressionUser.prenoms} ({modalSuppressionUser.telephone})
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-red-50 border border-red-200 rounded-2xl p-3 text-xs text-red-800 space-y-1">
+                <p className="font-black flex items-center gap-1.5 text-red-900">
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
+                  <span>Action Irréversible</span>
+                </p>
+                <p>
+                  Ce compte sera <strong>définitivement supprimé</strong> de la base de données. Utilisez cette action uniquement pour éliminer les comptes de test ou les doublons créés par erreur.
+                </p>
+              </div>
+
+              <form onSubmit={handleSupprimerCompteAdmin} className="space-y-3 text-xs">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">
+                    Pour confirmer, tapez le mot <strong className="text-red-700">SUPPRIMER</strong> ci-dessous :
+                  </label>
+                  <input
+                    type="text"
+                    value={confirmTexteSuppressionAdmin}
+                    onChange={(e) => setConfirmTexteSuppressionAdmin(e.target.value)}
+                    placeholder="SUPPRIMER"
+                    className="w-full p-2.5 rounded-xl border border-red-300 font-black tracking-widest text-center focus:ring-2 focus:ring-red-500 uppercase"
+                    required
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t">
+                  <button
+                    type="button"
+                    onClick={() => setModalSuppressionUser(null)}
+                    className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submittingSuppressionAdmin || confirmTexteSuppressionAdmin !== "SUPPRIMER"}
+                    className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-extrabold text-xs shadow-md transition-all active:scale-95 disabled:opacity-40"
+                  >
+                    {submittingSuppressionAdmin ? "Suppression..." : "Supprimer définitivement"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
         {nominationModalUser && (
           <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-in fade-in">
             <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 space-y-4 my-8">

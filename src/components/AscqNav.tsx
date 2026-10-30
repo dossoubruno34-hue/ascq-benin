@@ -29,7 +29,8 @@ import {
   Baby,
   Layers,
   Sparkles,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Trash2
 } from "lucide-react";
 import { estCadreNonAscq, getTitreCadreOfficiel } from "@/lib/cadre-roles";
 import { getCachedUserSession, clearAllUserCaches } from "@/lib/offline-sync";
@@ -151,6 +152,7 @@ export default function AscqNav({ userProfile }: Props) {
     { href: "/perimetre?tab=suggestions", label: "Suggestions & Observations", icon: Sparkles },
     { href: "/perimetre?tab=alertes_missions", label: "Alertes & Missions", icon: HeartPulse },
     { href: "/perimetre?tab=exports_journal", label: "Exports & Audit", icon: FileSpreadsheet },
+    { href: "/perimetre?tab=nettoyage_radiation", label: "Nettoyage & Radiation", icon: Trash2 },
     { href: "/briefing", label: "Guide SIMR", icon: BookOpen },
     ...(isAdmin ? [{ href: "/admin", label: "Administration", icon: ShieldCheck }] : [])
   ];

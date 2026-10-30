@@ -281,6 +281,14 @@ export default function ConnexionPage() {
         return;
       }
 
+      if (userProfile.statut_compte === "RADIE") {
+        await supabase.auth.signOut();
+        const motif = userProfile.motif_radiation ? ` (Motif : ${userProfile.motif_radiation})` : "";
+        setErrorMsg(`Ce compte a été radié de la plateforme suite à une fin de fonction${motif}. Veuillez contacter votre Représentant ou l'administration pour plus d'informations.`);
+        setLoading(false);
+        return;
+      }
+
       if (userProfile.statut_compte === "SUSPENDU" || userProfile.statut_compte === "REJETE") {
         await supabase.auth.signOut();
         setErrorMsg("Ce compte a été suspendu ou refusé par l'administration. Veuillez contacter votre direction.");
