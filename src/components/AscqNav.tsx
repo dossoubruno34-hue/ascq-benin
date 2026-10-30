@@ -154,6 +154,7 @@ export default function AscqNav({ userProfile }: Props) {
     { href: "/perimetre?tab=exports_journal", label: "Exports & Audit", icon: FileSpreadsheet },
     { href: "/perimetre?tab=nettoyage_radiation", label: "Nettoyage & Radiation", icon: Trash2 },
     { href: "/briefing", label: "Guide SIMR", icon: BookOpen },
+    { href: "/presentation", label: "Présentation Conseils", icon: Sparkles },
     ...(isAdmin ? [{ href: "/admin", label: "Administration", icon: ShieldCheck }] : [])
   ];
 
@@ -198,7 +199,8 @@ export default function AscqNav({ userProfile }: Props) {
     // Pôle 6 : Outils & Ressources
     { href: "/espace-ascq/bibliotheque", label: "Bibliothèque", icon: BookOpen, pole: "OUTILS" },
     { href: "/espace-ascq/permutations", label: "Permutations", icon: ArrowLeftRight, pole: "OUTILS" },
-    { href: "/espace-ascq/requetes", label: "Requêtes", icon: MessageSquareText, pole: "OUTILS" }
+    { href: "/espace-ascq/requetes", label: "Requêtes", icon: MessageSquareText, pole: "OUTILS" },
+    { href: "/presentation", label: "Présentation Conseils", icon: Sparkles, pole: "OUTILS" }
   ];
 
   const filteredNavItems = filtrePole === "TOUS" 
