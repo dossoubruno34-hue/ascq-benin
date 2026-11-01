@@ -817,12 +817,50 @@ export default function MesFichesPage() {
                     <span className="text-slate-400 block text-[10px]">Impact sanitaire constaté :</span>
                     <strong className="text-slate-900 text-sm">{ficheConsultation.impact}</strong>
                   </div>
+                  
+                  {/* Détails du cas (Toutes les informations doivent apparaître sur la fiche transmise) */}
+                  {(ficheConsultation.rawData?.cas_nom || ficheConsultation.rawData?.sexe || ficheConsultation.rawData?.age_valeur) && (
+                    <div className="p-2.5 bg-white rounded-xl border border-slate-200 text-xs sm:col-span-2">
+                      <span className="text-slate-500 font-bold block text-[11px] mb-1">Identité & Caractéristiques du Cas Notifié :</span>
+                      <p className="text-slate-900 font-semibold">
+                        {ficheConsultation.rawData.cas_nom ? `${ficheConsultation.rawData.cas_nom} ${ficheConsultation.rawData.cas_prenoms || ""}` : "Cas index notifié"} 
+                        {ficheConsultation.rawData.sexe && ` • Sexe : ${ficheConsultation.rawData.sexe === "M" ? "Masculin" : "Féminin"}`}
+                        {ficheConsultation.rawData.age_valeur && ` • Âge : ${ficheConsultation.rawData.age_valeur} ${ficheConsultation.rawData.age_unite || "ans"}`}
+                      </p>
+                      {ficheConsultation.rawData.telephone && (
+                        <p className="text-[11px] text-slate-600 mt-0.5">
+                          Téléphone contact : <strong className="text-slate-900">{ficheConsultation.rawData.telephone}</strong>
+                        </p>
+                      )}
+                      {ficheConsultation.rawData.adresse && (
+                        <p className="text-[11px] text-slate-600 mt-0.5">
+                          Adresse / Hameau : <strong className="text-slate-900">{ficheConsultation.rawData.adresse}</strong>
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Symptômes ou manifestations cliniques */}
+                  {ficheConsultation.rawData?.symptomes_noms && ficheConsultation.rawData.symptomes_noms.length > 0 && (
+                    <div className="sm:col-span-2">
+                      <span className="text-slate-400 block text-[10px]">Signes et symptômes constatés :</span>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {ficheConsultation.rawData.symptomes_noms.map((s: string, idx: number) => (
+                          <span key={idx} className="px-2 py-0.5 rounded-md bg-emerald-50 text-[#005c30] font-bold text-[10px] border border-emerald-200">
+                            ✓ {corrigerAccents(s)}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {ficheConsultation.rawData?.mesures_prises && (
                     <div>
                       <span className="text-slate-400 block text-[10px]">Mesures immédiates prises :</span>
                       <p className="text-slate-800 italic mt-0.5">{ficheConsultation.rawData.mesures_prises}</p>
                     </div>
                   )}
+
                   {ficheConsultation.rawData?.commentaire_verification && (
                     <div className="sm:col-span-2">
                       <span className="text-slate-400 block text-[10px]">Commentaire de vérification superviseur :</span>
@@ -849,19 +887,41 @@ export default function MesFichesPage() {
                 </div>
               </div>
 
-              {/* 5. Cadre de Validation & Signatures */}
+              {/* 5. Cadre Officiel de Validation & Signatures (Strictement RC & ASCQ - Aucun visa MCZS) */}
               <div className="pt-4 grid grid-cols-2 gap-8 text-xs border-t border-slate-300">
                 <div>
-                  <p className="font-bold text-slate-800">L'ASCQ Déclarant / Superviseur :</p>
-                  <p className="text-[11px] text-slate-500 mt-0.5">{ficheConsultation.notificateur}</p>
-                  <div className="mt-8 border-b border-black w-40"></div>
-                  <p className="text-[10px] text-slate-400 mt-1">Signature et date</p>
+                  <p className="font-black text-slate-900 uppercase">1. Le Relais Communautaire (RC) Notificateur :</p>
+                  <p className="text-[11px] text-slate-600 mt-0.5">{ficheConsultation.notificateur}</p>
+                  <p className="text-[10px] text-slate-500">Village / Quartier : {ficheConsultation.village}</p>
+                  
+                  {ficheConsultation.rawData?.signature_tactile ? (
+                    <div className="mt-2 p-1.5 bg-slate-50 border border-slate-200 rounded-xl inline-block">
+                      <img
+                        src={ficheConsultation.rawData.signature_tactile}
+                        alt="Signature RC"
+                        className="max-h-16 w-auto object-contain"
+                      />
+                    </div>
+                  ) : (
+                    <div className="mt-8 border-b border-black w-40"></div>
+                  )}
+                  <p className="text-[10px] text-slate-400 mt-1">Signature du RC et date</p>
                 </div>
+
                 <div className="text-right">
-                  <p className="font-bold text-slate-800">Le Médecin Coordonnateur de Zone (MCZS) :</p>
-                  <div className="mt-10 border-b border-black w-40 ml-auto"></div>
-                  <p className="text-[10px] text-slate-400 mt-1">Cachet et visa officiel</p>
+                  <p className="font-black text-slate-900 uppercase">2. L'ASCQ Superviseur d'Arrondissement :</p>
+                  <p className="text-[11px] text-slate-600 mt-0.5">Arrondissement : {ficheConsultation.arrondissement || "Arrondissement sanitaire"}</p>
+                  <p className="text-[10px] text-slate-500">
+                    Statut : {ficheConsultation.resultat === "AVEREE" ? "Alerte Avérée" : ficheConsultation.resultat === "NON_AVEREE" ? "Alerte Non Avérée" : "Fiche Validée"}
+                  </p>
+                  <div className="mt-8 border-b border-black w-40 ml-auto"></div>
+                  <p className="text-[10px] text-slate-400 mt-1">Visa & Signature de l'ASCQ Superviseur</p>
                 </div>
+              </div>
+
+              {/* Règle officielle de validation affichée */}
+              <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 text-[10px] text-[#005c30] text-center">
+                ℹ️ <strong>Règle officielle de validation communautaire :</strong> La signature de cette fiche s'effectue exclusivement entre le <strong>Relais Communautaire (RC)</strong> déclarant et l'<strong>ASCQ Superviseur</strong>. Le médecin coordonnateur n'a rien à signer sur cette fiche.
               </div>
 
               {/* Lien optionnel vers la page complète alerte si ALR */}
@@ -930,16 +990,20 @@ export default function MesFichesPage() {
 
           <div className="mt-8 pt-4 border-t border-black grid grid-cols-2 text-xs">
             <div>
-              <p className="font-bold">Visa de l'ASCQ Superviseur :</p>
+              <p className="font-bold">1. Relais Communautaires Notificateurs :</p>
               <div className="mt-8 border-b border-black w-48"></div>
-              <p className="text-[9px] text-slate-500 mt-1">Date et signature</p>
+              <p className="text-[9px] text-slate-500 mt-1">Signatures de terrain et dates</p>
             </div>
             <div className="text-right">
-              <p className="font-bold">Cachet de la Zone Sanitaire :</p>
+              <p className="font-bold">2. Visa & Signature de l'ASCQ Superviseur :</p>
               <div className="mt-8 border-b border-black w-48 ml-auto"></div>
-              <p className="text-[9px] text-slate-500 mt-1">Médecin Coordonnateur</p>
+              <p className="text-[9px] text-slate-500 mt-1">Validation d'arrondissement</p>
             </div>
           </div>
+
+          <p className="text-[9px] text-center text-slate-500 italic pt-2 mt-3 border-t border-slate-300">
+            Conforme aux directives SIMR / PNSC de la République du Bénin : La validation des fiches de notification terrain s'effectue exclusivement entre le RC et l'ASCQ Superviseur. Aucun visa du médecin coordonnateur n'est requis.
+          </p>
         </div>
       )}
 
