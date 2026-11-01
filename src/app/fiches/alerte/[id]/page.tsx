@@ -471,70 +471,106 @@ export default function DetailAlertePage() {
           )}
         </div>
 
-        {/* 5. Cadre Notificateur */}
-        <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm space-y-2 text-xs">
-          <div className="flex items-center gap-2 text-[#005c30]">
-            <FileText className="w-5 h-5" />
-            <h3 className="font-extrabold text-sm text-slate-900">
-              Notificateur officiel
-            </h3>
+        {/* 5. Cadre Notificateur & Signature du Relais Communautaire (RC) */}
+        <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm space-y-3 text-xs">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-[#005c30]">
+              <FileText className="w-5 h-5" />
+              <h3 className="font-extrabold text-sm text-slate-900">
+                1. Déclarant : Relais Communautaire (RC)
+              </h3>
+            </div>
+            <span className="text-[10px] font-black uppercase text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+              Signature Déclarant
+            </span>
           </div>
 
-          <div className="flex justify-between pt-1">
-            <span className="text-slate-400">Agent notificateur :</span>
-            <strong className="text-slate-900">{alerte.notificateur_titre} : {alerte.notificateur_nom_complet}</strong>
+          <div className="space-y-1.5 pt-1">
+            <div className="flex justify-between">
+              <span className="text-slate-400">Agent notificateur :</span>
+              <strong className="text-slate-900">{alerte.notificateur_titre} : {alerte.notificateur_nom_complet}</strong>
+            </div>
+            <div className="flex justify-between items-center flex-wrap gap-2">
+              <span className="text-slate-400">Téléphone du déclarant :</span>
+              <BeninPhoneAction telephone={alerte.notificateur_telephone} variant="button-group" />
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">Centre de santé de rattachement :</span>
+              <strong className="text-slate-900">{alerte.centre_sante_nom || "Centre de Santé Communautaire"}</strong>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">Date et heure de transmission :</span>
+              <strong className="text-slate-900">{alerte.date_notification}</strong>
+            </div>
           </div>
-          <div className="flex justify-between items-center flex-wrap gap-2">
-            <span className="text-slate-400">Téléphone de l'agent :</span>
-            <BeninPhoneAction telephone={alerte.notificateur_telephone} variant="button-group" />
-          </div>
-          <div className="flex justify-between">
-            <span className="text-slate-400">Centre de santé :</span>
-            <strong className="text-slate-900">{alerte.centre_sante_nom || "CSC"}</strong>
-          </div>
+
+          {/* Affichage de la signature tactile du RC */}
+          {alerte.signature_tactile ? (
+            <div className="pt-2 border-t border-slate-100">
+              <span className="text-[10px] text-slate-500 font-bold block mb-1">
+                Signature tactile officielle du Relais Communautaire (RC) :
+              </span>
+              <div className="p-2 bg-slate-50 rounded-2xl border border-slate-200 inline-block">
+                <img
+                  src={alerte.signature_tactile}
+                  alt="Signature du Relais Communautaire"
+                  className="max-h-20 w-auto object-contain"
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="pt-2 border-t border-slate-100 text-[11px] text-slate-400 italic">
+              Signature manuscrite enregistrée lors de la transmission initiale.
+            </div>
+          )}
         </div>
 
-        {/* 6. Zone de vérification (ASCQ Superviseur) */}
+        {/* 6. Zone de vérification & Signature de l'ASCQ Superviseur */}
         <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm space-y-3.5">
           <div className="flex items-center justify-between">
             <h3 className="font-extrabold text-sm text-slate-900">
-              Vérification de l'alerte
+              2. Superviseur : Agent de Santé Communautaire Qualifié (ASCQ)
             </h3>
-            <span className="text-[11px] font-bold text-slate-400">
-              ASCQ Superviseur
+            <span className="text-[10px] font-black uppercase text-blue-800 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
+              Visa ASCQ
             </span>
+          </div>
+
+          <div className="p-2.5 bg-emerald-50/60 rounded-xl border border-emerald-200 text-[11px] text-[#005c30] font-medium">
+            ℹ️ <strong>Règle de validation communautaire :</strong> La signature de cette fiche de notification s'effectue exclusivement entre le <strong>Relais Communautaire (RC)</strong> et l'<strong>ASCQ Superviseur</strong>. Le médecin coordonnateur n'a rien à signer sur les fiches de notification terrain.
           </div>
 
           {alerte.resultat_verification !== "EN_ATTENTE" ? (
             <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-2 text-xs">
               <div className="flex items-center justify-between">
-                <span className="text-slate-500">Statut vérifié :</span>
+                <span className="text-slate-500">Statut vérifié par l'ASCQ :</span>
                 <span className={`font-extrabold px-2.5 py-0.5 rounded-lg ${
                   alerte.resultat_verification === "AVEREE"
                     ? "bg-emerald-100 text-emerald-800"
                     : "bg-slate-200 text-slate-700"
                 }`}>
-                  {alerte.resultat_verification === "AVEREE" ? "Alerte Avérée" : "Alerte Non avérée"}
+                  {alerte.resultat_verification === "AVEREE" ? "✓ Alerte Avérée" : "✗ Alerte Non avérée"}
                 </span>
               </div>
               {alerte.commentaire_verification && (
                 <div>
-                  <span className="text-slate-400 block text-[11px]">Commentaire de vérification :</span>
+                  <span className="text-slate-400 block text-[11px]">Commentaire de vérification ASCQ :</span>
                   <p className="font-medium text-slate-800 italic mt-0.5">
                     « {alerte.commentaire_verification} »
                   </p>
                 </div>
               )}
               {alerte.date_verification && (
-                <div className="text-[11px] text-slate-400 pt-1">
-                  Vérifiée le {new Date(alerte.date_verification).toLocaleString("fr-FR")}
+                <div className="text-[11px] text-slate-500 pt-1 border-t border-slate-200 flex justify-between items-center">
+                  <span>Visa apposé le :</span>
+                  <strong>{new Date(alerte.date_verification).toLocaleString("fr-FR")}</strong>
                 </div>
               )}
             </div>
           ) : (
             <form onSubmit={handleVerifier} className="space-y-3 print:hidden">
               <p className="text-xs text-slate-500">
-                En tant qu'ASCQ superviseur, confirmez si cette alerte est avérée après vos vérifications d'usage.
+                En tant qu'ASCQ superviseur, confirmez si cette alerte notifiée par le RC est avérée après votre investigation de terrain.
               </p>
 
               {verifSuccess && (
@@ -591,11 +627,11 @@ export default function DetailAlertePage() {
                 className="w-full py-3 rounded-2xl bg-[#005c30] hover:bg-[#004724] text-white text-xs font-extrabold shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
               >
                 {verifLoading ? (
-                  <span>Enregistrement en cours...</span>
+                  <span>Enregistrement du visa en cours...</span>
                 ) : (
                   <>
                     <Check className="w-4 h-4" />
-                    <span>Enregistrer la vérification officielle</span>
+                    <span>Apposer le Visa Officiel de l'ASCQ Superviseur</span>
                   </>
                 )}
               </button>
@@ -603,19 +639,37 @@ export default function DetailAlertePage() {
           )}
         </div>
 
-        {/* CADRE OFFICIEL DE SIGNATURES RÉPUBLIQUE DU BÉNIN POUR L'IMPRESSION A4 */}
-        <div className="hidden print:grid grid-cols-2 gap-8 pt-6 mt-6 border-t-2 border-black text-xs">
-          <div>
-            <p className="font-bold text-slate-900">L'ASCQ Déclarant / Superviseur :</p>
-            <p className="text-slate-600 mt-1">{alerte.notificateur_titre} : {alerte.notificateur_nom_complet}</p>
-            <div className="mt-8 border-b border-black w-48"></div>
-            <p className="text-[10px] text-slate-400 mt-1">Signature et date</p>
+        {/* CADRE OFFICIEL DE SIGNATURES RÉPUBLIQUE DU BÉNIN POUR L'IMPRESSION A4 : STRICTEMENT RC ET ASCQ */}
+        <div className="hidden print:block pt-6 mt-6 border-t-2 border-black text-xs space-y-4">
+          <div className="grid grid-cols-2 gap-8">
+            <div>
+              <p className="font-black text-slate-900 uppercase">1. Le Relais Communautaire (RC) Notificateur :</p>
+              <p className="text-slate-700 mt-1">{alerte.notificateur_titre} : {alerte.notificateur_nom_complet}</p>
+              <p className="text-[10px] text-slate-500">Village / Quartier : {alerte.village_nom}</p>
+              {alerte.signature_tactile ? (
+                <div className="mt-2">
+                  <img src={alerte.signature_tactile} alt="Signature RC" className="max-h-16 w-auto" />
+                </div>
+              ) : (
+                <div className="mt-8 border-b border-black w-48"></div>
+              )}
+              <p className="text-[10px] text-slate-400 mt-1">Signature du RC et date</p>
+            </div>
+
+            <div className="text-right">
+              <p className="font-black text-slate-900 uppercase">2. L'ASCQ Superviseur d'Arrondissement :</p>
+              <p className="text-slate-700 mt-1">Arrondissement : {alerte.arrondissement_nom}</p>
+              <p className="text-[10px] text-slate-500">
+                Statut : {alerte.resultat_verification === "AVEREE" ? "Alerte Avérée" : alerte.resultat_verification === "NON_AVEREE" ? "Non Avérée" : "En cours de vérification"}
+              </p>
+              <div className="mt-8 border-b border-black w-48 ml-auto"></div>
+              <p className="text-[10px] text-slate-400 mt-1">Visa & Signature de l'ASCQ Superviseur</p>
+            </div>
           </div>
-          <div className="text-right">
-            <p className="font-bold text-slate-900">Visa du Médecin Coordonnateur (MCZS / DNSP) :</p>
-            <div className="mt-10 border-b border-black w-48 ml-auto"></div>
-            <p className="text-[10px] text-slate-400 mt-1">Cachet officiel</p>
-          </div>
+
+          <p className="text-[9px] text-center text-slate-500 italic pt-2 border-t border-slate-300">
+            Fiche officielle de notification communautaire conforme aux directives SIMR / PNSC de la République du Bénin. La validation s'effectue exclusivement entre le RC et l'ASCQ superviseur. Aucun visa du médecin coordonnateur n'est requis.
+          </p>
         </div>
 
       </main>

@@ -739,9 +739,14 @@ export function exporterFicheSurveillanceIndividuelleExcel(fiche: any) {
 
     <table style="width: 100%; margin-top: 35px; border: none;">
       <tr>
-        <td style="width: 100%; border: none; text-align: right; vertical-align: top;">
-          <strong>Signature du Déclarant (Relais Communautaire ou ASCQ) :</strong><br />
-          <span style="font-size: 8pt; color: #555;">Signature officielle et date (Aucun visa hiérarchique requis) :</span><br /><br /><br />
+        <td style="width: 50%; border: none; text-align: left; vertical-align: top;">
+          <strong>1. Signature du Relais Communautaire (RC) Déclarant :</strong><br />
+          <span style="font-size: 8pt; color: #555;">Signature officielle terrain et date :</span><br /><br /><br />
+          ___________________________________________
+        </td>
+        <td style="width: 50%; border: none; text-align: right; vertical-align: top;">
+          <strong>2. Visa & Signature de l'ASCQ Superviseur :</strong><br />
+          <span style="font-size: 8pt; color: #555;">Validation d'arrondissement (Aucun visa du Médecin Coordonnateur requis) :</span><br /><br /><br />
           ___________________________________________
         </td>
       </tr>

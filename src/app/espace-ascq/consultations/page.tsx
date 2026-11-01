@@ -127,7 +127,7 @@ export default function RegistreConsultationsPage() {
     chargerConsultations();
   }, []);
 
-  // Filtrage
+  // Filtrage anonymisé (recherche par village, maladie, diagnostic)
   const consultationsFiltrees = consultations.filter((c) => {
     if (filtreDecision !== "TOUT" && c.decision !== filtreDecision) {
       return false;
@@ -135,8 +135,6 @@ export default function RegistreConsultationsPage() {
     if (!recherche.trim()) return true;
     const q = recherche.toLowerCase();
     return (
-      c.nom_patient?.toLowerCase().includes(q) ||
-      c.prenoms_patient?.toLowerCase().includes(q) ||
       c.village?.toLowerCase().includes(q) ||
       c.diagnostic_possible?.toLowerCase().includes(q) ||
       c.signe_principal?.toLowerCase().includes(q)
@@ -414,10 +412,11 @@ export default function RegistreConsultationsPage() {
                         {isPec ? <Pill className="w-4 h-4" /> : <HeartPulse className="w-4 h-4" />}
                       </span>
                       <div>
-                        <strong className="text-sm font-extrabold text-slate-900 block">
-                          {isCadre 
-                            ? `Consultation : ${c.diagnostic_possible || "Soin iCCM"} (Patient Anonymisé)` 
-                            : `${c.nom_patient} ${c.prenoms_patient}`}
+                        <strong className="text-sm font-extrabold text-slate-900 block flex items-center gap-2">
+                          <span>{c.diagnostic_possible || "Consultation iCCM"}</span>
+                          <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
+                            Patient Anonymisé
+                          </span>
                         </strong>
                         <span className="text-[11px] text-slate-500">
                           {c.age_valeur} {c.age_unite?.toLowerCase()} • Sexe : {c.sexe} • Village : {c.village}
@@ -517,39 +516,29 @@ export default function RegistreConsultationsPage() {
               </div>
 
               {/* DÉTAILS DU PATIENT */}
+              {/* ÉTAT CIVIL ANONYMISÉ - SECRET MÉDICAL TOTAL */}
               <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-xs space-y-2">
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-400">Patient :</span>
-                  <strong className="text-slate-900 text-sm">
-                    {isCadre 
-                      ? "Dossier Anonymisé (Secret Médical & Déontologie)" 
-                      : `${selectedConsultation.nom_patient} ${selectedConsultation.prenoms_patient}`}
+                  <span className="text-slate-400">Statut du dossier :</span>
+                  <strong className="text-slate-900 text-xs bg-emerald-50 text-[#005c30] px-2.5 py-0.5 rounded-full border border-emerald-200 font-extrabold">
+                    🔒 Dossier Anonymisé — Secret Médical Garanti
                   </strong>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Âge & Sexe :</span>
+                  <span className="text-slate-400">Pathologie / Diagnostic :</span>
+                  <strong className="text-slate-900 font-bold">{selectedConsultation.diagnostic_possible || "Soin Communautaire"}</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Profil patient (non nominatif) :</span>
                   <strong>{selectedConsultation.age_valeur} {selectedConsultation.age_unite?.toLowerCase()} • Sexe {selectedConsultation.sexe}</strong>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Localisation :</span>
+                  <span className="text-slate-400">Localisation géographique :</span>
                   <strong>Village {selectedConsultation.village}</strong>
                 </div>
-                {!isCadre && selectedConsultation.nom_parent_tuteur && (
-                  <div className="flex justify-between items-center flex-wrap gap-1">
-                    <span className="text-slate-400">Parent / Tuteur :</span>
-                    <span className="inline-flex items-center gap-1.5">
-                      <strong>{selectedConsultation.nom_parent_tuteur}</strong>
-                      {selectedConsultation.telephone_contact && (
-                        <BeninPhoneAction telephone={selectedConsultation.telephone_contact} variant="compact" />
-                      )}
-                    </span>
-                  </div>
-                )}
-                {isCadre && (
-                  <p className="text-[10px] text-slate-500 italic pt-1 border-t border-slate-200">
-                    🔒 Données nominatives protégées : En tant que superviseur, vous consultez le profil clinique et les statistiques épidémiologiques conformément à la protection du secret médical.
-                  </p>
-                )}
+                <p className="text-[10px] text-slate-500 italic pt-1 border-t border-slate-200">
+                  Conformément aux normes déontologiques et à la politique de santé communautaire, l'identité et les coordonnées nominatives du patient ne sont pas divulguées afin de préserver l'anonymat médical.
+                </p>
               </div>
 
               {/* EXAMEN & TDR */}

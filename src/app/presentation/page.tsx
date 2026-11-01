@@ -45,7 +45,7 @@ import {
   Search
 } from "lucide-react";
 
-export interface DetailedSlide {
+interface DetailedSlide {
   id: number;
   pole: string;
   ongletNom: string;
@@ -63,7 +63,7 @@ export interface DetailedSlide {
   scriptOrateur: string;
 }
 
-export const TOUTES_LES_SLIDES: DetailedSlide[] = [
+const TOUTES_LES_SLIDES: DetailedSlide[] = [
   // =========================================================================
   // PÔLE 1 : PORTAIL PUBLIC & SOUVERAINETÉ CITOYENNE
   // =========================================================================

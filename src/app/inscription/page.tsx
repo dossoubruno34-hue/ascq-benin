@@ -265,7 +265,7 @@ export default function InscriptionPage() {
       }
 
       // 2. Appel de la fonction RPC sécurisée (anti-récursion et écriture garantie)
-      const { error: rpcError } = await supabase.rpc("inscrire_nouvel_agent", {
+      const rpcParams: any = {
         p_id: userId,
         p_telephone: cleanPhone.startsWith("229") ? `+${cleanPhone}` : `+229${cleanPhone}`,
         p_nom: nom.trim().toUpperCase(),
@@ -283,7 +283,16 @@ export default function InscriptionPage() {
         p_afficher_annuaire: showAscqProfil ? afficherAnnuaire : false,
         p_cumul_deux_arrondissements: isTerrainAscq ? cumulArrondissements : false,
         p_email: isTerrainRc ? null : email.trim().toLowerCase(),
-      });
+      };
+
+      let { error: rpcError } = await supabase.rpc("inscrire_nouvel_agent", rpcParams);
+
+      if (rpcError && (rpcError.message.includes("p_email") || rpcError.message.includes("schema cache") || rpcError.message.includes("function") || rpcError.message.includes("not found"))) {
+        // Fallback sans p_email si la migration Supabase SQL n'a pas encore été passée sur l'instance cloud
+        const { p_email, ...paramsWithoutEmail } = rpcParams;
+        const fallback = await supabase.rpc("inscrire_nouvel_agent", paramsWithoutEmail);
+        rpcError = fallback.error;
+      }
 
       if (rpcError) throw rpcError;
 

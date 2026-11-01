@@ -5022,13 +5022,24 @@ function PerimetreGouvernanceContent() {
                       </div>
                     </div>
 
-                    {/* Identité Notificateur & Signature */}
-                    <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1.5">
-                      <h4 className="font-extrabold text-slate-900 text-xs">Notificateur Officiel</h4>
-                      <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-700">
-                        <p>Nom : <strong>{ficheAffichee.donnees.notificateur_nom_complet || ficheAffichee.ascq?.nom || "Agent ASCQ"}</strong></p>
-                        <p>Titre : <strong>{ficheAffichee.donnees.notificateur_titre || "ASCQ"}</strong></p>
-                        <div className="col-span-2 flex items-center gap-2">
+                    {/* Signatures Officielles : Déclarant RC & Superviseur ASCQ */}
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-extrabold text-slate-900 text-xs">Signatures Officielles (RC & ASCQ)</h4>
+                        <span className="text-[10px] font-black uppercase text-[#005c30] bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                          Sans visa MCZS
+                        </span>
+                      </div>
+
+                      <div className="p-2 bg-emerald-50/60 rounded-xl border border-emerald-100 text-[10px] text-[#005c30]">
+                        ℹ️ <strong>Règle de gouvernance :</strong> La signature est strictement établie entre le <strong>Relais Communautaire (RC)</strong> déclarant et l'<strong>ASCQ Superviseur</strong>. Le médecin coordonnateur n'a rien à signer.
+                      </div>
+
+                      {/* 1. Relais Communautaire (RC) */}
+                      <div className="p-3 bg-white rounded-xl border border-slate-200 text-[11px] text-slate-700 space-y-1">
+                        <span className="font-bold text-slate-900 block text-xs">1. Déclarant Terrain : Relais Communautaire (RC)</span>
+                        <p>Nom : <strong>{ficheAffichee.donnees.notificateur_nom_complet || ficheAffichee.ascq?.nom || "Relais Communautaire"}</strong> ({ficheAffichee.donnees.notificateur_titre || "RC"})</p>
+                        <div className="flex items-center gap-2">
                           <span>Contact :</span>
                           {ficheAffichee.donnees.notificateur_telephone ? (
                             <BeninPhoneAction telephone={ficheAffichee.donnees.notificateur_telephone} variant="compact" />
@@ -5036,18 +5047,32 @@ function PerimetreGouvernanceContent() {
                             <strong>Non renseigné</strong>
                           )}
                         </div>
-                        {ficheAffichee.donnees.centre_sante_nom && (
-                          <p className="col-span-2">Centre de santé : <strong>{ficheAffichee.donnees.centre_sante_nom}</strong></p>
+                        {ficheAffichee.donnees.signature_tactile && (
+                          <div className="pt-2 mt-1 border-t border-slate-100">
+                            <span className="text-[10px] text-slate-500 font-bold block mb-1">Signature tactile du RC :</span>
+                            <div className="p-2 bg-slate-50 rounded-xl border border-slate-200 inline-block">
+                              <img src={ficheAffichee.donnees.signature_tactile} alt="Signature RC" className="max-h-16 w-auto object-contain" />
+                            </div>
+                          </div>
                         )}
                       </div>
-                      {ficheAffichee.donnees.signature_tactile && (
-                        <div className="pt-2 border-t border-slate-200">
-                          <span className="text-[10px] text-slate-500 font-bold block mb-1">Signature officielle enregistrée :</span>
-                          <div className="p-2 bg-white rounded-xl border border-slate-200 inline-block">
-                            <img src={ficheAffichee.donnees.signature_tactile} alt="Signature notificateur" className="max-h-16 w-auto object-contain" />
-                          </div>
+
+                      {/* 2. ASCQ Superviseur */}
+                      <div className="p-3 bg-white rounded-xl border border-slate-200 text-[11px] text-slate-700 space-y-1">
+                        <span className="font-bold text-slate-900 block text-xs">2. Superviseur d'Arrondissement : ASCQ</span>
+                        <div className="flex items-center justify-between">
+                          <span>Statut vérification :</span>
+                          <strong className={ficheAffichee.donnees.resultat_verification === "AVEREE" ? "text-emerald-700 font-black" : "text-slate-800"}>
+                            {ficheAffichee.donnees.resultat_verification === "AVEREE" ? "✓ Alerte Avérée" : ficheAffichee.donnees.resultat_verification === "NON_AVEREE" ? "✗ Non Avérée" : "En cours"}
+                          </strong>
                         </div>
-                      )}
+                        {ficheAffichee.donnees.commentaire_verification && (
+                          <p className="italic text-slate-600">« {ficheAffichee.donnees.commentaire_verification} »</p>
+                        )}
+                        {ficheAffichee.donnees.date_verification && (
+                          <p className="text-[10px] text-slate-400">Visa apposé le : {new Date(ficheAffichee.donnees.date_verification).toLocaleDateString("fr-FR")}</p>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -5116,29 +5141,48 @@ function PerimetreGouvernanceContent() {
                       </div>
                     </div>
 
-                    {/* Notificateur Officiel */}
-                    <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1.5">
-                      <h4 className="font-extrabold text-slate-900 text-xs">Agent Notificateur</h4>
-                      <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-700">
-                        <p>Nom : <strong>{ficheAffichee.donnees.notificateur_nom_complet || ficheAffichee.ascq?.nom || "Agent"}</strong></p>
-                        <p>Titre : <strong>{ficheAffichee.donnees.notificateur_titre || "ASCQ"}</strong></p>
-                        <div className="col-span-2 flex items-center gap-2">
-                          <span>Contact :</span>
-                          {ficheAffichee.donnees.notificateur_telephone ? (
-                            <BeninPhoneAction telephone={ficheAffichee.donnees.notificateur_telephone} variant="compact" />
-                          ) : (
-                            <strong>Non renseigné</strong>
+                    {/* Signatures Officielles : Relais Communautaire (RC) & ASCQ */}
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-extrabold text-slate-900 text-xs">Signatures Officielles Décès (RC & ASCQ)</h4>
+                        <span className="text-[10px] font-black uppercase text-[#005c30] bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                          Sans visa MCZS
+                        </span>
+                      </div>
+
+                      <div className="p-2 bg-emerald-50/60 rounded-xl border border-emerald-100 text-[10px] text-[#005c30]">
+                        ℹ️ <strong>Règle de gouvernance :</strong> La déclaration de décès communautaire est signée entre le <strong>Relais Communautaire (RC)</strong> constatant et l'<strong>ASCQ Superviseur</strong>. Le médecin coordonnateur n'a rien à signer.
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-slate-700">
+                        <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-1">
+                          <span className="font-bold text-slate-900 block text-xs">1. Déclarant Terrain : Relais Communautaire (RC)</span>
+                          <p>Nom : <strong>{ficheAffichee.donnees.notificateur_nom_complet || ficheAffichee.ascq?.nom || "Relais Communautaire"}</strong></p>
+                          <div className="flex items-center gap-2">
+                            <span>Contact :</span>
+                            {ficheAffichee.donnees.notificateur_telephone ? (
+                              <BeninPhoneAction telephone={ficheAffichee.donnees.notificateur_telephone} variant="compact" />
+                            ) : (
+                              <strong>Non renseigné</strong>
+                            )}
+                          </div>
+                          {ficheAffichee.donnees.signature_tactile && (
+                            <div className="pt-2 border-t border-slate-100 mt-1">
+                              <span className="text-[10px] text-slate-500 font-bold block mb-1">Signature tactile :</span>
+                              <div className="p-1.5 bg-slate-50 rounded-xl border border-slate-200 inline-block">
+                                <img src={ficheAffichee.donnees.signature_tactile} alt="Signature" className="max-h-14 w-auto object-contain" />
+                              </div>
+                            </div>
                           )}
                         </div>
-                      </div>
-                      {ficheAffichee.donnees.signature_tactile && (
-                        <div className="pt-2 border-t border-slate-200">
-                          <span className="text-[10px] text-slate-500 font-bold block mb-1">Signature officielle :</span>
-                          <div className="p-2 bg-white rounded-xl border border-slate-200 inline-block">
-                            <img src={ficheAffichee.donnees.signature_tactile} alt="Signature" className="max-h-16 w-auto object-contain" />
-                          </div>
+
+                        <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-1">
+                          <span className="font-bold text-slate-900 block text-xs">2. Superviseur : ASCQ</span>
+                          <p>Arrondissement : <strong>{ficheAffichee.donnees.arrondissement || ficheAffichee.ascq?.arrondissement || "Arrondissement de tutelle"}</strong></p>
+                          <p className="text-emerald-800 font-bold">✓ Enregistrement communautaire certifié</p>
+                          <p className="text-[10px] text-slate-400">Date transmission : {ficheAffichee.donnees.date_notification || "-"}</p>
                         </div>
-                      )}
+                      </div>
                     </div>
                   </div>
                 )}
