@@ -340,12 +340,15 @@ export default function SuiviRelaisPage() {
   };
 
   const chargerFichesDuRc = async (rc: any) => {
+    if (!rc) return;
+    const rcId = rc.id || rc.rc_id || rc.user_id;
+    if (!rcId) return;
     setSelectedRc(rc);
     setLoadingFichesRc(true);
     try {
       // 1. Tenter la RPC lister_fiches_rc_pour_ascq
       const { data: rpcData, error: rpcErr } = await supabase.rpc("lister_fiches_rc_pour_ascq", {
-        p_rc_id: rc.id,
+        p_rc_id: rcId,
       });
 
       if (!rpcErr && rpcData) {
@@ -357,11 +360,12 @@ export default function SuiviRelaisPage() {
         });
       } else {
         // Fallback requêtes directes
+        const rcUserId = rc.user_id || rcId;
         const [alrRes, regRes, refRes, decRes] = await Promise.all([
-          supabase.from("alertes_communautaires").select("*").or(`declare_par_id.eq.${rc.user_id},notificateur_nom_complet.ilike.%${rc.nom}%`),
-          supabase.from("registre_alertes_rumeurs").select("*").or(`relais_id.eq.${rc.id},relais_nom_complet.ilike.%${rc.nom}%`),
-          supabase.from("references_communautaires").select("*").eq("relais_id", rc.id),
-          supabase.from("deces_communautaires").select("*").or(`notificateur_id.eq.${rc.user_id},notificateur_nom_complet.ilike.%${rc.nom}%`),
+          supabase.from("alertes_communautaires").select("*").or(`declare_par_id.eq.${rcUserId},notificateur_nom_complet.ilike.%${rc.nom || ""}%`),
+          supabase.from("registre_alertes_rumeurs").select("*").or(`relais_id.eq.${rcId},relais_nom_complet.ilike.%${rc.nom || ""}%`),
+          supabase.from("references_communautaires").select("*").eq("relais_id", rcId),
+          supabase.from("deces_communautaires").select("*").or(`notificateur_id.eq.${rcUserId},notificateur_nom_complet.ilike.%${rc.nom || ""}%`),
         ]);
 
         setRcFiches({

@@ -282,7 +282,7 @@ export default function NouvelleReferenceCommunautairePage() {
             statut: currentUser?.poste === "RC" ? "EN_ATTENTE_ASCQ" : "VALIDEE",
             relais_nom: currentUser ? `${currentUser.prenoms} ${currentUser.nom}` : "Relais Communautaire",
             relais_telephone: currentUser?.telephone || "",
-            ascq_id: currentUser?.poste === "ASCQ" ? currentUser.id : null,
+            ascq_id: currentUser?.poste === "ASCQ" ? (currentUser?.id || null) : null,
             ascq_nom: currentUser?.poste === "ASCQ" ? `${currentUser.prenoms} ${currentUser.nom}` : "Superviseur ASCQ",
           })
           .select()

@@ -210,12 +210,13 @@ export default function RapportMensuelPage() {
           .select("*, departements(nom), communes(nom), arrondissements(nom)")
           .eq("id", user.id)
           .maybeSingle();
-        profil = data;
+        profil = data || { id: user.id, email: user.email, poste: "ASCQ" };
       }
 
-      setCurrentUser(profil);
+      const activeProfile = profil || (user ? { id: user.id, email: user.email, poste: "ASCQ" } : null);
+      setCurrentUser(activeProfile);
 
-      const uid = user?.id || profil?.id;
+      const uid = user?.id || activeProfile?.id;
 
       // Charger l'historique des RMA de cet ASCQ
       if (uid) {
@@ -524,6 +525,20 @@ export default function RapportMensuelPage() {
     setSaving(true);
     setMessage(null);
 
+    // Résolution robuste de l'identifiant ASCQ
+    let ascqId = currentUser?.id;
+    if (!ascqId) {
+      const { data: { user } } = await supabase.auth.getUser();
+      ascqId = user?.id || getCachedUserSession()?.user?.id || getCachedMonEspace()?.id;
+    }
+
+    if (!ascqId) {
+      setSaving(false);
+      alert("Session expirée ou profil introuvable. Veuillez vous reconnecter.");
+      router.push("/connexion");
+      return;
+    }
+
     const payloadRpc = {
       p_mois: mois,
       p_annee: annee,
@@ -578,11 +593,11 @@ export default function RapportMensuelPage() {
         });
 
         // Recharger historique
-        if (currentUser?.id) {
+        if (ascqId) {
           const { data: hist } = await supabase
             .from("rapports_mensuels_ascq")
             .select("id, numero_rapport, mois, annee, statut, echeance_date, est_en_retard, date_validation, created_at")
-            .eq("ascq_id", currentUser.id)
+            .eq("ascq_id", ascqId)
             .order("annee", { ascending: false })
             .order("mois", { ascending: false });
           if (hist) setHistoriqueRapports(hist);
@@ -602,7 +617,7 @@ export default function RapportMensuelPage() {
         .upsert(
           {
             numero_rapport: generatedNum,
-            ascq_id: currentUser.id,
+            ascq_id: ascqId,
             mois,
             annee,
             statut: validerOfficiellement ? "VALIDE" : "BROUILLON",

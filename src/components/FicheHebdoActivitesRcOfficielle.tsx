@@ -93,15 +93,19 @@ export default function FicheHebdoActivitesRcOfficielle({ rcProfile, isAscqSuper
   const [luEtApprouveAscq, setLuEtApprouveAscq] = useState(false);
   const [observationsAscq, setObservationsAscq] = useState("");
 
+  // Identifiant du Relais robuste (id, rc_id ou user_id)
+  const relaisIdActif = rcProfile?.id || rcProfile?.rc_id || rcProfile?.user_id;
+
   // Chargement de la fiche existante si elle existe
   useEffect(() => {
     const chargerFiche = async () => {
-      if (!rcProfile?.id) return;
+      const rid = rcProfile?.id || rcProfile?.rc_id || rcProfile?.user_id;
+      if (!rid) return;
       try {
         const { data } = await supabase
           .from("fiches_activites_hebdo_relais")
           .select("*")
-          .eq("relais_id", rcProfile.id)
+          .eq("relais_id", rid)
           .eq("annee", annee)
           .eq("semaine_num", semaineNum)
           .maybeSingle();
@@ -137,21 +141,31 @@ export default function FicheHebdoActivitesRcOfficielle({ rcProfile, isAscqSuper
     };
 
     chargerFiche();
-  }, [rcProfile?.id, annee, semaineNum]);
+  }, [relaisIdActif, annee, semaineNum]);
 
   const handleEnregistrer = async () => {
     setSaving(true);
     setSavedSuccess(false);
     try {
+      let rid = rcProfile?.id || rcProfile?.rc_id || rcProfile?.user_id;
+      if (!rid) {
+        const { data: { user } } = await supabase.auth.getUser();
+        rid = user?.id;
+      }
+      if (!rid) {
+        alert("Session expirée ou profil introuvable. Veuillez vous reconnecter.");
+        return;
+      }
+
       const payload: any = {
-        relais_id: rcProfile.id,
-        ascq_id: rcProfile.ascq_id || null,
-        departement_id: rcProfile.departement_id || null,
-        zone_sanitaire_id: rcProfile.zone_sanitaire_id || null,
-        commune_id: rcProfile.commune_id || null,
-        arrondissement_id: rcProfile.arrondissement_id || null,
-        village_nom: rcProfile.village_nom || "Village",
-        grappe: rcProfile.grappe || 1,
+        relais_id: rid,
+        ascq_id: rcProfile?.ascq_id || null,
+        departement_id: rcProfile?.departement_id || null,
+        zone_sanitaire_id: rcProfile?.zone_sanitaire_id || null,
+        commune_id: rcProfile?.commune_id || null,
+        arrondissement_id: rcProfile?.arrondissement_id || null,
+        village_nom: rcProfile?.village_nom || "Village",
+        grappe: rcProfile?.grappe || 1,
         semaine_du: dateSemaineDu,
         annee,
         semaine_num: semaineNum,

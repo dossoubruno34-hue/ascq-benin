@@ -214,14 +214,17 @@ export default function RapportHebdoPnscPage() {
           .select("*")
           .eq("id", user.id)
           .maybeSingle();
-        profil = data;
+        profil = data || { id: user.id, email: user.email, poste: "ASCQ" };
+      } else if (user && profil && !profil.id) {
+        profil.id = user.id;
       }
 
-      setCurrentUser(profil);
+      const activeProfile = profil || (user ? { id: user.id, email: user.email, poste: "ASCQ" } : null);
+      setCurrentUser(activeProfile);
 
       // Charger le rapport existant pour cette semaine et cette année
       try {
-        const uid = user?.id || profil?.id;
+        const uid = user?.id || activeProfile?.id;
         const { data: rpt } = await supabase
           .from("rapports_hebdo_pnsc")
           .select("*")
@@ -344,14 +347,28 @@ export default function RapportHebdoPnscPage() {
     setSaving(true);
     setSaveMsg(null);
 
+    // Résolution robuste de l'identifiant ASCQ
+    let ascqId = currentUser?.id;
+    if (!ascqId) {
+      const { data: { user } } = await supabase.auth.getUser();
+      ascqId = user?.id || getCachedUserSession()?.user?.id || getCachedMonEspace()?.id;
+    }
+
+    if (!ascqId) {
+      setSaving(false);
+      setSaveMsg({ text: "Session expirée ou profil introuvable. Veuillez vous reconnecter.", error: true });
+      router.push("/connexion");
+      return;
+    }
+
     const payload = {
-      ascq_id: currentUser.id,
-      departement_id: currentUser.departement_id || null,
-      departement_nom: currentUser.departement_nom || "",
-      commune_id: currentUser.commune_id || null,
-      commune_nom: currentUser.commune_nom || "",
-      arrondissement_id: currentUser.arrondissement_id || null,
-      arrondissement_nom: currentUser.arrondissement_nom || "",
+      ascq_id: ascqId,
+      departement_id: currentUser?.departement_id || null,
+      departement_nom: currentUser?.departement_nom || "",
+      commune_id: currentUser?.commune_id || null,
+      commune_nom: currentUser?.commune_nom || "",
+      arrondissement_id: currentUser?.arrondissement_id || null,
+      arrondissement_nom: currentUser?.arrondissement_nom || "",
       annee,
       semaine,
       date_debut: dates.debut,
@@ -391,7 +408,7 @@ export default function RapportHebdoPnscPage() {
 
       if (error) {
         // Sauvegarde de secours en localStorage
-        const localKey = `rapport_pnsc_${currentUser.id}_${annee}_${semaine}`;
+        const localKey = `rapport_pnsc_${ascqId}_${annee}_${semaine}`;
         localStorage.setItem(localKey, JSON.stringify(payload));
       }
 

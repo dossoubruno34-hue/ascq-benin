@@ -137,8 +137,9 @@ export default function PlanningAscqPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.push("/connexion"); return; }
 
-      const { data: profil } = await supabase.from("utilisateurs").select("*").eq("id", user.id).single();
-      setCurrentUser(profil);
+      const { data: profil } = await supabase.from("utilisateurs").select("*").eq("id", user.id).maybeSingle();
+      const activeProfil = profil || { id: user.id, email: user.email, poste: "ASCQ" };
+      setCurrentUser(activeProfil);
 
       // Charger l'historique des plannings hebdomadaires
       try {
@@ -221,8 +222,18 @@ export default function PlanningAscqPage() {
       if (lignesValides.length === 0) throw new Error("Veuillez renseigner au moins une activité planifiée.");
       if (valider && !signatureTactile) throw new Error("La signature tactile de l'ASCQ est requise pour valider officiellement le planning.");
 
+      // Résolution robuste de l'identifiant ASCQ
+      let ascqId = currentUser?.id;
+      if (!ascqId) {
+        const { data: { user } } = await supabase.auth.getUser();
+        ascqId = user?.id || getCachedUserSession()?.user?.id || getCachedMonEspace()?.id;
+      }
+      if (!ascqId) {
+        throw new Error("Session expirée ou profil introuvable. Veuillez vous reconnecter.");
+      }
+
       const payload = {
-        ascq_id: currentUser.id,
+        ascq_id: ascqId,
         semaine,
         annee,
         mois: Math.ceil(semaine / 4.3) || 1,
@@ -268,7 +279,7 @@ export default function PlanningAscqPage() {
         }
       } catch (eDb) {
         // Fallback localStorage sécurisé
-        const localKey = `planning_hebdo_${currentUser.id}_${annee}_${semaine}`;
+        const localKey = `planning_hebdo_${ascqId}_${annee}_${semaine}`;
         localStorage.setItem(localKey, JSON.stringify({
           ...payload,
           lignes: lignesValides,

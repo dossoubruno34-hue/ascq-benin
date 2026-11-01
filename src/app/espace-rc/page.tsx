@@ -149,7 +149,8 @@ export default function EspaceRelaisPage() {
     // 1. Charger immédiatement le cache local du Relais s'il existe
     const cached = getCachedRcSpace();
     if (cached) {
-      setRcData(cached);
+      const normalizedCached = { ...cached, id: cached.id || cached.rc_id || cached.user_id };
+      setRcData(normalizedCached);
       setLoading(false);
     }
 
@@ -170,8 +171,9 @@ export default function EspaceRelaisPage() {
         return;
       }
 
-      setRcData(data);
-      saveCachedRcSpace(data);
+      const normalizedData = data ? { ...data, id: data.id || data.rc_id || data.user_id } : null;
+      setRcData(normalizedData);
+      saveCachedRcSpace(normalizedData);
 
       // Si le code temporaire n'a pas encore été changé, forcer la redirection
       if (data && data.code_temporaire_utilise === false) {
@@ -194,9 +196,11 @@ export default function EspaceRelaisPage() {
     loadProfile();
   }, []);
 
+  const rcIdActif = rcData?.id || rcData?.rc_id || rcData?.user_id;
+
   // Charger les données de la semaine (planning & rapport)
   const chargerDonneesSemaine = async (annee: number, semaine: number, userId?: string) => {
-    const uid = userId || rcData?.id;
+    const uid = userId || rcIdActif;
     if (!uid) return;
     try {
       // 1. Charger planning hebdo
@@ -256,10 +260,10 @@ export default function EspaceRelaisPage() {
   };
 
   useEffect(() => {
-    if (rcData?.id) {
-      chargerDonneesSemaine(anneeChoisie, semaineChoisie, rcData.id);
+    if (rcIdActif) {
+      chargerDonneesSemaine(anneeChoisie, semaineChoisie, rcIdActif);
     }
-  }, [rcData?.id, anneeChoisie, semaineChoisie]);
+  }, [rcIdActif, anneeChoisie, semaineChoisie]);
 
   // Enregistrer Planning
   const handleSauvegarderPlanning = async () => {

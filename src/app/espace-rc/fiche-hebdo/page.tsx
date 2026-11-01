@@ -18,7 +18,7 @@ export default function FicheHebdoPage() {
       setLoading(true);
       const cached = getCachedRcSpace();
       if (cached) {
-        setRcData(cached);
+        setRcData({ ...cached, id: cached.id || cached.rc_id || cached.user_id });
         setLoading(false);
       }
 
@@ -31,7 +31,7 @@ export default function FicheHebdoPage() {
           return;
         }
         if (data) {
-          setRcData(data);
+          setRcData({ ...data, id: data.id || data.rc_id || data.user_id });
         }
       } catch (err) {
         console.warn("Erreur chargement profil RC:", err);

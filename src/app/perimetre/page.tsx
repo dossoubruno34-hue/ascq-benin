@@ -1058,11 +1058,12 @@ function PerimetreGouvernanceContent() {
   const handleValiderRma = async (rmaId: string) => {
     setActionInProgress(rmaId);
     try {
+      const cadreId = currentUser?.id || (await supabase.auth.getUser()).data.user?.id || null;
       const { error } = await supabase.from("rapports_mensuels_ascq").update({
         statut: "VALIDE",
         date_validation: new Date().toISOString(),
-        valide_par: currentUser.id,
-        observations_validation: `Validé le ${new Date().toLocaleDateString("fr-FR")} par ${currentUser.nom || "Superviseur"} (${currentUser.poste || "Représentant Communal"})`
+        valide_par: cadreId,
+        observations_validation: `Validé le ${new Date().toLocaleDateString("fr-FR")} par ${currentUser?.nom || "Superviseur"} (${currentUser?.poste || "Représentant Communal"})`
       }).eq("id", rmaId);
 
       if (error) throw error;
@@ -1084,7 +1085,7 @@ function PerimetreGouvernanceContent() {
       const { error } = await supabase.from("rapports_hebdo_pnsc").update({
         statut: "VALIDE",
         date_validation: new Date().toISOString(),
-        observations: `Validé par ${currentUser.nom || "Superviseur"} (${currentUser.poste || "Représentant Communal"})`
+        observations: `Validé par ${currentUser?.nom || "Superviseur"} (${currentUser?.poste || "Représentant Communal"})`
       }).eq("id", hebdoId);
 
       if (error) throw error;
@@ -1105,6 +1106,7 @@ function PerimetreGouvernanceContent() {
     if (!editingRma) return;
     setSavingRma(true);
     try {
+      const cadreId = currentUser?.id || (await supabase.auth.getUser()).data.user?.id || null;
       const { error } = await supabase.from("rapports_mensuels_ascq").update({
         total_visites_domiciliaires: Number(editingRma.total_visites_domiciliaires) || 0,
         total_seances_sensibilisation: Number(editingRma.total_seances_sensibilisation) || 0,
@@ -1112,8 +1114,8 @@ function PerimetreGouvernanceContent() {
         enfants_0_59_mois_suivis: Number(editingRma.enfants_0_59_mois_suivis) || 0,
         statut: "VALIDE",
         date_validation: new Date().toISOString(),
-        valide_par: currentUser.id,
-        observations_validation: editingRma.observations_validation || `Validé et corrigé par le Représentant Communal ${currentUser.nom || ""}`
+        valide_par: cadreId,
+        observations_validation: editingRma.observations_validation || `Validé et corrigé par le Représentant Communal ${currentUser?.nom || ""}`
       }).eq("id", editingRma.id);
 
       if (error) throw error;
@@ -1417,12 +1419,13 @@ function PerimetreGouvernanceContent() {
 
     try {
       try {
+        const cadreId = currentUser?.id || (await supabase.auth.getUser()).data.user?.id || null;
         await supabase.from("suggestions_modifications_cadres").insert({
-          cadre_id: currentUser.id,
+          cadre_id: cadreId,
           ascq_id: suggestionAscqId,
-          commune_id: targetAscq?.commune_id || currentUser.commune_id,
+          commune_id: targetAscq?.commune_id || currentUser?.commune_id,
           arrondissement_id: targetAscq?.arrondissement_id,
-          departement_id: targetAscq?.departement_id || currentUser.departement_id,
+          departement_id: targetAscq?.departement_id || currentUser?.departement_id,
           module_concerne: suggestionModule,
           type_suggestion: suggestionType,
           titre: suggestionTitre.trim(),
@@ -1511,13 +1514,14 @@ function PerimetreGouvernanceContent() {
 
     try {
       try {
+        const cadreId = currentUser?.id || (await supabase.auth.getUser()).data.user?.id || null;
         await supabase.from("ordres_mission_territoire").insert({
-          cadre_id: currentUser.id,
+          cadre_id: cadreId,
           cible_type: missionCibleType,
           ascq_cible_id: missionCibleType === "ASCQ_SPECIFIQUE" ? missionAscqId : null,
-          departement_id: currentUser.departement_id,
-          commune_id: currentUser.commune_id,
-          zone_sanitaire_id: currentUser.zone_sanitaire_id,
+          departement_id: currentUser?.departement_id,
+          commune_id: currentUser?.commune_id,
+          zone_sanitaire_id: currentUser?.zone_sanitaire_id,
           titre: missionTitre.trim(),
           type_mission: missionType,
           priorite: missionPriorite,
@@ -1599,10 +1603,15 @@ function PerimetreGouvernanceContent() {
   const chargerJournalExports = async () => {
     setLoadingJournal(true);
     try {
+      const uId = currentUser?.id || (await supabase.auth.getUser()).data.user?.id;
+      if (!uId) {
+        setLoadingJournal(false);
+        return;
+      }
       const { data } = await supabase
         .from("journal_exports_responsables")
         .select("*")
-        .eq("user_id", currentUser.id)
+        .eq("user_id", uId)
         .order("created_at", { ascending: false })
         .limit(20);
       setJournalExports(data || []);
