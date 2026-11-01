@@ -5,8 +5,9 @@ import InstallAppBanner from "@/components/InstallAppBanner";
 import NotificationWatcher from "@/components/NotificationWatcher";
 
 export const metadata: Metadata = {
-  title: "ASCQ BÉNIN - Application Officielle",
-  description: "Application officielle des Agents de Santé Communautaire Qualifiés (ASCQ) du Bénin",
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://ascq-benin.vercel.app"),
+  title: "ASCQ BÉNIN - Application Officielle de Santé Communautaire",
+  description: "Plateforme officielle et sécurisée de surveillance épidémiologique, d'activité et de rapportage pour les Agents de Santé Communautaire Qualifiés (ASCQ) et Relais Communautaires (RC) de la République du Bénin.",
   applicationName: "ASCQ Bénin",
   manifest: "/manifest.json",
   appleWebApp: {
@@ -14,7 +15,38 @@ export const metadata: Metadata = {
     statusBarStyle: "default",
     title: "ASCQ Bénin",
   },
-  authors: [{ name: "Bruno DOSSOU" }],
+  authors: [{ name: "Ministère de la Santé du Bénin / Bruno DOSSOU" }],
+  publisher: "Ministère de la Santé du Bénin",
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+    },
+  },
+  openGraph: {
+    type: "website",
+    locale: "fr_BJ",
+    url: "https://ascq-benin.vercel.app",
+    siteName: "ASCQ Bénin - Plateforme Officielle",
+    title: "ASCQ BÉNIN - Application Officielle de Santé Communautaire",
+    description: "Plateforme officielle de suivi épidémiologique et de rapportage communautaire du Bénin.",
+    images: [
+      {
+        url: "/logo-ascq.png",
+        width: 512,
+        height: 512,
+        alt: "Logo Officiel ASCQ Bénin",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "ASCQ BÉNIN - Application Officielle",
+    description: "Plateforme officielle de santé communautaire du Bénin.",
+    images: ["/logo-ascq.png"],
+  },
 };
 
 export const viewport: Viewport = {
