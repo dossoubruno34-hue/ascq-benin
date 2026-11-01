@@ -14,6 +14,7 @@ const PRECACHE_ASSETS = [
   "/perimetre",
   "/espace-rc",
   "/briefing",
+  "/guide",
   "/fiches",
   "/fiches/nouvelle",
   "/fiches/alerte/nouvelle",
