@@ -92,6 +92,18 @@ export default function BriefingPage() {
 
   // Vérification de sécurité de la session
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get("tab") as MainTab;
+      if (tabParam && ["signes", "maladies", "vaccins", "maternelle", "secourisme", "organisation"].includes(tabParam)) {
+        setActiveTab(tabParam);
+      }
+      const filterParam = params.get("sub") as MaladieSubFilter;
+      if (filterParam && ["tous", "epidemies", "elimination", "sante_publique", "portee_internationale"].includes(filterParam)) {
+        setMaladieFilter(filterParam);
+      }
+    }
+
     async function verifierConnexion() {
       try {
         const { data: { user } } = await supabase.auth.getUser();
