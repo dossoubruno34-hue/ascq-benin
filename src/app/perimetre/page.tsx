@@ -11,6 +11,7 @@ import {
   Building2,
   MapPin,
   Users,
+  User,
   Search,
   Filter,
   Eye,
@@ -144,7 +145,7 @@ function PerimetreGouvernanceContent() {
   const [listeTerritoiresInf, setListeTerritoiresInf] = useState<any[]>([]);
   const [filtreTerritoireId, setFiltreTerritoireId] = useState<string>("TOUS");
 
-  // Indicateurs compilés
+  // Indicateurs compilés & Pyramide des Rapports Agrégés
   const [stats, setStats] = useState<any>({
     total_alertes: 0,
     alertes_prioritaires: 0,
@@ -162,6 +163,21 @@ function PerimetreGouvernanceContent() {
     hebdo_deposes: 0,
     total_vad: 0,
     total_causeries: 0,
+    total_femmes_suivies: 0,
+    total_enfants_suivis: 0,
+    total_references: 0,
+    // Décomptes des Consultations par Maladie (Secret médical préservé)
+    consultations_stats: {
+      total: 0,
+      palu_tdr_pos: 0,
+      diarrhee: 0,
+      ira: 0,
+      malnutrition: 0,
+      autres: 0,
+      referes: 0,
+      pec: 0,
+      moins_5ans: 0
+    },
     ventilation: []
   });
   const [loadingStats, setLoadingStats] = useState(false);
@@ -439,17 +455,80 @@ function PerimetreGouvernanceContent() {
       const totalAscq = (ascqsList || []).length;
       const ascqIds = (ascqsList || []).map((a: any) => a.id);
 
-      // 4. Récupérer les RMA
+      // 4. Récupérer les RMA complets du territoire avec tous les indicateurs
       let rmas: any[] = [];
       if (ascqIds.length > 0) {
         const { data: rmaData } = await supabase
           .from("rapports_mensuels_ascq")
-          .select("id, ascq_id, mois, annee, date_depot, commune_id, arrondissement_id")
+          .select("*")
           .eq("annee", annee)
           .eq("mois", mois)
           .in("ascq_id", ascqIds);
         rmas = rmaData || [];
       }
+
+      // 5. Récupérer les consultations du territoire pour le décompte épidémiologique par pathologie (zéro données identifiantes)
+      let consultData: any[] = [];
+      if (ascqIds.length > 0) {
+        try {
+          const { data: cData } = await supabase
+            .from("consultations_communautaires")
+            .select("id, diagnostic_possible, tdr_paludisme, decision, age_valeur, age_unite, ascq_id, commune_id, arrondissement_id, departement_id")
+            .in("ascq_id", ascqIds);
+          consultData = cData || [];
+        } catch (e) {
+          console.warn("Échec chargement consultations pour décompte épidémiologique:", e);
+        }
+      }
+
+      // Décompte épidémiologique des consultations par pathologie (Secret Médical & Protection des Données)
+      let consultTotal = 0;
+      let consultPalu = 0;
+      let consultDiarrhee = 0;
+      let consultIra = 0;
+      let consultMalnut = 0;
+      let consultAutres = 0;
+      let consultReferes = 0;
+      let consultPec = 0;
+      let consultMoins5 = 0;
+
+      consultData.forEach((c: any) => {
+        consultTotal++;
+        const diag = (c.diagnostic_possible || "").toLowerCase();
+        if (c.tdr_paludisme === "POSITIF" || diag.includes("palud") || diag.includes("palu")) {
+          consultPalu++;
+        } else if (diag.includes("diarrh")) {
+          consultDiarrhee++;
+        } else if (diag.includes("ira") || diag.includes("pneumo") || diag.includes("respirat")) {
+          consultIra++;
+        } else if (diag.includes("malnut") || diag.includes("pb")) {
+          consultMalnut++;
+        } else {
+          consultAutres++;
+        }
+
+        if (c.decision === "REFERER_CS") consultReferes++;
+        else consultPec++;
+
+        if ((c.age_unite === "ANS" && Number(c.age_valeur) < 5) || (c.age_unite && c.age_unite !== "ANS")) {
+          consultMoins5++;
+        }
+      });
+
+      // Calcul des totaux consolidés des RMA
+      let totalVadConsolidee = 0;
+      let totalCauseriesConsolidee = 0;
+      let totalFemmesConsolidee = 0;
+      let totalEnfantsConsolidee = 0;
+      let totalRefConsolidee = 0;
+
+      rmas.forEach((r: any) => {
+        totalVadConsolidee += (Number(r.total_visites_domiciliaires) || Number(r.menages_visites) || 0);
+        totalCauseriesConsolidee += (Number(r.total_seances_sensibilisation) || 0);
+        totalFemmesConsolidee += (Number(r.femmes_enceintes_suivies) || Number(r.femmes_enceintes) || 0);
+        totalEnfantsConsolidee += (Number(r.enfants_0_59_mois_suivis) || Number(r.enfants_0_5ans) || 0);
+        totalRefConsolidee += (Number(r.total_references) || Number(r.cas_referes_cs) || 0);
+      });
 
       // Calcul RMA déposés à temps vs en retard vs manquants (délai : 5 du mois suivant)
       let rmaDeposes = 0;
@@ -466,7 +545,7 @@ function PerimetreGouvernanceContent() {
       const delaisDetec = alertes.filter((a: any) => a.delai_detection_notification_heures).map((a: any) => Number(a.delai_detection_notification_heures));
       const delaiMoyenDetec = delaisDetec.length > 0 ? Math.round(delaisDetec.reduce((acc, v) => acc + v, 0) / delaisDetec.length) : 0;
 
-      // Ventilation par territoire inférieur
+      // Ventilation par territoire inférieur (Arrondissements pour Commune, Communes pour Département, Départements pour National)
       const ventilationMap = new Map<string, any>();
       listeTerritoiresInf.forEach(t => {
         ventilationMap.set(t.id, {
@@ -475,7 +554,11 @@ function PerimetreGouvernanceContent() {
           alertes: 0,
           deces: 0,
           rma_deposes: 0,
-          ascq_count: 0
+          ascq_count: 0,
+          consultations: 0,
+          palu: 0,
+          vad: 0,
+          references: 0
         });
       });
 
@@ -485,6 +568,26 @@ function PerimetreGouvernanceContent() {
         const key = u[ventilationKey];
         if (ventilationMap.has(key)) {
           ventilationMap.get(key).ascq_count++;
+        }
+      });
+
+      rmas.forEach((r: any) => {
+        const key = r[ventilationKey];
+        if (ventilationMap.has(key)) {
+          const item = ventilationMap.get(key);
+          item.rma_deposes++;
+          item.vad += (Number(r.total_visites_domiciliaires) || Number(r.menages_visites) || 0);
+          item.palu += (Number(r.total_paludisme_confirme) || 0);
+          item.references += (Number(r.total_references) || 0);
+        }
+      });
+
+      consultData.forEach((c: any) => {
+        const key = c[ventilationKey];
+        if (ventilationMap.has(key)) {
+          const item = ventilationMap.get(key);
+          item.consultations++;
+          if (c.tdr_paludisme === "POSITIF") item.palu++;
         }
       });
 
@@ -515,6 +618,22 @@ function PerimetreGouvernanceContent() {
         rma_retard: rmaRetard,
         rma_manquants: rmaManquants,
         taux_completude_rma: tauxCompletude,
+        total_vad: totalVadConsolidee,
+        total_causeries: totalCauseriesConsolidee,
+        total_femmes_suivies: totalFemmesConsolidee,
+        total_enfants_suivis: totalEnfantsConsolidee,
+        total_references: totalRefConsolidee,
+        consultations_stats: {
+          total: consultTotal,
+          palu_tdr_pos: consultPalu,
+          diarrhee: consultDiarrhee,
+          ira: consultIra,
+          malnutrition: consultMalnut,
+          autres: consultAutres,
+          referes: consultReferes,
+          pec: consultPec,
+          moins_5ans: consultMoins5
+        },
         ventilation: Array.from(ventilationMap.values())
       });
 
@@ -1122,8 +1241,8 @@ function PerimetreGouvernanceContent() {
           type: "ICCM",
           typeLibelle: "Consultation iCCM",
           badgeColor: "bg-emerald-100 text-emerald-800 border-emerald-300",
-          titre: `${c.prenoms_patient} ${c.nom_patient} (${c.age_valeur} ${c.age_unite || "ans"})`,
-          sousTitre: `Village: ${c.village} • Diag: ${c.diagnostic_possible || "Symptômes"} • TDR: ${c.tdr_paludisme}`,
+          titre: `Consultation : ${c.diagnostic_possible || "Symptômes iCCM"} (TDR ${c.tdr_paludisme})`,
+          sousTitre: `Village: ${c.village || "-"} • Patient : Anonymisé (Secret Médical) • Tranche: ${c.age_valeur} ${c.age_unite || "ans"} (${c.sexe || "N/A"})`,
           decision: c.decision === "REFERER_CS" ? "Référé au CS" : "PEC Communautaire",
           decisionBadge: c.decision === "REFERER_CS" ? "bg-red-100 text-red-800" : "bg-emerald-100 text-emerald-800",
           dateFiche: c.date_consultation || c.created_at,
@@ -1975,15 +2094,173 @@ function PerimetreGouvernanceContent() {
               </div>
             </div>
 
+            {/* PYRAMIDE DES RAPPORTS AGRÉGÉS SELON LE NIVEAU TERRITORIAL */}
+            <div className="bg-gradient-to-br from-emerald-900 via-[#005c30] to-slate-900 text-white rounded-3xl p-6 shadow-md space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-400/20 text-emerald-200 text-[10px] font-black uppercase border border-emerald-400/30">
+                      Pyramide Sanitaire Officielle
+                    </span>
+                    <span className="text-xs text-emerald-200 font-bold">
+                      {libelleTerritoire}
+                    </span>
+                  </div>
+                  <h3 className="text-base sm:text-lg font-black tracking-tight mt-1 flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-emerald-300" />
+                    <span>
+                      {currentUser?.commune_id 
+                        ? "Rapport Mensuel Communal Consolidé (Agrégation des ASCQ)" 
+                        : currentUser?.departement_id 
+                          ? "Rapport Mensuel Départemental Consolidé (Agrégation des Communes)" 
+                          : "Rapport Mensuel National Consolidé (Agrégation des 12 Départements)"}
+                    </span>
+                  </h3>
+                  <p className="text-xs text-emerald-100/90 mt-0.5 max-w-2xl leading-relaxed">
+                    {currentUser?.commune_id 
+                      ? "Agrégation automatique des rapports mensuels (RMA) et activités de terrain transmis par tous les ASCQ de la commune."
+                      : currentUser?.departement_id
+                        ? "Synthèse départementale consolidant l'ensemble des communes du département pour la Direction Départementale de la Santé (DDS)."
+                        : "Tableau de bord national consolidant les données des 12 départements et 77 communes de la République du Bénin."}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => executerExportCompilé("EXCEL")}
+                    className="px-3 py-2 rounded-xl bg-white text-[#005c30] hover:bg-emerald-50 font-black text-xs flex items-center gap-1.5 shadow-sm transition-all"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Exporter Rapport Consolidé</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Métriques consolidées du rapport du niveau */}
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 text-xs text-slate-900">
+                <div className="bg-white/95 p-3 rounded-2xl backdrop-blur-sm border border-white/20">
+                  <span className="text-[10px] font-extrabold uppercase text-slate-500 block">VAD Ménages</span>
+                  <strong className="text-lg font-black text-emerald-900">{stats.total_vad}</strong>
+                  <span className="text-[10px] text-slate-400 block">Visites domiciliaires</span>
+                </div>
+
+                <div className="bg-white/95 p-3 rounded-2xl backdrop-blur-sm border border-white/20">
+                  <span className="text-[10px] font-extrabold uppercase text-slate-500 block">Causeries</span>
+                  <strong className="text-lg font-black text-emerald-900">{stats.total_causeries}</strong>
+                  <span className="text-[10px] text-slate-400 block">Sensibilisations</span>
+                </div>
+
+                <div className="bg-white/95 p-3 rounded-2xl backdrop-blur-sm border border-white/20">
+                  <span className="text-[10px] font-extrabold uppercase text-slate-500 block">Femmes CPN</span>
+                  <strong className="text-lg font-black text-pink-700">{stats.total_femmes_suivies}</strong>
+                  <span className="text-[10px] text-slate-400 block">Femmes suivies</span>
+                </div>
+
+                <div className="bg-white/95 p-3 rounded-2xl backdrop-blur-sm border border-white/20">
+                  <span className="text-[10px] font-extrabold uppercase text-slate-500 block">Enfants PEV</span>
+                  <strong className="text-lg font-black text-blue-700">{stats.total_enfants_suivis}</strong>
+                  <span className="text-[10px] text-slate-400 block">0 à 59 mois</span>
+                </div>
+
+                <div className="bg-white/95 p-3 rounded-2xl backdrop-blur-sm border border-white/20 col-span-2 sm:col-span-1">
+                  <span className="text-[10px] font-extrabold uppercase text-slate-500 block">Références</span>
+                  <strong className="text-lg font-black text-amber-700">{stats.total_references}</strong>
+                  <span className="text-[10px] text-slate-400 block">Vers CS / GUPS</span>
+                </div>
+              </div>
+            </div>
+
+            {/* DÉCOMPTES ÉPIDÉMIOLOGIQUES DES CONSULTATIONS PAR MALADIE (SECRET MÉDICAL STRICT - ZÉRO PII) */}
+            <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-[#005c30] text-[10px] font-black uppercase">
+                      Surveillance Thérapeutique
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold flex items-center gap-1">
+                      <Lock className="w-3 h-3 text-slate-400" />
+                      <span>Secret Médical Garanti</span>
+                    </span>
+                  </div>
+                  <h3 className="text-sm font-extrabold text-slate-900 mt-1 flex items-center gap-2">
+                    <Stethoscope className="w-4 h-4 text-[#005c30]" />
+                    <span>Décompte des Consultations par Maladie</span>
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Statistiques épidémiologiques consolidées sur le périmètre. L'accès aux dossiers nominatifs individuels des patients est strictement restreint pour préserver le secret médical.
+                  </p>
+                </div>
+
+                <div className="text-right shrink-0">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Total Consultations</span>
+                  <span className="text-xl font-black text-[#005c30]">
+                    {stats.consultations_stats?.total || 0}
+                  </span>
+                </div>
+              </div>
+
+              {/* Grille des pathologies consultées */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+                <div className="p-3 bg-red-50/80 rounded-2xl border border-red-200 space-y-1">
+                  <span className="text-[10px] font-extrabold uppercase text-red-700 block">Paludisme (TDR+)</span>
+                  <strong className="text-xl font-black text-red-800">{stats.consultations_stats?.palu_tdr_pos || 0}</strong>
+                  <span className="text-[10px] text-red-600 block">Goutte épaisse / TDR positif</span>
+                </div>
+
+                <div className="p-3 bg-amber-50/80 rounded-2xl border border-amber-200 space-y-1">
+                  <span className="text-[10px] font-extrabold uppercase text-amber-800 block">Diarrhée Aiguë</span>
+                  <strong className="text-xl font-black text-amber-900">{stats.consultations_stats?.diarrhee || 0}</strong>
+                  <span className="text-[10px] text-amber-700 block">SRO + Zinc prescrits</span>
+                </div>
+
+                <div className="p-3 bg-blue-50/80 rounded-2xl border border-blue-200 space-y-1">
+                  <span className="text-[10px] font-extrabold uppercase text-blue-800 block">Pneumonie / IRA</span>
+                  <strong className="text-xl font-black text-blue-900">{stats.consultations_stats?.ira || 0}</strong>
+                  <span className="text-[10px] text-blue-700 block">Infections respiratoires</span>
+                </div>
+
+                <div className="p-3 bg-purple-50/80 rounded-2xl border border-purple-200 space-y-1">
+                  <span className="text-[10px] font-extrabold uppercase text-purple-800 block">Malnutrition Aiguë</span>
+                  <strong className="text-xl font-black text-purple-900">{stats.consultations_stats?.malnutrition || 0}</strong>
+                  <span className="text-[10px] text-purple-700 block">Dépistage PB & œdèmes</span>
+                </div>
+              </div>
+
+              {/* Conduite Thérapeutique & Répartition */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs pt-1">
+                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
+                  <span className="text-slate-600">Prise en charge à domicile :</span>
+                  <strong className="text-[#005c30] font-black">{stats.consultations_stats?.pec || 0}</strong>
+                </div>
+                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
+                  <span className="text-slate-600">Référés d'urgence vers CS :</span>
+                  <strong className="text-red-700 font-black">{stats.consultations_stats?.referes || 0}</strong>
+                </div>
+                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
+                  <span className="text-slate-600">Enfants de moins de 5 ans :</span>
+                  <strong className="text-blue-900 font-black">{stats.consultations_stats?.moins_5ans || 0}</strong>
+                </div>
+              </div>
+
+              <div className="p-3 bg-emerald-50/60 rounded-2xl border border-emerald-200/80 text-[11px] text-emerald-950 flex items-start gap-2">
+                <ShieldCheck className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
+                <div>
+                  <strong>Protection Déontologique du Patient :</strong> Conformément à la législation sanitaire et au secret médical, l'application isole les données d'identification personnelle (noms des patients, tuteurs et numéros de téléphone) au niveau communautaire strict. Les superviseurs disposent uniquement des décomptes épidémiologiques et de la qualité de la prise en charge.
+                </div>
+              </div>
+            </div>
+
             {/* Tableau de Ventilation par Territoire Inférieur */}
             <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm space-y-3">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-extrabold text-sm text-slate-900">
-                    Ventilation par Territoire Inférieur
+                    Ventilation Détaillée par Territoire Inférieur
                   </h3>
                   <p className="text-xs text-slate-500">
-                    Détail des totaux compilés selon les normes de confidentialité (petits effectifs &lt; 5 masqués).
+                    Rapports agrégés selon la pyramide sanitaire (Arrondissements pour la Commune, Communes pour le Département, Départements au niveau National).
                   </p>
                 </div>
               </div>
@@ -1994,8 +2271,10 @@ function PerimetreGouvernanceContent() {
                     <tr className="border-b border-slate-200 text-slate-400 text-[10px] uppercase font-black">
                       <th className="py-2.5 px-3">Territoire</th>
                       <th className="py-2.5 px-3 text-center">ASCQ Actifs</th>
-                      <th className="py-2.5 px-3 text-center">Alertes Notifiées</th>
-                      <th className="py-2.5 px-3 text-center">Décès Déclarés</th>
+                      <th className="py-2.5 px-3 text-center">Consultations</th>
+                      <th className="py-2.5 px-3 text-center">VAD Ménages</th>
+                      <th className="py-2.5 px-3 text-center">Alertes</th>
+                      <th className="py-2.5 px-3 text-center">Décès</th>
                       <th className="py-2.5 px-3 text-center">RMA Déposés</th>
                       <th className="py-2.5 px-3 text-right">Complétude</th>
                     </tr>
@@ -2003,7 +2282,7 @@ function PerimetreGouvernanceContent() {
                   <tbody className="divide-y divide-slate-100 font-medium">
                     {stats.ventilation.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="py-8 text-center text-slate-400">
+                        <td colSpan={8} className="py-8 text-center text-slate-400">
                           Aucun territoire rattaché.
                         </td>
                       </tr>
@@ -2014,6 +2293,11 @@ function PerimetreGouvernanceContent() {
                           <tr key={v.id} className="hover:bg-slate-50/80 transition-colors">
                             <td className="py-3 px-3 font-bold text-slate-900">{v.nom}</td>
                             <td className="py-3 px-3 text-center text-slate-600">{v.ascq_count}</td>
+                            <td className="py-3 px-3 text-center font-bold text-[#005c30]">
+                              {v.consultations || 0}
+                              {v.palu > 0 && <span className="text-[10px] text-red-600 block">({v.palu} palu)</span>}
+                            </td>
+                            <td className="py-3 px-3 text-center text-slate-700 font-semibold">{v.vad || 0}</td>
                             <td className="py-3 px-3 text-center">
                               <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 font-bold">
                                 {anonymiserPetitEffectif(v.alertes)}
@@ -4476,12 +4760,12 @@ function PerimetreGouvernanceContent() {
                     <Lock className="w-3.5 h-3.5 text-slate-400" />
                   </div>
                   <h3 className="text-base font-black text-slate-900 mt-1">
-                    {ficheAffichee.type === "ICCM" && `Fiche Consultation iCCM : ${ficheAffichee.donnees.prenoms_patient} ${ficheAffichee.donnees.nom_patient}`}
+                    {ficheAffichee.type === "ICCM" && `Fiche Consultation iCCM : ${ficheAffichee.donnees.diagnostic_possible || "Soin communautaire"} (Secret Médical • Patient Anonymisé)`}
                     {ficheAffichee.type === "MATERNITE" && `Fiche Maternité : ${ficheAffichee.donnees.prenoms} ${ficheAffichee.donnees.nom}`}
                     {ficheAffichee.type === "ENFANTS_1000J" && `Fiche Enfant 1000 Jours : ${ficheAffichee.donnees.prenoms || ""} ${ficheAffichee.donnees.nom || ""}`}
                     {ficheAffichee.type === "REFERENCES" && `Fiche Référence CS / GUPS : ${ficheAffichee.donnees.motif_reference || "Urgence"}`}
-                    {ficheAffichee.type === "ALERTES" && `Notification Alerte SIMR : ${ficheAffichee.donnees.type_alerte_nom}`}
-                    {ficheAffichee.type === "DECES" && `Notification Décès Communautaire : ${ficheAffichee.donnees.type_deces_nom}`}
+                    {ficheAffichee.type === "ALERTES" && `Notification Alerte SIMR : ${ficheAffichee.donnees.numero_alerte || ficheAffichee.donnees.type_alerte_nom}`}
+                    {ficheAffichee.type === "DECES" && `Notification Décès Communautaire : ${ficheAffichee.donnees.numero_deces || ficheAffichee.donnees.type_deces_nom}`}
                     {ficheAffichee.type === "RMA" && `Rapport Mensuel d'Activité (Mois ${ficheAffichee.donnees.mois} / ${ficheAffichee.donnees.annee})`}
                   </h3>
                   <p className="text-[11px] text-slate-500">
@@ -4500,43 +4784,43 @@ function PerimetreGouvernanceContent() {
               {/* Corps de la fiche */}
               <div className="p-5 overflow-y-auto space-y-3.5 max-h-[65vh]">
                 
-                {/* 1. FICHE ICCM */}
+                {/* 1. FICHE ICCM (SECRET MÉDICAL STRICT : DÉCOMPTES PAR MALADIE, AUCUNE EXPOSITION DE DONNÉES PATIENT) */}
                 {ficheAffichee.type === "ICCM" && (
                   <div className="space-y-3">
                     <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1.5">
-                      <h4 className="font-extrabold text-slate-900 text-xs">Identité de l'Enfant</h4>
-                      <div className="grid grid-cols-2 gap-2 text-slate-700 text-[11px]">
-                        <p>Nom & Prénoms : <strong>{ficheAffichee.donnees.prenoms_patient} {ficheAffichee.donnees.nom_patient}</strong></p>
-                        <p>Âge : <strong>{ficheAffichee.donnees.age_valeur} {ficheAffichee.donnees.age_unite || "ans"}</strong> (Sexe: {ficheAffichee.donnees.sexe})</p>
-                        <p>Village : <strong>{ficheAffichee.donnees.village}</strong></p>
-                        <p>Parent / Tuteur : <strong>{ficheAffichee.donnees.nom_parent_tuteur || "Non précisé"}</strong></p>
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span>Téléphone :</span>
-                          {ficheAffichee.donnees.telephone_contact ? (
-                            <BeninPhoneAction telephone={ficheAffichee.donnees.telephone_contact} variant="compact" />
-                          ) : (
-                            <strong>Aucun</strong>
-                          )}
-                        </div>
-                        <p>Date : <strong>{ficheAffichee.donnees.date_consultation}</strong></p>
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-extrabold text-slate-900 text-xs">Profil Clinique du Cas</h4>
+                        <span className="text-[10px] font-black uppercase text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
+                          <Lock className="w-3 h-3" />
+                          <span>Secret Médical Préservé</span>
+                        </span>
                       </div>
+                      <div className="grid grid-cols-2 gap-2 text-slate-700 text-[11px]">
+                        <p>Dossier Patient : <strong className="text-slate-500 italic">Anonymisé (Secret Médical)</strong></p>
+                        <p>Tranche d'Âge & Sexe : <strong>{ficheAffichee.donnees.age_valeur} {ficheAffichee.donnees.age_unite || "ans"} ({ficheAffichee.donnees.sexe || "N/A"})</strong></p>
+                        <p>Village d'intervention : <strong>{ficheAffichee.donnees.village || "-"}</strong></p>
+                        <p>Date de Consultation : <strong>{ficheAffichee.donnees.date_consultation}</strong></p>
+                      </div>
+                      <p className="text-[10px] text-slate-500 italic pt-1 border-t border-slate-200/60 mt-1">
+                        🔒 Conformément aux règles déontologiques de protection de la vie privée, les identifiants personnels du patient (nom, téléphone, tuteur) sont strictement protégés. Seuls le profil clinique et les statistiques épidémiologiques sont exposés.
+                      </p>
                     </div>
 
                     <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1.5">
-                      <h4 className="font-extrabold text-slate-900 text-xs">Signes Cliniques & Dépistage</h4>
-                      <p className="text-slate-700">Signe principal : <strong className="text-slate-900">{ficheAffichee.donnees.signe_principal}</strong></p>
+                      <h4 className="font-extrabold text-slate-900 text-xs">Pathologie Diagnostiquée & Dépistage</h4>
+                      <p className="text-slate-700">Diagnostic posé : <strong className="text-emerald-900 text-sm font-black">{ficheAffichee.donnees.diagnostic_possible || "Symptômes iCCM"}</strong></p>
+                      <p className="text-slate-700">Signe d'alerte principal : <strong className="text-slate-900">{ficheAffichee.donnees.signe_principal}</strong></p>
                       {ficheAffichee.donnees.signes_secondaires && ficheAffichee.donnees.signes_secondaires.length > 0 && (
-                        <p className="text-slate-600">Signes secondaires : {ficheAffichee.donnees.signes_secondaires.join(", ")}</p>
+                        <p className="text-slate-600 text-[11px]">Signes associés : {ficheAffichee.donnees.signes_secondaires.join(", ")}</p>
                       )}
                       <div className="flex items-center gap-2 pt-1">
                         <span className="font-bold">Test TDR Paludisme :</span>
                         <span className={`px-2.5 py-0.5 rounded-full font-black text-[10px] ${
-                          ficheAffichee.donnees.tdr_paludisme === "POSITIF" ? "bg-red-100 text-red-800" : ficheAffichee.donnees.tdr_paludisme === "NEGATIF" ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-700"
+                          ficheAffichee.donnees.tdr_paludisme === "POSITIF" ? "bg-red-100 text-red-800 border border-red-300" : ficheAffichee.donnees.tdr_paludisme === "NEGATIF" ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-700"
                         }`}>
                           {ficheAffichee.donnees.tdr_paludisme}
                         </span>
                       </div>
-                      <p className="text-slate-700">Diagnostic posé : <strong className="text-slate-900">{ficheAffichee.donnees.diagnostic_possible}</strong></p>
                     </div>
 
                     <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1.5">
@@ -4618,26 +4902,244 @@ function PerimetreGouvernanceContent() {
                   </div>
                 )}
 
-                {/* 5. FICHE ALERTE */}
+                {/* 5. FICHE ALERTE (TRANSPARENCE TOTALE : TOUTES LES INFORMATIONS TRANSMISES SONT VISIBLES) */}
                 {ficheAffichee.type === "ALERTES" && (
-                  <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-2">
-                    <h4 className="font-extrabold text-purple-900 text-xs">Détails Alerte Épidémiologique</h4>
-                    <p>Pathologie / Événement : <strong className="text-purple-900">{ficheAffichee.donnees.type_alerte_nom}</strong></p>
-                    <p>Semaine Épidémiologique : <strong>Semaine {ficheAffichee.donnees.semaine_epidemio} / {ficheAffichee.donnees.annee}</strong></p>
-                    <p>Alerte Prioritaire : <strong>{ficheAffichee.donnees.est_prioritaire ? "OUI" : "NON"}</strong></p>
-                    <p>Statut Investigation : <strong>{ficheAffichee.donnees.investigation_faite ? "Investigation Réalisée" : "Non encore investiguée"}</strong></p>
-                    <p>Délai Détection & Notification : <strong>{ficheAffichee.donnees.delai_detection_notification_heures || "?"} heures</strong></p>
+                  <div className="space-y-3">
+                    <div className="bg-purple-50 p-4 rounded-2xl border border-purple-200 space-y-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-mono text-xs font-black text-purple-950 bg-purple-200/60 px-2.5 py-0.5 rounded-lg border border-purple-300">
+                          {ficheAffichee.donnees.numero_alerte || "ALERTE-OFFICIELLE"}
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          {ficheAffichee.donnees.est_prioritaire ? (
+                            <span className="px-2 py-0.5 rounded-full bg-red-600 text-white font-black text-[10px] animate-pulse">
+                              🚨 ALERTE PRIORITAIRE SIMR
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 font-bold text-[10px]">
+                              Notification Hebdo
+                            </span>
+                          )}
+                          <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-bold text-[10px]">
+                            Statut : {ficheAffichee.donnees.statut || "NOTIFIEE"}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="text-sm font-black text-purple-950">
+                        {ficheAffichee.donnees.type_alerte_nom || "Alerte Épidémiologique"}
+                      </div>
+                      {ficheAffichee.donnees.autre_evenement_precision && (
+                        <p className="text-xs text-purple-900 italic">
+                          « {ficheAffichee.donnees.autre_evenement_precision} »
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Localisation Complète & GPS */}
+                    <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1.5">
+                      <h4 className="font-extrabold text-slate-900 text-xs flex items-center gap-1.5">
+                        <MapPin className="w-3.5 h-3.5 text-[#005c30]" />
+                        <span>Localisation Complète & Géoréférencement</span>
+                      </h4>
+                      <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-700">
+                        <p>Département : <strong>{ficheAffichee.donnees.departement_nom || "-"}</strong></p>
+                        <p>Commune : <strong>{ficheAffichee.donnees.commune_nom || "-"}</strong></p>
+                        <p>Arrondissement : <strong>{ficheAffichee.donnees.arrondissement_nom || "-"}</strong></p>
+                        <p>Village / Quartier : <strong>{ficheAffichee.donnees.village_nom || "-"}</strong></p>
+                        {(ficheAffichee.donnees.numero_grappe || ficheAffichee.donnees.nom_grappe) && (
+                          <p className="col-span-2">
+                            Grappe : <strong>N° {ficheAffichee.donnees.numero_grappe} {ficheAffichee.donnees.nom_grappe ? `(${ficheAffichee.donnees.nom_grappe})` : ""}</strong>
+                          </p>
+                        )}
+                        {(ficheAffichee.donnees.gps_latitude && ficheAffichee.donnees.gps_longitude) && (
+                          <p className="col-span-2 font-mono text-emerald-800 bg-emerald-50 p-1.5 rounded-lg border border-emerald-200">
+                            GPS : Lat {ficheAffichee.donnees.gps_latitude}, Lon {ficheAffichee.donnees.gps_longitude}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Temporalité & Détection */}
+                    <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1.5">
+                      <h4 className="font-extrabold text-slate-900 text-xs flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-blue-700" />
+                        <span>Temporalité Épidémiologique & Délais</span>
+                      </h4>
+                      <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-700">
+                        <p>Semaine Épidémiologique : <strong>Semaine {ficheAffichee.donnees.semaine_epidemio} / {ficheAffichee.donnees.annee}</strong></p>
+                        <p>Date Début Maladie : <strong>{ficheAffichee.donnees.date_debut_maladie || "Non précisée"}</strong></p>
+                        <p>Date Détection : <strong>{ficheAffichee.donnees.date_detection || "-"} {ficheAffichee.donnees.heure_detection ? `à ${ficheAffichee.donnees.heure_detection}` : ""}</strong></p>
+                        <p>Date Notification : <strong>{ficheAffichee.donnees.date_notification || "-"}</strong></p>
+                        <p className="col-span-2">
+                          Délai Détection-Notification : <strong className={Number(ficheAffichee.donnees.delai_detection_notification_heures) > 24 ? "text-amber-700" : "text-emerald-700"}>
+                            {ficheAffichee.donnees.delai_detection_notification_heures ?? "?"} heures
+                          </strong> (Norme SIMR &le; 24h)
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Bilan Humain & Animal */}
+                    <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1.5">
+                      <h4 className="font-extrabold text-slate-900 text-xs flex items-center gap-1.5">
+                        <Activity className="w-3.5 h-3.5 text-purple-700" />
+                        <span>Bilan d'Impact Sanitaire & Animal</span>
+                      </h4>
+                      <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-700">
+                        <p>Personnes touchées (malades) : <strong className="text-purple-900 text-sm">{ficheAffichee.donnees.nb_personnes_touchees ?? 1}</strong></p>
+                        <p>Personnes décédées : <strong className="text-red-700 text-sm">{ficheAffichee.donnees.nb_personnes_mortes ?? 0}</strong></p>
+                        <p>Animaux malades : <strong>{ficheAffichee.donnees.nb_animaux_malades ?? 0}</strong></p>
+                        <p>Animaux morts : <strong>{ficheAffichee.donnees.nb_animaux_morts ?? 0}</strong></p>
+                        <p className="col-span-2">
+                          Événement en cours : <strong>{ficheAffichee.donnees.evenement_en_cours ? "Oui (Toujours actif)" : "Non (Circonscrit)"}</strong>
+                        </p>
+                      </div>
+                      {ficheAffichee.donnees.mesures_prises && (
+                        <div className="pt-1 border-t border-slate-200 text-[11px]">
+                          <span className="font-bold text-slate-800">Mesures immédiates prises :</span>
+                          <p className="text-slate-700 mt-0.5 italic">« {ficheAffichee.donnees.mesures_prises} »</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Cas Index / Personne source (Visibilité totale pour enquête) */}
+                    <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1.5">
+                      <h4 className="font-extrabold text-slate-900 text-xs flex items-center gap-1.5">
+                        <User className="w-3.5 h-3.5 text-emerald-700" />
+                        <span>Données du Cas Index Transmises</span>
+                      </h4>
+                      <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-700">
+                        <p>Âge & Sexe : <strong>{ficheAffichee.donnees.age_valeur ? `${ficheAffichee.donnees.age_valeur} ${ficheAffichee.donnees.age_unite || "ans"}` : "Non précisé"} ({ficheAffichee.donnees.sexe || "N/A"})</strong></p>
+                        {ficheAffichee.donnees.cas_prive?.nom && (
+                          <p>Nom & Prénoms : <strong>{ficheAffichee.donnees.cas_prive.nom} {ficheAffichee.donnees.cas_prive.prenoms}</strong></p>
+                        )}
+                        {ficheAffichee.donnees.cas_prive?.telephone && (
+                          <p>Téléphone : <strong>{ficheAffichee.donnees.cas_prive.telephone}</strong></p>
+                        )}
+                        {ficheAffichee.donnees.cas_prive?.nom_tuteur && (
+                          <p>Tuteur : <strong>{ficheAffichee.donnees.cas_prive.nom_tuteur}</strong></p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Identité Notificateur & Signature */}
+                    <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1.5">
+                      <h4 className="font-extrabold text-slate-900 text-xs">Notificateur Officiel</h4>
+                      <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-700">
+                        <p>Nom : <strong>{ficheAffichee.donnees.notificateur_nom_complet || ficheAffichee.ascq?.nom || "Agent ASCQ"}</strong></p>
+                        <p>Titre : <strong>{ficheAffichee.donnees.notificateur_titre || "ASCQ"}</strong></p>
+                        <div className="col-span-2 flex items-center gap-2">
+                          <span>Contact :</span>
+                          {ficheAffichee.donnees.notificateur_telephone ? (
+                            <BeninPhoneAction telephone={ficheAffichee.donnees.notificateur_telephone} variant="compact" />
+                          ) : (
+                            <strong>Non renseigné</strong>
+                          )}
+                        </div>
+                        {ficheAffichee.donnees.centre_sante_nom && (
+                          <p className="col-span-2">Centre de santé : <strong>{ficheAffichee.donnees.centre_sante_nom}</strong></p>
+                        )}
+                      </div>
+                      {ficheAffichee.donnees.signature_tactile && (
+                        <div className="pt-2 border-t border-slate-200">
+                          <span className="text-[10px] text-slate-500 font-bold block mb-1">Signature officielle enregistrée :</span>
+                          <div className="p-2 bg-white rounded-xl border border-slate-200 inline-block">
+                            <img src={ficheAffichee.donnees.signature_tactile} alt="Signature notificateur" className="max-h-16 w-auto object-contain" />
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
 
-                {/* 6. FICHE DECES */}
+                {/* 6. FICHE DECES (TRANSPARENCE TOTALE : TOUTES LES INFORMATIONS TRANSMISES SONT VISIBLES) */}
                 {ficheAffichee.type === "DECES" && (
-                  <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-2">
-                    <h4 className="font-extrabold text-slate-900 text-xs">Notification de Décès</h4>
-                    <p>Type de Décès : <strong className="text-slate-900">{ficheAffichee.donnees.type_deces_nom}</strong></p>
-                    <p>Défunt : <strong>{ficheAffichee.donnees.defunt_nom_prenom || "Non précisé"}</strong></p>
-                    <p>Village : <strong>{ficheAffichee.donnees.village || "-"}</strong></p>
-                    <p>Date Notification : <strong>{ficheAffichee.donnees.date_notification}</strong></p>
+                  <div className="space-y-3">
+                    <div className="bg-slate-100 p-4 rounded-2xl border border-slate-300 space-y-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-mono text-xs font-black text-slate-900 bg-white px-2.5 py-0.5 rounded-lg border border-slate-300">
+                          {ficheAffichee.donnees.numero_deces || "DECES-COMMUNAUTAIRE"}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full bg-slate-900 text-white font-black text-[10px]">
+                          Notification Légale Déclarée
+                        </span>
+                      </div>
+                      <div className="text-sm font-black text-slate-900">
+                        {ficheAffichee.donnees.type_deces_nom || "Décès Communautaire"}
+                      </div>
+                    </div>
+
+                    {/* Identité du Défunt */}
+                    <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1.5">
+                      <h4 className="font-extrabold text-slate-900 text-xs flex items-center gap-1.5">
+                        <User className="w-3.5 h-3.5 text-slate-700" />
+                        <span>Identité Complète du Défunt</span>
+                      </h4>
+                      <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-700">
+                        <p>Nom & Prénoms : <strong className="text-slate-950 font-black">{ficheAffichee.donnees.defunt_nom_prenom || "Non précisé"}</strong></p>
+                        <p>Âge : <strong>{ficheAffichee.donnees.age_valeur ? `${ficheAffichee.donnees.age_valeur} ${ficheAffichee.donnees.age_unite || "ans"}` : "Non précisé"}</strong></p>
+                        <p>Sexe : <strong>{ficheAffichee.donnees.sexe === "M" ? "Masculin (M)" : ficheAffichee.donnees.sexe === "F" ? "Féminin (F)" : "Non précisé"}</strong></p>
+                        <p>Lieu du Décès : <strong>{ficheAffichee.donnees.lieu_deces_nom || "Domicile / Communauté"}</strong></p>
+                      </div>
+                    </div>
+
+                    {/* Circonstances & Cause Probable */}
+                    <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1.5">
+                      <h4 className="font-extrabold text-slate-900 text-xs">Circonstances & Cause Déclarée</h4>
+                      <div className="space-y-1 text-[11px] text-slate-700">
+                        <p>Circonstances : <strong>{ficheAffichee.donnees.circonstance_nom || "Non précisées"}</strong></p>
+                        {ficheAffichee.donnees.circonstance_autre_precision && (
+                          <p className="italic text-slate-600">« {ficheAffichee.donnees.circonstance_autre_precision} »</p>
+                        )}
+                        {ficheAffichee.donnees.cause_probable && (
+                          <p>Cause suspectée : <strong className="text-red-800">{ficheAffichee.donnees.cause_probable}</strong></p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Localisation & Délais */}
+                    <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1.5">
+                      <h4 className="font-extrabold text-slate-900 text-xs flex items-center gap-1.5">
+                        <MapPin className="w-3.5 h-3.5 text-[#005c30]" />
+                        <span>Localisation & Temporalité</span>
+                      </h4>
+                      <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-700">
+                        <p>Village : <strong>{ficheAffichee.donnees.village || ficheAffichee.donnees.village_nom || "-"}</strong></p>
+                        <p>Date du Décès : <strong>{ficheAffichee.donnees.date_deces || "-"} {ficheAffichee.donnees.heure_deces ? `à ${ficheAffichee.donnees.heure_deces}` : ""}</strong></p>
+                        <p>Date Notification : <strong>{ficheAffichee.donnees.date_notification || "-"}</strong></p>
+                        <p>Délai Notification : <strong>{ficheAffichee.donnees.delai_deces_notification_heures ?? "?"} heures</strong></p>
+                        {(ficheAffichee.donnees.gps_latitude && ficheAffichee.donnees.gps_longitude) && (
+                          <p className="col-span-2 font-mono text-[10px] text-slate-600 bg-white p-1 rounded border border-slate-200">
+                            GPS : Lat {ficheAffichee.donnees.gps_latitude}, Lon {ficheAffichee.donnees.gps_longitude}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Notificateur Officiel */}
+                    <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1.5">
+                      <h4 className="font-extrabold text-slate-900 text-xs">Agent Notificateur</h4>
+                      <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-700">
+                        <p>Nom : <strong>{ficheAffichee.donnees.notificateur_nom_complet || ficheAffichee.ascq?.nom || "Agent"}</strong></p>
+                        <p>Titre : <strong>{ficheAffichee.donnees.notificateur_titre || "ASCQ"}</strong></p>
+                        <div className="col-span-2 flex items-center gap-2">
+                          <span>Contact :</span>
+                          {ficheAffichee.donnees.notificateur_telephone ? (
+                            <BeninPhoneAction telephone={ficheAffichee.donnees.notificateur_telephone} variant="compact" />
+                          ) : (
+                            <strong>Non renseigné</strong>
+                          )}
+                        </div>
+                      </div>
+                      {ficheAffichee.donnees.signature_tactile && (
+                        <div className="pt-2 border-t border-slate-200">
+                          <span className="text-[10px] text-slate-500 font-bold block mb-1">Signature officielle :</span>
+                          <div className="p-2 bg-white rounded-xl border border-slate-200 inline-block">
+                            <img src={ficheAffichee.donnees.signature_tactile} alt="Signature" className="max-h-16 w-auto object-contain" />
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
 

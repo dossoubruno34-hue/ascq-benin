@@ -12,12 +12,17 @@ import {
   CheckCircle2, 
   AlertCircle,
   Eye,
-  EyeOff
+  EyeOff,
+  Mail,
+  ShieldCheck,
+  Check,
+  X
 } from "lucide-react";
 
 export default function InscriptionPage() {
   // Données du formulaire
   const [telephone, setTelephone] = useState("");
+  const [email, setEmail] = useState("");
   const [motDePasse, setMotDePasse] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [nom, setNom] = useState("");
@@ -34,6 +39,13 @@ export default function InscriptionPage() {
   const isTerrainAscq = poste === "ASCQ";
   const isTerrainRc = poste === "RC";
   const isAutre = poste === "AUTRE";
+
+  // Critères de robustesse du mot de passe (obligatoire pour ASCQ et cadres - anti-hack)
+  const pwdMinLength = motDePasse.length >= 8;
+  const pwdSpecialChar = /[!@#$%^&*(),.?":{}|<>_\-+=\[\]\\\/]/.test(motDePasse);
+  const pwdLetter = /[a-zA-Z]/.test(motDePasse);
+  const pwdNumber = /[0-9]/.test(motDePasse);
+  const pwdRobustesseConforme = isTerrainRc ? (motDePasse.length === 4 && /^\d{4}$/.test(motDePasse)) : (pwdMinLength && pwdSpecialChar && pwdLetter && pwdNumber);
   const necessitePrecision = [
     "CADRE_COMMUNAL",
     "CADRE_ZONE_SANITAIRE",
@@ -168,11 +180,32 @@ export default function InscriptionPage() {
         return;
       }
     } else {
-      if (motDePasse.length < 6) {
-        setErrorMsg("Le mot de passe doit comporter au moins 6 caractères.");
+      // 1. Validation de l'adresse email professionnelle obligatoire pour ASCQ et cadres
+      const cleanEmail = email.trim().toLowerCase();
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!cleanEmail || !emailRegex.test(cleanEmail)) {
+        setErrorMsg("Veuillez renseigner une adresse email valide (obligatoire pour les ASCQ et cadres de santé afin de sécuriser votre compte).");
         setLoading(false);
         return;
       }
+
+      // 2. Validation du mot de passe robuste anti-hack (8+ car., lettre, chiffre, caractère spécial)
+      if (!pwdMinLength) {
+        setErrorMsg("Pour les ASCQ et cadres, le mot de passe doit comporter au moins 8 caractères.");
+        setLoading(false);
+        return;
+      }
+      if (!pwdLetter || !pwdNumber) {
+        setErrorMsg("Le mot de passe doit contenir au moins une lettre et au moins un chiffre.");
+        setLoading(false);
+        return;
+      }
+      if (!pwdSpecialChar) {
+        setErrorMsg("Pour éviter tout piratage, votre mot de passe doit obligatoirement inclure au moins un caractère spécial (! @ # $ % ^ & * ( ) _ + - = . ? : { } | < >).");
+        setLoading(false);
+        return;
+      }
+
       if (isTerrainAscq) {
         if (!selectedDep || !selectedCom || !selectedArr) {
           setErrorMsg("Veuillez sélectionner le département, la commune et l'arrondissement d'affectation de l'ASCQ.");
@@ -200,7 +233,7 @@ export default function InscriptionPage() {
       }
     }
 
-    const technicalEmail = `tel_${cleanPhone}@ascq.local`;
+    const technicalEmail = isTerrainRc ? `tel_${cleanPhone}@ascq.local` : email.trim().toLowerCase();
     const technicalPassword = isTerrainRc ? motDePasse.padStart(6, '0') : motDePasse;
 
     try {
@@ -208,11 +241,20 @@ export default function InscriptionPage() {
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: technicalEmail,
         password: technicalPassword,
+        options: {
+          data: {
+            telephone: cleanPhone.startsWith("229") ? `+${cleanPhone}` : `+229${cleanPhone}`,
+            nom: nom.trim().toUpperCase(),
+            prenoms: prenoms.trim(),
+            email: isTerrainRc ? null : email.trim().toLowerCase(),
+            poste: poste,
+          }
+        }
       });
 
       if (authError) {
         if (authError.message.includes("already registered") || authError.message.includes("User already registered")) {
-          throw new Error("Un compte existe déjà avec ce numéro de téléphone. Si vous avez oublié votre mot de passe, contactez l'administrateur.");
+          throw new Error("Un compte existe déjà avec cette adresse email ou ce numéro de téléphone. Si vous avez oublié votre mot de passe, contactez l'administrateur.");
         }
         throw authError;
       }
@@ -240,9 +282,17 @@ export default function InscriptionPage() {
         p_nombre_rc: showAscqProfil ? (Number(nombreRc) || 0) : 0,
         p_afficher_annuaire: showAscqProfil ? afficherAnnuaire : false,
         p_cumul_deux_arrondissements: isTerrainAscq ? cumulArrondissements : false,
+        p_email: isTerrainRc ? null : email.trim().toLowerCase(),
       });
 
       if (rpcError) throw rpcError;
+
+      // Mise à jour de sécurité directe de l'email si non-RC
+      if (!isTerrainRc && email.trim()) {
+        try {
+          await supabase.from("utilisateurs").update({ email: email.trim().toLowerCase() }).eq("id", userId);
+        } catch {}
+      }
 
       // 3. Déconnexion immédiate : compte en attente
       await supabase.auth.signOut();
@@ -369,6 +419,34 @@ export default function InscriptionPage() {
                   />
                 </div>
 
+                {/* Champ Email obligatoire pour ASCQ et cadres (caché pour les RC) */}
+                {!isTerrainRc && (
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                      <span>Adresse Email Professionnelle ou Personnelle *</span>
+                      <span className="text-[10px] text-emerald-800 font-bold bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                        Obligatoire ASCQ & Cadres
+                      </span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 text-sm">
+                        <Mail className="w-4 h-4" />
+                      </span>
+                      <input
+                        type="email"
+                        required={!isTerrainRc}
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="ex: prenom.nom@sante.gouv.bj ou email@gmail.com"
+                        className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 pl-10 pr-3.5 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
+                      />
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      Obligatoire pour les ASCQ et cadres : permet de sécuriser vos accès officiels, recevoir les notifications et éviter les piratages de comptes.
+                    </p>
+                  </div>
+                )}
+
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
                     Numéro de téléphone (Votre identifiant) *
@@ -392,8 +470,13 @@ export default function InscriptionPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    {isTerrainRc ? "Code d'accès secret à 4 chiffres (Mot de passe) *" : "Mot de passe *"}
+                  <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                    <span>{isTerrainRc ? "Code secret à 4 chiffres (PIN) *" : "Mot de passe renforcé *"}</span>
+                    {!isTerrainRc && (
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${pwdRobustesseConforme ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
+                        {pwdRobustesseConforme ? "Sécurisé ✓" : "Caractère spécial requis"}
+                      </span>
+                    )}
                   </label>
                   <div className="relative">
                     <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 text-sm">
@@ -403,7 +486,7 @@ export default function InscriptionPage() {
                       type={showPassword ? "text" : "password"}
                       required
                       maxLength={isTerrainRc ? 4 : undefined}
-                      minLength={isTerrainRc ? 4 : 6}
+                      minLength={isTerrainRc ? 4 : 8}
                       inputMode={isTerrainRc ? "numeric" : "text"}
                       pattern={isTerrainRc ? "[0-9]{4}" : undefined}
                       value={motDePasse}
@@ -415,7 +498,7 @@ export default function InscriptionPage() {
                           setMotDePasse(val);
                         }
                       }}
-                      placeholder={isTerrainRc ? "Ex: 1234" : "6 caractères minimum"}
+                      placeholder={isTerrainRc ? "Ex: 1234" : "8 caractères min. avec @#$%"}
                       className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 pl-10 pr-10 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
                     />
                     <button
@@ -426,11 +509,30 @@ export default function InscriptionPage() {
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
-                  <p className="text-[11px] text-slate-500 mt-1">
-                    {isTerrainRc 
-                      ? "Code PIN à 4 chiffres que vous utiliserez pour vous connecter avec votre numéro." 
-                      : "Utilisez au moins 6 caractères pour sécuriser votre compte."}
-                  </p>
+                  
+                  {isTerrainRc ? (
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      Code PIN à 4 chiffres que vous utiliserez pour vous connecter avec votre numéro.
+                    </p>
+                  ) : (
+                    <div className="mt-2 space-y-1 bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-[11px]">
+                      <span className="text-slate-500 font-bold block mb-1">Critères de sécurité anti-piratage :</span>
+                      <div className="grid grid-cols-2 gap-1 text-[10px]">
+                        <div className={`flex items-center gap-1 font-semibold ${pwdMinLength ? "text-emerald-700" : "text-slate-400"}`}>
+                          {pwdMinLength ? <Check className="w-3 h-3 text-emerald-600" /> : <X className="w-3 h-3 text-slate-400" />}
+                          <span>Au moins 8 caractères</span>
+                        </div>
+                        <div className={`flex items-center gap-1 font-semibold ${(pwdLetter && pwdNumber) ? "text-emerald-700" : "text-slate-400"}`}>
+                          {(pwdLetter && pwdNumber) ? <Check className="w-3 h-3 text-emerald-600" /> : <X className="w-3 h-3 text-slate-400" />}
+                          <span>Lettres & Chiffres</span>
+                        </div>
+                        <div className={`col-span-2 flex items-center gap-1 font-semibold ${pwdSpecialChar ? "text-emerald-700" : "text-amber-700"}`}>
+                          {pwdSpecialChar ? <Check className="w-3 h-3 text-emerald-600" /> : <AlertCircle className="w-3 h-3 text-amber-600" />}
+                          <span>Caractère spécial (!@#$%^&*...)</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

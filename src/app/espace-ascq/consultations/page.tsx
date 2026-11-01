@@ -24,10 +24,13 @@ import {
   Eye,
   X,
   Pill,
-  Send
+  Send,
+  Lock,
+  ShieldCheck
 } from "lucide-react";
 import { exporterRegistreConsultationsExcel } from "@/lib/excelExport";
 import { getOfflineList, getCachedUserSession, getCachedMonEspace } from "@/lib/offline-sync";
+import { estCadreNonAscq } from "@/lib/cadre-roles";
 import BeninPhoneAction from "@/components/BeninPhoneAction";
 
 export default function RegistreConsultationsPage() {
@@ -147,6 +150,20 @@ export default function RegistreConsultationsPage() {
   const totalTdrPositifs = consultations.filter((c) => c.tdr_paludisme === "POSITIF").length;
   const totalMoins5Ans = consultations.filter((c) => (c.age_unite === "ANS" && c.age_valeur < 5) || c.age_unite !== "ANS").length;
 
+  // Décompte épidémiologique des consultations par maladie
+  const totalDiarrhee = consultations.filter((c) => (c.diagnostic_possible || "").toLowerCase().includes("diarrh")).length;
+  const totalPneumonie = consultations.filter((c) => {
+    const d = (c.diagnostic_possible || "").toLowerCase();
+    return d.includes("ira") || d.includes("pneumo") || d.includes("respirat");
+  }).length;
+  const totalMalnutrition = consultations.filter((c) => {
+    const d = (c.diagnostic_possible || "").toLowerCase();
+    return d.includes("malnut") || d.includes("pb");
+  }).length;
+  const totalAutres = Math.max(0, totalConsultations - (totalTdrPositifs + totalDiarrhee + totalPneumonie + totalMalnutrition));
+
+  const isCadre = estCadreNonAscq(currentUser);
+
   const isRelais =
     currentUser?.role_technique === "RELAIS" ||
     currentUser?.role_technique === "RELAIS_COMMUNAUTAIRE" ||
@@ -261,6 +278,44 @@ export default function RegistreConsultationsPage() {
             </div>
           </div>
 
+          {/* DÉCOMPTE DÉTAILLÉ DES CONSULTATIONS PAR MALADIE */}
+          <div className="bg-slate-50/80 p-3.5 rounded-2xl border border-slate-200/80 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-black uppercase text-slate-700 flex items-center gap-1.5">
+                <Stethoscope className="w-3.5 h-3.5 text-[#005c30]" />
+                <span>Décompte des Consultations par Maladie</span>
+              </span>
+              {isCadre && (
+                <span className="text-[10px] bg-emerald-100 text-[#005c30] px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                  <Lock className="w-3 h-3" />
+                  <span>Secret Médical Garanti</span>
+                </span>
+              )}
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center text-xs">
+              <div className="bg-white p-2.5 rounded-xl border border-red-200">
+                <span className="text-[10px] text-red-700 uppercase font-bold block">Paludisme (TDR+)</span>
+                <strong className="text-base font-black text-red-800">{totalTdrPositifs}</strong>
+              </div>
+              <div className="bg-white p-2.5 rounded-xl border border-amber-200">
+                <span className="text-[10px] text-amber-800 uppercase font-bold block">Diarrhée</span>
+                <strong className="text-base font-black text-amber-900">{totalDiarrhee}</strong>
+              </div>
+              <div className="bg-white p-2.5 rounded-xl border border-blue-200">
+                <span className="text-[10px] text-blue-700 uppercase font-bold block">Pneumonie / IRA</span>
+                <strong className="text-base font-black text-blue-900">{totalPneumonie}</strong>
+              </div>
+              <div className="bg-white p-2.5 rounded-xl border border-purple-200">
+                <span className="text-[10px] text-purple-700 uppercase font-bold block">Malnutrition</span>
+                <strong className="text-base font-black text-purple-900">{totalMalnutrition}</strong>
+              </div>
+              <div className="bg-white p-2.5 rounded-xl border border-slate-200 col-span-2 sm:col-span-1">
+                <span className="text-[10px] text-slate-500 uppercase font-bold block">Autres Affections</span>
+                <strong className="text-base font-black text-slate-800">{totalAutres}</strong>
+              </div>
+            </div>
+          </div>
+
           {/* BARRE D'ACTIONS : RECHERCHE, FILTRES, EXPORT */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-slate-100">
             <div className="relative flex-1">
@@ -360,7 +415,9 @@ export default function RegistreConsultationsPage() {
                       </span>
                       <div>
                         <strong className="text-sm font-extrabold text-slate-900 block">
-                          {c.nom_patient} {c.prenoms_patient}
+                          {isCadre 
+                            ? `Consultation : ${c.diagnostic_possible || "Soin iCCM"} (Patient Anonymisé)` 
+                            : `${c.nom_patient} ${c.prenoms_patient}`}
                         </strong>
                         <span className="text-[11px] text-slate-500">
                           {c.age_valeur} {c.age_unite?.toLowerCase()} • Sexe : {c.sexe} • Village : {c.village}
@@ -461,9 +518,13 @@ export default function RegistreConsultationsPage() {
 
               {/* DÉTAILS DU PATIENT */}
               <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-xs space-y-2">
-                <div className="flex justify-between">
+                <div className="flex justify-between items-center">
                   <span className="text-slate-400">Patient :</span>
-                  <strong className="text-slate-900 text-sm">{selectedConsultation.nom_patient} {selectedConsultation.prenoms_patient}</strong>
+                  <strong className="text-slate-900 text-sm">
+                    {isCadre 
+                      ? "Dossier Anonymisé (Secret Médical & Déontologie)" 
+                      : `${selectedConsultation.nom_patient} ${selectedConsultation.prenoms_patient}`}
+                  </strong>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-400">Âge & Sexe :</span>
@@ -473,7 +534,7 @@ export default function RegistreConsultationsPage() {
                   <span className="text-slate-400">Localisation :</span>
                   <strong>Village {selectedConsultation.village}</strong>
                 </div>
-                {selectedConsultation.nom_parent_tuteur && (
+                {!isCadre && selectedConsultation.nom_parent_tuteur && (
                   <div className="flex justify-between items-center flex-wrap gap-1">
                     <span className="text-slate-400">Parent / Tuteur :</span>
                     <span className="inline-flex items-center gap-1.5">
@@ -483,6 +544,11 @@ export default function RegistreConsultationsPage() {
                       )}
                     </span>
                   </div>
+                )}
+                {isCadre && (
+                  <p className="text-[10px] text-slate-500 italic pt-1 border-t border-slate-200">
+                    🔒 Données nominatives protégées : En tant que superviseur, vous consultez le profil clinique et les statistiques épidémiologiques conformément à la protection du secret médical.
+                  </p>
                 )}
               </div>
 

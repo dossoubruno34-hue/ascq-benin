@@ -208,22 +208,49 @@ export default function ConnexionPage() {
     setPendingAccount(null);
     setLoginSuccess(null);
 
-    const rawDigits = telephone.replace(/\D/g, "");
-    if (rawDigits.length < 8) {
-      setErrorMsg("Veuillez saisir un numéro de téléphone valide.");
-      setLoading(false);
-      return;
-    }
+    const isEmailInput = telephone.includes("@");
+    let uniqueEmails: string[] = [];
 
-    // Gestion intelligente des formats béninois (+229, 01, 8 chiffres ou 10 chiffres)
-    const nationalDigits = rawDigits.startsWith("229") ? rawDigits.substring(3) : rawDigits;
-    const candidateEmails = [
-      `tel_${rawDigits}@ascq.local`,
-      `tel_${nationalDigits}@ascq.local`,
-      nationalDigits.startsWith("01") ? `tel_${nationalDigits.substring(2)}@ascq.local` : `tel_01${nationalDigits}@ascq.local`,
-      `tel_229${nationalDigits}@ascq.local`
-    ];
-    const uniqueEmails = Array.from(new Set(candidateEmails));
+    if (isEmailInput) {
+      const cleanEmail = telephone.trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+        setErrorMsg("Veuillez saisir une adresse email valide.");
+        setLoading(false);
+        return;
+      }
+      uniqueEmails = [cleanEmail];
+    } else {
+      const rawDigits = telephone.replace(/\D/g, "");
+      if (rawDigits.length < 8) {
+        setErrorMsg("Veuillez saisir un numéro de téléphone valide à au moins 8 chiffres ou une adresse email.");
+        setLoading(false);
+        return;
+      }
+
+      // Gestion intelligente des formats béninois (+229, 01, 8 chiffres ou 10 chiffres)
+      const nationalDigits = rawDigits.startsWith("229") ? rawDigits.substring(3) : rawDigits;
+      const candidateEmails = [
+        `tel_${rawDigits}@ascq.local`,
+        `tel_${nationalDigits}@ascq.local`,
+        nationalDigits.startsWith("01") ? `tel_${nationalDigits.substring(2)}@ascq.local` : `tel_01${nationalDigits}@ascq.local`,
+        `tel_229${nationalDigits}@ascq.local`
+      ];
+
+      // Recherche d'un email réel rattaché au numéro pour les ASCQ et cadres
+      try {
+        const { data: userLookup } = await supabase
+          .from("utilisateurs")
+          .select("email")
+          .or(`telephone.ilike.%${rawDigits}%,telephone.ilike.%${nationalDigits}%`)
+          .maybeSingle();
+
+        if (userLookup?.email) {
+          candidateEmails.unshift(userLookup.email.trim().toLowerCase());
+        }
+      } catch {}
+
+      uniqueEmails = Array.from(new Set(candidateEmails));
+    }
 
     try {
       // 1. Authentification Supabase avec tentative sur les formats de téléphone et formats de mot de passe (y compris code 4 chiffres)
@@ -416,19 +443,20 @@ export default function ConnexionPage() {
             )}
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Numéro de téléphone *
+              <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                <span>Identifiant (Téléphone ou Email) *</span>
+                <span className="text-[10px] text-slate-400 font-medium">Bénin / Professionnel</span>
               </label>
               <div className="relative">
                 <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
                   <Phone className="w-4 h-4" />
                 </span>
                 <input
-                  type="tel"
+                  type="text"
                   required
                   value={telephone}
                   onChange={(e) => setTelephone(e.target.value)}
-                  placeholder="0197000000"
+                  placeholder="0197000000 ou agent@sante.gouv.bj"
                   className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 pl-10 pr-3.5 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
                 />
               </div>

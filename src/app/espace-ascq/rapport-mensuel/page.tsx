@@ -948,16 +948,16 @@ export default function RapportMensuelPage() {
                     <Users className="w-5 h-5" />
                   </div>
                   <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="text-sm font-black text-slate-900">
-                        Activités des Relais Communautaires (RC) du mois
+                        Rapport Agrégé des Relais Communautaires (RC) de l'Arrondissement
                       </h3>
-                      <span className="text-[10px] font-black uppercase text-[#005c30] bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300">
-                        Comptabilisation Automatique
+                      <span className="text-[10px] font-black uppercase text-[#005c30] bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-300">
+                        Niveau Arrondissement • Pyramide Sanitaire
                       </span>
                     </div>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      Intègre en un clic les plannings et rapports hebdomadaires validés de vos Relais dans ce rapport mensuel.
+                      Agrégation consolidée de l'ensemble des rapports et plannings hebdomadaires de vos Relais Communautaires (RC) pour le mois de {MOIS_NOMS[mois - 1]} {annee}.
                     </p>
                   </div>
                 </div>
