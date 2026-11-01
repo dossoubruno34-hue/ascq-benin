@@ -37,7 +37,8 @@ import {
   CheckSquare,
   Eye,
   Edit3,
-  Save
+  Save,
+  BookOpen
 } from "lucide-react";
 import { getCachedRcSpace, saveCachedRcSpace, saveCachedUserSession } from "@/lib/offline-sync";
 import FicheHebdoActivitesRcOfficielle from "@/components/FicheHebdoActivitesRcOfficielle";
@@ -490,6 +491,28 @@ export default function EspaceRelaisPage() {
         {/* ------------------------------------------------------------- */}
         {activeTab === "fiches" && (
           <section className="space-y-3.5">
+            {/* Guide d'utilisateur pas-à-pas pour le Relais */}
+            <div className="bg-white rounded-3xl p-4 border border-slate-200/80 shadow-sm flex items-center justify-between gap-3">
+              <div className="space-y-0.5 min-w-0">
+                <span className="text-[10px] font-black uppercase text-[#005c30] tracking-wider">
+                  Manuel Pas-à-Pas Terrain
+                </span>
+                <h3 className="font-black text-sm text-slate-900 truncate">
+                  Mon Guide d'Utilisateur RC
+                </h3>
+                <p className="text-[11px] text-slate-500 line-clamp-1">
+                  Explications simples de toutes vos actions : alertes, décès, planning VAD et fiches hebdo.
+                </p>
+              </div>
+              <Link
+                href="/guide?profil=RC"
+                className="px-3.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-[#005c30] font-bold text-xs shrink-0 border border-emerald-200 transition-all flex items-center gap-1.5"
+              >
+                <BookOpen className="w-3.5 h-3.5" />
+                <span>Ouvrir mon guide</span>
+              </Link>
+            </div>
+
             {/* Guide des maladies et calendrier vaccinal pour le Relais */}
             <div className="bg-gradient-to-r from-emerald-800 to-teal-900 text-white rounded-3xl p-4 shadow-sm flex items-center justify-between gap-3">
               <div className="space-y-0.5 min-w-0">
