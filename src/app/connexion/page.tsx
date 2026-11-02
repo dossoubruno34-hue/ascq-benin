@@ -237,19 +237,6 @@ export default function ConnexionPage() {
         `tel_229${nationalDigits}@ascq.local`
       ];
 
-      // Recherche d'un email réel rattaché au numéro pour les ASCQ et cadres
-      try {
-        const { data: userLookup } = await supabase
-          .from("utilisateurs")
-          .select("email")
-          .or(`telephone.ilike.%${rawDigits}%,telephone.ilike.%${nationalDigits}%`)
-          .maybeSingle();
-
-        if (userLookup?.email) {
-          candidateEmails.unshift(userLookup.email.trim().toLowerCase());
-        }
-      } catch {}
-
       uniqueEmails = Array.from(new Set(candidateEmails));
     }
 
