@@ -4,18 +4,20 @@ import { supabase } from "@/lib/supabase";
 import QuiEstAscqCard from "@/components/QuiEstAscqCard";
 import SuggestionsCard from "@/components/SuggestionsCard";
 import { SocialPlatformsCard } from "@/components/SocialLinks";
+import CarteCouvertureBenin from "@/components/CarteCouvertureBenin";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   // Récupérer les données réelles pour la page d'accueil
-  const [depsRes, ascqCountRes, profilsRes, rcCountRes, rmaRes, conseilsRes] = await Promise.all([
+  const [depsRes, ascqCountRes, profilsRes, rcCountRes, rmaRes, conseilsRes, couvertureRpcRes] = await Promise.all([
     supabase.from("departements").select("id, nom").order("nom"),
     supabase.from("utilisateurs").select("*", { count: "exact", head: true }).eq("poste", "ASCQ").eq("statut_compte", "VALIDE"),
     supabase.from("ascq_profils").select("nombre_rc"),
     supabase.from("relais_communautaires").select("*", { count: "exact", head: true }),
     supabase.from("rapports_mensuels_ascq").select("menages_visites, personnes_touchees_total"),
     supabase.from("conseils_sante").select("*").eq("est_publie", true).order("created_at", { ascending: false }),
+    supabase.rpc("obtenir_couverture_communale_ascq"),
   ]);
 
   const departements = depsRes.data || [];
@@ -34,6 +36,37 @@ export default async function HomePage() {
   const nbMenages = sumMenages;
   const nbPersonnes = sumPersonnes > 0 ? sumPersonnes.toLocaleString("fr-FR") : "0";
   const conseils = conseilsRes.data || [];
+
+  // Couverture nationale des communes (données réelles anonymisées)
+  let couvertureData: Array<{ commune_id: string; nombre_ascq: number }> = [];
+  if (!couvertureRpcRes.error && Array.isArray(couvertureRpcRes.data)) {
+    couvertureData = couvertureRpcRes.data.map((c: any) => ({
+      commune_id: c.commune_id,
+      nombre_ascq: Number(c.nombre_ascq) || 0
+    }));
+  } else {
+    // Fallback transparent respectant strictement les RLS publiques
+    try {
+      const { data: rawAscq } = await supabase
+        .from("utilisateurs")
+        .select("commune_id")
+        .eq("poste", "ASCQ")
+        .eq("statut_compte", "VALIDE");
+
+      if (rawAscq) {
+        const counts: Record<string, number> = {};
+        for (const item of rawAscq) {
+          if (item.commune_id) {
+            counts[item.commune_id] = (counts[item.commune_id] || 0) + 1;
+          }
+        }
+        couvertureData = Object.entries(counts).map(([commune_id, count]) => ({
+          commune_id,
+          nombre_ascq: count
+        }));
+      }
+    } catch {}
+  }
 
   return (
     <div className="min-h-screen bg-[#f4f7f5] text-slate-800 antialiased pb-16">
@@ -188,6 +221,11 @@ export default async function HomePage() {
             </p>
           </div>
         </section>
+
+        {/* 5 bis. Carte de couverture nationale des 77 communes */}
+        {couvertureData && (
+          <CarteCouvertureBenin couverture={couvertureData} />
+        )}
 
         {/* 6. Carte « Conseils santé » */}
         <section className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/80 shadow-sm space-y-3">
