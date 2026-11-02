@@ -19,10 +19,18 @@ ALTER TABLE public.utilisateurs
 
 CREATE INDEX IF NOT EXISTS idx_utilisateurs_email ON public.utilisateurs(email);
 
--- Assouplissement total de la contrainte poste pour accepter tous les rôles nationaux et cadres
+-- Assouplissement total des contraintes sur public.utilisateurs pour accepter tous les rôles nationaux et cadres
 ALTER TABLE public.utilisateurs DROP CONSTRAINT IF EXISTS utilisateurs_poste_check;
 ALTER TABLE public.utilisateurs ADD CONSTRAINT utilisateurs_poste_check 
     CHECK (poste IS NOT NULL AND length(trim(poste)) > 0);
+
+ALTER TABLE public.utilisateurs DROP CONSTRAINT IF EXISTS utilisateurs_role_technique_check;
+ALTER TABLE public.utilisateurs ADD CONSTRAINT utilisateurs_role_technique_check 
+    CHECK (role_technique IS NOT NULL AND length(trim(role_technique)) > 0);
+
+ALTER TABLE public.utilisateurs DROP CONSTRAINT IF EXISTS utilisateurs_statut_compte_check;
+ALTER TABLE public.utilisateurs ADD CONSTRAINT utilisateurs_statut_compte_check 
+    CHECK (statut_compte IS NOT NULL AND length(trim(statut_compte)) > 0);
 
 -- Colonnes territoriales sur consultations_communautaires
 ALTER TABLE public.consultations_communautaires 
