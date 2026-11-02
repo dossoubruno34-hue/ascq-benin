@@ -19,6 +19,31 @@ ALTER TABLE public.utilisateurs
 
 CREATE INDEX IF NOT EXISTS idx_utilisateurs_email ON public.utilisateurs(email);
 
+-- Assouplissement de la contrainte poste pour accepter les rôles nationaux et cadres
+ALTER TABLE public.utilisateurs DROP CONSTRAINT IF EXISTS utilisateurs_poste_check;
+ALTER TABLE public.utilisateurs ADD CONSTRAINT utilisateurs_poste_check 
+    CHECK (poste IN (
+        'ASCQ', 
+        'RC', 
+        'RELAIS_COMMUNAUTAIRE',
+        'DDS', 
+        'CCD_CDLS_TP', 
+        'CSSPR', 
+        'CSPSMEMH', 
+        'MCZS', 
+        'RCSE', 
+        'C_RAMS', 
+        'MCC', 
+        'PF_CCLS_TP', 
+        'REPRESENTANT_COMMUNAL', 
+        'REPRESENTANT_DEPARTEMENTAL', 
+        'COORDINATEUR_NATIONAL',
+        'CADRE_NATIONAL',
+        'ADMINISTRATEUR', 
+        'SUPER_ADMIN', 
+        'AUTRE'
+    ));
+
 -- Colonnes territoriales sur consultations_communautaires
 ALTER TABLE public.consultations_communautaires 
     ADD COLUMN IF NOT EXISTS commune_id UUID REFERENCES public.communes(id),
@@ -168,7 +193,7 @@ BEGIN
         v_id_nat, '00000000-0000-0000-0000-000000000000', 'bureau.national@demo-ascq.bj',
         v_password_hash, NOW(),
         '{"provider": "email", "providers": ["email"]}'::jsonb,
-        jsonb_build_object('nom', 'HOUNSOU', 'prenoms', 'Jérémie', 'telephone', '+2290199000000', 'poste', 'COORDINATEUR_NATIONAL', 'is_demo', true),
+        jsonb_build_object('nom', 'HOUNSOU', 'prenoms', 'Jérémie', 'telephone', '+2290199000000', 'poste', 'SUPER_ADMIN', 'is_demo', true),
         'authenticated', 'authenticated', NOW(), NOW()
     ) ON CONFLICT (id) DO UPDATE SET
         encrypted_password = EXCLUDED.encrypted_password,
@@ -181,7 +206,7 @@ BEGIN
 
     PERFORM public.inserer_utilisateur_demo(
         v_id_nat, '+2290199000000', 'bureau.national@demo-ascq.bj', 'HOUNSOU', 'Jérémie (Président National)',
-        'COORDINATEUR_NATIONAL', 'SUPER_ADMIN', 'RESPONSABLE_NATIONAL',
+        'SUPER_ADMIN', 'SUPER_ADMIN', 'RESPONSABLE_NATIONAL',
         NULL, NULL, NULL, NULL
     );
 
