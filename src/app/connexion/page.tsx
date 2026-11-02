@@ -17,10 +17,12 @@ import {
   KeyRound,
   HelpCircle,
   Send,
-  WifiOff
+  WifiOff,
+  Sparkles
 } from "lucide-react";
 import { saveCachedUserSession, getCachedUserSession, isOnline } from "@/lib/offline-sync";
 import { estCadreNonAscq } from "@/lib/cadre-roles";
+import { activateDemoProfile } from "@/lib/demo-mode";
 import { SocialLinksRow } from "@/components/SocialLinks";
 
 export default function ConnexionPage() {
@@ -429,6 +431,38 @@ export default function ConnexionPage() {
             </p>
           </div>
         )}
+
+        {/* Carte Démo Officielle Bureau National */}
+        <div className="bg-gradient-to-r from-slate-950 via-[#004d28] to-slate-950 p-4 sm:p-5 rounded-3xl border border-amber-400/50 text-white shadow-lg space-y-3">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🇧🇯</span>
+            <div className="leading-tight">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="font-extrabold uppercase tracking-wide text-amber-400 text-xs">
+                  Présentation Bureau National
+                </span>
+                <span className="bg-amber-400 text-slate-950 text-[10px] font-black px-1.5 py-0.2 rounded-full uppercase">
+                  Accès 1-Clic
+                </span>
+              </div>
+              <p className="text-xs text-emerald-100">
+                Lancement immédiat de la démonstration sans mot de passe
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              activateDemoProfile("d0000000-0000-4000-a000-000000000001");
+              router.push("/perimetre");
+            }}
+            className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-amber-400 to-amber-300 hover:from-amber-300 hover:to-amber-200 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-md transition-all active:scale-95"
+          >
+            <Sparkles className="w-4 h-4 text-slate-950" />
+            <span>Ouvrir l'Espace Président National (Démo Live)</span>
+          </button>
+        </div>
 
         {!loginSuccess && (
           <form

@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import AscqNav from "@/components/AscqNav";
 import SignatureCanvas from "@/components/SignatureCanvas";
+import { getCachedUserSession, getCachedMonEspace } from "@/lib/offline-sync";
 
 interface LignePlanning {
   jour_semaine: string;

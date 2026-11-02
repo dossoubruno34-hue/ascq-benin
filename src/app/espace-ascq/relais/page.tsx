@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import AscqNav from "@/components/AscqNav";
 import BeninPhoneAction from "@/components/BeninPhoneAction";
+import { isDemoModeActive, getActiveDemoProfile, getDemoRelaisForAscq } from "@/lib/demo-mode";
 import { 
   Users, 
   UserPlus, 
@@ -104,6 +105,34 @@ export default function GestionRelaisPage() {
   const loadData = async () => {
     setLoading(true);
     try {
+      // 0. Si le Mode Démo est actif
+      if (isDemoModeActive()) {
+        const demoProf = getActiveDemoProfile();
+        if (demoProf) {
+          setAscqProfile(demoProf);
+          const demoRelais = getDemoRelaisForAscq(demoProf.id);
+          setRelaisList(demoRelais as any);
+          setVillages(
+            demoProf.arrondissement_nom === "Dasso"
+              ? [
+                  { id: "vil-dasso-1", nom: "Dasso Centre" },
+                  { id: "vil-dasso-2", nom: "Gbèkô" },
+                  { id: "vil-dasso-3", nom: "Ahito" },
+                ]
+              : [
+                  { id: "vil-toh-1", nom: "Tohouès Centre" },
+                  { id: "vil-toh-2", nom: "Kpédékpo" },
+                  { id: "vil-toh-3", nom: "Zounmè" },
+                  { id: "vil-toh-4", nom: "Gbécon" },
+                  { id: "vil-toh-5", nom: "Avlamè" },
+                  { id: "vil-toh-6", nom: "Dénou" },
+                ]
+          );
+          setLoading(false);
+          return;
+        }
+      }
+
       // 1. Profil de l'utilisateur connecté
       const { data: profils, error: profError } = await supabase.rpc("obtenir_mon_profil");
       if (profError || !profils || profils.length === 0) {

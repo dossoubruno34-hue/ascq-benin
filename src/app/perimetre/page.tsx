@@ -56,6 +56,15 @@ import {
   journaliserExport,
   anonymiserPetitEffectif
 } from "@/lib/gouvernanceExports";
+import {
+  isDemoModeActive,
+  getActiveDemoProfile,
+  getDemoStatsForScope,
+  getDemoAscqListForScope,
+  getDemoFichesForScope,
+  getDemoRelaisForAscq,
+  DEMO_GEO
+} from "@/lib/demo-mode";
 
 export default function PerimetreGouvernancePage() {
   return (
@@ -294,6 +303,26 @@ function PerimetreGouvernanceContent() {
   const initialiserPerimetre = async () => {
     setLoading(true);
     try {
+      // 0. Priorité absolue au Mode Démo interactif pour la présentation officielle
+      if (isDemoModeActive()) {
+        const demoProf = getActiveDemoProfile();
+        if (demoProf) {
+          const profilDemo = { ...demoProf };
+          setUnauthorized(false);
+          setCurrentUser(profilDemo);
+          await chargerTerritoiresInferieurs(profilDemo);
+          await chargerIndicateursCompiles(profilDemo);
+          await chargerListeAscq(profilDemo);
+          await chargerInscriptionsEnAttente(profilDemo);
+          await chargerTousLesAscqsPerimetre(profilDemo);
+          await chargerRegistreFichesTerritoire();
+          await chargerSuggestions();
+          await chargerMissions();
+          setLoading(false);
+          return;
+        }
+      }
+
       let profil: any = null;
       const cached = getCachedUserSession();
       if (cached?.profile) profil = { ...cached.profile };
@@ -399,6 +428,51 @@ function PerimetreGouvernanceContent() {
     try {
       const scope = getPerimetreScope(profil);
 
+      if (isDemoModeActive()) {
+        if (scope.level === "NATIONAL") {
+          setListeTerritoiresInf([
+            { id: "dep-zou", nom: "Zou" },
+            { id: "dep-atl", nom: "Atlantique" },
+            { id: "dep-lit", nom: "Littoral (Cotonou)" },
+            { id: "dep-oue", nom: "Ouémé" },
+            { id: "dep-bor", nom: "Borgou" },
+            { id: "dep-ali", nom: "Alibori" },
+            { id: "dep-ata", nom: "Atacora" },
+            { id: "dep-col", nom: "Collines" },
+            { id: "dep-cou", nom: "Couffo" },
+            { id: "dep-don", nom: "Donga" },
+            { id: "dep-mon", nom: "Mono" },
+            { id: "dep-pla", nom: "Plateau" }
+          ]);
+        } else if (scope.level === "DEPARTEMENTAL") {
+          setListeTerritoiresInf([
+            { id: DEMO_GEO.OUINHI_ID, nom: "Ouinhi" },
+            { id: "com-bohicon", nom: "Bohicon" },
+            { id: "com-abomey", nom: "Abomey" },
+            { id: "com-cove", nom: "Covè" },
+            { id: "com-zagnanado", nom: "Zagnanado" },
+            { id: "com-zogbodomey", nom: "Zogbodomey" },
+            { id: "com-djidja", nom: "Djidja" },
+            { id: "com-zakpota", nom: "Za-Kpota" },
+            { id: "com-agbangnizoun", nom: "Agbangnizoun" }
+          ]);
+        } else if (scope.level === "ZONE_SANITAIRE") {
+          setListeTerritoiresInf([
+            { id: DEMO_GEO.OUINHI_ID, nom: "Ouinhi" },
+            { id: "com-cove", nom: "Covè" },
+            { id: "com-zagnanado", nom: "Zagnanado" }
+          ]);
+        } else {
+          setListeTerritoiresInf([
+            { id: DEMO_GEO.TOHOUES_ID, nom: "Tohouès" },
+            { id: DEMO_GEO.DASSO_ID, nom: "Dasso" },
+            { id: "arr-ouinhi-centre", nom: "Ouinhi Centre" },
+            { id: "arr-sagon", nom: "Sagon" }
+          ]);
+        }
+        return;
+      }
+
       if (scope.level === "NATIONAL") {
         // Niveau National -> Territoires inférieurs : Départements
         const { data } = await supabase.from("departements").select("id, nom").order("nom");
@@ -426,6 +500,13 @@ function PerimetreGouvernanceContent() {
     setLoadingStats(true);
     try {
       const scope = getPerimetreScope(profil);
+
+      if (isDemoModeActive()) {
+        const demoStats = getDemoStatsForScope(scope.level, profil);
+        setStats(demoStats);
+        setLoadingStats(false);
+        return;
+      }
 
       // 1. Récupérer les alertes du territoire
       let queryAlertes = supabase.from("alertes_communautaires").select("id, est_prioritaire, type_alerte_nom, investigation_faite, delai_detection_notification_heures, delai_notification_investigation_heures, commune_id, arrondissement_id, departement_id, zone_sanitaire_id, semaine_epidemio, created_at").eq("annee", annee);
@@ -648,6 +729,12 @@ function PerimetreGouvernanceContent() {
   const chargerListeAscq = async (profil: any) => {
     try {
       const scope = getPerimetreScope(profil);
+
+      if (isDemoModeActive()) {
+        const demoList = getDemoAscqListForScope(scope.level);
+        setAscqs(demoList);
+        return;
+      }
       let query = supabase
         .from("utilisateurs")
         .select("id, nom, prenoms, telephone, poste, role_technique, statut_compte, commune_id, arrondissement_id, second_arrondissement_id, departement_id, zone_sanitaire_id")
@@ -708,6 +795,21 @@ function PerimetreGouvernanceContent() {
     setLoadingTousLesAscqs(true);
     try {
       const scope = getPerimetreScope(profil);
+
+      if (isDemoModeActive()) {
+        const demoList = getDemoAscqListForScope(scope.level);
+        setTousLesAscqsPerimetre(
+          demoList.map(a => ({
+            ...a,
+            statut_compte: "VALIDE",
+            statut_effectif: "VALIDE",
+            poste: "ASCQ",
+            role_technique: a.id === DEMO_GEO.BRUNO_ID ? "SUPER_ADMIN" : "ASCQ_OPERATEUR"
+          }))
+        );
+        setLoadingTousLesAscqs(false);
+        return;
+      }
       let q = supabase
         .from("utilisateurs")
         .select("id, nom, prenoms, telephone, poste, poste_autre, role_technique, role_nomination, statut_compte, commune_id, arrondissement_id, departement_id, zone_sanitaire_id, created_at");
@@ -956,6 +1058,24 @@ function PerimetreGouvernanceContent() {
     setLoadingInscriptions(true);
     try {
       const scope = getPerimetreScope(profil);
+
+      if (isDemoModeActive()) {
+        setInscriptionsEnAttente([
+          {
+            id: "insc-demo-sagon",
+            nom: "BIO",
+            prenoms: "Faustin",
+            telephone: "+2290197000088",
+            arrondissement_nom: "Sagon",
+            commune_nom: "Ouinhi",
+            statut_compte: "EN_ATTENTE",
+            poste: "ASCQ",
+            created_at: new Date(Date.now() - 3600000 * 4).toISOString()
+          }
+        ]);
+        setLoadingInscriptions(false);
+        return;
+      }
       let query = supabase
         .from("utilisateurs")
         .select("id, nom, prenoms, telephone, poste, role_technique, statut_compte, commune_id, arrondissement_id, second_arrondissement_id, created_at")
@@ -1137,6 +1257,94 @@ function PerimetreGouvernanceContent() {
     setLoadingDossier(true);
     setDossierSubTab("ICCM");
     try {
+      if (isDemoModeActive()) {
+        const relais = getDemoRelaisForAscq(ascq.id);
+        const alertes = ascq.arrondissement_nom === "Dasso" || ascq.nom === "KPODANHO" ? [
+          {
+            id: "alr-demo-dasso-1",
+            numero_alerte: "ALR-2026-DASSO-001",
+            annee: 2026,
+            semaine_epidemio: 44,
+            type_alerte_nom: "Choléra",
+            statut: "VERIFIEE",
+            resultat_verification: "AVEREE",
+            est_prioritaire: true,
+            nb_personnes_touchees: 2,
+            nb_personnes_mortes: 0,
+            date_notification: "2026-10-30",
+            mesures_prises: "Isolation des cas, distribution de chlore, référence CSC Ouinhi"
+          }
+        ] : [];
+
+        const deces = ascq.arrondissement_nom === "Tohouès" || ascq.nom === "DOSSOU" ? [
+          {
+            id: "dec-demo-toh-1",
+            numero_deces: "DEC-2026-TOHOUES-001",
+            annee: 2026,
+            semaine_epidemio: 43,
+            type_deces_nom: "Décès néonatal",
+            lieu_deces_nom: "À domicile",
+            statut: "VALIDE",
+            date_deces: "2026-10-28",
+            sexe: "M",
+            age_valeur: 4,
+            age_unite: "JOURS"
+          }
+        ] : [];
+
+        const consultations = [
+          { id: "c-1", date_consultation: "2026-11-01", diagnostic_possible: "Paludisme simple", tdr_paludisme: "POSITIF", decision: "PEC_DOMICILE", age_valeur: 3, age_unite: "ANS", sexe: "F" },
+          { id: "c-2", date_consultation: "2026-10-31", diagnostic_possible: "Diarrhée simple", tdr_paludisme: "NEGATIF", decision: "PEC_DOMICILE", age_valeur: 2, age_unite: "ANS", sexe: "M" },
+          { id: "c-3", date_consultation: "2026-10-30", diagnostic_possible: "IRA légère", tdr_paludisme: "NEGATIF", decision: "PEC_DOMICILE", age_valeur: 4, age_unite: "ANS", sexe: "M" },
+          { id: "c-4", date_consultation: "2026-10-29", diagnostic_possible: "Paludisme grave avec convulsions", tdr_paludisme: "POSITIF", decision: "REFERER_CS", age_valeur: 18, age_unite: "MOIS", sexe: "F" }
+        ];
+
+        const rma = [
+          {
+            id: `rma-demo-${ascq.id}`,
+            annee: 2026,
+            mois: 10,
+            statut: "DEPOSE",
+            date_depot: "2026-11-01T08:30:00Z",
+            total_visites_domiciliaires: ascq.nom === "DOSSOU" ? 18 : 12,
+            total_seances_sensibilisation: ascq.nom === "DOSSOU" ? 4 : 3,
+            femmes_enceintes_suivies: ascq.nom === "DOSSOU" ? 18 : 10,
+            enfants_0_59_mois_suivis: ascq.nom === "DOSSOU" ? 54 : 40,
+            total_references: ascq.nom === "DOSSOU" ? 9 : 5,
+            total_paludisme_confirme: ascq.nom === "DOSSOU" ? 138 : 77
+          }
+        ];
+
+        setDossierAscq({
+          plannings: [
+            { id: "pl-1", annee: 2026, mois: 11, statut: "VALIDE", titre: "Planning d'activités Novembre 2026" }
+          ],
+          activites: [
+            { id: "act-1", date_activite: "2026-11-01", type_activite: "SENSIBILISATION", titre: "Sensibilisation hygiène et utilisation MILD", participants_nombre: 45 }
+          ],
+          rma,
+          hebdo: [
+            { id: "hb-1", annee: 2026, semaine: 44, statut: "VALIDE", date_soumission: "2026-11-01" }
+          ],
+          alertes,
+          deces,
+          relais,
+          rapportsRc: [],
+          planningsRc: [],
+          consultations,
+          references: [
+            { id: "ref-1", motif_reference: "Fièvre persistante et vomissements", centre_sante_destination: "CSC OUINHI", statut: "REFERE" }
+          ],
+          femmes: [
+            { id: "fem-1", nom_patiente: "Dame A.", statut_grossesse: "CPN 3 effectuée", date_derniere_visite: "2026-10-25" }
+          ],
+          enfants: [
+            { id: "enf-1", nom_enfant: "Enfant B.", statut_nutritionnel: "BON", pb_valeur: 13.5, date_pesee: "2026-10-26" }
+          ]
+        });
+        setLoadingDossier(false);
+        return;
+      }
       const [
         planningsRes,
         activitesRes,
@@ -1194,6 +1402,12 @@ function PerimetreGouvernanceContent() {
     if (!currentUser) return;
     setLoadingRegistre(true);
     try {
+      if (isDemoModeActive()) {
+        const demoFiches = getDemoFichesForScope();
+        setRegistreFiches(demoFiches);
+        setLoadingRegistre(false);
+        return;
+      }
       const scope = getPerimetreScope(currentUser);
       let ascqQuery = supabase
         .from("utilisateurs")
@@ -1376,6 +1590,32 @@ function PerimetreGouvernanceContent() {
     if (!currentUser) return;
     setLoadingSuggestions(true);
     try {
+      if (isDemoModeActive()) {
+        setSuggestionsList([
+          {
+            id: "sug-demo-01",
+            module_concerne: "RMA",
+            type_suggestion: "FELICITATIONS",
+            titre: "Complétude 100% sur Ouinhi",
+            message: "Félicitations aux ASCQ de Tohouès et Dasso pour le dépôt des RMA dans les délais réglementaires avant le 5 du mois.",
+            created_at: "2026-11-01T14:00:00Z",
+            statut: "TRAITEE",
+            ascq: { nom: "DOSSOU", prenoms: "Bruno", telephone: "+2290169031463" }
+          },
+          {
+            id: "sug-demo-02",
+            module_concerne: "SIMR",
+            type_suggestion: "OBSERVATION",
+            titre: "Suivi foyer suspect choléra à Dasso",
+            message: "Poursuivre la chloration systématique des puits et distribuer les sels de réhydratation orale (SRO).",
+            created_at: "2026-10-31T09:30:00Z",
+            statut: "EN_COURS",
+            ascq: { nom: "KPODANHO", prenoms: "Gérard", telephone: "+2290199000007" }
+          }
+        ]);
+        setLoadingSuggestions(false);
+        return;
+      }
       const { data, error } = await supabase
         .from("suggestions_modifications_cadres")
         .select("*, ascq:utilisateurs!ascq_id(nom, prenoms, telephone)")
@@ -1463,6 +1703,23 @@ function PerimetreGouvernanceContent() {
     if (!currentUser) return;
     setLoadingMissions(true);
     try {
+      if (isDemoModeActive()) {
+        setMissionsList([
+          {
+            id: "mis-demo-01",
+            titre: "Supervision Conjointe Campagne MILD & Eau Potable",
+            type_mission: "SUPERVISION",
+            priorite: "HAUTE",
+            date_echeance: "2026-11-15",
+            directives: "Contrôler l'utilisation effective des moustiquaires imprégnées dans les ménages et le respect du protocole iCCM.",
+            statut: "EN_COURS",
+            created_at: "2026-11-01T10:00:00Z",
+            ascq: { nom: "DOSSOU", prenoms: "Bruno" }
+          }
+        ]);
+        setLoadingMissions(false);
+        return;
+      }
       const { data, error } = await supabase
         .from("ordres_mission_territoire")
         .select("*, ascq:utilisateurs!ascq_cible_id(nom, prenoms)")
