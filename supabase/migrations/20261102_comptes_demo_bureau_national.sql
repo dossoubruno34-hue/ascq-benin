@@ -5,16 +5,84 @@
 -- Mot de passe universel pour tous les comptes démo : Demo2026!
 -- =====================================================================
 
--- Activer pgcrypto si non actif
+-- ---------------------------------------------------------------------
+-- 1. EXTENSIONS & AJOUT DES COLONNES MANQUANTES SUR LES TABLES
+-- ---------------------------------------------------------------------
 CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
 
--- Ajout des colonnes territoriales manquantes éventuelles sur consultations_communautaires
+-- Ajout sécurisé des colonnes sur public.utilisateurs (si non créées)
+ALTER TABLE public.utilisateurs 
+    ADD COLUMN IF NOT EXISTS email TEXT,
+    ADD COLUMN IF NOT EXISTS role_nomination TEXT,
+    ADD COLUMN IF NOT EXISTS poste_autre TEXT,
+    ADD COLUMN IF NOT EXISTS second_arrondissement_id UUID REFERENCES public.arrondissements(id);
+
+CREATE INDEX IF NOT EXISTS idx_utilisateurs_email ON public.utilisateurs(email);
+
+-- Colonnes territoriales sur consultations_communautaires
 ALTER TABLE public.consultations_communautaires 
     ADD COLUMN IF NOT EXISTS commune_id UUID REFERENCES public.communes(id),
     ADD COLUMN IF NOT EXISTS arrondissement_id UUID REFERENCES public.arrondissements(id),
     ADD COLUMN IF NOT EXISTS departement_id UUID REFERENCES public.departements(id),
     ADD COLUMN IF NOT EXISTS zone_sanitaire_id UUID REFERENCES public.zones_sanitaires(id);
 
+-- Colonnes sur relais_communautaires & ascq_profils
+ALTER TABLE public.relais_communautaires 
+    ADD COLUMN IF NOT EXISTS actif BOOLEAN DEFAULT TRUE,
+    ADD COLUMN IF NOT EXISTS statut TEXT DEFAULT 'ACTIF';
+
+ALTER TABLE public.ascq_profils 
+    ADD COLUMN IF NOT EXISTS afficher_annuaire_public BOOLEAN DEFAULT TRUE;
+
+-- ---------------------------------------------------------------------
+-- 2. FONCTION D'AIDE DYNAMIQUE (ÉVITE TOUTE ERREUR DE COMPILATION 42703)
+-- ---------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.inserer_utilisateur_demo(
+    p_id UUID,
+    p_telephone TEXT,
+    p_email TEXT,
+    p_nom TEXT,
+    p_prenoms TEXT,
+    p_poste TEXT,
+    p_role_technique TEXT,
+    p_role_nomination TEXT,
+    p_dep_id UUID,
+    p_zs_id UUID,
+    p_com_id UUID,
+    p_arr_id UUID
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $helper$
+BEGIN
+    EXECUTE '
+    INSERT INTO public.utilisateurs (
+        id, telephone, email, nom, prenoms, poste, role_technique, role_nomination, statut_compte,
+        departement_id, zone_sanitaire_id, commune_id, arrondissement_id, date_validation, created_at, updated_at
+    ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, ''VALIDE'', $9, $10, $11, $12, NOW(), NOW(), NOW()
+    ) ON CONFLICT (id) DO UPDATE SET
+        telephone = EXCLUDED.telephone,
+        email = EXCLUDED.email,
+        nom = EXCLUDED.nom,
+        prenoms = EXCLUDED.prenoms,
+        poste = EXCLUDED.poste,
+        role_technique = EXCLUDED.role_technique,
+        role_nomination = EXCLUDED.role_nomination,
+        statut_compte = ''VALIDE'',
+        departement_id = EXCLUDED.departement_id,
+        zone_sanitaire_id = EXCLUDED.zone_sanitaire_id,
+        commune_id = EXCLUDED.commune_id,
+        arrondissement_id = EXCLUDED.arrondissement_id'
+    USING p_id, p_telephone, p_email, p_nom, p_prenoms, p_poste, p_role_technique, p_role_nomination, p_dep_id, p_zs_id, p_com_id, p_arr_id;
+END;
+$helper$;
+
+
+-- ---------------------------------------------------------------------
+-- 3. PEUPLEMENT DES COMPTES ET DONNÉES DE DÉMONSTRATION
+-- ---------------------------------------------------------------------
 DO $$
 DECLARE
     -- Mot de passe haché pour Demo2026!
@@ -65,7 +133,7 @@ BEGIN
     RAISE NOTICE 'Démarrage du peuplement des comptes de démonstration pour le Bureau National...';
 
     -- -----------------------------------------------------------------
-    -- 1. LOCALISATION DU ZOU & DE OUINHI
+    -- A. LOCALISATION DU ZOU & DE OUINHI
     -- -----------------------------------------------------------------
     SELECT id INTO v_dep_zou_id FROM public.departements WHERE nom = 'ZOU' LIMIT 1;
     SELECT id INTO v_com_ouinhi_id FROM public.communes WHERE nom = 'OUINHI' AND departement_id = v_dep_zou_id LIMIT 1;
@@ -90,7 +158,7 @@ BEGIN
     END IF;
 
     -- -----------------------------------------------------------------
-    -- 2. CRÉATION DU COMPTE NIVEAU NATIONAL (OBSERVATEUR BUREAU NATIONAL)
+    -- B. CRÉATION DU COMPTE NIVEAU NATIONAL (OBSERVATEUR BUREAU NATIONAL)
     -- -----------------------------------------------------------------
     -- Email : bureau.national@demo-ascq.bj | Tél : +2290199000000 | Mdp : Demo2026!
     INSERT INTO auth.users (
@@ -111,24 +179,14 @@ BEGIN
     VALUES (gen_random_uuid(), v_id_nat, jsonb_build_object('sub', v_id_nat::text, 'email', 'bureau.national@demo-ascq.bj'), 'email', v_id_nat::text, NOW(), NOW(), NOW())
     ON CONFLICT (provider, provider_id) DO NOTHING;
 
-    INSERT INTO public.utilisateurs (
-        id, telephone, email, nom, prenoms, poste, role_technique, role_nomination, statut_compte,
-        departement_id, zone_sanitaire_id, commune_id, arrondissement_id, date_validation, created_at, updated_at
-    ) VALUES (
+    PERFORM public.inserer_utilisateur_demo(
         v_id_nat, '+2290199000000', 'bureau.national@demo-ascq.bj', 'HOUNSOU', 'Jérémie (Président National)',
-        'COORDINATEUR_NATIONAL', 'SUPER_ADMIN', 'RESPONSABLE_NATIONAL', 'VALIDE',
-        NULL, NULL, NULL, NULL, NOW(), NOW(), NOW()
-    ) ON CONFLICT (id) DO UPDATE SET
-        telephone = EXCLUDED.telephone,
-        email = EXCLUDED.email,
-        nom = EXCLUDED.nom,
-        prenoms = EXCLUDED.prenoms,
-        poste = EXCLUDED.poste,
-        role_technique = EXCLUDED.role_technique,
-        statut_compte = 'VALIDE';
+        'COORDINATEUR_NATIONAL', 'SUPER_ADMIN', 'RESPONSABLE_NATIONAL',
+        NULL, NULL, NULL, NULL
+    );
 
     -- -----------------------------------------------------------------
-    -- 3. CRÉATION DU COMPTE CCD CDLS-TP ZOU (CHEF CELLULE DÉPARTEMENTALE)
+    -- C. CRÉATION DU COMPTE CCD CDLS-TP ZOU (CHEF CELLULE DÉPARTEMENTALE)
     -- -----------------------------------------------------------------
     -- Email : ccd.zou@demo-ascq.bj | Tél : +2290199000007 | Mdp : Demo2026!
     INSERT INTO auth.users (
@@ -146,18 +204,14 @@ BEGIN
     VALUES (gen_random_uuid(), v_id_ccd_zou, jsonb_build_object('sub', v_id_ccd_zou::text, 'email', 'ccd.zou@demo-ascq.bj'), 'email', v_id_ccd_zou::text, NOW(), NOW(), NOW())
     ON CONFLICT (provider, provider_id) DO NOTHING;
 
-    INSERT INTO public.utilisateurs (
-        id, telephone, email, nom, prenoms, poste, role_technique, role_nomination, statut_compte,
-        departement_id, zone_sanitaire_id, commune_id, arrondissement_id, date_validation, created_at, updated_at
-    ) VALUES (
+    PERFORM public.inserer_utilisateur_demo(
         v_id_ccd_zou, '+2290199000007', 'ccd.zou@demo-ascq.bj', 'AGBOSSA', 'Symphorien',
-        'CCD_CDLS_TP', 'CADRE_DEPARTEMENTAL', 'RESPONSABLE_DEPARTEMENTAL', 'VALIDE',
-        v_dep_zou_id, NULL, NULL, NULL, NOW(), NOW(), NOW()
-    ) ON CONFLICT (id) DO UPDATE SET
-        telephone = EXCLUDED.telephone, email = EXCLUDED.email, statut_compte = 'VALIDE', departement_id = v_dep_zou_id;
+        'CCD_CDLS_TP', 'CADRE_DEPARTEMENTAL', 'RESPONSABLE_DEPARTEMENTAL',
+        v_dep_zou_id, NULL, NULL, NULL
+    );
 
     -- -----------------------------------------------------------------
-    -- 4. CRÉATION DU COMPTE REPRÉSENTANT DÉPARTEMENTAL ZOU DES ASCQ
+    -- D. CRÉATION DU COMPTE REPRÉSENTANT DÉPARTEMENTAL ZOU DES ASCQ
     -- -----------------------------------------------------------------
     -- Email : rep.zou@demo-ascq.bj | Tél : +2290199000006 | Mdp : Demo2026!
     INSERT INTO auth.users (
@@ -175,18 +229,14 @@ BEGIN
     VALUES (gen_random_uuid(), v_id_rep_zou, jsonb_build_object('sub', v_id_rep_zou::text, 'email', 'rep.zou@demo-ascq.bj'), 'email', v_id_rep_zou::text, NOW(), NOW(), NOW())
     ON CONFLICT (provider, provider_id) DO NOTHING;
 
-    INSERT INTO public.utilisateurs (
-        id, telephone, email, nom, prenoms, poste, role_technique, role_nomination, statut_compte,
-        departement_id, zone_sanitaire_id, commune_id, arrondissement_id, date_validation, created_at, updated_at
-    ) VALUES (
+    PERFORM public.inserer_utilisateur_demo(
         v_id_rep_zou, '+2290199000006', 'rep.zou@demo-ascq.bj', 'TOSSOU', 'Marcellin',
-        'ASCQ', 'REPRESENTANT_DEPARTEMENTAL', 'REPRESENTANT_DEPARTEMENTAL', 'VALIDE',
-        v_dep_zou_id, NULL, NULL, NULL, NOW(), NOW(), NOW()
-    ) ON CONFLICT (id) DO UPDATE SET
-        telephone = EXCLUDED.telephone, email = EXCLUDED.email, statut_compte = 'VALIDE', departement_id = v_dep_zou_id;
+        'ASCQ', 'REPRESENTANT_DEPARTEMENTAL', 'REPRESENTANT_DEPARTEMENTAL',
+        v_dep_zou_id, NULL, NULL, NULL
+    );
 
     -- -----------------------------------------------------------------
-    -- 5. CRÉATION DU COMPTE C-RAMS ZONE SANITAIRE (COVÈ-ZAGNANADO-OUINHI)
+    -- E. CRÉATION DU COMPTE C-RAMS ZONE SANITAIRE (COVÈ-ZAGNANADO-OUINHI)
     -- -----------------------------------------------------------------
     -- Email : crams.czo@demo-ascq.bj | Tél : +2290199000005 | Mdp : Demo2026!
     INSERT INTO auth.users (
@@ -204,18 +254,14 @@ BEGIN
     VALUES (gen_random_uuid(), v_id_crams_czo, jsonb_build_object('sub', v_id_crams_czo::text, 'email', 'crams.czo@demo-ascq.bj'), 'email', v_id_crams_czo::text, NOW(), NOW(), NOW())
     ON CONFLICT (provider, provider_id) DO NOTHING;
 
-    INSERT INTO public.utilisateurs (
-        id, telephone, email, nom, prenoms, poste, role_technique, role_nomination, statut_compte,
-        departement_id, zone_sanitaire_id, commune_id, arrondissement_id, date_validation, created_at, updated_at
-    ) VALUES (
+    PERFORM public.inserer_utilisateur_demo(
         v_id_crams_czo, '+2290199000005', 'crams.czo@demo-ascq.bj', 'BIO', 'Chabi',
-        'C_RAMS', 'CADRE_ZONE_SANITAIRE', 'RESPONSABLE_ZONE_SANITAIRE', 'VALIDE',
-        v_dep_zou_id, v_zs_czo_id, NULL, NULL, NOW(), NOW(), NOW()
-    ) ON CONFLICT (id) DO UPDATE SET
-        telephone = EXCLUDED.telephone, email = EXCLUDED.email, statut_compte = 'VALIDE', zone_sanitaire_id = v_zs_czo_id;
+        'C_RAMS', 'CADRE_ZONE_SANITAIRE', 'RESPONSABLE_ZONE_SANITAIRE',
+        v_dep_zou_id, v_zs_czo_id, NULL, NULL
+    );
 
     -- -----------------------------------------------------------------
-    -- 6. CRÉATION DU COMPTE MÉDECIN CHEF COMMUNE (MCC OUINHI)
+    -- F. CRÉATION DU COMPTE MÉDECIN CHEF COMMUNE (MCC OUINHI)
     -- -----------------------------------------------------------------
     -- Email : mcc.ouinhi@demo-ascq.bj | Tél : +2290199000004 | Mdp : Demo2026!
     INSERT INTO auth.users (
@@ -233,18 +279,14 @@ BEGIN
     VALUES (gen_random_uuid(), v_id_mcc_ouinhi, jsonb_build_object('sub', v_id_mcc_ouinhi::text, 'email', 'mcc.ouinhi@demo-ascq.bj'), 'email', v_id_mcc_ouinhi::text, NOW(), NOW(), NOW())
     ON CONFLICT (provider, provider_id) DO NOTHING;
 
-    INSERT INTO public.utilisateurs (
-        id, telephone, email, nom, prenoms, poste, role_technique, role_nomination, statut_compte,
-        departement_id, zone_sanitaire_id, commune_id, arrondissement_id, date_validation, created_at, updated_at
-    ) VALUES (
+    PERFORM public.inserer_utilisateur_demo(
         v_id_mcc_ouinhi, '+2290199000004', 'mcc.ouinhi@demo-ascq.bj', 'KOUDJO', 'Dr. Arnaud',
-        'MCC', 'CADRE_COMMUNAL', 'RESPONSABLE_COMMUNAL', 'VALIDE',
-        v_dep_zou_id, v_zs_czo_id, v_com_ouinhi_id, NULL, NOW(), NOW(), NOW()
-    ) ON CONFLICT (id) DO UPDATE SET
-        telephone = EXCLUDED.telephone, email = EXCLUDED.email, statut_compte = 'VALIDE', commune_id = v_com_ouinhi_id;
+        'MCC', 'CADRE_COMMUNAL', 'RESPONSABLE_COMMUNAL',
+        v_dep_zou_id, v_zs_czo_id, v_com_ouinhi_id, NULL
+    );
 
     -- -----------------------------------------------------------------
-    -- 7. CRÉATION DU COMPTE POINT FOCAL SANTÉ MAIRIE (PF CCLS-TP OUINHI)
+    -- G. CRÉATION DU COMPTE POINT FOCAL SANTÉ MAIRIE (PF CCLS-TP OUINHI)
     -- -----------------------------------------------------------------
     -- Email : pf.ouinhi@demo-ascq.bj | Tél : +2290199000003 | Mdp : Demo2026!
     INSERT INTO auth.users (
@@ -262,18 +304,14 @@ BEGIN
     VALUES (gen_random_uuid(), v_id_pf_ouinhi, jsonb_build_object('sub', v_id_pf_ouinhi::text, 'email', 'pf.ouinhi@demo-ascq.bj'), 'email', v_id_pf_ouinhi::text, NOW(), NOW(), NOW())
     ON CONFLICT (provider, provider_id) DO NOTHING;
 
-    INSERT INTO public.utilisateurs (
-        id, telephone, email, nom, prenoms, poste, role_technique, role_nomination, statut_compte,
-        departement_id, zone_sanitaire_id, commune_id, arrondissement_id, date_validation, created_at, updated_at
-    ) VALUES (
+    PERFORM public.inserer_utilisateur_demo(
         v_id_pf_ouinhi, '+2290199000003', 'pf.ouinhi@demo-ascq.bj', 'ADANHO', 'Clarisse',
-        'PF_CCLS_TP', 'CADRE_COMMUNAL', 'RESPONSABLE_COMMUNAL', 'VALIDE',
-        v_dep_zou_id, v_zs_czo_id, v_com_ouinhi_id, NULL, NOW(), NOW(), NOW()
-    ) ON CONFLICT (id) DO UPDATE SET
-        telephone = EXCLUDED.telephone, email = EXCLUDED.email, statut_compte = 'VALIDE', commune_id = v_com_ouinhi_id;
+        'PF_CCLS_TP', 'CADRE_COMMUNAL', 'RESPONSABLE_COMMUNAL',
+        v_dep_zou_id, v_zs_czo_id, v_com_ouinhi_id, NULL
+    );
 
     -- -----------------------------------------------------------------
-    -- 8. CRÉATION DE L'ASCQ DE DASSO (COMMUNE DE OUINHI)
+    -- H. CRÉATION DE L'ASCQ DE DASSO (COMMUNE DE OUINHI)
     -- -----------------------------------------------------------------
     -- Email : ascq.dasso@demo-ascq.bj | Tél : +2290199000002 | Mdp : Demo2026!
     INSERT INTO auth.users (
@@ -291,34 +329,26 @@ BEGIN
     VALUES (gen_random_uuid(), v_id_ascq_dasso, jsonb_build_object('sub', v_id_ascq_dasso::text, 'email', 'ascq.dasso@demo-ascq.bj'), 'email', v_id_ascq_dasso::text, NOW(), NOW(), NOW())
     ON CONFLICT (provider, provider_id) DO NOTHING;
 
-    INSERT INTO public.utilisateurs (
-        id, telephone, email, nom, prenoms, poste, role_technique, statut_compte,
-        departement_id, zone_sanitaire_id, commune_id, arrondissement_id, date_validation, created_at, updated_at
-    ) VALUES (
+    PERFORM public.inserer_utilisateur_demo(
         v_id_ascq_dasso, '+2290199000002', 'ascq.dasso@demo-ascq.bj', 'KPODANHO', 'Gérard',
-        'ASCQ', 'ASCQ_OPERATEUR', 'VALIDE',
-        v_dep_zou_id, v_zs_czo_id, v_com_ouinhi_id, v_arr_dasso_id, NOW(), NOW(), NOW()
-    ) ON CONFLICT (id) DO UPDATE SET
-        telephone = EXCLUDED.telephone, email = EXCLUDED.email, statut_compte = 'VALIDE',
-        departement_id = v_dep_zou_id, zone_sanitaire_id = v_zs_czo_id, commune_id = v_com_ouinhi_id, arrondissement_id = v_arr_dasso_id;
+        'ASCQ', 'ASCQ_OPERATEUR', NULL,
+        v_dep_zou_id, v_zs_czo_id, v_com_ouinhi_id, v_arr_dasso_id
+    );
 
-    INSERT INTO public.ascq_profils (id, source_financement, nombre_rc, afficher_annuaire, cumul_deux_arrondissements)
+    INSERT INTO public.ascq_profils (id, source_financement, nombre_rc, afficher_annuaire_public, cumul_deux_arrondissements)
     VALUES (v_id_ascq_dasso, 'LLF', 3, true, false)
-    ON CONFLICT (id) DO UPDATE SET nombre_rc = 3;
+    ON CONFLICT (id) DO UPDATE SET nombre_rc = 3, afficher_annuaire_public = true;
 
     -- Création des 3 Relais Communautaires de Dasso
-    INSERT INTO public.utilisateurs (id, telephone, email, nom, prenoms, poste, role_technique, statut_compte, departement_id, zone_sanitaire_id, commune_id, arrondissement_id, created_at)
-    VALUES 
-        (v_rc_dasso1_uid, '+2290199010001', 'rc.dasso1@demo-ascq.bj', 'SOSSOU', 'Mathias', 'RC', 'RELAIS', 'VALIDE', v_dep_zou_id, v_zs_czo_id, v_com_ouinhi_id, v_arr_dasso_id, NOW()),
-        (v_rc_dasso2_uid, '+2290199010002', 'rc.dasso2@demo-ascq.bj', 'AGBO', 'Colette', 'RC', 'RELAIS', 'VALIDE', v_dep_zou_id, v_zs_czo_id, v_com_ouinhi_id, v_arr_dasso_id, NOW()),
-        (v_rc_dasso3_uid, '+2290199010003', 'rc.dasso3@demo-ascq.bj', 'HOUNKPE', 'Félicien', 'RC', 'RELAIS', 'VALIDE', v_dep_zou_id, v_zs_czo_id, v_com_ouinhi_id, v_arr_dasso_id, NOW())
-    ON CONFLICT (id) DO UPDATE SET statut_compte = 'VALIDE';
+    PERFORM public.inserer_utilisateur_demo(v_rc_dasso1_uid, '+2290199010001', 'rc.dasso1@demo-ascq.bj', 'SOSSOU', 'Mathias', 'RC', 'RELAIS', NULL, v_dep_zou_id, v_zs_czo_id, v_com_ouinhi_id, v_arr_dasso_id);
+    PERFORM public.inserer_utilisateur_demo(v_rc_dasso2_uid, '+2290199010002', 'rc.dasso2@demo-ascq.bj', 'AGBO', 'Colette', 'RC', 'RELAIS', NULL, v_dep_zou_id, v_zs_czo_id, v_com_ouinhi_id, v_arr_dasso_id);
+    PERFORM public.inserer_utilisateur_demo(v_rc_dasso3_uid, '+2290199010003', 'rc.dasso3@demo-ascq.bj', 'HOUNKPE', 'Félicien', 'RC', 'RELAIS', NULL, v_dep_zou_id, v_zs_czo_id, v_com_ouinhi_id, v_arr_dasso_id);
 
-    INSERT INTO public.relais_communautaires (id, user_id, ascq_id, nom, prenoms, telephone, village_nom, grappe, actif, statut)
+    INSERT INTO public.relais_communautaires (id, user_id, ascq_id, village_nom, grappe, actif, statut)
     VALUES 
-        (gen_random_uuid(), v_rc_dasso1_uid, v_id_ascq_dasso, 'SOSSOU', 'Mathias', '+2290199010001', 'Dasso Centre', 1, true, 'ACTIF'),
-        (gen_random_uuid(), v_rc_dasso2_uid, v_id_ascq_dasso, 'AGBO', 'Colette', '+2290199010002', 'Gbèkô', 2, true, 'ACTIF'),
-        (gen_random_uuid(), v_rc_dasso3_uid, v_id_ascq_dasso, 'HOUNKPE', 'Félicien', '+2290199010003', 'Ahito', 1, true, 'ACTIF')
+        (gen_random_uuid(), v_rc_dasso1_uid, v_id_ascq_dasso, 'Dasso Centre', 1, true, 'ACTIF'),
+        (gen_random_uuid(), v_rc_dasso2_uid, v_id_ascq_dasso, 'Gbèkô', 2, true, 'ACTIF'),
+        (gen_random_uuid(), v_rc_dasso3_uid, v_id_ascq_dasso, 'Ahito', 1, true, 'ACTIF')
     ON CONFLICT (user_id) DO UPDATE SET ascq_id = v_id_ascq_dasso, actif = true, statut = 'ACTIF';
 
     -- Fiches d'activités hebdomadaires des RC de Dasso
@@ -377,7 +407,7 @@ BEGIN
 
 
     -- -----------------------------------------------------------------
-    -- 9. GESTION DES RELAIS ET DONNÉES DE TOHOUÈS (BRUNO DOSSOU)
+    -- I. GESTION DES RELAIS ET DONNÉES DE TOHOUÈS (BRUNO DOSSOU)
     -- -----------------------------------------------------------------
     IF v_bruno_id IS NOT NULL THEN
         -- Rattacher tous les RC existants de Tohouès à Bruno
@@ -391,9 +421,9 @@ BEGIN
         );
 
         -- Insérer dans relais_communautaires si manquant
-        INSERT INTO public.relais_communautaires (id, user_id, ascq_id, nom, prenoms, telephone, village_nom, grappe, actif, statut)
+        INSERT INTO public.relais_communautaires (id, user_id, ascq_id, village_nom, grappe, actif, statut)
         SELECT 
-            gen_random_uuid(), u.id, v_bruno_id, u.nom, u.prenoms, u.telephone, 'Tohouès Centre', 1, true, 'ACTIF'
+            gen_random_uuid(), u.id, v_bruno_id, 'Tohouès Centre', 1, true, 'ACTIF'
         FROM public.utilisateurs u
         WHERE u.arrondissement_id = v_arr_tohoues_id AND u.poste = 'RC'
         ON CONFLICT (user_id) DO UPDATE SET ascq_id = v_bruno_id, actif = true, statut = 'ACTIF';
@@ -496,7 +526,7 @@ BEGIN
 
 
     -- -----------------------------------------------------------------
-    -- 10. CRÉATION DES ASCQ POUR LES 11 AUTRES DÉPARTEMENTS DU BÉNIN
+    -- J. CRÉATION DES ASCQ POUR LES 11 AUTRES DÉPARTEMENTS DU BÉNIN
     -- -----------------------------------------------------------------
     FOR v_dep_cur IN (
         SELECT id, nom FROM public.departements WHERE nom != 'ZOU' ORDER BY nom
@@ -519,8 +549,7 @@ BEGIN
         ORDER BY a.nom 
         LIMIT 1;
 
-        -- Email et Téléphone du compte ASCQ de ce département
-        -- Ex : ascq.alibori@demo-ascq.bj | Tél : +2290199000011
+        -- Auth user pour cet ASCQ départemental
         INSERT INTO auth.users (
             id, instance_id, email, encrypted_password, email_confirmed_at,
             raw_app_meta_data, raw_user_meta_data, aud, role, created_at, updated_at
@@ -537,32 +566,24 @@ BEGIN
         VALUES (gen_random_uuid(), v_ascq_id, jsonb_build_object('sub', v_ascq_id::text, 'email', 'ascq.' || LOWER(v_dep_cur.nom) || '@demo-ascq.bj'), 'email', v_ascq_id::text, NOW(), NOW(), NOW())
         ON CONFLICT (provider, provider_id) DO NOTHING;
 
-        INSERT INTO public.utilisateurs (
-            id, telephone, email, nom, prenoms, poste, role_technique, statut_compte,
-            departement_id, zone_sanitaire_id, commune_id, arrondissement_id, date_validation, created_at, updated_at
-        ) VALUES (
+        PERFORM public.inserer_utilisateur_demo(
             v_ascq_id, '+22901990000' || v_counter, 'ascq.' || LOWER(v_dep_cur.nom) || '@demo-ascq.bj',
-            'ASCQ ' || v_dep_cur.nom, 'Superviseur Territorial', 'ASCQ', 'ASCQ_OPERATEUR', 'VALIDE',
-            v_dep_cur.id, v_zs_id, v_com_id, v_arr_id, NOW(), NOW(), NOW()
-        ) ON CONFLICT (id) DO UPDATE SET
-            telephone = EXCLUDED.telephone, email = EXCLUDED.email, statut_compte = 'VALIDE',
-            departement_id = v_dep_cur.id, zone_sanitaire_id = v_zs_id, commune_id = v_com_id, arrondissement_id = v_arr_id;
+            'ASCQ ' || v_dep_cur.nom, 'Superviseur Territorial', 'ASCQ', 'ASCQ_OPERATEUR', NULL,
+            v_dep_cur.id, v_zs_id, v_com_id, v_arr_id
+        );
 
-        INSERT INTO public.ascq_profils (id, source_financement, nombre_rc, afficher_annuaire, cumul_deux_arrondissements)
+        INSERT INTO public.ascq_profils (id, source_financement, nombre_rc, afficher_annuaire_public, cumul_deux_arrondissements)
         VALUES (v_ascq_id, 'PNSC', 2, true, false)
-        ON CONFLICT (id) DO UPDATE SET nombre_rc = 2;
+        ON CONFLICT (id) DO UPDATE SET nombre_rc = 2, afficher_annuaire_public = true;
 
         -- 2 Relais Communautaires pour cet ASCQ
-        INSERT INTO public.utilisateurs (id, telephone, email, nom, prenoms, poste, role_technique, statut_compte, departement_id, zone_sanitaire_id, commune_id, arrondissement_id, created_at)
-        VALUES 
-            (v_rc1_id, '+22901991' || LPAD((v_counter * 2)::text, 5, '0'), 'rc1.' || LOWER(v_dep_cur.nom) || '@demo-ascq.bj', 'RELAIS A', v_dep_cur.nom, 'RC', 'RELAIS', 'VALIDE', v_dep_cur.id, v_zs_id, v_com_id, v_arr_id, NOW()),
-            (v_rc2_id, '+22901991' || LPAD((v_counter * 2 + 1)::text, 5, '0'), 'rc2.' || LOWER(v_dep_cur.nom) || '@demo-ascq.bj', 'RELAIS B', v_dep_cur.nom, 'RC', 'RELAIS', 'VALIDE', v_dep_cur.id, v_zs_id, v_com_id, v_arr_id, NOW())
-        ON CONFLICT (id) DO UPDATE SET statut_compte = 'VALIDE';
+        PERFORM public.inserer_utilisateur_demo(v_rc1_id, '+22901991' || LPAD((v_counter * 2)::text, 5, '0'), 'rc1.' || LOWER(v_dep_cur.nom) || '@demo-ascq.bj', 'RELAIS A', v_dep_cur.nom, 'RC', 'RELAIS', NULL, v_dep_cur.id, v_zs_id, v_com_id, v_arr_id);
+        PERFORM public.inserer_utilisateur_demo(v_rc2_id, '+22901991' || LPAD((v_counter * 2 + 1)::text, 5, '0'), 'rc2.' || LOWER(v_dep_cur.nom) || '@demo-ascq.bj', 'RELAIS B', v_dep_cur.nom, 'RC', 'RELAIS', NULL, v_dep_cur.id, v_zs_id, v_com_id, v_arr_id);
 
-        INSERT INTO public.relais_communautaires (id, user_id, ascq_id, nom, prenoms, telephone, village_nom, grappe, actif, statut)
+        INSERT INTO public.relais_communautaires (id, user_id, ascq_id, village_nom, grappe, actif, statut)
         VALUES 
-            (gen_random_uuid(), v_rc1_id, v_ascq_id, 'RELAIS A', v_dep_cur.nom, '+22901991' || LPAD((v_counter * 2)::text, 5, '0'), 'Centre ' || v_dep_cur.nom, 1, true, 'ACTIF'),
-            (gen_random_uuid(), v_rc2_id, v_ascq_id, 'RELAIS B', v_dep_cur.nom, '+22901991' || LPAD((v_counter * 2 + 1)::text, 5, '0'), 'Périphérie ' || v_dep_cur.nom, 2, true, 'ACTIF')
+            (gen_random_uuid(), v_rc1_id, v_ascq_id, 'Centre ' || v_dep_cur.nom, 1, true, 'ACTIF'),
+            (gen_random_uuid(), v_rc2_id, v_ascq_id, 'Périphérie ' || v_dep_cur.nom, 2, true, 'ACTIF')
         ON CONFLICT (user_id) DO UPDATE SET ascq_id = v_ascq_id, actif = true, statut = 'ACTIF';
 
         -- Fiches hebdo RC
@@ -632,3 +653,8 @@ BEGIN
 
     RAISE NOTICE 'Succès total : Tous les comptes démo et données de démonstration ont été générés avec succès.';
 END $$;
+
+-- ---------------------------------------------------------------------
+-- 4. NETTOYAGE DE LA FONCTION D'AIDE TEMPORAIRE
+-- ---------------------------------------------------------------------
+DROP FUNCTION IF EXISTS public.inserer_utilisateur_demo;
