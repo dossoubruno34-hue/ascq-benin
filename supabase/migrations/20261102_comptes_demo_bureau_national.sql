@@ -32,6 +32,11 @@ ALTER TABLE public.utilisateurs DROP CONSTRAINT IF EXISTS utilisateurs_statut_co
 ALTER TABLE public.utilisateurs ADD CONSTRAINT utilisateurs_statut_compte_check 
     CHECK (statut_compte IS NOT NULL AND length(trim(statut_compte)) > 0);
 
+-- Assouplissement des alertes communautaires
+ALTER TABLE public.alertes_communautaires DROP CONSTRAINT IF EXISTS alertes_communautaires_statut_check;
+ALTER TABLE public.alertes_communautaires ADD CONSTRAINT alertes_communautaires_statut_check 
+    CHECK (statut IS NOT NULL AND length(trim(statut)) > 0);
+
 -- Colonnes territoriales sur consultations_communautaires
 ALTER TABLE public.consultations_communautaires 
     ADD COLUMN IF NOT EXISTS commune_id UUID REFERENCES public.communes(id),
@@ -416,13 +421,13 @@ BEGIN
         departement_id, zone_sanitaire_id, commune_id, arrondissement_id, village_nom,
         type_alerte_code, type_alerte_nom, est_prioritaire, nb_personnes_touchees, nb_personnes_mortes,
         mesures_prises, sexe, age_valeur, age_unite, notificateur_id, notificateur_nom_complet, notificateur_titre,
-        notificateur_telephone, ascq_superviseur_id, statut, centre_sante_nom
+        notificateur_telephone, ascq_superviseur_id, statut, resultat_verification, centre_sante_nom
     ) VALUES (
         gen_random_uuid(), 'ALR-2026-DASSO-001', v_annee, v_semaine, v_mois, CURRENT_DATE - 3, CURRENT_DATE - 4, CURRENT_DATE - 3,
         v_dep_zou_id, v_zs_czo_id, v_com_ouinhi_id, v_arr_dasso_id, 'Dasso Centre',
         2, 'Choléra', true, 2, 0,
         'Isolation du patient, distribution de chlore pour désinfection des puits et référence d''urgence au CSC Ouinhi',
-        'M', 28, 'ANS', v_rc_dasso1_uid, 'Mathias SOSSOU', 'RC', '+2290199010001', v_id_ascq_dasso, 'VERIFIEE_VRAIE', 'CSC OUINHI'
+        'M', 28, 'ANS', v_rc_dasso1_uid, 'Mathias SOSSOU', 'RC', '+2290199010001', v_id_ascq_dasso, 'VERIFIEE', 'AVEREE', 'CSC OUINHI'
     ) ON CONFLICT DO NOTHING;
 
     -- RMA Octobre validé pour Dasso
@@ -497,18 +502,18 @@ BEGIN
             departement_id, zone_sanitaire_id, commune_id, arrondissement_id, village_nom,
             type_alerte_code, type_alerte_nom, est_prioritaire, nb_personnes_touchees, nb_personnes_mortes,
             mesures_prises, sexe, age_valeur, age_unite, notificateur_id, notificateur_nom_complet, notificateur_titre,
-            notificateur_telephone, ascq_superviseur_id, statut, centre_sante_nom
+            notificateur_telephone, ascq_superviseur_id, statut, resultat_verification, centre_sante_nom
         ) VALUES 
             (gen_random_uuid(), 'ALR-2026-TOHOUES-001', v_annee, v_semaine, v_mois, CURRENT_DATE - 4, CURRENT_DATE - 5, CURRENT_DATE - 4,
              v_dep_zou_id, v_zs_czo_id, v_com_ouinhi_id, v_arr_tohoues_id, 'Tohouès Centre',
              1, 'Rougeole', true, 1, 0,
              'Isolement à domicile, administration vitamine A, référence vers le CSC Ouinhi', 'M', 3, 'ANS',
-             v_bruno_id, 'BRUNO DOSSOU', 'ASCQ', '+2290169031463', v_bruno_id, 'VERIFIEE_VRAIE', 'CSC OUINHI'),
+             v_bruno_id, 'BRUNO DOSSOU', 'ASCQ', '+2290169031463', v_bruno_id, 'VERIFIEE', 'AVEREE', 'CSC OUINHI'),
             (gen_random_uuid(), 'ALR-2026-TOHOUES-002', v_annee, v_semaine, v_mois, CURRENT_DATE - 2, CURRENT_DATE - 3, CURRENT_DATE - 2,
              v_dep_zou_id, v_zs_czo_id, v_com_ouinhi_id, v_arr_tohoues_id, 'Goutchon',
              7, 'Fièvre Jaune', true, 1, 0,
              'Sensibilisation anti-moustiques, prélèvement transmis pour confirmation', 'F', 24, 'ANS',
-             v_bruno_id, 'BRUNO DOSSOU', 'ASCQ', '+2290169031463', v_bruno_id, 'EN_ATTENTE_VERIFICATION', 'CSC OUINHI')
+             v_bruno_id, 'BRUNO DOSSOU', 'ASCQ', '+2290169031463', v_bruno_id, 'NOTIFIEE', 'EN_ATTENTE', 'CSC OUINHI')
         ON CONFLICT DO NOTHING;
 
         -- Décès communautaire Tohouès (Néonatal)
@@ -656,14 +661,24 @@ BEGIN
             departement_id, zone_sanitaire_id, commune_id, arrondissement_id, village_nom,
             type_alerte_code, type_alerte_nom, est_prioritaire, nb_personnes_touchees, nb_personnes_mortes,
             mesures_prises, sexe, age_valeur, age_unite, notificateur_id, notificateur_nom_complet, notificateur_titre,
-            notificateur_telephone, ascq_superviseur_id, statut, centre_sante_nom
+            notificateur_telephone, ascq_superviseur_id, statut, resultat_verification, centre_sante_nom
         ) VALUES (
             gen_random_uuid(), 'ALR-2026-' || SUBSTRING(v_dep_cur.nom, 1, 3) || '-001', v_annee, v_semaine, v_mois,
             CURRENT_DATE - 4, CURRENT_DATE - 5, CURRENT_DATE - 4,
             v_dep_cur.id, v_zs_id, v_com_id, v_arr_id, 'Centre',
-            (v_counter % 7 + 1), 'Pathologie Épidémique', true, 1, 0,
+            (v_counter % 7 + 1),
+            CASE (v_counter % 7 + 1)
+                WHEN 1 THEN 'Rougeole'
+                WHEN 2 THEN 'Choléra'
+                WHEN 3 THEN 'Méningite'
+                WHEN 4 THEN 'PFA - Paralysie Flasque Aiguë'
+                WHEN 5 THEN 'FHV Lassa (Fièvre Hémoragique)'
+                WHEN 6 THEN 'FHV Ebola'
+                ELSE 'Fièvre Jaune'
+            END,
+            true, 1, 0,
             'Mesures barrières communautaires et orientation vers centre de santé', 'M', 20 + v_counter, 'ANS',
-            v_rc1_id, 'RELAIS A ' || v_dep_cur.nom, 'RC', '+22901991' || LPAD((v_counter * 2)::text, 5, '0'), v_ascq_id, 'VERIFIEE_VRAIE', 'CSC ' || v_dep_cur.nom
+            v_rc1_id, 'RELAIS A ' || v_dep_cur.nom, 'RC', '+22901991' || LPAD((v_counter * 2)::text, 5, '0'), v_ascq_id, 'VERIFIEE', 'AVEREE', 'CSC ' || v_dep_cur.nom
         ) ON CONFLICT DO NOTHING;
 
         -- RMA Octobre validé pour chaque département
