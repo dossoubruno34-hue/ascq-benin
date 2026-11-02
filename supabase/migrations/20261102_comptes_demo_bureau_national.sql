@@ -19,30 +19,10 @@ ALTER TABLE public.utilisateurs
 
 CREATE INDEX IF NOT EXISTS idx_utilisateurs_email ON public.utilisateurs(email);
 
--- Assouplissement de la contrainte poste pour accepter les rôles nationaux et cadres
+-- Assouplissement total de la contrainte poste pour accepter tous les rôles nationaux et cadres
 ALTER TABLE public.utilisateurs DROP CONSTRAINT IF EXISTS utilisateurs_poste_check;
 ALTER TABLE public.utilisateurs ADD CONSTRAINT utilisateurs_poste_check 
-    CHECK (poste IN (
-        'ASCQ', 
-        'RC', 
-        'RELAIS_COMMUNAUTAIRE',
-        'DDS', 
-        'CCD_CDLS_TP', 
-        'CSSPR', 
-        'CSPSMEMH', 
-        'MCZS', 
-        'RCSE', 
-        'C_RAMS', 
-        'MCC', 
-        'PF_CCLS_TP', 
-        'REPRESENTANT_COMMUNAL', 
-        'REPRESENTANT_DEPARTEMENTAL', 
-        'COORDINATEUR_NATIONAL',
-        'CADRE_NATIONAL',
-        'ADMINISTRATEUR', 
-        'SUPER_ADMIN', 
-        'AUTRE'
-    ));
+    CHECK (poste IS NOT NULL AND length(trim(poste)) > 0);
 
 -- Colonnes territoriales sur consultations_communautaires
 ALTER TABLE public.consultations_communautaires 
@@ -53,8 +33,28 @@ ALTER TABLE public.consultations_communautaires
 
 -- Colonnes sur relais_communautaires & ascq_profils
 ALTER TABLE public.relais_communautaires 
+    ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES public.utilisateurs(id) ON DELETE SET NULL,
+    ADD COLUMN IF NOT EXISTS arrondissement_id UUID REFERENCES public.arrondissements(id) ON DELETE SET NULL,
+    ADD COLUMN IF NOT EXISTS nom TEXT,
+    ADD COLUMN IF NOT EXISTS prenoms TEXT,
+    ADD COLUMN IF NOT EXISTS telephone TEXT,
+    ADD COLUMN IF NOT EXISTS village_nom TEXT,
+    ADD COLUMN IF NOT EXISTS grappe INTEGER DEFAULT 1,
+    ADD COLUMN IF NOT EXISTS code_acces_temporaire TEXT DEFAULT '0000',
+    ADD COLUMN IF NOT EXISTS code_temporaire_utilise BOOLEAN DEFAULT TRUE,
     ADD COLUMN IF NOT EXISTS actif BOOLEAN DEFAULT TRUE,
     ADD COLUMN IF NOT EXISTS statut TEXT DEFAULT 'ACTIF';
+
+DO $$
+BEGIN
+    ALTER TABLE public.relais_communautaires ALTER COLUMN nom DROP NOT NULL;
+    ALTER TABLE public.relais_communautaires ALTER COLUMN prenoms DROP NOT NULL;
+    ALTER TABLE public.relais_communautaires ALTER COLUMN telephone DROP NOT NULL;
+    ALTER TABLE public.relais_communautaires ALTER COLUMN code_acces_temporaire DROP NOT NULL;
+    ALTER TABLE public.relais_communautaires ALTER COLUMN code_temporaire_utilise DROP NOT NULL;
+EXCEPTION WHEN OTHERS THEN
+    NULL;
+END $$;
 
 ALTER TABLE public.ascq_profils 
     ADD COLUMN IF NOT EXISTS afficher_annuaire_public BOOLEAN DEFAULT TRUE;
@@ -369,12 +369,14 @@ BEGIN
     PERFORM public.inserer_utilisateur_demo(v_rc_dasso2_uid, '+2290199010002', 'rc.dasso2@demo-ascq.bj', 'AGBO', 'Colette', 'RC', 'RELAIS', NULL, v_dep_zou_id, v_zs_czo_id, v_com_ouinhi_id, v_arr_dasso_id);
     PERFORM public.inserer_utilisateur_demo(v_rc_dasso3_uid, '+2290199010003', 'rc.dasso3@demo-ascq.bj', 'HOUNKPE', 'Félicien', 'RC', 'RELAIS', NULL, v_dep_zou_id, v_zs_czo_id, v_com_ouinhi_id, v_arr_dasso_id);
 
-    INSERT INTO public.relais_communautaires (id, user_id, ascq_id, village_nom, grappe, actif, statut)
-    VALUES 
-        (gen_random_uuid(), v_rc_dasso1_uid, v_id_ascq_dasso, 'Dasso Centre', 1, true, 'ACTIF'),
-        (gen_random_uuid(), v_rc_dasso2_uid, v_id_ascq_dasso, 'Gbèkô', 2, true, 'ACTIF'),
-        (gen_random_uuid(), v_rc_dasso3_uid, v_id_ascq_dasso, 'Ahito', 1, true, 'ACTIF')
-    ON CONFLICT (user_id) DO UPDATE SET ascq_id = v_id_ascq_dasso, actif = true, statut = 'ACTIF';
+    DELETE FROM public.relais_communautaires WHERE user_id IN (v_rc_dasso1_uid, v_rc_dasso2_uid, v_rc_dasso3_uid);
+
+    INSERT INTO public.relais_communautaires (
+        id, user_id, ascq_id, nom, prenoms, telephone, village_nom, grappe, code_acces_temporaire, code_temporaire_utilise, actif, statut
+    ) VALUES 
+        (gen_random_uuid(), v_rc_dasso1_uid, v_id_ascq_dasso, 'SOSSOU', 'Mathias', '+2290199010001', 'Dasso Centre', 1, '0000', true, true, 'ACTIF'),
+        (gen_random_uuid(), v_rc_dasso2_uid, v_id_ascq_dasso, 'AGBO', 'Colette', '+2290199010002', 'Gbèkô', 2, '0000', true, true, 'ACTIF'),
+        (gen_random_uuid(), v_rc_dasso3_uid, v_id_ascq_dasso, 'HOUNKPE', 'Félicien', '+2290199010003', 'Ahito', 1, '0000', true, true, 'ACTIF');
 
     -- Fiches d'activités hebdomadaires des RC de Dasso
     INSERT INTO public.fiches_activites_hebdo_relais (
@@ -445,13 +447,18 @@ BEGIN
             WHERE arrondissement_id = v_arr_tohoues_id AND poste = 'RC'
         );
 
-        -- Insérer dans relais_communautaires si manquant
-        INSERT INTO public.relais_communautaires (id, user_id, ascq_id, village_nom, grappe, actif, statut)
+        -- Insérer dans relais_communautaires les RC de Tohouès qui n'y figurent pas encore
+        INSERT INTO public.relais_communautaires (
+            id, user_id, ascq_id, nom, prenoms, telephone, village_nom, grappe, code_acces_temporaire, code_temporaire_utilise, actif, statut
+        )
         SELECT 
-            gen_random_uuid(), u.id, v_bruno_id, 'Tohouès Centre', 1, true, 'ACTIF'
+            gen_random_uuid(), u.id, v_bruno_id, u.nom, u.prenoms, u.telephone, 'Tohouès Centre', 1, '0000', true, true, 'ACTIF'
         FROM public.utilisateurs u
-        WHERE u.arrondissement_id = v_arr_tohoues_id AND u.poste = 'RC'
-        ON CONFLICT (user_id) DO UPDATE SET ascq_id = v_bruno_id, actif = true, statut = 'ACTIF';
+        WHERE u.arrondissement_id = v_arr_tohoues_id 
+          AND u.poste = 'RC'
+          AND NOT EXISTS (
+              SELECT 1 FROM public.relais_communautaires r WHERE r.user_id = u.id
+          );
 
         -- Créer des fiches d'activités hebdomadaires pour les RC de Tohouès
         FOR v_rc_tohoues IN (
@@ -605,11 +612,13 @@ BEGIN
         PERFORM public.inserer_utilisateur_demo(v_rc1_id, '+22901991' || LPAD((v_counter * 2)::text, 5, '0'), 'rc1.' || LOWER(v_dep_cur.nom) || '@demo-ascq.bj', 'RELAIS A', v_dep_cur.nom, 'RC', 'RELAIS', NULL, v_dep_cur.id, v_zs_id, v_com_id, v_arr_id);
         PERFORM public.inserer_utilisateur_demo(v_rc2_id, '+22901991' || LPAD((v_counter * 2 + 1)::text, 5, '0'), 'rc2.' || LOWER(v_dep_cur.nom) || '@demo-ascq.bj', 'RELAIS B', v_dep_cur.nom, 'RC', 'RELAIS', NULL, v_dep_cur.id, v_zs_id, v_com_id, v_arr_id);
 
-        INSERT INTO public.relais_communautaires (id, user_id, ascq_id, village_nom, grappe, actif, statut)
-        VALUES 
-            (gen_random_uuid(), v_rc1_id, v_ascq_id, 'Centre ' || v_dep_cur.nom, 1, true, 'ACTIF'),
-            (gen_random_uuid(), v_rc2_id, v_ascq_id, 'Périphérie ' || v_dep_cur.nom, 2, true, 'ACTIF')
-        ON CONFLICT (user_id) DO UPDATE SET ascq_id = v_ascq_id, actif = true, statut = 'ACTIF';
+        DELETE FROM public.relais_communautaires WHERE user_id IN (v_rc1_id, v_rc2_id);
+
+        INSERT INTO public.relais_communautaires (
+            id, user_id, ascq_id, nom, prenoms, telephone, village_nom, grappe, code_acces_temporaire, code_temporaire_utilise, actif, statut
+        ) VALUES 
+            (gen_random_uuid(), v_rc1_id, v_ascq_id, 'RELAIS A', v_dep_cur.nom, '+22901991' || LPAD((v_counter * 2)::text, 5, '0'), 'Centre ' || v_dep_cur.nom, 1, '0000', true, true, 'ACTIF'),
+            (gen_random_uuid(), v_rc2_id, v_ascq_id, 'RELAIS B', v_dep_cur.nom, '+22901991' || LPAD((v_counter * 2 + 1)::text, 5, '0'), 'Périphérie ' || v_dep_cur.nom, 2, '0000', true, true, 'ACTIF');
 
         -- Fiches hebdo RC
         INSERT INTO public.fiches_activites_hebdo_relais (
