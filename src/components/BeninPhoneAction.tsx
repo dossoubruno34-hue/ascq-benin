@@ -5,7 +5,7 @@ import { Phone, MessageCircle } from "lucide-react";
 import { parseBeninPhone } from "@/lib/beninPhone";
 
 // Icône WhatsApp officielle SVG pour un rendu net et immédiatement reconnaissable
-function WhatsAppIcon({ className = "w-4 h-4" }: { className?: string }) {
+export function WhatsAppIcon({ className = "w-4 h-4" }: { className?: string }) {
   return (
     <svg
       viewBox="0 0 24 24"

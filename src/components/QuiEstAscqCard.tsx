@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { Phone, MapPin, User, Search, CheckCircle2 } from "lucide-react";
+import { parseBeninPhone } from "@/lib/beninPhone";
+import { WhatsAppIcon } from "@/components/BeninPhoneAction";
 
 interface Props {
   departements: Array<{ id: string; nom: string }>;
@@ -199,17 +201,44 @@ export default function QuiEstAscqCard({ departements }: Props) {
                     </span>
                   </div>
 
-                  {ascq.telephone && (
-                    <div className="pt-1.5">
-                      <a
-                        href={`tel:${ascq.telephone}`}
-                        className="inline-flex items-center justify-center gap-2 w-full py-2 px-3 rounded-xl bg-slate-50 hover:bg-emerald-50 hover:text-[#0e7f47] text-slate-800 font-semibold text-xs border border-slate-200 transition-colors"
-                      >
-                        <Phone className="w-3.5 h-3.5 text-[#0e7f47]" />
-                        <span>Appeler : {ascq.telephone}</span>
-                      </a>
-                    </div>
-                  )}
+                  {ascq.telephone && (() => {
+                    const phone = parseBeninPhone(ascq.telephone);
+                    const rawClean = ascq.telephone ? String(ascq.telephone).replace(/\D/g, "") : "";
+                    const waBase = phone?.whatsappUrl || `https://wa.me/${rawClean}`;
+                    const waUrl = `${waBase}?text=${encodeURIComponent("Bonjour, je vous contacte depuis l'application ASCQ Bénin.")}`;
+                    const telUrl = phone?.telUrl || `tel:${ascq.telephone}`;
+                    const displayPhone = phone?.displayShort || ascq.telephone;
+
+                    return (
+                      <div className="pt-2 flex items-center gap-2">
+                        {/* Bouton WhatsApp direct devant le numéro */}
+                        <a
+                          href={waUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-[#25D366] hover:bg-[#20ba5a] text-white font-bold text-xs shadow-xs transition-all active:scale-95 shrink-0"
+                          title="Rejoindre l'ASCQ directement sur WhatsApp"
+                          aria-label="Rejoindre l'ASCQ sur WhatsApp"
+                        >
+                          <WhatsAppIcon className="w-4 h-4 fill-current shrink-0" />
+                          <span>WhatsApp</span>
+                        </a>
+
+                        {/* Bouton Appeler avec affichage clair du numéro */}
+                        <a
+                          href={telUrl}
+                          className="inline-flex items-center justify-center gap-1.5 flex-1 min-w-0 py-2 px-2.5 rounded-xl bg-slate-50 hover:bg-emerald-50 hover:text-[#0e7f47] text-slate-800 font-semibold text-xs border border-slate-200 transition-colors"
+                          title={`Appeler : ${displayPhone}`}
+                        >
+                          <Phone className="w-3.5 h-3.5 text-[#0e7f47] shrink-0" />
+                          <span className="truncate">
+                            <span className="hidden sm:inline">Appeler : </span>
+                            {displayPhone}
+                          </span>
+                        </a>
+                      </div>
+                    );
+                  })()}
                 </div>
               ))}
             </div>
