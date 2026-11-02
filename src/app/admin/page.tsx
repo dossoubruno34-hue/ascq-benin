@@ -53,7 +53,6 @@ import {
 
 import BeninPhoneAction from "@/components/BeninPhoneAction";
 import { parseBeninPhone } from "@/lib/beninPhone";
-import { isDemoModeActive, getActiveDemoProfile } from "@/lib/demo-mode";
 
 export default function AdminPage() {
   const router = useRouter();
@@ -383,18 +382,6 @@ export default function AdminPage() {
   const initialiserAdmin = async () => {
     setLoading(true);
     try {
-      if (isDemoModeActive()) {
-        const demoProf = getActiveDemoProfile();
-        if (demoProf && (demoProf.role_technique === 'SUPER_ADMIN' || demoProf.telephone.includes('69031463'))) {
-          setCurrentUser(demoProf);
-          await chargerStatistiques(demoProf);
-          await chargerComptes();
-          await chargerDonneesSecondaires(demoProf);
-          await chargerDemandesResetMdp();
-          setLoading(false);
-          return;
-        }
-      }
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         router.push("/connexion");

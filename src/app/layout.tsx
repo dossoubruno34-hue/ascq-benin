@@ -3,7 +3,6 @@ import "./globals.css";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 import InstallAppBanner from "@/components/InstallAppBanner";
 import NotificationWatcher from "@/components/NotificationWatcher";
-import DemoSwitcherBar from "@/components/DemoSwitcherBar";
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://ascq-benin.vercel.app"),
@@ -69,7 +68,6 @@ export default function RootLayout({
         <InstallAppBanner />
         <ServiceWorkerRegister />
         <NotificationWatcher />
-        <DemoSwitcherBar />
         {children}
       </body>
     </html>

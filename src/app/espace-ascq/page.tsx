@@ -34,7 +34,6 @@ import {
 } from "lucide-react";
 import { getCachedMonEspace, saveCachedMonEspace, saveCachedUserSession, getCachedUserSession } from "@/lib/offline-sync";
 import { estCadreNonAscq } from "@/lib/cadre-roles";
-import { isDemoModeActive, getActiveDemoProfile } from "@/lib/demo-mode";
 import BeninPhoneAction from "@/components/BeninPhoneAction";
 
 export default function MonEspacePage() {
@@ -79,33 +78,6 @@ export default function MonEspacePage() {
   const loadEspaceData = async () => {
     setLoading(true);
     setLoadError("");
-
-    // 0. Si le Mode Démo est actif : afficher immédiatement le profil sélectionné
-    if (isDemoModeActive()) {
-      const demoProf = getActiveDemoProfile();
-      if (demoProf) {
-        if (estCadreNonAscq(demoProf)) {
-          window.location.replace("/perimetre");
-          return;
-        }
-        const demoData = {
-          ...demoProf,
-          nombre_rc_actifs: demoProf.nombre_rc_declare || 5,
-          taux_completude_hebdo: 100,
-          taux_completude_mensuel: 100,
-          nombre_enfants_suivis: demoProf.arrondissement_nom === "Tohouès" ? 184 : 96,
-          nombre_femmes_suivies: demoProf.arrondissement_nom === "Tohouès" ? 42 : 24,
-          nombre_consultations: demoProf.arrondissement_nom === "Tohouès" ? 248 : 142,
-          references_cs: demoProf.arrondissement_nom === "Tohouès" ? 9 : 5,
-        };
-        setEspaceData(demoData);
-        setTelephone(demoProf.telephone || "");
-        setSourceFinancement(demoProf.source_financement || "LLF");
-        setNombreRc(demoProf.nombre_rc_declare || 5);
-        setLoading(false);
-        return;
-      }
-    }
 
     // Vérifier si l'utilisateur connecté est un Cadre / Responsable de santé (qui n'est pas ASCQ)
     const session = getCachedUserSession();
