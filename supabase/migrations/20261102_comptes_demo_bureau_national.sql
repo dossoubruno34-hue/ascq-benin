@@ -37,11 +37,14 @@ ALTER TABLE public.alertes_communautaires DROP CONSTRAINT IF EXISTS alertes_comm
 ALTER TABLE public.alertes_communautaires ADD CONSTRAINT alertes_communautaires_statut_check 
     CHECK (statut IS NOT NULL AND length(trim(statut)) > 0);
 
--- Colonnes territoriales sur consultations_communautaires
+-- Colonnes territoriales sur consultations_communautaires et deces_communautaires
 ALTER TABLE public.consultations_communautaires 
     ADD COLUMN IF NOT EXISTS commune_id UUID REFERENCES public.communes(id),
     ADD COLUMN IF NOT EXISTS arrondissement_id UUID REFERENCES public.arrondissements(id),
     ADD COLUMN IF NOT EXISTS departement_id UUID REFERENCES public.departements(id),
+    ADD COLUMN IF NOT EXISTS zone_sanitaire_id UUID REFERENCES public.zones_sanitaires(id);
+
+ALTER TABLE public.deces_communautaires 
     ADD COLUMN IF NOT EXISTS zone_sanitaire_id UUID REFERENCES public.zones_sanitaires(id);
 
 -- Colonnes sur relais_communautaires & ascq_profils
@@ -519,14 +522,14 @@ BEGIN
         -- Décès communautaire Tohouès (Néonatal)
         INSERT INTO public.deces_communautaires (
             id, numero_deces, annee, semaine_epidemio, mois, date_deces, date_notification,
-            departement_id, zone_sanitaire_id, commune_id, arrondissement_id, village_nom,
+            departement_id, commune_id, arrondissement_id, village_nom,
             type_deces_code, type_deces_nom, lieu_deces_code, lieu_deces_nom, circonstance_code, circonstance_nom,
             sexe, age_valeur, age_unite, notificateur_id, notificateur_nom_complet, notificateur_titre,
             notificateur_telephone, ascq_superviseur_id, statut, centre_sante_nom
         ) VALUES (
             gen_random_uuid(), 'DEC-2026-TOHOUES-001', v_annee, v_semaine, v_mois, CURRENT_DATE - 6, CURRENT_DATE - 5,
-            v_dep_zou_id, v_zs_czo_id, v_com_ouinhi_id, v_arr_tohoues_id, 'Tohouès Centre',
-            2, 'Décès néonatal (0 à 28 jours)', 1, 'À domicile', 1, 'Détresse respiratoire néonatale à la naissance à domicile',
+            v_dep_zou_id, v_com_ouinhi_id, v_arr_tohoues_id, 'Tohouès Centre',
+            2, 'Bébé de 0 à 28 jours', 2, 'Domicile', 1, 'Grossesse / Avortement / Accouchement / Suites de couches',
             'M', 4, 'JOURS', v_bruno_id, 'BRUNO DOSSOU', 'ASCQ', '+2290169031463', v_bruno_id, 'VALIDE', 'CSC OUINHI'
         ) ON CONFLICT DO NOTHING;
 
