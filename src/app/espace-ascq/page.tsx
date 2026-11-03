@@ -59,6 +59,12 @@ export default function MonEspacePage() {
   const [isOfflineMode, setIsOfflineMode] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [derniereSynchro, setDerniereSynchro] = useState<string | null>(null);
+  const [relances48h, setRelances48h] = useState<{ total: number; alertes: number; deces: number; relais: number }>({
+    total: 0,
+    alertes: 0,
+    deces: 0,
+    relais: 0
+  });
 
   const handleSynchroniserEspace = async () => {
     setIsSyncing(true);
@@ -228,6 +234,40 @@ export default function MonEspacePage() {
         permutation_active: null,
         is_fallback: false,
       };
+
+      // Vérification des relances réglementaires 48h
+      try {
+        const ilYADeuxJours = new Date(Date.now() - 48 * 3600 * 1000).toISOString();
+        const [alRetard, decRetard, rcRetard] = await Promise.all([
+          supabase.from("alertes_communautaires")
+            .select("id", { count: "exact", head: true })
+            .eq("ascq_superviseur_id", prof.id)
+            .in("statut", ["NOTIFIE", "EN_ATTENTE"])
+            .lt("created_at", ilYADeuxJours),
+          supabase.from("deces_communautaires")
+            .select("id", { count: "exact", head: true })
+            .eq("ascq_superviseur_id", prof.id)
+            .in("statut", ["NOTIFIE", "EN_ATTENTE"])
+            .lt("created_at", ilYADeuxJours),
+          supabase.from("relais_communautaires")
+            .select("id", { count: "exact", head: true })
+            .eq("ascq_id", prof.id)
+            .eq("statut", "EN_ATTENTE")
+            .lt("created_at", ilYADeuxJours)
+        ]);
+
+        const nbAl = alRetard.count || 0;
+        const nbDec = decRetard.count || 0;
+        const nbRc = rcRetard.count || 0;
+        setRelances48h({ total: nbAl + nbDec + nbRc, alertes: nbAl, deces: nbDec, relais: nbRc });
+
+        // Appel de la routine serveur
+        try {
+          await supabase.rpc("verifier_et_emettre_relances_48h");
+        } catch {}
+      } catch (eRelance) {
+        console.warn("Erreur vérification relances 48h:", eRelance);
+      }
 
       setEspaceData(directData);
       saveCachedMonEspace(directData);
@@ -472,6 +512,55 @@ export default function MonEspacePage() {
             <span>Synchroniser</span>
           </button>
         </div>
+
+        {/* ALERTE RELANCE 48H SANS VALIDATION */}
+        {relances48h.total > 0 && (
+          <div className="bg-red-50/95 border-2 border-red-400 rounded-3xl p-4 sm:p-5 shadow-sm space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-red-900 font-black text-xs sm:text-sm">
+                <span className="p-1.5 rounded-xl bg-red-600 text-white animate-pulse">
+                  <AlertTriangle className="w-4 h-4" />
+                </span>
+                <span>Alerte Relance Réglementaire : Dépassement 48h</span>
+              </div>
+              <span className="text-[10px] font-black uppercase tracking-wider bg-red-200 text-red-900 px-2.5 py-0.5 rounded-full">
+                {relances48h.total} en attente
+              </span>
+            </div>
+            <p className="text-xs text-red-800 leading-relaxed font-medium">
+              Conformément aux protocoles nationaux, les déclarations de vos Relais Communautaires doivent être investiguées et visées dans les 48 heures.
+            </p>
+            <div className="flex items-center gap-2 flex-wrap text-xs font-bold text-red-900 pt-1">
+              {relances48h.alertes > 0 && (
+                <Link
+                  href="/fiches"
+                  className="px-3 py-1.5 rounded-xl bg-white border border-red-200 hover:bg-red-100 flex items-center gap-1.5 transition-all shadow-xs"
+                >
+                  <span>🚨 {relances48h.alertes} Alerte(s)</span>
+                  <ChevronRight className="w-3.5 h-3.5 text-red-600" />
+                </Link>
+              )}
+              {relances48h.deces > 0 && (
+                <Link
+                  href="/fiches"
+                  className="px-3 py-1.5 rounded-xl bg-white border border-red-200 hover:bg-red-100 flex items-center gap-1.5 transition-all shadow-xs"
+                >
+                  <span>⚰️ {relances48h.deces} Décès</span>
+                  <ChevronRight className="w-3.5 h-3.5 text-red-600" />
+                </Link>
+              )}
+              {relances48h.relais > 0 && (
+                <Link
+                  href="/espace-ascq/relais"
+                  className="px-3 py-1.5 rounded-xl bg-white border border-red-200 hover:bg-red-100 flex items-center gap-1.5 transition-all shadow-xs"
+                >
+                  <span>👥 {relances48h.relais} Relais en attente</span>
+                  <ChevronRight className="w-3.5 h-3.5 text-red-600" />
+                </Link>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Titre et statut */}
         <div className="flex items-center justify-between">
