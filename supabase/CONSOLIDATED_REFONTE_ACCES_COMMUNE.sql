@@ -16,6 +16,11 @@
 -- Suppression des profils et accès départementaux
 -- =====================================================================
 
+-- 0. Suppression préalable des anciennes contraintes pour autoriser la normalisation
+ALTER TABLE public.utilisateurs DROP CONSTRAINT IF EXISTS utilisateurs_role_technique_check;
+ALTER TABLE public.utilisateurs DROP CONSTRAINT IF EXISTS utilisateurs_role_nomination_check;
+ALTER TABLE public.utilisateurs DROP CONSTRAINT IF EXISTS utilisateurs_poste_check;
+
 -- 1. Nettoyage et normalisation des rôles existants dans public.utilisateurs
 UPDATE public.utilisateurs
 SET role_technique = 'ASCQ'
