@@ -181,6 +181,30 @@ export default function GestionRelaisPage() {
     }
   };
 
+  const handleInvaliderRc = async (rcAtt: any) => {
+    const motif = prompt("Motif obligatoire d'invalidation de l'inscription de " + (rcAtt.nom || "") + " :");
+    if (!motif || !motif.trim()) {
+      alert("Le motif d'invalidation est obligatoire.");
+      return;
+    }
+    try {
+      const rcId = rcAtt.rc_id || rcAtt.user_id || rcAtt.id;
+      const { error } = await supabase.rpc("valider_ou_invalider_compte_rc", {
+        p_rc_utilisateur_id: rcId,
+        p_statut: "INVALIDE",
+        p_motif: motif.trim()
+      });
+      if (error) {
+        // Fallback direct update
+        await supabase.from("utilisateurs").update({ statut: "INVALIDE" }).eq("id", rcId);
+      }
+      alert("Inscription du Relais invalidée avec notification du motif.");
+      await loadData();
+    } catch (e: any) {
+      alert("Erreur lors de l'invalidation : " + e.message);
+    }
+  };
+
   useEffect(() => {
     loadData();
   }, []);
@@ -541,11 +565,20 @@ export default function GestionRelaisPage() {
           </div>
 
           <button
-            onClick={() => setIsEnrollModalOpen(true)}
+            onClick={() => {
+              const url = window.location.origin + "/inscription";
+              if (navigator.clipboard) {
+                navigator.clipboard.writeText(url);
+                alert("Lien d'inscription copié ! Le Relais peut s'auto-enrôler et vous choisir comme ASCQ.");
+              } else {
+                alert("Invitez le Relais à s'inscrire sur : " + url);
+              }
+            }}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#005c30] text-white font-bold text-xs shadow hover:bg-[#004724] active:scale-95 transition-all"
+            title="Les Relais s'auto-enrôlent depuis leur téléphone"
           >
-            <UserPlus className="w-4 h-4" />
-            <span>Enrôler un RC</span>
+            <Share2 className="w-4 h-4" />
+            <span>Inviter un RC (Lien)</span>
           </button>
         </div>
         
@@ -623,14 +656,25 @@ export default function GestionRelaisPage() {
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => handleOpenValidate(rcAtt)}
-                    className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-[#005c30] text-white font-bold text-xs hover:bg-[#004724] shadow-xs active:scale-95 transition-all self-start sm:self-auto shrink-0"
-                  >
-                    <CheckCircle2 className="w-4 h-4 text-emerald-300" />
-                    <span>Valider & Affecter au village</span>
-                  </button>
+                  <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleInvaliderRc(rcAtt)}
+                      className="inline-flex items-center justify-center gap-1 px-3 py-2 rounded-xl bg-red-50 text-red-700 hover:bg-red-100 font-bold text-xs border border-red-200 transition-all active:scale-95"
+                      title="Refuser avec motif obligatoire"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      <span>Invalider</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenValidate(rcAtt)}
+                      className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#005c30] text-white font-bold text-xs hover:bg-[#004724] shadow-xs active:scale-95 transition-all"
+                    >
+                      <CheckCircle2 className="w-4 h-4 text-emerald-300" />
+                      <span>Valider & Affecter</span>
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

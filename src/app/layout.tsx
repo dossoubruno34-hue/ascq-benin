@@ -6,14 +6,14 @@ import NotificationWatcher from "@/components/NotificationWatcher";
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://ascq-benin.vercel.app"),
-  title: "ASCQ BÉNIN - Application Officielle de Santé Communautaire",
-  description: "Plateforme officielle et sécurisée de surveillance épidémiologique, d'activité et de rapportage pour les Agents de Santé Communautaire Qualifiés (ASCQ) et Relais Communautaires (RC) de la République du Bénin.",
-  applicationName: "ASCQ Bénin",
+  title: "SantéCom Bénin - Plateforme communautaire de santé",
+  description: "Plateforme communautaire de santé — Développé pour et par le Collectif des ASCQ du Bénin.",
+  applicationName: "SantéCom Bénin",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "ASCQ Bénin",
+    title: "SantéCom Bénin",
   },
   authors: [{ name: "Ministère de la Santé du Bénin / Bruno DOSSOU" }],
   publisher: "Ministère de la Santé du Bénin",
@@ -29,7 +29,7 @@ export const metadata: Metadata = {
     type: "website",
     locale: "fr_BJ",
     url: "https://ascq-benin.vercel.app",
-    siteName: "ASCQ Bénin - Plateforme Officielle",
+    siteName: "SantéCom Bénin - Plateforme communautaire de santé",
     title: "ASCQ BÉNIN - Application Officielle de Santé Communautaire",
     description: "Plateforme officielle de suivi épidémiologique et de rapportage communautaire du Bénin.",
     images: [

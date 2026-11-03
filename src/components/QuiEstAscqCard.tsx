@@ -201,11 +201,11 @@ export default function QuiEstAscqCard({ departements }: Props) {
                     </span>
                   </div>
 
-                  {ascq.telephone && (() => {
+                  {ascq.afficher_annuaire_public !== false && ascq.telephone ? (() => {
                     const phone = parseBeninPhone(ascq.telephone);
                     const rawClean = ascq.telephone ? String(ascq.telephone).replace(/\D/g, "") : "";
                     const waBase = phone?.whatsappUrl || `https://wa.me/${rawClean}`;
-                    const waUrl = `${waBase}?text=${encodeURIComponent("Bonjour, je vous contacte depuis l'application ASCQ Bénin.")}`;
+                    const waUrl = `${waBase}?text=${encodeURIComponent("Bonjour, je vous contacte depuis l'application SantéCom Bénin.")}`;
                     const telUrl = phone?.telUrl || `tel:${ascq.telephone}`;
                     const displayPhone = phone?.displayShort || ascq.telephone;
 
@@ -238,7 +238,13 @@ export default function QuiEstAscqCard({ departements }: Props) {
                         </a>
                       </div>
                     );
-                  })()}
+                  })() : (
+                    <div className="pt-2">
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 text-slate-600 text-xs font-semibold border border-slate-200">
+                        Contacter via le centre de santé
+                      </span>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

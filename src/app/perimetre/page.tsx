@@ -244,7 +244,7 @@ function PerimetreGouvernanceContent() {
   const [suggestionMessage, setSuggestionMessage] = useState("");
   const [submittingSuggestion, setSubmittingSuggestion] = useState(false);
 
-  // Alertes Territoriales & Ordres de Mission
+  // Alertes Territoriales & Demandes de Service
   const [missionSubMode, setMissionSubMode] = useState<"ALERTE" | "MISSION">("MISSION");
   const [alerteTitre, setAlerteTitre] = useState("");
   const [alerteMessage, setAlerteMessage] = useState("");
@@ -342,10 +342,7 @@ function PerimetreGouvernanceContent() {
       const nomination = (profil.role_nomination || "").toUpperCase();
 
       const ALL_CADRE_ROLES = [
-        "SUPER_ADMIN", "ADMINISTRATEUR", "CADRE_NATIONAL",
-        "REPRESENTANT_DEPARTEMENTAL", "ADMIN_DEPARTEMENTAL", "CADRE_DEPARTEMENTAL", "DDS", "CCD_CDLS_TP", "CSSPR", "CSPSMEMH",
-        "CADRE_ZONE_SANITAIRE", "MCZS", "RCSE", "C_RAMS",
-        "REPRESENTANT_COMMUNAL", "ADMIN_COMMUNAL", "CADRE_COMMUNAL", "PF_CCLS_TP", "MCC"
+        "SUPER_ADMIN", "MEMBRE_MINISTERE", "PF_CCLS_TP", "REPRESENTANT_COMMUNAL"
       ];
 
       const isBrunoSuperAdmin = cleanTel.includes("69031463") || role === "SUPER_ADMIN";
@@ -354,13 +351,7 @@ function PerimetreGouvernanceContent() {
         isBrunoSuperAdmin ||
         ALL_CADRE_ROLES.includes(role) || 
         ALL_CADRE_ROLES.includes(poste) || 
-        ALL_CADRE_ROLES.includes(nomination) || 
-        role.includes("REPRESENTANT") ||
-        poste.includes("REPRESENTANT") ||
-        role.includes("CADRE") ||
-        poste.includes("CADRE") ||
-        poste === "PF_CCLS_TP" ||
-        poste === "MCC";
+        ALL_CADRE_ROLES.includes(nomination);
 
       if (!isAuthorized) {
         setCurrentUser(profil);
@@ -394,25 +385,17 @@ function PerimetreGouvernanceContent() {
     }
   };
 
-  // Chargement des territoires inférieurs (ex: Département -> Communes, Commune -> Arrondissements)
+  // Chargement des territoires inférieurs (ex: National -> Communes, Commune -> Arrondissements)
   const chargerTerritoiresInferieurs = async (profil: any) => {
     try {
       const scope = getPerimetreScope(profil);
 
       if (scope.level === "NATIONAL") {
-        // Niveau National -> Territoires inférieurs : Départements
-        const { data } = await supabase.from("departements").select("id, nom").order("nom");
-        setListeTerritoiresInf(data || []);
-      } else if (scope.level === "DEPARTEMENTAL" && profil.departement_id) {
-        // Niveau Départemental -> Territoires inférieurs : Communes du département
-        const { data } = await supabase.from("communes").select("id, nom").eq("departement_id", profil.departement_id).order("nom");
-        setListeTerritoiresInf(data || []);
-      } else if (scope.level === "ZONE_SANITAIRE" && profil.zone_sanitaire_id) {
-        // Niveau Zone Sanitaire -> Territoires inférieurs : Communes de la zone
-        const { data } = await supabase.from("communes").select("id, nom").eq("zone_sanitaire_id", profil.zone_sanitaire_id).order("nom");
+        // Niveau National -> Territoires inférieurs : Communes (accès direct aux 77 communes du Bénin)
+        const { data } = await supabase.from("communes").select("id, nom").order("nom");
         setListeTerritoiresInf(data || []);
       } else if (profil.commune_id) {
-        // Niveau Communal -> Territoires inférieurs : Arrondissements
+        // Niveau Communal -> Territoires inférieurs : Arrondissements de sa propre commune
         const { data } = await supabase.from("arrondissements").select("id, nom").eq("commune_id", profil.commune_id).order("nom");
         setListeTerritoiresInf(data || []);
       }
@@ -428,28 +411,22 @@ function PerimetreGouvernanceContent() {
       const scope = getPerimetreScope(profil);
 
       // 1. Récupérer les alertes du territoire
-      let queryAlertes = supabase.from("alertes_communautaires").select("id, est_prioritaire, type_alerte_nom, investigation_faite, delai_detection_notification_heures, delai_notification_investigation_heures, commune_id, arrondissement_id, departement_id, zone_sanitaire_id, semaine_epidemio, created_at").eq("annee", annee);
+      let queryAlertes = supabase.from("alertes_communautaires").select("id, est_prioritaire, type_alerte_nom, investigation_faite, delai_detection_notification_heures, delai_notification_investigation_heures, commune_id, arrondissement_id, semaine_epidemio, created_at").eq("annee", annee);
       if (scope.filterType === "commune_id" && scope.id) queryAlertes = queryAlertes.eq("commune_id", scope.id);
-      else if (scope.filterType === "zone_sanitaire_id" && scope.id) queryAlertes = queryAlertes.eq("zone_sanitaire_id", scope.id);
-      else if (scope.filterType === "departement_id" && scope.id) queryAlertes = queryAlertes.eq("departement_id", scope.id);
 
       const { data: alertesData } = await queryAlertes;
       const alertes = alertesData || [];
 
       // 2. Récupérer les décès du territoire
-      let queryDeces = supabase.from("deces_communautaires").select("id, type_deces_nom, commune_id, arrondissement_id, departement_id, zone_sanitaire_id, created_at").eq("annee", annee);
+      let queryDeces = supabase.from("deces_communautaires").select("id, type_deces_nom, commune_id, arrondissement_id, created_at").eq("annee", annee);
       if (scope.filterType === "commune_id" && scope.id) queryDeces = queryDeces.eq("commune_id", scope.id);
-      else if (scope.filterType === "zone_sanitaire_id" && scope.id) queryDeces = queryDeces.eq("zone_sanitaire_id", scope.id);
-      else if (scope.filterType === "departement_id" && scope.id) queryDeces = queryDeces.eq("departement_id", scope.id);
 
       const { data: decesData } = await queryDeces;
       const deces = decesData || [];
 
       // 3. Récupérer les ASCQ pour complétude
-      let queryAscq = supabase.from("utilisateurs").select("id, nom, prenoms, telephone, commune_id, arrondissement_id, departement_id, zone_sanitaire_id").eq("statut_compte", "VALIDE").or("poste.eq.ASCQ,role_technique.eq.ASCQ_OPERATEUR");
+      let queryAscq = supabase.from("utilisateurs").select("id, nom, prenoms, telephone, commune_id, arrondissement_id").eq("statut_compte", "VALIDE").or("poste.eq.ASCQ,role_technique.eq.ASCQ");
       if (scope.filterType === "commune_id" && scope.id) queryAscq = queryAscq.eq("commune_id", scope.id);
-      else if (scope.filterType === "zone_sanitaire_id" && scope.id) queryAscq = queryAscq.eq("zone_sanitaire_id", scope.id);
-      else if (scope.filterType === "departement_id" && scope.id) queryAscq = queryAscq.eq("departement_id", scope.id);
 
       const { data: ascqsList } = await queryAscq;
       const totalAscq = (ascqsList || []).length;
@@ -562,7 +539,7 @@ function PerimetreGouvernanceContent() {
         });
       });
 
-      const ventilationKey = scope.level === "COMMUNAL" ? "arrondissement_id" : (scope.level === "NATIONAL" ? "departement_id" : "commune_id");
+      const ventilationKey = scope.level === "COMMUNAL" ? "arrondissement_id" : "commune_id";
 
       (ascqsList || []).forEach((u: any) => {
         const key = u[ventilationKey];
@@ -655,8 +632,6 @@ function PerimetreGouvernanceContent() {
         .or("poste.eq.ASCQ,role_technique.eq.ASCQ_OPERATEUR");
 
       if (scope.filterType === "commune_id" && scope.id) query = query.eq("commune_id", scope.id);
-      else if (scope.filterType === "zone_sanitaire_id" && scope.id) query = query.eq("zone_sanitaire_id", scope.id);
-      else if (scope.filterType === "departement_id" && scope.id) query = query.eq("departement_id", scope.id);
 
       const { data: users } = await query.order("nom");
 
@@ -713,8 +688,6 @@ function PerimetreGouvernanceContent() {
         .select("id, nom, prenoms, telephone, poste, poste_autre, role_technique, role_nomination, statut_compte, commune_id, arrondissement_id, departement_id, zone_sanitaire_id, created_at");
 
       if (scope.filterType === "commune_id" && scope.id) q = q.eq("commune_id", scope.id);
-      else if (scope.filterType === "zone_sanitaire_id" && scope.id) q = q.eq("zone_sanitaire_id", scope.id);
-      else if (scope.filterType === "departement_id" && scope.id) q = q.eq("departement_id", scope.id);
 
       const { data, error } = await q.order("nom");
       if (!error && data) {
@@ -964,10 +937,6 @@ function PerimetreGouvernanceContent() {
 
       if (scope.filterType === "commune_id" && scope.id) {
         query = query.eq("commune_id", scope.id);
-      } else if (scope.filterType === "zone_sanitaire_id" && scope.id) {
-        query = query.eq("zone_sanitaire_id", scope.id);
-      } else if (scope.filterType === "departement_id" && scope.id) {
-        query = query.eq("departement_id", scope.id);
       }
 
       const { data } = await query.order("created_at", { ascending: false });
@@ -1202,8 +1171,6 @@ function PerimetreGouvernanceContent() {
         .or("poste.eq.ASCQ,role_technique.eq.ASCQ_OPERATEUR");
 
       if (scope.filterType === "commune_id" && scope.id) ascqQuery = ascqQuery.eq("commune_id", scope.id);
-      else if (scope.filterType === "zone_sanitaire_id" && scope.id) ascqQuery = ascqQuery.eq("zone_sanitaire_id", scope.id);
-      else if (scope.filterType === "departement_id" && scope.id) ascqQuery = ascqQuery.eq("departement_id", scope.id);
 
       const { data: usersData } = await ascqQuery;
       const ascqsTerritoire = usersData || [];
@@ -1458,7 +1425,7 @@ function PerimetreGouvernanceContent() {
     }
   };
 
-  // Chargement des ordres de mission du territoire
+  // Chargement des demandes de service du territoire
   const chargerMissions = async () => {
     if (!currentUser) return;
     setLoadingMissions(true);
@@ -1487,7 +1454,7 @@ function PerimetreGouvernanceContent() {
     }
   };
 
-  // Émission d'un ordre de mission ou d'une consigne de terrain
+  // Émission d'un demande de service ou d'une consigne de terrain
   const handleCreerOrdreMission = async (e: React.FormEvent) => {
     e.preventDefault();
     if (missionCibleType === "ASCQ_SPECIFIQUE" && !missionAscqId) {
@@ -1535,7 +1502,7 @@ function PerimetreGouvernanceContent() {
 
       const notifs = cibles.map((a: any) => ({
         destinataire_id: a.id,
-        titre: `🎯 Ordre de Mission (${cadreTitre}) : ${missionTitre.trim()}`,
+        titre: `🎯 Demande de Service (${cadreTitre}) : ${missionTitre.trim()}`,
         message: `[Priorité: ${missionPriorite} • Échéance: ${missionDateEcheance || "Immédiate"}] ${currentUser.nom || "Cadre"} ${currentUser.prenoms || ""} vous assigne la mission suivante : ${missionDirectives.trim()}`,
         type: "MISSION",
         type_notification: "ORDRE_MISSION",
@@ -1552,7 +1519,7 @@ function PerimetreGouvernanceContent() {
       setTimeout(() => setToastMsg(null), 3500);
       await chargerMissions();
     } catch (err: any) {
-      setToastMsg({ text: "Erreur envoi ordre de mission : " + err.message, error: true });
+      setToastMsg({ text: "Erreur envoi demande de service : " + err.message, error: true });
     } finally {
       setSubmittingMission(false);
     }
@@ -1848,7 +1815,7 @@ function PerimetreGouvernanceContent() {
               <p className="text-xs text-emerald-100 font-medium">
                 {isRepresentantCommunal
                   ? "Validation des inscriptions ASCQ, contrôle et visa des rapports RMA/Hebdo, et pilotage sanitaire communal."
-                  : "Supervision du périmètre territorial, observation des fiches d'ASCQ, suggestions de corrections, alertes sanitaires et ordres de mission."}
+                  : "Supervision du périmètre territorial, observation des fiches d'ASCQ, suggestions de corrections, alertes sanitaires et demandes de service."}
               </p>
             </div>
 
@@ -3998,7 +3965,7 @@ function PerimetreGouvernanceContent() {
                   Direction Opérationnelle de Santé
                 </span>
                 <h2 className="text-base font-black text-slate-900 mt-1">
-                  Alertes Territoriales & Ordres de Mission de Terrain
+                  Alertes Territoriales & Demandes de Service de Terrain
                 </h2>
                 <p className="text-xs text-slate-500">
                   Périmètre d'action : <strong>{libelleTerritoire}</strong> ({ascqs.length} agents de santé communautaire qualifiés rattachés).
@@ -4016,7 +3983,7 @@ function PerimetreGouvernanceContent() {
                   }`}
                 >
                   <Target className="w-3.5 h-3.5" />
-                  <span>🎯 Ordres de Mission</span>
+                  <span>🎯 Demandes de Service</span>
                 </button>
                 <button
                   type="button"
@@ -4036,7 +4003,7 @@ function PerimetreGouvernanceContent() {
             {/* VOLET A : ORDRES DE MISSION / CONSIGNES DE TERRAIN */}
             {missionSubMode === "MISSION" && (
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-                {/* Formulaire émission ordre de mission */}
+                {/* Formulaire émission demande de service */}
                 <div className="lg:col-span-5 bg-white rounded-3xl p-5 border border-slate-200 shadow-sm space-y-3 text-xs">
                   <div className="flex items-center gap-2 pb-1 border-b border-slate-100">
                     <Target className="w-4 h-4 text-[#005c30]" />
@@ -4163,7 +4130,7 @@ function PerimetreGouvernanceContent() {
                       className="w-full py-2.5 rounded-xl bg-[#005c30] hover:bg-[#004724] text-white font-extrabold text-xs shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
                     >
                       {submittingMission ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Target className="w-4 h-4" />}
-                      <span>{submittingMission ? "Diffusion en cours..." : "Transmettre l'Ordre de Mission"}</span>
+                      <span>{submittingMission ? "Diffusion en cours..." : "Transmettre l'Demande de Service"}</span>
                     </button>
                   </form>
                 </div>
@@ -4188,9 +4155,9 @@ function PerimetreGouvernanceContent() {
                   ) : missionsList.length === 0 ? (
                     <div className="p-8 text-center text-slate-400 space-y-2">
                       <Target className="w-8 h-8 text-slate-300 mx-auto" />
-                      <p className="font-bold text-slate-600">Aucun ordre de mission émis</p>
+                      <p className="font-bold text-slate-600">Aucun demande de service émis</p>
                       <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
-                        Assignez une consigne ou un ordre de mission de terrain aux agents de votre territoire.
+                        Assignez une consigne ou un demande de service de terrain aux agents de votre territoire.
                       </p>
                     </div>
                   ) : (

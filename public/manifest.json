@@ -1,7 +1,7 @@
 {
-  "name": "ASCQ BÉNIN - Application Officielle",
-  "short_name": "ASCQ Bénin",
-  "description": "Application officielle de surveillance épidémiologique et d'activité des Agents de Santé Communautaire Qualifiés (ASCQ) du Bénin",
+  "name": "SantéCom Bénin",
+  "short_name": "SantéCom",
+  "description": "Plateforme communautaire de santé — Développé pour et par le Collectif des ASCQ du Bénin",
   "start_url": "/",
   "id": "/",
   "display": "standalone",
