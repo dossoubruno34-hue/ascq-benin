@@ -183,7 +183,7 @@ const TOUTES_LES_SLIDES: DetailedSlide[] = [
       {
         icon: "🔔",
         titre: "Notifications Push sur Mobile",
-        description: "Les alertes sanitaires et ordres de mission s'affichent sur l'écran verrouillé du téléphone comme sur WhatsApp.",
+        description: "Les alertes sanitaires et demandes de service s'affichent sur l'écran verrouillé du téléphone comme sur WhatsApp.",
         stat: "Instantané"
       }
     ],
@@ -1077,7 +1077,7 @@ const TOUTES_LES_SLIDES: DetailedSlide[] = [
   {
     id: 32,
     pole: "GOUVERNANCE PÉRIMÈTRE",
-    ongletNom: "Sous-Onglet « Alertes & Ordres de Mission »",
+    ongletNom: "Sous-Onglet « Alertes & Demandes de Service »",
     titre: "Commandement Sanitaire & Riposte aux Épidémies",
     sousTitre: "La mobilisation immédiate d'équipes de riposte sanitaire dès confirmation d'une alerte épidémique.",
     cibleProfils: "Médecin Coordonnateur MCZS, Maire, Équipes d'investigation",
@@ -1090,9 +1090,9 @@ const TOUTES_LES_SLIDES: DetailedSlide[] = [
       },
       {
         icon: "📜",
-        titre: "Émission d'Ordres de Mission",
+        titre: "Émission d'Demandes de Service",
         description: "Génération numérique formelle de l'ordre d'intervention avec attribution de l'équipe et des moyens.",
-        stat: "Ordre de Mission"
+        stat: "Demande de Service"
       },
       {
         icon: "⏱️",
@@ -1103,7 +1103,7 @@ const TOUTES_LES_SLIDES: DetailedSlide[] = [
     ],
     lienOnglet: "/perimetre?tab=alertes_missions",
     labelBoutonLien: "Consulter Alertes & Missions (/perimetre?tab=alertes_missions)",
-    scriptOrateur: "Dès qu'une alerte grave est confirmée au village, le Médecin Coordonnateur et le Maire utilisent cet onglet pour déclencher officiellement un ordre de mission. Tout est tracé pour une riposte rapide et coordonnée."
+    scriptOrateur: "Dès qu'une alerte grave est confirmée au village, le Médecin Coordonnateur et le Maire utilisent cet onglet pour déclencher officiellement un demande de service. Tout est tracé pour une riposte rapide et coordonnée."
   },
   {
     id: 33,

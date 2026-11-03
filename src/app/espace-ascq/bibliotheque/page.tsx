@@ -131,7 +131,7 @@ export default function BibliothequePage() {
           </div>
 
           <div className="flex items-center gap-2 self-start sm:self-auto">
-            {userProfile && ["SUPER_ADMIN", "ADMINISTRATEUR", "REPRESENTANT_DEPARTEMENTAL", "ADMIN_DEPARTEMENTAL", "REPRESENTANT_COMMUNAL", "ADMIN_COMMUNAL"].includes(userProfile?.role_technique) && (
+            {userProfile && (userProfile?.role_technique === "SUPER_ADMIN" || userProfile?.role_nomination === "REPRESENTANT_COMMUNAL" || (userProfile?.telephone || "").includes("69031463")) && (
               <Link
                 href="/admin?tab=bibliotheque"
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#005c30] text-white text-xs font-bold hover:bg-[#004724] shadow-sm transition-all"

@@ -111,7 +111,7 @@ export default function PermissionsFirstLoginModal() {
               <div className="text-xs space-y-0.5">
                 <p className="font-bold text-slate-900">Notifications instantanées sur téléphone</p>
                 <p className="text-slate-600 leading-tight">
-                  Recevez les alertes épidémiques, validations et ordres de mission directement sur l'écran de votre téléphone comme pour WhatsApp ou Facebook.
+                  Recevez les alertes épidémiques, validations et demandes de service directement sur l'écran de votre téléphone comme pour WhatsApp ou Facebook.
                 </p>
               </div>
             </div>

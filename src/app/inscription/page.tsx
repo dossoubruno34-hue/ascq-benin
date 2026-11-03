@@ -30,15 +30,16 @@ export default function InscriptionPage() {
   const [poste, setPoste] = useState("ASCQ");
   const [posteAutre, setPosteAutre] = useState("");
 
-  // Rôles et niveaux hiérarchiques
-  // Les responsables de santé ne sont pas rattachés à un arrondissement ni à un centre de santé mais selon leur périmètre
-  const isCadreNational = ["CADRE_NATIONAL", "DIRECTEUR", "MINISTRE", "COORDINATEUR_NATIONAL"].includes(poste);
-  const isCadreDept = ["DDS", "CCD_CDLS_TP", "CSSPR", "CSPSMEMH", "CADRE_DEPARTEMENTAL"].includes(poste);
-  const isCadreZone = ["MCZS", "RCSE", "C_RAMS", "CADRE_ZONE_SANITAIRE"].includes(poste);
-  const isCadreCommune = ["MCC", "PF_CCLS_TP", "CADRE_COMMUNAL"].includes(poste);
+  // Rôles officiels SantéCom Bénin : SUPER_ADMIN, MEMBRE_MINISTERE, PF_CCLS_TP, ASCQ, RC
+  const isMembreMinistere = poste === "MEMBRE_MINISTERE";
+  const isPfCclsTp = poste === "PF_CCLS_TP";
   const isTerrainAscq = poste === "ASCQ";
   const isTerrainRc = poste === "RC";
-  const isAutre = poste === "AUTRE";
+
+  // ASCQ de rattachement pour l'auto-enrôlement autonome du RC
+  const [selectedAscqRattachement, setSelectedAscqRattachement] = useState("");
+  const [ascqsCommune, setAscqsCommune] = useState<Array<{ id: string; nom: string; prenoms: string; telephone: string }>>([]);
+  const [loadingAscqs, setLoadingAscqs] = useState(false);
 
   // Critères de robustesse du mot de passe (obligatoire pour ASCQ et cadres - anti-hack)
   const pwdMinLength = motDePasse.length >= 8;
@@ -46,18 +47,12 @@ export default function InscriptionPage() {
   const pwdLetter = /[a-zA-Z]/.test(motDePasse);
   const pwdNumber = /[0-9]/.test(motDePasse);
   const pwdRobustesseConforme = isTerrainRc ? (motDePasse.length === 4 && /^\d{4}$/.test(motDePasse)) : (pwdMinLength && pwdSpecialChar && pwdLetter && pwdNumber);
-  const necessitePrecision = [
-    "CADRE_COMMUNAL",
-    "CADRE_ZONE_SANITAIRE",
-    "CADRE_DEPARTEMENTAL",
-    "CADRE_NATIONAL",
-    "AUTRE"
-  ].includes(poste);
+  const necessitePrecision = false;
 
-  const showDepartement = !isCadreNational;
-  const showZoneSanitaire = isCadreZone || isTerrainAscq || isTerrainRc || isAutre;
-  const showCommune = isCadreCommune || isTerrainAscq || isTerrainRc || isAutre;
-  const showArrondissement = isTerrainAscq || isTerrainRc || isAutre;
+  const showDepartement = !isMembreMinistere;
+  const showZoneSanitaire = isTerrainAscq;
+  const showCommune = !isMembreMinistere;
+  const showArrondissement = isTerrainAscq;
   const showAscqProfil = isTerrainAscq;
 
   // Localisation
@@ -149,6 +144,34 @@ export default function InscriptionPage() {
     loadArrondissements();
   }, [selectedCom]);
 
+  // Cascade : Si profil RC, charger les ASCQ validés de la commune pour le rattachement
+  useEffect(() => {
+    if (!selectedCom || !isTerrainRc) {
+      setAscqsCommune([]);
+      setSelectedAscqRattachement("");
+      return;
+    }
+
+    async function loadAscqsDeLaCommune() {
+      setLoadingAscqs(true);
+      try {
+        const { data } = await supabase
+          .from("utilisateurs")
+          .select("id, nom, prenoms, telephone")
+          .eq("commune_id", selectedCom)
+          .in("role_technique", ["ASCQ", "ASCQ_OPERATEUR"])
+          .eq("statut_compte", "VALIDE")
+          .order("nom");
+        setAscqsCommune(data || []);
+      } catch (e) {
+        console.warn("Erreur chargement ASCQ commune:", e);
+      } finally {
+        setLoadingAscqs(false);
+      }
+    }
+    loadAscqsDeLaCommune();
+  }, [selectedCom, isTerrainRc]);
+
   // Soumission du formulaire d'inscription
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -174,8 +197,13 @@ export default function InscriptionPage() {
         setLoading(false);
         return;
       }
-      if (!selectedDep || !selectedCom || !selectedArr) {
-        setErrorMsg("Veuillez sélectionner le département, la commune et l'arrondissement pour votre rattachement en tant que RC.");
+      if (!selectedDep || !selectedCom) {
+        setErrorMsg("Veuillez sélectionner le département et la commune pour votre rattachement en tant que RC.");
+        setLoading(false);
+        return;
+      }
+      if (!selectedAscqRattachement) {
+        setErrorMsg("Veuillez sélectionner votre ASCQ de rattachement dans cette commune.");
         setLoading(false);
         return;
       }
@@ -184,14 +212,14 @@ export default function InscriptionPage() {
       const cleanEmail = email.trim().toLowerCase();
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!cleanEmail || !emailRegex.test(cleanEmail)) {
-        setErrorMsg("Veuillez renseigner une adresse email valide (obligatoire pour les ASCQ et cadres de santé afin de sécuriser votre compte).");
+        setErrorMsg("Veuillez renseigner une adresse email valide.");
         setLoading(false);
         return;
       }
 
       // 2. Validation du mot de passe robuste anti-hack (8+ car., lettre, chiffre, caractère spécial)
       if (!pwdMinLength) {
-        setErrorMsg("Pour les ASCQ et cadres, le mot de passe doit comporter au moins 8 caractères.");
+        setErrorMsg("Le mot de passe doit comporter au moins 8 caractères.");
         setLoading(false);
         return;
       }
@@ -212,21 +240,9 @@ export default function InscriptionPage() {
           setLoading(false);
           return;
         }
-      } else if (isCadreCommune) {
+      } else if (isPfCclsTp) {
         if (!selectedDep || !selectedCom) {
-          setErrorMsg("Veuillez sélectionner votre département et votre commune de rattachement.");
-          setLoading(false);
-          return;
-        }
-      } else if (isCadreZone) {
-        if (!selectedDep || !selectedZs) {
-          setErrorMsg("Veuillez sélectionner votre département et votre zone sanitaire de rattachement.");
-          setLoading(false);
-          return;
-        }
-      } else if (isCadreDept) {
-        if (!selectedDep) {
-          setErrorMsg("Veuillez sélectionner votre département de rattachement.");
+          setErrorMsg("Veuillez sélectionner votre département et votre commune de rattachement pour le Point Focal CCLS-TP.");
           setLoading(false);
           return;
         }
@@ -271,11 +287,11 @@ export default function InscriptionPage() {
         p_nom: nom.trim().toUpperCase(),
         p_prenoms: prenoms.trim(),
         p_poste: poste,
-        p_poste_autre: necessitePrecision ? posteAutre.trim() : null,
-        p_departement_id: selectedDep || null,
-        p_zone_sanitaire_id: showZoneSanitaire ? (selectedZs || null) : null,
-        p_commune_id: showCommune ? (selectedCom || null) : null,
-        p_arrondissement_id: showArrondissement ? (selectedArr || null) : null,
+        p_poste_autre: null,
+        p_departement_id: isMembreMinistere ? null : (selectedDep || null),
+        p_zone_sanitaire_id: isTerrainAscq ? (selectedZs || null) : null,
+        p_commune_id: isMembreMinistere ? null : (selectedCom || null),
+        p_arrondissement_id: isTerrainAscq ? (selectedArr || null) : null,
         p_second_arrondissement_id: (isTerrainAscq && cumulArrondissements) ? (selectedSecondArr || null) : null,
         p_source_financement: showAscqProfil ? sourceFinancement : "LLF_FADEC",
         p_source_financement_autre: (showAscqProfil && sourceFinancement === "AUTRE") ? sourceFinancementAutre.trim() : null,
@@ -283,18 +299,40 @@ export default function InscriptionPage() {
         p_afficher_annuaire: showAscqProfil ? afficherAnnuaire : false,
         p_cumul_deux_arrondissements: isTerrainAscq ? cumulArrondissements : false,
         p_email: isTerrainRc ? null : email.trim().toLowerCase(),
+        p_ascq_rattachement_id: isTerrainRc ? selectedAscqRattachement : null,
       };
 
       let { error: rpcError } = await supabase.rpc("inscrire_nouvel_agent", rpcParams);
 
-      if (rpcError && (rpcError.message.includes("p_email") || rpcError.message.includes("schema cache") || rpcError.message.includes("function") || rpcError.message.includes("not found"))) {
-        // Fallback sans p_email si la migration Supabase SQL n'a pas encore été passée sur l'instance cloud
-        const { p_email, ...paramsWithoutEmail } = rpcParams;
-        const fallback = await supabase.rpc("inscrire_nouvel_agent", paramsWithoutEmail);
+      if (rpcError && (rpcError.message.includes("p_ascq_rattachement_id") || rpcError.message.includes("p_email") || rpcError.message.includes("schema cache") || rpcError.message.includes("function") || rpcError.message.includes("not found"))) {
+        // Fallback sans p_ascq_rattachement_id si la nouvelle signature RPC n'a pas encore été migrée sur Supabase
+        const { p_ascq_rattachement_id, ...paramsWithoutAscq } = rpcParams;
+        let fallback = await supabase.rpc("inscrire_nouvel_agent", paramsWithoutAscq);
+        if (fallback.error && fallback.error.message.includes("p_email")) {
+          const { p_email, ...paramsLegacy } = paramsWithoutAscq;
+          fallback = await supabase.rpc("inscrire_nouvel_agent", paramsLegacy);
+        }
         rpcError = fallback.error;
       }
 
       if (rpcError) throw rpcError;
+
+      // Si RC avec ASCQ de rattachement, enregistrement direct de la liaison en attente dans relais_communautaires
+      if (isTerrainRc && selectedAscqRattachement) {
+        try {
+          await supabase.from("relais_communautaires").insert({
+            user_id: userId,
+            ascq_id: selectedAscqRattachement,
+            commune_id: selectedCom,
+            nom: nom.trim().toUpperCase(),
+            prenoms: prenoms.trim(),
+            telephone: cleanPhone.startsWith("229") ? `+${cleanPhone}` : `+229${cleanPhone}`,
+            statut: "EN_ATTENTE"
+          });
+        } catch (e) {
+          console.warn("Liaison RC enregistrée via RPC:", e);
+        }
+      }
 
       // Mise à jour de sécurité directe de l'email si non-RC
       if (!isTerrainRc && email.trim()) {
@@ -351,18 +389,26 @@ export default function InscriptionPage() {
                 <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0" />
                 <span>
                   {poste === "RC" 
-                    ? "Statut : Transmis à l'ASCQ de votre arrondissement" 
-                    : "Statut du compte : En attente de validation"}
+                    ? "Statut : En attente de validation par votre ASCQ ou le Représentant Communal" 
+                    : poste === "PF_CCLS_TP"
+                    ? "Statut : En attente de validation par le Super Administrateur National"
+                    : poste === "MEMBRE_MINISTERE"
+                    ? "Statut : En attente de nomination par le Super Administrateur National"
+                    : "Statut du compte : En attente de validation par votre Représentant Communal"}
                 </span>
               </div>
               <p>
                 {poste === "RC"
-                  ? "Votre demande a bien été enregistrée. L'ASCQ de votre arrondissement a été automatiquement notifié pour valider votre compte et vous affecter à votre village d'intervention."
-                  : "Votre demande a bien été enregistrée. Elle est visible dans l'espace administration pour être validée par votre responsable communal ou départemental."}
+                  ? "Votre auto-enrôlement a bien été enregistré. Votre ASCQ de rattachement ou le Représentant Communal de votre commune a été notifié pour valider votre compte."
+                  : poste === "PF_CCLS_TP"
+                  ? "Votre demande a bien été enregistrée pour votre commune. Le Super Administrateur National a été notifié pour valider votre accès en consultation communale."
+                  : poste === "MEMBRE_MINISTERE"
+                  ? "Votre inscription a bien été enregistrée. Le Super Administrateur National procèdera à votre nomination officielle pour l'accès en consultation nationale."
+                  : "Votre demande a bien été enregistrée. Elle sera validée par le Représentant Communal des ASCQ de votre commune ou le Super Administrateur."}
               </p>
               <p className="font-semibold text-slate-800 pt-1">
                 {poste === "RC"
-                  ? `Dès validation par votre ASCQ, vous pourrez vous connecter directement avec votre numéro ${telephone} et votre code à 4 chiffres.`
+                  ? `Dès validation par votre ASCQ ou le représentant communal, vous pourrez vous connecter directement avec votre numéro ${telephone} et votre code à 4 chiffres.`
                   : "Dès validation, vous pourrez vous connecter directement avec votre numéro de téléphone et votre mot de passe."}
               </p>
             </div>
@@ -565,138 +611,64 @@ export default function InscriptionPage() {
                       if (newP === "RC") {
                         setNombreRc(0);
                       }
-                      if (["CADRE_NATIONAL", "DIRECTEUR", "MINISTRE", "COORDINATEUR_NATIONAL"].includes(newP)) {
+                      if (newP === "MEMBRE_MINISTERE") {
                         setSelectedDep("");
                         setSelectedZs("");
                         setSelectedCom("");
                         setSelectedArr("");
-                      } else if (["DDS", "CCD_CDLS_TP", "CSSPR", "CSPSMEMH", "CADRE_DEPARTEMENTAL"].includes(newP)) {
+                        setSelectedAscqRattachement("");
+                      } else if (newP === "PF_CCLS_TP") {
                         setSelectedZs("");
-                        setSelectedCom("");
                         setSelectedArr("");
-                      } else if (["MCZS", "RCSE", "C_RAMS", "CADRE_ZONE_SANITAIRE"].includes(newP)) {
-                        setSelectedCom("");
-                        setSelectedArr("");
-                      } else if (["MCC", "PF_CCLS_TP", "CADRE_COMMUNAL"].includes(newP)) {
-                        setSelectedArr("");
+                        setSelectedAscqRattachement("");
                       }
                     }}
                     className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-slate-800"
                   >
-                    <optgroup label="Terrain">
-                      <option value="ASCQ">ASCQ</option>
-                      <option value="RC">RC</option>
-                    </optgroup>
-                    <optgroup label="Commune">
-                      <option value="MCC">MCC</option>
-                      <option value="PF_CCLS_TP">PF CCLS-TP</option>
-                      <option value="CADRE_COMMUNAL">CADRE COMMUNE</option>
-                    </optgroup>
-                    <optgroup label="Zone Sanitaire">
-                      <option value="MCZS">MCZS</option>
-                      <option value="RCSE">RCSE</option>
-                      <option value="C_RAMS">C-RAMS</option>
-                      <option value="CADRE_ZONE_SANITAIRE">CADRE ZONE</option>
-                    </optgroup>
-                    <optgroup label="Département">
-                      <option value="DDS">DDS</option>
-                      <option value="CCD_CDLS_TP">CCD CDLS-TP</option>
-                      <option value="CSSPR">CSSPR</option>
-                      <option value="CSPSMEMH">CSPSMEMH</option>
-                      <option value="CADRE_DEPARTEMENTAL">CADRE DEPARTEMENT</option>
-                    </optgroup>
-                    <optgroup label="National">
-                      <option value="CADRE_NATIONAL">CADRE NATIONAL</option>
-                    </optgroup>
-                    <optgroup label="Autre">
-                      <option value="AUTRE">AUTRE</option>
-                    </optgroup>
+                    <option value="ASCQ">Agent de Santé Communautaire Qualifié (ASCQ)</option>
+                    <option value="RC">Relais Communautaire (RC) — Auto-enrôlement</option>
+                    <option value="PF_CCLS_TP">Point Focal CCLS-TP (Mairie)</option>
+                    <option value="MEMBRE_MINISTERE">Ministère de la Santé (désigné)</option>
                   </select>
                 </div>
 
                 {isTerrainRc && (
-                  <div className="sm:col-span-2 p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs text-emerald-950 space-y-1">
-                    <p className="font-extrabold text-emerald-900">
-                      ℹ️ Inscription RC
+                  <div className="sm:col-span-2 p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs text-emerald-950 space-y-1.5">
+                    <p className="font-extrabold text-emerald-900 flex items-center gap-1.5">
+                      <ShieldCheck className="w-4 h-4 text-emerald-700" />
+                      Auto-enrôlement autonome du Relais Communautaire (RC)
                     </p>
                     <p className="text-[11px] leading-relaxed text-emerald-800">
-                      Renseignez votre département, zone sanitaire, commune et arrondissement. Dès validation par l'ASCQ de votre arrondissement, votre compte sera affecté à votre village d'intervention et actif pour la connexion.
+                      Renseignez votre département, votre commune et sélectionnez votre ASCQ de rattachement. Dès validation par votre ASCQ ou le Représentant Communal, votre compte sera immédiatement actif.
                     </p>
                   </div>
                 )}
 
-                {isCadreNational && (
-                  <div className="sm:col-span-2 p-3.5 bg-teal-50 border border-teal-200 rounded-2xl text-xs text-teal-950 space-y-1">
-                    <p className="font-extrabold text-teal-900">
-                      🏛️ Périmètre National (Supervision globale Bénin)
-                    </p>
-                    <p className="text-[11px] leading-relaxed text-teal-800">
-                      En tant que cadre national, vous supervisez l'ensemble du territoire national en consultation seule. Aucun rattachement à un arrondissement ou centre de santé n'est requis.
-                    </p>
-                  </div>
-                )}
-
-                {isCadreDept && (
-                  <div className="sm:col-span-2 p-3 bg-blue-50 border border-blue-200 rounded-2xl text-xs text-blue-950 space-y-1">
+                {isPfCclsTp && (
+                  <div className="sm:col-span-2 p-3.5 bg-blue-50 border border-blue-200 rounded-2xl text-xs text-blue-950 space-y-1.5">
                     <p className="font-extrabold text-blue-900">
-                      🗺️ Périmètre Départemental (Supervision du département)
+                      🏛️ Point Focal CCLS-TP (Mairie)
                     </p>
                     <p className="text-[11px] leading-relaxed text-blue-800">
-                      Sélectionnez uniquement votre département. Vous superviserez toutes les communes et arrondissements de ce département. Aucun rattachement à un arrondissement ou centre de santé n'est requis.
+                      Sélectionnez votre département et votre commune de rattachement. Après validation par le Super Administrateur, vous accéderez en consultation seule aux données et synthèses de votre commune.
                     </p>
                   </div>
                 )}
 
-                {isCadreZone && (
-                  <div className="sm:col-span-2 p-3 bg-blue-50 border border-blue-200 rounded-2xl text-xs text-blue-950 space-y-1">
-                    <p className="font-extrabold text-blue-900">
-                      🏥 Périmètre Zone Sanitaire (Supervision de la zone)
+                {isMembreMinistere && (
+                  <div className="sm:col-span-2 p-3.5 bg-purple-50 border border-purple-200 rounded-2xl text-xs text-purple-950 space-y-1.5">
+                    <p className="font-extrabold text-purple-900">
+                      🇧🇯 Ministère de la Santé (Désigné)
                     </p>
-                    <p className="text-[11px] leading-relaxed text-blue-800">
-                      Sélectionnez votre département et votre zone sanitaire. Vous superviserez toutes les communes rattachées. Aucun rattachement à un arrondissement ou centre de santé n'est requis.
-                    </p>
-                  </div>
-                )}
-
-                {isCadreCommune && (
-                  <div className="sm:col-span-2 p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs text-emerald-950 space-y-1">
-                    <p className="font-extrabold text-emerald-900">
-                      🏛️ Périmètre Communal (Supervision de la commune)
-                    </p>
-                    <p className="text-[11px] leading-relaxed text-emerald-800">
-                      Sélectionnez votre département et votre commune. Votre périmètre couvrira tous les arrondissements de la commune. Aucun rattachement à un arrondissement ou centre de santé spécifique n'est requis.
-                    </p>
-                  </div>
-                )}
-
-                {necessitePrecision && (
-                  <div className="sm:col-span-2">
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Préciser (obligatoire) *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={posteAutre}
-                      onChange={(e) => setPosteAutre(e.target.value)}
-                      placeholder={
-                        poste === "CADRE_NATIONAL" ? "Ex: Directeur Général, Coordonnateur Adjoint..." :
-                        poste === "CADRE_DEPARTEMENTAL" ? "Ex: Chef Service Statistiques, Coordonnateur Régional..." :
-                        poste === "CADRE_ZONE_SANITAIRE" ? "Ex: Médecin Chef Adjoint, Responsable Hygiène Zone..." :
-                        poste === "CADRE_COMMUNAL" ? "Ex: Chargé de Mission Santé Mairie, Superviseur Communal..." :
-                        "Ex: Superviseur, Coordonnateur, Fonction officielle..."
-                      }
-                      className="w-full text-sm rounded-xl border border-amber-300 bg-amber-50/40 px-3.5 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 uppercase font-medium shadow-sm"
-                    />
-                    <p className="text-[11px] text-amber-800 mt-1 font-medium">
-                      ⚠️ Précision obligatoire pour l'identification de votre fonction dans la gouvernance sanitaire.
+                    <p className="text-[11px] leading-relaxed text-purple-800">
+                      Votre compte sera nommé par le Super Administrateur National pour la consultation seule de l'ensemble du territoire national. Aucun rattachement communal n'est requis.
                     </p>
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Section 3 : Aire géographique (EN MAJUSCULES SANS ACCENTS) */}
+            {/* Section 3 : Aire géographique */}
             <div className="space-y-4 pt-2">
               <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                 <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
@@ -705,103 +677,130 @@ export default function InscriptionPage() {
                 <span className="text-[11px] text-slate-500">Filtrage en cascade</span>
               </div>
 
-              {isCadreNational ? (
+              {isMembreMinistere ? (
                 <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-600 text-center font-medium">
-                  ✅ Aire géographique : <strong>Territoire National (Tout le Bénin)</strong>. Aucune sous-division n'est requise.
+                  ✅ Aire géographique : <strong>Territoire National (Tout le Bénin)</strong>. Consultation seule globale.
                 </div>
               ) : (
-                <>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {showDepartement && (
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1">
-                          Département *
-                        </label>
-                        <select
-                          required
-                          value={selectedDep}
-                          onChange={(e) => setSelectedDep(e.target.value)}
-                          className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                        >
-                          <option value="">Sélectionnez un département</option>
-                          {departements.map((d) => (
-                            <option key={d.id} value={d.id}>
-                              {d.nom}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {showDepartement && (
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Département *
+                      </label>
+                      <select
+                        required
+                        value={selectedDep}
+                        onChange={(e) => setSelectedDep(e.target.value)}
+                        className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      >
+                        <option value="">Sélectionnez un département</option>
+                        {departements.map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {d.nom}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
 
-                    {showZoneSanitaire && (
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1">
-                          Zone sanitaire {isAutre ? "" : "*"}
-                        </label>
-                        <select
-                          required={!isAutre}
-                          value={selectedZs}
-                          onChange={(e) => setSelectedZs(e.target.value)}
-                          disabled={!selectedDep}
-                          className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50"
-                        >
-                          <option value="">Sélectionnez une zone sanitaire</option>
-                          {zonesSanitaires.map((z) => (
-                            <option key={z.id} value={z.id}>
-                              {z.nom}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
+                  {showZoneSanitaire && (
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Zone sanitaire
+                      </label>
+                      <select
+                        value={selectedZs}
+                        onChange={(e) => setSelectedZs(e.target.value)}
+                        disabled={!selectedDep}
+                        className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50"
+                      >
+                        <option value="">Sélectionnez une zone sanitaire</option>
+                        {zonesSanitaires.map((z) => (
+                          <option key={z.id} value={z.id}>
+                            {z.nom}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
 
-                    {showCommune && (
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1">
-                          Commune {isAutre ? "" : "*"}
-                        </label>
-                        <select
-                          required={!isAutre}
-                          value={selectedCom}
-                          onChange={(e) => setSelectedCom(e.target.value)}
-                          disabled={!selectedDep}
-                          className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50"
-                        >
-                          <option value="">Sélectionnez une commune</option>
-                          {filteredCommunes.map((c) => (
-                            <option key={c.id} value={c.id}>
-                              {c.nom}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
+                  {showCommune && (
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Commune *
+                      </label>
+                      <select
+                        required
+                        value={selectedCom}
+                        onChange={(e) => setSelectedCom(e.target.value)}
+                        disabled={!selectedDep}
+                        className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50"
+                      >
+                        <option value="">Sélectionnez une commune</option>
+                        {filteredCommunes.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.nom}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
 
-                    {showArrondissement && (
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1">
-                          Arrondissement principal {isTerrainAscq ? "*" : ""}
-                        </label>
-                        <select
-                          required={isTerrainAscq}
-                          value={selectedArr}
-                          onChange={(e) => setSelectedArr(e.target.value)}
-                          disabled={!selectedCom}
-                          className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50"
-                        >
-                          <option value="">Sélectionnez un arrondissement</option>
-                          {arrondissements.map((a) => (
-                            <option key={a.id} value={a.id}>
-                              {a.nom}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-                  </div>
+                  {isTerrainRc && (
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        ASCQ de rattachement (Superviseur) *
+                      </label>
+                      <select
+                        required
+                        value={selectedAscqRattachement}
+                        onChange={(e) => setSelectedAscqRattachement(e.target.value)}
+                        disabled={!selectedCom || loadingAscqs}
+                        className="w-full text-sm rounded-xl border border-emerald-300 bg-emerald-50/40 px-3 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-semibold text-slate-800 disabled:opacity-50"
+                      >
+                        <option value="">
+                          {loadingAscqs
+                            ? "Chargement des ASCQ..."
+                            : selectedCom
+                            ? ascqsCommune.length > 0
+                              ? "Sélectionnez votre ASCQ superviseur"
+                              : "Aucun ASCQ trouvé dans cette commune"
+                            : "Sélectionnez d'abord votre commune"}
+                        </option>
+                        {ascqsCommune.map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.nom} {a.prenoms} {a.telephone ? `(${a.telephone})` : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {showArrondissement && (
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Arrondissement d'affectation *
+                      </label>
+                      <select
+                        required
+                        value={selectedArr}
+                        onChange={(e) => setSelectedArr(e.target.value)}
+                        disabled={!selectedCom}
+                        className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50"
+                      >
+                        <option value="">Sélectionnez un arrondissement</option>
+                        {arrondissements.map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.nom}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
 
                   {isTerrainAscq && selectedCom && (
-                    <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-3">
+                    <div className="sm:col-span-2 bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-3">
                       <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-800">
                         <input
                           type="checkbox"
@@ -836,7 +835,7 @@ export default function InscriptionPage() {
                       )}
                     </div>
                   )}
-                </>
+                </div>
               )}
             </div>
 

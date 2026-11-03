@@ -41,25 +41,10 @@ interface Props {
 
 // Rôles autorisés pour l'accès Périmètre de Supervision
 const REPRESENTANT_ROLES = [
-  "REPRESENTANT_COMMUNAL",
-  "REPRESENTANT_DEPARTEMENTAL",
-  "PF_CCLS_TP",
-  "ADMIN_COMMUNAL",
-  "ADMIN_DEPARTEMENTAL",
-  "GESTIONNAIRE_PERIMETRE",
-  "CADRE_COMMUNAL",
-  "CADRE_ZONE_SANITAIRE",
-  "CADRE_DEPARTEMENTAL",
-  "DDS",
-  "CCD_CDLS_TP",
-  "CSSPR",
-  "CSPSMEMH",
-  "MCZS",
-  "RCSE",
-  "C_RAMS",
-  "MCC",
   "SUPER_ADMIN",
-  "ADMINISTRATEUR"
+  "MEMBRE_MINISTERE",
+  "PF_CCLS_TP",
+  "REPRESENTANT_COMMUNAL"
 ];
 
 export default function AscqNav({ userProfile }: Props) {

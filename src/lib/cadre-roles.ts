@@ -1,186 +1,145 @@
 // =====================================================================
-// UTILITAIRE DE GESTION DES RÔLES : CADRES & RESPONSABLES DE GOUVERNANCE
-// Ministère de la Santé du Bénin - Plateforme ASCQ & Gouvernance
+// UTILITAIRE DE GESTION DES RÔLES & PÉRIMÈTRES (REFONTE ACCÈS COMMUNE)
+// SantéCom Bénin - Rôles : SUPER_ADMIN, MEMBRE_MINISTERE, PF_CCLS_TP, ASCQ, RC
+// Fonction cumulable : REPRESENTANT_COMMUNAL (attribuée à un ASCQ)
+// Aucun rôle ni profil départemental ou zone sanitaire
 // =====================================================================
 
-// Liste des rôles des cadres hiérarchiques et administratifs (NON-ASCQ)
-export const CADRES_RESPONSABLES_NON_ASCQ = [
-  "PF_CCLS_TP",
-  "MCC",
-  "C_RAMS",
-  "C-RAMS",
-  "RCSE",
-  "MCZS",
-  "CCD_CDLS_TP",
-  "CSSPR",
-  "CSPSMEH",
-  "CSPSMEMH",
-  "DDS",
-  "CADRE_COMMUNAL",
-  "CADRE_ZONE_SANITAIRE",
-  "CADRE_DEPARTEMENTAL",
-  "CADRE_NATIONAL",
-  "RESPONSABLE_COMMUNAL",
-  "RESPONSABLE_ZONE_SANITAIRE",
-  "RESPONSABLE_DEPARTEMENTAL",
-  "RESPONSABLE_NATIONAL",
-  "ADMIN_COMMUNAL",
-  "ADMIN_DEPARTEMENTAL",
+export const ROLES_OFFICIELS = [
   "SUPER_ADMIN",
-  "ADMINISTRATEUR"
+  "MEMBRE_MINISTERE",
+  "PF_CCLS_TP",
+  "ASCQ",
+  "RC"
+] as const;
+
+export type RoleOfficiel = typeof ROLES_OFFICIELS[number];
+
+// Cadres et responsables institutionnels (qui ne saisissent pas sur le terrain)
+export const CADRES_RESPONSABLES_NON_ASCQ = [
+  "MEMBRE_MINISTERE",
+  "PF_CCLS_TP",
+  "SUPER_ADMIN"
 ];
 
 /**
- * Détermine si un profil appartient à un Cadre ou Responsable (qui n'est PAS un ASCQ de terrain).
- * Note : Les Représentants Communaux et Départementaux SONT des ASCQ.
+ * Détermine si un profil appartient à un Cadre Non-ASCQ (Consultation/Supervision uniquement)
+ * Remarque : Le Représentant Communal EST un ASCQ avec fonction cumulée de terrain.
  */
 export function estCadreNonAscq(user: any): boolean {
   if (!user) return false;
 
   const cleanTel = String(user.telephone || "").replace(/\D/g, "");
-  // Bruno DOSSOU (Super Admin National & ASCQ de terrain) : dispose de TOUS les accès sans exception (terrain, périmètre, admin)
+  // Bruno DOSSOU (Super Admin National & ASCQ concepteur)
   if (cleanTel.includes("69031463")) {
     return false;
   }
 
-  const roles = [
-    user.poste,
-    user.role_technique,
-    user.role_nomination,
-    user.poste_autre
-  ].filter(Boolean).map(r => String(r).toUpperCase());
+  const roleTech = String(user.role_technique || "").toUpperCase();
+  const poste = String(user.poste || "").toUpperCase();
+  const nomination = String(user.role_nomination || "").toUpperCase();
 
-  // Les représentants communaux et départementaux qui sont ASCQ
-  const isPureRepresentantAscq = roles.some(r => 
-    (r === "REPRESENTANT_COMMUNAL" || r === "REPRESENTANT_DEPARTEMENTAL") &&
-    !roles.some(sub => sub.includes("CCD") || sub.includes("MCZS") || sub.includes("MCC") || sub.includes("PF_CCLS") || sub.includes("CSSPR") || sub.includes("CSPSM") || sub.includes("CADRE") || sub.includes("DDS") || sub.includes("ADMIN"))
-  );
-
-  if (isPureRepresentantAscq) {
+  // Le représentant communal est un ASCQ de terrain
+  if (nomination === "REPRESENTANT_COMMUNAL" || roleTech === "REPRESENTANT_COMMUNAL") {
     return false;
   }
 
-  // Vérifier si un des rôles fait partie de la liste des cadres ou contient un mot-clé cadre
-  return roles.some(r => 
-    CADRES_RESPONSABLES_NON_ASCQ.includes(r) ||
-    r.includes("CCD") ||
-    r.includes("MCZS") ||
-    r.includes("MCC") ||
-    r.includes("PF_CCLS") ||
-    r.includes("CSSPR") ||
-    r.includes("CSPSM") ||
-    r.includes("CADRE") ||
-    r.includes("DDS") ||
-    r.includes("COORDONNATEUR") ||
-    r.includes("CHEF_SERVICE") ||
-    r.includes("DIRECTEUR")
-  );
+  // PF CCLS-TP n'est PAS un ASCQ
+  if (roleTech === "PF_CCLS_TP" || poste === "PF_CCLS_TP" || nomination === "PF_CCLS_TP") {
+    return true;
+  }
+
+  // Membre du Ministère n'est PAS un ASCQ
+  if (roleTech === "MEMBRE_MINISTERE" || poste === "MEMBRE_MINISTERE" || nomination === "MEMBRE_MINISTERE" || poste.includes("MINIST")) {
+    return true;
+  }
+
+  return false;
 }
 
 /**
- * Retourne le titre officiel et honorifique du cadre pour l'affichage dans l'en-tête et les badges.
+ * Retourne le titre officiel selon les rôles stricts de l'application
  */
 export function getTitreCadreOfficiel(user: any): string {
-  if (!user) return "Cadre de Supervision";
-  
-  const roles = [
-    user.poste,
-    user.role_technique,
-    user.role_nomination,
-    user.poste_autre
-  ].filter(Boolean).map(r => String(r).toUpperCase());
+  if (!user) return "Utilisateur";
 
-  if (roles.includes("SUPER_ADMIN")) return "Super Administrateur National";
-  if (roles.includes("ADMINISTRATEUR")) return "Administrateur National";
-  if (roles.includes("CCD_CDLS_TP")) return "Chef Cellule Dép. CDLS-TP";
-  if (roles.includes("CSSPR")) return "Chef Service Santé Publique & Recherche";
-  if (roles.includes("CSPSMEH") || roles.includes("CSPSMEMH")) return "Chef Service Promotion Santé Mère-Enfant & Hygiène";
-  if (roles.includes("DDS")) return "Directeur Départemental de la Santé";
-  if (roles.includes("MCZS")) return "Médecin Coordonnateur de Zone Sanitaire";
-  if (roles.includes("RCSE")) return "Resp. Communal Surveillance Épidémiologique";
-  if (roles.includes("C_RAMS") || roles.includes("C-RAMS")) return "Chef Régie & Suivi RAMS";
-  if (roles.includes("MCC")) return "Médecin Coordonnateur de Commune";
-  if (roles.includes("PF_CCLS_TP")) return "Point Focal Santé Mairie (CCLS-TP)";
-  if (roles.some(r => r.includes("DEPARTEMENT"))) return "Cadre Départemental";
-  if (roles.some(r => r.includes("ZONE"))) return "Cadre Zone Sanitaire";
-  if (roles.some(r => r.includes("COMMUN"))) return "Cadre Communal";
-  if (roles.some(r => r.includes("NATIONAL"))) return "Responsable National";
+  const cleanTel = String(user.telephone || "").replace(/\D/g, "");
+  if (cleanTel.includes("69031463")) {
+    return "Super Administrateur National (Concepteur)";
+  }
 
-  return user.poste || user.role_technique || "Cadre Hiérarchique";
+  const roleTech = String(user.role_technique || "").toUpperCase();
+  const nomination = String(user.role_nomination || "").toUpperCase();
+  const poste = String(user.poste || "").toUpperCase();
+
+  if (roleTech === "SUPER_ADMIN") return "Super Administrateur";
+  if (nomination === "MEMBRE_MINISTERE" || roleTech === "MEMBRE_MINISTERE" || poste === "MEMBRE_MINISTERE") return "Ministère de la Santé (Désigné)";
+  if (nomination === "REPRESENTANT_COMMUNAL") return "Représentant Communal des ASCQ";
+  if (nomination === "PF_CCLS_TP" || roleTech === "PF_CCLS_TP" || poste === "PF_CCLS_TP") return "Point Focal CCLS-TP (Mairie)";
+  if (roleTech === "ASCQ" || poste === "ASCQ" || roleTech === "ASCQ_OPERATEUR") return "Agent de Santé Communautaire Qualifié (ASCQ)";
+  if (roleTech === "RC" || poste === "RC" || roleTech === "RELAIS") return "Relais Communautaire (RC)";
+
+  return user.poste || user.role_technique || "Acteur SantéCom";
 }
 
 export interface PerimetreScope {
-  level: "NATIONAL" | "DEPARTEMENTAL" | "ZONE_SANITAIRE" | "COMMUNAL";
-  filterType: "all" | "departement_id" | "zone_sanitaire_id" | "commune_id";
+  level: "NATIONAL" | "COMMUNAL" | "TERRAIN";
+  filterType: "all" | "commune_id" | "user_id";
   id: string | null;
   libelle: string;
 }
 
 /**
- * Détermine le périmètre territorial exact d'un cadre pour le filtrage strict des données.
- * Priorité absolue au niveau de supervision du rôle officiel (National > Départemental > Zone > Communal).
+ * Détermine le périmètre territorial strict :
+ * - SUPER_ADMIN & MEMBRE_MINISTERE : NATIONAL
+ * - REPRESENTANT_COMMUNAL & PF_CCLS_TP : COMMUNAL (sa commune uniquement)
+ * - ASCQ & RC : TERRAIN (ses propres données et ses RC rattachés)
  */
 export function getPerimetreScope(user: any): PerimetreScope {
   if (!user) {
     return { level: "COMMUNAL", filterType: "commune_id", id: null, libelle: "Périmètre restreint" };
   }
 
-  const role = String(user.role_technique || "").toUpperCase();
-  const poste = String(user.poste || "").toUpperCase();
-  const nomination = String(user.role_nomination || "").toUpperCase();
   const cleanTel = String(user.telephone || "").replace(/\D/g, "");
+  const role = String(user.role_technique || "").toUpperCase();
+  const nomination = String(user.role_nomination || "").toUpperCase();
+  const poste = String(user.poste || "").toUpperCase();
 
+  // 1. Périmètre National : SUPER_ADMIN & MEMBRE_MINISTERE
   const isNational = cleanTel.includes("69031463") ||
-    ["SUPER_ADMIN", "ADMINISTRATEUR", "CADRE_NATIONAL", "RESPONSABLE_NATIONAL"].includes(role) ||
-    ["SUPER_ADMIN", "ADMINISTRATEUR"].includes(poste);
+    role === "SUPER_ADMIN" ||
+    role === "MEMBRE_MINISTERE" ||
+    nomination === "MEMBRE_MINISTERE" ||
+    poste === "MEMBRE_MINISTERE";
 
   if (isNational) {
     return { level: "NATIONAL", filterType: "all", id: null, libelle: "National (Tout le Bénin)" };
   }
 
-  const isDept = ["CADRE_DEPARTEMENTAL", "REPRESENTANT_DEPARTEMENTAL", "ADMIN_DEPARTEMENTAL"].includes(role) ||
-    ["DDS", "CCD_CDLS_TP", "CSSPR", "CSPSMEH", "CSPSMEMH"].includes(poste) ||
-    nomination.includes("DEPARTEMENT");
-
-  if (isDept && user.departement_id) {
-    return { 
-      level: "DEPARTEMENTAL", 
-      filterType: "departement_id", 
-      id: user.departement_id, 
-      libelle: user.departement_nom ? `Département : ${user.departement_nom}` : "Périmètre Départemental" 
+  // 2. Périmètre Communal strict : REPRESENTANT_COMMUNAL & PF_CCLS_TP
+  if (nomination === "REPRESENTANT_COMMUNAL" || role === "PF_CCLS_TP" || nomination === "PF_CCLS_TP" || poste === "PF_CCLS_TP") {
+    return {
+      level: "COMMUNAL",
+      filterType: "commune_id",
+      id: user.commune_id || null,
+      libelle: user.commune_nom ? `Commune : ${user.commune_nom}` : "Périmètre Communal"
     };
   }
 
-  const isZone = ["CADRE_ZONE_SANITAIRE", "RESPONSABLE_ZONE_SANITAIRE"].includes(role) ||
-    ["MCZS", "RCSE", "C_RAMS", "C-RAMS"].includes(poste) ||
-    nomination.includes("ZONE");
-
-  if (isZone && user.zone_sanitaire_id) {
-    return { 
-      level: "ZONE_SANITAIRE", 
-      filterType: "zone_sanitaire_id", 
-      id: user.zone_sanitaire_id, 
-      libelle: user.zone_sanitaire_nom ? `Zone Sanitaire : ${user.zone_sanitaire_nom}` : "Zone Sanitaire" 
+  // 3. ASCQ de terrain
+  if (role === "ASCQ" || poste === "ASCQ" || role === "ASCQ_OPERATEUR") {
+    return {
+      level: "COMMUNAL",
+      filterType: "commune_id",
+      id: user.commune_id || null,
+      libelle: user.commune_nom ? `Commune : ${user.commune_nom}` : "Périmètre Communal"
     };
   }
 
-  if (user.commune_id) {
-    return { 
-      level: "COMMUNAL", 
-      filterType: "commune_id", 
-      id: user.commune_id, 
-      libelle: user.commune_nom ? `Commune : ${user.commune_nom}` : "Périmètre Communal" 
-    };
-  }
-
-  if (user.departement_id) {
-    return { 
-      level: "DEPARTEMENTAL", 
-      filterType: "departement_id", 
-      id: user.departement_id, 
-      libelle: user.departement_nom ? `Département : ${user.departement_nom}` : "Périmètre Départemental" 
-    };
-  }
-
-  return { level: "NATIONAL", filterType: "all", id: null, libelle: "National" };
+  return {
+    level: "TERRAIN",
+    filterType: "user_id",
+    id: user.id,
+    libelle: "Terrain"
+  };
 }

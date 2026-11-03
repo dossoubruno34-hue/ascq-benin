@@ -37,7 +37,7 @@ import {
 } from "lucide-react";
 import { getCachedUserSession } from "@/lib/offline-sync";
 
-type ProfilType = "RC" | "ASCQ" | "COMMUNE" | "ZONE" | "DEPARTEMENT" | "NATIONAL";
+type ProfilType = "RC" | "ASCQ" | "COMMUNE" | "PF_CCLS_TP" | "MINISTERE" | "NATIONAL";
 
 export default function GuideUtilisateurPage() {
   const router = useRouter();
@@ -90,25 +90,25 @@ export default function GuideUtilisateurPage() {
         if (typeof window !== "undefined") {
           const params = new URLSearchParams(window.location.search);
           const pParam = params.get("profil") as ProfilType;
-          if (pParam && ["RC", "ASCQ", "COMMUNE", "ZONE", "DEPARTEMENT", "NATIONAL"].includes(pParam)) {
+          if (pParam && ["RC", "ASCQ", "COMMUNE", "PF_CCLS_TP", "MINISTERE", "NATIONAL"].includes(pParam)) {
             setSelectedProfil(pParam);
             setLoading(false);
             return;
           }
         }
 
-        if (poste === "RC" || role === "RELAIS_COMMUNAUTAIRE") {
+        if (poste === "RC" || role === "RC" || role === "RELAIS_COMMUNAUTAIRE") {
           setSelectedProfil("RC");
-        } else if (poste === "ASCQ" || role === "ASCQ") {
-          setSelectedProfil("ASCQ");
-        } else if (["CADRE_COMMUNAL", "MCC", "PF_CCLS_TP"].includes(poste) || ["REPRESENTANT_COMMUNAL", "ADMIN_COMMUNAL"].includes(role)) {
-          setSelectedProfil("COMMUNE");
-        } else if (["CADRE_ZONE_SANITAIRE", "MCZS", "RCSE", "C_RAMS"].includes(poste)) {
-          setSelectedProfil("ZONE");
-        } else if (["CADRE_DEPARTEMENTAL", "DDS", "CSSPR", "CSPSMEMH", "CCD_CDLS_TP"].includes(poste) || role === "ADMIN_DEPARTEMENTAL") {
-          setSelectedProfil("DEPARTEMENT");
-        } else if (isNational) {
+        } else if (role === "SUPER_ADMIN" || isSuperAdmin) {
           setSelectedProfil("NATIONAL");
+        } else if (role === "MEMBRE_MINISTERE" || ["MINISTERE", "MINISTRE", "MEMBRE_MINISTERE"].includes(poste)) {
+          setSelectedProfil("MINISTERE");
+        } else if (role === "PF_CCLS_TP" || poste === "PF_CCLS_TP") {
+          setSelectedProfil("PF_CCLS_TP");
+        } else if (profil?.role_nomination === "REPRESENTANT_COMMUNAL" || role === "REPRESENTANT_COMMUNAL") {
+          setSelectedProfil("COMMUNE");
+        } else if (role === "ASCQ" || poste === "ASCQ") {
+          setSelectedProfil("ASCQ");
         } else {
           setSelectedProfil("ASCQ");
         }
@@ -125,10 +125,10 @@ export default function GuideUtilisateurPage() {
     switch (p) {
       case "RC": return "Relais Communautaire (RC)";
       case "ASCQ": return "Agent de Santé Communautaire Qualifié (ASCQ)";
-      case "COMMUNE": return "Représentant Communal & Cadres Locaux";
-      case "ZONE": return "Médecin Coordonnateur Zone Sanitaire (MCZS)";
-      case "DEPARTEMENT": return "Cadre Départemental (DDS / CSSPR)";
-      case "NATIONAL": return "Super Administrateur & Niveau National";
+      case "COMMUNE": return "Représentant Communal (ASCQ Mandaté)";
+      case "PF_CCLS_TP": return "Point Focal CCLS-TP (Communal)";
+      case "MINISTERE": return "Membre du Ministère de la Santé";
+      case "NATIONAL": return "Super Administrateur (Concepteur)";
     }
   };
 
@@ -137,8 +137,8 @@ export default function GuideUtilisateurPage() {
       case "RC": return "bg-amber-100 text-amber-900 border-amber-200";
       case "ASCQ": return "bg-emerald-100 text-[#005c30] border-emerald-200";
       case "COMMUNE": return "bg-blue-100 text-blue-900 border-blue-200";
-      case "ZONE": return "bg-indigo-100 text-indigo-900 border-indigo-200";
-      case "DEPARTEMENT": return "bg-purple-100 text-purple-900 border-purple-200";
+      case "PF_CCLS_TP": return "bg-indigo-100 text-indigo-900 border-indigo-200";
+      case "MINISTERE": return "bg-purple-100 text-purple-900 border-purple-200";
       case "NATIONAL": return "bg-slate-900 text-white border-slate-700";
     }
   };
@@ -228,7 +228,7 @@ export default function GuideUtilisateurPage() {
                 </span>
               </div>
               <div className="flex items-center gap-1.5 flex-wrap">
-                {(["RC", "ASCQ", "COMMUNE", "ZONE", "DEPARTEMENT", "NATIONAL"] as ProfilType[]).map((p) => (
+                {(["RC", "ASCQ", "COMMUNE", "PF_CCLS_TP", "MINISTERE", "NATIONAL"] as ProfilType[]).map((p) => (
                   <button
                     key={p}
                     type="button"
@@ -454,84 +454,72 @@ export default function GuideUtilisateurPage() {
         )}
 
         {/* ========================================================================= */}
-        {/* VUE 4 : GUIDE MÉDECIN COORDONNATEUR ZONE SANITAIRE (MCZS) */}
+        {/* VUE 4 : GUIDE POINT FOCAL CCLS-TP (COMMUNE) */}
         {/* ========================================================================= */}
-        {selectedProfil === "ZONE" && (
+        {selectedProfil === "PF_CCLS_TP" && (
           <div className="space-y-4">
             <div className="p-4 rounded-3xl bg-indigo-50/70 border border-indigo-200 space-y-1">
-              <span className="text-xs font-black uppercase text-indigo-900 block">Votre Rôle : Riposte Épidémiologique & Intrants de Zone</span>
+              <span className="text-xs font-black uppercase text-indigo-900 block">Votre Rôle : Point Focal CCLS-TP de la Commune</span>
               <p className="text-xs text-slate-700">
-                Le MCZS et l'équipe cadre de zone sanitaire pilotent la riposte aux alertes épidémiques, fluidifient la référence vers l'Hôpital de Zone et approvisionnent les postes en médicaments traceurs.
+                Le Point Focal CCLS-TP n'est pas un ASCQ. Il dispose d'un accès en consultation seule et exports sur sa commune de rattachement. Il n'a aucun module de saisie de terrain ni de validation d'inscription.
               </p>
             </div>
 
             <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm space-y-2">
               <div className="flex items-center gap-2 text-indigo-900">
-                <Activity className="w-5 h-5" />
-                <h3 className="font-extrabold text-sm text-slate-900">1. Surveillance des Alertes & Absence de Visa Administratif</h3>
-              </div>
-              <div className="p-3 bg-amber-50 rounded-2xl border border-amber-200 text-xs text-amber-900">
-                ℹ️ <strong>Rappel réglementaire fondamental :</strong> Le MCZS n'a pas à signer les fiches de notification terrain (la validation est faite par le RC et l'ASCQ). Votre rôle est d'analyser les données transmises en temps réel pour déclencher immédiatement la riposte médicale.
-              </div>
-              <p className="text-xs text-slate-700 pt-1">
-                Toutes les informations vous sont accessibles à 100% : coordonnées GPS réelles, bilan d'impact humain/animal, symptômes et signature tactile du notificateur.
-              </p>
-            </div>
-
-            <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm space-y-2">
-              <div className="flex items-center gap-2 text-indigo-900">
-                <HeartPulse className="w-5 h-5" />
-                <h3 className="font-extrabold text-sm text-slate-900">2. Références vers l'Hôpital de Zone & Ordres de Mission</h3>
+                <FileSpreadsheet className="w-5 h-5" />
+                <h3 className="font-extrabold text-sm text-slate-900">1. Consultation et Synthèse Communale</h3>
               </div>
               <ul className="text-xs text-slate-700 space-y-1.5 list-disc pl-6">
-                <li>Suivez les bulletins officiels de référence émis par les ASCQ vers les centres de santé de la zone.</li>
-                <li>Déclenchez des ordres de mission de zone pour dépêcher une équipe médicale sur un foyer d'alerte.</li>
+                <li>Accès en lecture seule à toutes les activités communautaires de votre commune.</li>
+                <li>Visualisation des indicateurs agrégés par arrondissement (CPN, PEV, VAD, malnutrition, diarrhée, paludisme).</li>
+                <li>Respect strict de la confidentialité : les données nominatives des patients ne sont jamais exposées.</li>
               </ul>
+            </div>
+
+            <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm space-y-2">
+              <div className="flex items-center gap-2 text-indigo-900">
+                <Download className="w-5 h-5" />
+                <h3 className="font-extrabold text-sm text-slate-900">2. Exports et Traçabilité</h3>
+              </div>
+              <p className="text-xs text-slate-700">
+                Vous pouvez exporter les synthèses communales (Excel / PDF) pour les réunions du conseil communal. Chaque export est nominatif et horodaté avec filigrane de traçabilité.
+              </p>
             </div>
           </div>
         )}
 
         {/* ========================================================================= */}
-        {/* VUE 5 : GUIDE CADRE DÉPARTEMENTAL (DDS) */}
+        {/* VUE 5 : GUIDE MEMBRE DU MINISTÈRE DE LA SANTÉ */}
         {/* ========================================================================= */}
-        {selectedProfil === "DEPARTEMENT" && (
+        {selectedProfil === "MINISTERE" && (
           <div className="space-y-4">
             <div className="p-4 rounded-3xl bg-purple-50/70 border border-purple-200 space-y-1">
-              <span className="text-xs font-black uppercase text-purple-900 block">Votre Rôle : Pilotage Stratégique Départemental (DDS)</span>
+              <span className="text-xs font-black uppercase text-purple-900 block">Votre Rôle : Membre du Ministère de la Santé (Désigné)</span>
               <p className="text-xs text-slate-700">
-                La Direction Départementale de la Santé supervise les communes de son département, analyse les rapports mensuels consolidés et conduit la gouvernance sanitaire départementale.
+                Consultation seule de toutes les données du pays au niveau national. Aucune saisie directe, aucun module ASCQ, aucune validation de compte. Tout export requiert une demande formelle préalable approuvée par le Super Administrateur.
               </p>
             </div>
 
             <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm space-y-2">
               <div className="flex items-center gap-2 text-purple-900">
                 <Building2 className="w-5 h-5" />
-                <h3 className="font-extrabold text-sm text-slate-900">1. Cloisonnement Territorial & Rapport Départemental Consolidé</h3>
+                <h3 className="font-extrabold text-sm text-slate-900">1. Vue Stratégique Nationale</h3>
               </div>
               <ul className="text-xs text-slate-700 space-y-1.5 list-disc pl-6">
-                <li>Votre accès est strictement limité aux communes de votre département d'affectation.</li>
-                <li>Consultez le <strong>Rapport Consolidé Départemental</strong> agrégeant l'ensemble des activités communautaires (VAD, Causeries, Femmes CPN, Enfants PEV, Références).</li>
-                <li>Décompte épidémiologique par pathologie (Paludisme TDR+, Diarrhée, Pneumonie, Malnutrition) dans le respect du secret médical (zéro nom de patient exposé).</li>
+                <li>Visualisation panoramique des 77 communes du Bénin.</li>
+                <li>Suivi en direct des alertes SIMR et des décès communautaires déclarés.</li>
+                <li>Indicateurs de couverture et de complétude des rapports mensuels (RMA).</li>
               </ul>
             </div>
 
             <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm space-y-2">
               <div className="flex items-center gap-2 text-purple-900">
-                <Activity className="w-5 h-5" />
-                <h3 className="font-extrabold text-sm text-slate-900">2. Transparence Intégrale des Fiches d'Alerte et Décès</h3>
+                <Lock className="w-5 h-5" />
+                <h3 className="font-extrabold text-sm text-slate-900">2. Protocole d'Export Sécurisé (Validation Super Admin)</h3>
               </div>
               <p className="text-xs text-slate-700">
-                Vous visualisez 100% des informations des fiches d'alerte et de décès notifiées dans votre département : localisation GPS, symptômes, défunt/cas index, contact du notificateur et visualisation de la signature tactile du RC et du visa de l'ASCQ superviseur.
-              </p>
-            </div>
-
-            <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm space-y-2">
-              <div className="flex items-center gap-2 text-purple-900">
-                <Sparkles className="w-5 h-5" />
-                <h3 className="font-extrabold text-sm text-slate-900">3. Suggestions Formatives & Ordres de Mission Départementaux</h3>
-              </div>
-              <p className="text-xs text-slate-700">
-                Envoyez des remarques constructives et des suggestions formatives directement ciblées vers un ASCQ ou déclenchez un ordre de mission départemental d'investigation.
+                Conformément aux directives de protection des données de santé du Bénin, tout export nécessite une demande motivée indiquant le destinataire. Une fois approuvé par le Super Administrateur, un lien à usage unique valable 72h est généré avec filigrane nominatif.
               </p>
             </div>
           </div>
