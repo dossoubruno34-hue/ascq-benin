@@ -167,7 +167,7 @@ export default function EspaceRelaisPage() {
           setIsOffline(true);
           return;
         }
-        router.push("/connexion");
+        router.push("/connexion?action=login");
         return;
       }
 
@@ -185,7 +185,7 @@ export default function EspaceRelaisPage() {
       if (cached) {
         setIsOffline(true);
       } else {
-        router.push("/connexion");
+        router.push("/connexion?action=login");
       }
     } finally {
       setLoading(false);
@@ -329,7 +329,7 @@ export default function EspaceRelaisPage() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    router.push("/connexion");
+    router.push("/connexion?action=login");
   };
 
   const handleChangePassword = async (e: React.FormEvent) => {

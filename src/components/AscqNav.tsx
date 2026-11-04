@@ -65,7 +65,7 @@ export default function AscqNav({ userProfile }: Props) {
   const handleLogout = async () => {
     clearAllUserCaches();
     await supabase.auth.signOut();
-    router.push("/connexion");
+    router.push("/connexion?action=login");
   };
 
   const chargerNonLues = async () => {

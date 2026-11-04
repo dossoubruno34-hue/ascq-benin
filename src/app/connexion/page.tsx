@@ -141,6 +141,20 @@ export default function ConnexionPage() {
 
   // Redirection automatique ou proposition hors-ligne si déjà connecté
   useEffect(() => {
+    // 0. Si arrivée directe sur /connexion sans intention explicite de connexion (ex: lancement à froid de l'APK),
+    // rediriger immédiatement vers la page d'accueil officielle (/)
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const hasExplicitAction = params.has("action") || params.has("redirect") || params.has("session_expired") || params.has("source");
+      const hasInternalReferrer = typeof document !== "undefined" && document.referrer && document.referrer.includes(window.location.host);
+      const isManualNav = typeof sessionStorage !== "undefined" && sessionStorage.getItem("ascq_manual_login") === "true";
+
+      if (!hasExplicitAction && !hasInternalReferrer && !isManualNav) {
+        router.replace("/");
+        return;
+      }
+    }
+
     async function checkCurrentSession() {
       // 1. Vérifier le cache hors-ligne immédiatement
       const { user: cUser, profile: cProfile } = getCachedUserSession();

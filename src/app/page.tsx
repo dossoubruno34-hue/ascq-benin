@@ -5,6 +5,7 @@ import QuiEstAscqCard from "@/components/QuiEstAscqCard";
 import SuggestionsCard from "@/components/SuggestionsCard";
 import { SocialPlatformsCard } from "@/components/SocialLinks";
 import CarteCouvertureBenin from "@/components/CarteCouvertureBenin";
+import HomeAuthButtons from "@/components/HomeAuthButtons";
 
 export const dynamic = "force-dynamic";
 
@@ -143,7 +144,7 @@ export default async function HomePage() {
             Accueil
           </Link>
           <Link
-            href="/connexion"
+            href="/connexion?action=login"
             className="flex-1 py-2 px-1 text-center rounded-xl hover:text-slate-900 transition-colors"
           >
             Connexion
@@ -162,22 +163,8 @@ export default async function HomePage() {
           </a>
         </nav>
 
-        {/* 4. Boutons « Se connecter » (vert plein) et « S'inscrire » (contour) */}
-        <section className="flex items-center justify-center gap-3 pt-1">
-          <Link
-            href="/connexion"
-            className="flex-1 max-w-[170px] py-2.5 px-4 rounded-2xl font-bold text-xs sm:text-sm text-center text-white bg-[#0e7f47] hover:bg-[#0b6d3c] shadow-sm transition-all active:scale-95"
-          >
-            Se connecter
-          </Link>
-
-          <Link
-            href="/inscription"
-            className="flex-1 max-w-[170px] py-2.5 px-4 rounded-2xl font-bold text-xs sm:text-sm text-center text-slate-800 bg-white hover:bg-slate-50 border border-slate-300 shadow-sm transition-all active:scale-95"
-          >
-            S'inscrire
-          </Link>
-        </section>
+        {/* 4. Boutons intelligents d'acces */}
+        <HomeAuthButtons />
 
         {/* 5. 4 cartes de chiffres en 2 colonnes */}
         <section className="grid grid-cols-2 gap-3 pt-1">
