@@ -62,6 +62,12 @@ export default function MesFichesPage() {
   const [ficheConsultation, setFicheConsultation] = useState<any | null>(null);
   // Mode d'impression du registre complet
   const [imprimerModeRegistre, setImprimerModeRegistre] = useState<boolean>(false);
+  // Référentiel territorial en état React
+  const [territoryMaps, setTerritoryMaps] = useState<{
+    dMap: Record<string, string>;
+    cMap: Record<string, string>;
+    aMap: Record<string, string>;
+  }>({ dMap: {}, cMap: {}, aMap: {} });
 
   const chargerFiches = async () => {
     setLoading(true);
@@ -97,6 +103,8 @@ export default function MesFichesPage() {
       comsData?.forEach((c) => { cMap[c.id] = c.nom; });
       const aMap: Record<string, string> = {};
       arrsData?.forEach((a) => { aMap[a.id] = a.nom; });
+
+      setTerritoryMaps({ dMap, cMap, aMap });
 
       // 1. Alertes (ALR) avec identité miroir
       const { data: alertesData } = await supabase
@@ -139,9 +147,6 @@ export default function MesFichesPage() {
         .order("created_at", { ascending: false });
       setRapports(rapData || []);
 
-      // Stocker les maps de territoires
-      (window as any).__territoryMaps = { dMap, cMap, aMap };
-
       // Brouillons locaux
       const drafts = recupererBrouillonsAlertes();
       setBrouillonsCount(drafts.length);
@@ -157,7 +162,6 @@ export default function MesFichesPage() {
     chargerFiches();
   }, []);
 
-  const territoryMaps = typeof window !== "undefined" && (window as any).__territoryMaps ? (window as any).__territoryMaps : { dMap: {}, cMap: {}, aMap: {} };
   const { dMap = {}, cMap = {}, aMap = {} } = territoryMaps;
 
   // Unification des fiches pour affichage, filtrage, consultation, impression et export
@@ -169,9 +173,15 @@ export default function MesFichesPage() {
       const nomCompletCas = (a.cas_nom_prenom || `${nomCas} ${prenomsCas}`.trim()) || "Cas index";
       const telCas = a.telephone_contact || privee?.telephone_contact || "";
       const adrCas = a.adresse_domicile || privee?.adresse_domicile || "";
-      const depNom = a.departement_nom || dMap[a.departement_id] || "Département";
-      const comNom = a.commune_nom || cMap[a.commune_id] || "Commune";
-      const arrNom = a.arrondissement_nom || aMap[a.arrondissement_id] || "Arrondissement";
+      const depNom = (!a.departement_nom || a.departement_nom === "Département" || a.departement_nom === "Zone Sanitaire")
+        ? (dMap[a.departement_id] || "Zou")
+        : a.departement_nom;
+      const comNom = (!a.commune_nom || a.commune_nom === "Zone sanitaire" || a.commune_nom === "Communauté")
+        ? (cMap[a.commune_id] || "Ouinhi")
+        : a.commune_nom;
+      const arrNom = (!a.arrondissement_nom || a.arrondissement_nom === "Local" || a.arrondissement_nom === "Arrondissement")
+        ? (aMap[a.arrondissement_id] || "Tohoues")
+        : a.arrondissement_nom;
 
       const rawEnriched = {
         ...a,
@@ -242,9 +252,15 @@ export default function MesFichesPage() {
       const nomParent = d.nom_parent || privee?.nom_parent || "";
       const telParent = d.telephone_parent || privee?.telephone_parent || "";
       const adrDefunt = d.adresse_domicile || privee?.adresse_domicile || "";
-      const depNom = d.departement_nom || dMap[d.departement_id] || "Zou";
-      const comNom = d.commune_nom || cMap[d.commune_id] || "Ouinhi";
-      const arrNom = d.arrondissement_nom || aMap[d.arrondissement_id] || "Tohoues";
+      const depNom = (!d.departement_nom || d.departement_nom === "Département" || d.departement_nom === "Zone Sanitaire")
+        ? (dMap[d.departement_id] || "Zou")
+        : d.departement_nom;
+      const comNom = (!d.commune_nom || d.commune_nom === "Zone sanitaire" || d.commune_nom === "Communauté")
+        ? (cMap[d.commune_id] || "Ouinhi")
+        : d.commune_nom;
+      const arrNom = (!d.arrondissement_nom || d.arrondissement_nom === "Local" || d.arrondissement_nom === "Arrondissement")
+        ? (aMap[d.arrondissement_id] || "Tohoues")
+        : d.arrondissement_nom;
 
       const rawEnriched = {
         ...d,
@@ -326,13 +342,6 @@ export default function MesFichesPage() {
       notificateur: rap.rapporteur_nom,
       notificateurTel: rap.rapporteur_telephone || "-",
       notificateurTitre: "ASCQ",
-      url: `/fiches/rapport-hebdo/nouvelle`,
-      rawData: rap
-    })),
-  ];
-      impact: `${rap.alertes_detectees} alertes • ${rap.deces_maternels + rap.deces_neonatals + rap.deces_infantiles + rap.deces_plus_5_ans} décès`,
-      notificateur: rap.rapporteur_nom,
-      notificateurTel: rap.rapporteur_telephone || "-",
       url: `/fiches/rapport-hebdo/nouvelle`,
       rawData: rap
     })),
@@ -887,19 +896,19 @@ export default function MesFichesPage() {
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                   <div>
                     <span className="text-slate-400 block text-[10px]">Département :</span>
-                    <strong className="text-slate-900">{ficheConsultation.departement || "Non précisé"}</strong>
+                    <strong className="text-slate-900">{(!ficheConsultation.departement || ficheConsultation.departement === "Département" || ficheConsultation.departement === "Zone Sanitaire") ? "Zou" : ficheConsultation.departement}</strong>
                   </div>
                   <div>
                     <span className="text-slate-400 block text-[10px]">Commune :</span>
-                    <strong className="text-slate-900">{ficheConsultation.commune || "Non précisée"}</strong>
+                    <strong className="text-slate-900">{(!ficheConsultation.commune || ficheConsultation.commune === "Zone sanitaire" || ficheConsultation.commune === "Communauté") ? "Ouinhi" : ficheConsultation.commune}</strong>
                   </div>
                   <div>
                     <span className="text-slate-400 block text-[10px]">Arrondissement :</span>
-                    <strong className="text-slate-900">{ficheConsultation.arrondissement || "Non précisé"}</strong>
+                    <strong className="text-slate-900">{(!ficheConsultation.arrondissement || ficheConsultation.arrondissement === "Local" || ficheConsultation.arrondissement === "Arrondissement") ? "Tohoues" : ficheConsultation.arrondissement}</strong>
                   </div>
                   <div>
                     <span className="text-slate-400 block text-[10px]">Village / Quartier :</span>
-                    <strong className="text-[#005c30]">{ficheConsultation.village || "Non précisé"}</strong>
+                    <strong className="text-[#005c30]">{ficheConsultation.village || "Akassa"}</strong>
                   </div>
                 </div>
               </div>
@@ -993,100 +1002,51 @@ export default function MesFichesPage() {
                 </div>
               </div>
 
-              {/* 5. Cadre Officiel de Validation & Signatures (Dynamique : Direct ASCQ ou RC + ASCQ) */}
+              {/* 5. Cadre Officiel de Validation & Signature (Une seule personne signe selon le rôle du notificateur) */}
               {(() => {
                 const notifTitre = (ficheConsultation.rawData?.notificateur_titre || ficheConsultation.notificateurTitre || "").toUpperCase();
                 const notifNom = (ficheConsultation.notificateur || "").toUpperCase();
                 const estNotifieParAscq = notifTitre === "ASCQ" || notifNom.startsWith("ASCQ") || notifNom.includes("ASCQ");
 
                 return (
-                  <div className="pt-4 grid grid-cols-2 gap-8 text-xs border-t border-slate-300">
-                    {estNotifieParAscq ? (
-                      <>
-                        {/* Notification directe par l'ASCQ d'Arrondissement */}
-                        <div>
-                          <p className="font-black text-slate-900 uppercase">1. Mode de Déclaration SIMR :</p>
-                          <p className="text-[11px] font-bold text-[#005c30] mt-1">
-                            Notification Directe par l'ASCQ d'Arrondissement
-                          </p>
-                          <p className="text-[10px] text-slate-600 mt-1 leading-relaxed">
-                            Constatation et enquête communautaire de terrain réalisées directement par l'ASCQ Superviseur.
-                          </p>
-                          <p className="text-[10px] text-slate-500 mt-1">
-                            Arrondissement : <strong>{ficheConsultation.arrondissement || "Arrondissement sanitaire"}</strong> • Village : <strong>{ficheConsultation.village}</strong>
-                          </p>
-                          <div className="mt-3 p-2 rounded-lg bg-emerald-50 border border-emerald-200 text-[10px] text-[#005c30]">
-                            ✓ Déclaration officielle validée dès enregistrement (Supervision intégrée). Aucun intermédiaire RC requis pour cette fiche.
-                          </div>
+                  <div className="pt-4 text-xs border-t border-slate-300">
+                    <div className="max-w-md mx-auto p-4 bg-slate-50/80 rounded-2xl border border-slate-300 text-center space-y-2">
+                      <p className="font-black text-slate-900 uppercase text-xs tracking-wide">
+                        {estNotifieParAscq
+                          ? "SIGNATURE DU NOTIFICATEUR (ASCQ D'ARRONDISSEMENT)"
+                          : "SIGNATURE DU NOTIFICATEUR (RELAIS COMMUNAUTAIRE)"
+                        }
+                      </p>
+                      <p className="text-xs font-bold text-slate-800">
+                        {ficheConsultation.notificateur}
+                      </p>
+                      <p className="text-[11px] text-slate-600">
+                        {estNotifieParAscq ? (
+                          <>Arrondissement : <strong>{ficheConsultation.arrondissement || "Arrondissement sanitaire"}</strong> • Commune : <strong>{ficheConsultation.commune || "Commune"}</strong></>
+                        ) : (
+                          <>Village / Quartier : <strong>{ficheConsultation.village || "Village"}</strong> • Arrondissement : <strong>{ficheConsultation.arrondissement || "Arrondissement"}</strong></>
+                        )}
+                      </p>
+                      
+                      {ficheConsultation.rawData?.signature_tactile ? (
+                        <div className="my-2 p-2 bg-white border border-slate-300 rounded-xl inline-block shadow-sm">
+                          <img
+                            src={ficheConsultation.rawData.signature_tactile}
+                            alt={estNotifieParAscq ? "Signature ASCQ" : "Signature RC"}
+                            className="max-h-20 w-auto object-contain mx-auto"
+                          />
                         </div>
-
-                        {/* Visa & Signature tactile de l'ASCQ Notificateur */}
-                        <div className="text-right">
-                          <p className="font-black text-slate-900 uppercase">2. L'ASCQ Notificateur & Superviseur :</p>
-                          <p className="text-[11px] font-bold text-slate-800 mt-0.5">{ficheConsultation.notificateur}</p>
-                          <p className="text-[10px] text-slate-500">
-                            Arrondissement : {ficheConsultation.arrondissement || "Arrondissement sanitaire"}
-                          </p>
-                          <p className="text-[10px] text-slate-500">
-                            Statut : <span className="font-bold text-[#005c30]">Fiche Officielle Validée</span>
-                          </p>
-                          
-                          {ficheConsultation.rawData?.signature_tactile ? (
-                            <div className="mt-2 p-1.5 bg-slate-50 border border-slate-200 rounded-xl inline-block">
-                              <img
-                                src={ficheConsultation.rawData.signature_tactile}
-                                alt="Signature ASCQ"
-                                className="max-h-16 w-auto object-contain ml-auto"
-                              />
-                            </div>
-                          ) : (
-                            <div className="mt-8 border-b border-black w-40 ml-auto"></div>
-                          )}
-                          <p className="text-[10px] text-slate-400 mt-1">Visa & Signature tactile de l'ASCQ Déclarant</p>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        {/* Notification par un Relais Communautaire (RC) */}
-                        <div>
-                          <p className="font-black text-slate-900 uppercase">1. Le Relais Communautaire (RC) Notificateur :</p>
-                          <p className="text-[11px] text-slate-600 mt-0.5">{ficheConsultation.notificateur}</p>
-                          <p className="text-[10px] text-slate-500">Village / Quartier : {ficheConsultation.village}</p>
-                          
-                          {ficheConsultation.rawData?.signature_tactile ? (
-                            <div className="mt-2 p-1.5 bg-slate-50 border border-slate-200 rounded-xl inline-block">
-                              <img
-                                src={ficheConsultation.rawData.signature_tactile}
-                                alt="Signature RC"
-                                className="max-h-16 w-auto object-contain"
-                              />
-                            </div>
-                          ) : (
-                            <div className="mt-8 border-b border-black w-40"></div>
-                          )}
-                          <p className="text-[10px] text-slate-400 mt-1">Signature du RC et date</p>
-                        </div>
-
-                        {/* Superviseur ASCQ */}
-                        <div className="text-right">
-                          <p className="font-black text-slate-900 uppercase">2. L'ASCQ Superviseur d'Arrondissement :</p>
-                          <p className="text-[11px] text-slate-600 mt-0.5">Arrondissement : {ficheConsultation.arrondissement || "Arrondissement sanitaire"}</p>
-                          <p className="text-[10px] text-slate-500">
-                            Statut : {ficheConsultation.resultat === "AVEREE" ? "Alerte Avérée" : ficheConsultation.resultat === "NON_AVEREE" ? "Alerte Non Avérée" : "Fiche Validée"}
-                          </p>
-                          <div className="mt-8 border-b border-black w-40 ml-auto"></div>
-                          <p className="text-[10px] text-slate-400 mt-1">Visa & Signature de l'ASCQ Superviseur</p>
-                        </div>
-                      </>
-                    )}
+                      ) : (
+                        <div className="my-6 border-b border-black w-48 mx-auto"></div>
+                      )}
+                      
+                      <p className="text-[10px] text-slate-500 font-medium">
+                        Signature tactile officielle enregistrée le {ficheConsultation.date}
+                      </p>
+                    </div>
                   </div>
                 );
               })()}
-
-              {/* Règle officielle de validation affichée */}
-              <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 text-[10px] text-[#005c30] text-center">
-                ℹ️ <strong>Règle officielle de validation communautaire :</strong> La validation de cette fiche s'effectue exclusivement au niveau communautaire (ASCQ d'arrondissement et/ou Relais Communautaire notificateur). Le médecin coordonnateur n'a rien à signer sur cette fiche.
-              </div>
 
               {/* Lien optionnel vers la page complète alerte si ALR */}
               {ficheConsultation.type === "ALR" && (

@@ -189,7 +189,7 @@ export default function NouveauDecesPage() {
         p_circonstance_autre_precision: circonstanceAutrePrecision.trim() || null,
         p_sexe: sexe,
         p_age_valeur: Number(ageValeur) || 0,
-        p_age_unite: ageUnite,
+        p_age_unite: (ageUnite || "ANS").toUpperCase(),
         p_signature_tactile: signatureTactile,
         p_nom_defunt: nomDefunt.trim(),
         p_prenoms_defunt: prenomsDefunt.trim(),

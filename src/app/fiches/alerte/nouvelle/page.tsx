@@ -324,7 +324,7 @@ export default function NouvelleAlertePage() {
         p_mesures_prises: mesuresPrises.trim() || null,
         p_sexe: sexe,
         p_age_valeur: Number(ageValeur) || 0,
-        p_age_unite: ageUnite,
+        p_age_unite: (ageUnite || "ANS").toUpperCase(),
         p_signature_tactile: signatureTactile,
         p_npi_cas: npiCas.trim() || null,
         p_nom_cas: nomCas.trim(),
