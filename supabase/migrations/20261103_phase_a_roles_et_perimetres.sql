@@ -6,7 +6,7 @@
 -- =====================================================================
 
 -- 0.0 Normalisation immédiate de journal_audit (sécurisation table_cible et colonnes étendues)
-DO $
+DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='journal_audit') THEN
         IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='journal_audit' AND column_name='table_cible') THEN
@@ -28,7 +28,7 @@ BEGIN
             ALTER TABLE public.journal_audit ADD COLUMN commune_id UUID REFERENCES public.communes(id);
         END IF;
     END IF;
-END $;
+END $$;
 
 -- 0. Suppression préalable des anciennes contraintes pour autoriser la normalisation
 ALTER TABLE public.utilisateurs DROP CONSTRAINT IF EXISTS utilisateurs_role_technique_check;

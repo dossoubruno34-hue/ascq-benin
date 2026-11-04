@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS public.journal_audit (
 );
 
 -- Colonnes additionnelles si la table existait déjà
-DO $
+DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='journal_audit' AND column_name='table_cible') THEN
         ALTER TABLE public.journal_audit ALTER COLUMN table_cible DROP NOT NULL;
@@ -39,7 +39,7 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='journal_audit' AND column_name='commune_id') THEN
         ALTER TABLE public.journal_audit ADD COLUMN commune_id UUID REFERENCES public.communes(id);
     END IF;
-END $;
+END $$;
 
 -- Trigger d'immutabilité absolue sur journal_audit (Interdiction totale d'UPDATE et DELETE)
 CREATE OR REPLACE FUNCTION public.empecher_modification_journal_audit()
