@@ -53,6 +53,10 @@ ALTER TABLE public.utilisateurs DROP CONSTRAINT IF EXISTS utilisateurs_role_nomi
 ALTER TABLE public.utilisateurs ADD CONSTRAINT utilisateurs_role_nomination_check
     CHECK (role_nomination IS NULL OR role_nomination IN ('REPRESENTANT_COMMUNAL', 'MEMBRE_MINISTERE', 'PF_CCLS_TP'));
 
+ALTER TABLE public.utilisateurs DROP CONSTRAINT IF EXISTS utilisateurs_statut_compte_check;
+ALTER TABLE public.utilisateurs ADD CONSTRAINT utilisateurs_statut_compte_check
+    CHECK (statut_compte IN ('EN_ATTENTE', 'VALIDE', 'SUSPENDU', 'REJETE', 'INVALIDE'));
+
 -- 3. Fonctions utilitaires de sécurité pour les RLS (SECURITY DEFINER)
 CREATE OR REPLACE FUNCTION public.est_super_admin()
 RETURNS BOOLEAN
@@ -716,13 +720,22 @@ DROP POLICY IF EXISTS "Mise a jour references pour ascq et admin" ON public.refe
 
 CREATE POLICY "Modification references strictly author" ON public.references_communautaires
     FOR UPDATE TO authenticated
-    USING (ascq_id = auth.uid() OR notificateur_id = auth.uid())
-    WITH CHECK (ascq_id = auth.uid() OR notificateur_id = auth.uid());
+    USING (
+        ascq_id = auth.uid() 
+        OR relais_id IN (SELECT id FROM public.relais_communautaires WHERE user_id = auth.uid())
+    )
+    WITH CHECK (
+        ascq_id = auth.uid() 
+        OR relais_id IN (SELECT id FROM public.relais_communautaires WHERE user_id = auth.uid())
+    );
 
 DROP POLICY IF EXISTS "Suppression references strictly author" ON public.references_communautaires;
 CREATE POLICY "Suppression references strictly author" ON public.references_communautaires
     FOR DELETE TO authenticated
-    USING (ascq_id = auth.uid() OR notificateur_id = auth.uid());
+    USING (
+        ascq_id = auth.uid() 
+        OR relais_id IN (SELECT id FROM public.relais_communautaires WHERE user_id = auth.uid())
+    );
 
 
 -- E. Table rapports_mensuels_ascq
@@ -843,7 +856,7 @@ BEGIN
     END IF;
 
     SELECT * INTO v_rc_fiche FROM public.relais_communautaires 
-    WHERE utilisateur_id = p_rc_utilisateur_id OR id = p_rc_utilisateur_id
+    WHERE user_id = p_rc_utilisateur_id OR id = p_rc_utilisateur_id
     LIMIT 1;
 
     -- Vérification des droits :
@@ -873,7 +886,7 @@ BEGIN
 
     -- Mise à jour dans utilisateurs
     UPDATE public.utilisateurs SET
-        statut = p_statut,
+        statut_compte = p_statut,
         updated_at = NOW()
     WHERE id = p_rc_utilisateur_id;
 
@@ -1342,11 +1355,11 @@ BEGIN
 
     -- Nombre d'ASCQ validés dans la commune
     SELECT COUNT(*) INTO v_nb_ascq FROM public.utilisateurs 
-    WHERE commune_id = p_commune_id AND role_technique = 'ASCQ' AND statut = 'VALIDE';
+    WHERE commune_id = p_commune_id AND role_technique = 'ASCQ' AND statut_compte = 'VALIDE';
 
     -- Nombre de RC validés dans la commune
     SELECT COUNT(*) INTO v_nb_rc FROM public.utilisateurs 
-    WHERE commune_id = p_commune_id AND role_technique = 'RC' AND statut = 'VALIDE';
+    WHERE commune_id = p_commune_id AND role_technique = 'RC' AND statut_compte = 'VALIDE';
 
     -- Alertes du mois dans la commune
     SELECT 
@@ -1389,8 +1402,8 @@ BEGIN
     FROM public.arrondissements a
     LEFT JOIN (
         SELECT arrondissement_id,
-               COUNT(*) FILTER (WHERE role_technique = 'ASCQ' AND statut = 'VALIDE') as nb_ascq,
-               COUNT(*) FILTER (WHERE role_technique = 'RC' AND statut = 'VALIDE') as nb_rc
+               COUNT(*) FILTER (WHERE role_technique = 'ASCQ' AND statut_compte = 'VALIDE') as nb_ascq,
+               COUNT(*) FILTER (WHERE role_technique = 'RC' AND statut_compte = 'VALIDE') as nb_rc
         FROM public.utilisateurs
         WHERE commune_id = p_commune_id
         GROUP BY arrondissement_id
@@ -1513,6 +1526,9 @@ BEGIN
     END IF;
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='utilisateurs' AND column_name='bloque_jusqu_a') THEN
         ALTER TABLE public.utilisateurs ADD COLUMN bloque_jusqu_a TIMESTAMPTZ;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='utilisateurs' AND column_name='derniere_connexion') THEN
+        ALTER TABLE public.utilisateurs ADD COLUMN derniere_connexion TIMESTAMPTZ;
     END IF;
 END $$;
 

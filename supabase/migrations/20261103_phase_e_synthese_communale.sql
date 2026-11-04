@@ -56,11 +56,11 @@ BEGIN
 
     -- Nombre d'ASCQ validés dans la commune
     SELECT COUNT(*) INTO v_nb_ascq FROM public.utilisateurs 
-    WHERE commune_id = p_commune_id AND role_technique = 'ASCQ' AND statut = 'VALIDE';
+    WHERE commune_id = p_commune_id AND role_technique = 'ASCQ' AND statut_compte = 'VALIDE';
 
     -- Nombre de RC validés dans la commune
     SELECT COUNT(*) INTO v_nb_rc FROM public.utilisateurs 
-    WHERE commune_id = p_commune_id AND role_technique = 'RC' AND statut = 'VALIDE';
+    WHERE commune_id = p_commune_id AND role_technique = 'RC' AND statut_compte = 'VALIDE';
 
     -- Alertes du mois dans la commune
     SELECT 
@@ -103,8 +103,8 @@ BEGIN
     FROM public.arrondissements a
     LEFT JOIN (
         SELECT arrondissement_id,
-               COUNT(*) FILTER (WHERE role_technique = 'ASCQ' AND statut = 'VALIDE') as nb_ascq,
-               COUNT(*) FILTER (WHERE role_technique = 'RC' AND statut = 'VALIDE') as nb_rc
+               COUNT(*) FILTER (WHERE role_technique = 'ASCQ' AND statut_compte = 'VALIDE') as nb_ascq,
+               COUNT(*) FILTER (WHERE role_technique = 'RC' AND statut_compte = 'VALIDE') as nb_rc
         FROM public.utilisateurs
         WHERE commune_id = p_commune_id
         GROUP BY arrondissement_id

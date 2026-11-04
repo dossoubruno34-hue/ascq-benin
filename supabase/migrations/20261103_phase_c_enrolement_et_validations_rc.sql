@@ -70,7 +70,7 @@ BEGIN
     END IF;
 
     SELECT * INTO v_rc_fiche FROM public.relais_communautaires 
-    WHERE utilisateur_id = p_rc_utilisateur_id OR id = p_rc_utilisateur_id
+    WHERE user_id = p_rc_utilisateur_id OR id = p_rc_utilisateur_id
     LIMIT 1;
 
     -- Vérification des droits :
@@ -100,7 +100,7 @@ BEGIN
 
     -- Mise à jour dans utilisateurs
     UPDATE public.utilisateurs SET
-        statut = p_statut,
+        statut_compte = p_statut,
         updated_at = NOW()
     WHERE id = p_rc_utilisateur_id;
 

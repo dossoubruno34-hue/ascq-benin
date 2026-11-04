@@ -323,13 +323,22 @@ DROP POLICY IF EXISTS "Mise a jour references pour ascq et admin" ON public.refe
 
 CREATE POLICY "Modification references strictly author" ON public.references_communautaires
     FOR UPDATE TO authenticated
-    USING (ascq_id = auth.uid() OR notificateur_id = auth.uid())
-    WITH CHECK (ascq_id = auth.uid() OR notificateur_id = auth.uid());
+    USING (
+        ascq_id = auth.uid() 
+        OR relais_id IN (SELECT id FROM public.relais_communautaires WHERE user_id = auth.uid())
+    )
+    WITH CHECK (
+        ascq_id = auth.uid() 
+        OR relais_id IN (SELECT id FROM public.relais_communautaires WHERE user_id = auth.uid())
+    );
 
 DROP POLICY IF EXISTS "Suppression references strictly author" ON public.references_communautaires;
 CREATE POLICY "Suppression references strictly author" ON public.references_communautaires
     FOR DELETE TO authenticated
-    USING (ascq_id = auth.uid() OR notificateur_id = auth.uid());
+    USING (
+        ascq_id = auth.uid() 
+        OR relais_id IN (SELECT id FROM public.relais_communautaires WHERE user_id = auth.uid())
+    );
 
 
 -- E. Table rapports_mensuels_ascq

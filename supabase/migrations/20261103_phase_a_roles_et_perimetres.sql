@@ -42,6 +42,10 @@ ALTER TABLE public.utilisateurs DROP CONSTRAINT IF EXISTS utilisateurs_role_nomi
 ALTER TABLE public.utilisateurs ADD CONSTRAINT utilisateurs_role_nomination_check
     CHECK (role_nomination IS NULL OR role_nomination IN ('REPRESENTANT_COMMUNAL', 'MEMBRE_MINISTERE', 'PF_CCLS_TP'));
 
+ALTER TABLE public.utilisateurs DROP CONSTRAINT IF EXISTS utilisateurs_statut_compte_check;
+ALTER TABLE public.utilisateurs ADD CONSTRAINT utilisateurs_statut_compte_check
+    CHECK (statut_compte IN ('EN_ATTENTE', 'VALIDE', 'SUSPENDU', 'REJETE', 'INVALIDE'));
+
 -- 3. Fonctions utilitaires de sécurité pour les RLS (SECURITY DEFINER)
 CREATE OR REPLACE FUNCTION public.est_super_admin()
 RETURNS BOOLEAN

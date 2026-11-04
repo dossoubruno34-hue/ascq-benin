@@ -74,6 +74,9 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='utilisateurs' AND column_name='bloque_jusqu_a') THEN
         ALTER TABLE public.utilisateurs ADD COLUMN bloque_jusqu_a TIMESTAMPTZ;
     END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='utilisateurs' AND column_name='derniere_connexion') THEN
+        ALTER TABLE public.utilisateurs ADD COLUMN derniere_connexion TIMESTAMPTZ;
+    END IF;
 END $$;
 
 CREATE OR REPLACE FUNCTION public.enregistrer_tentative_connexion(
