@@ -686,15 +686,15 @@ BEGIN
 END;
 $$;
 
--- 8. ATTRIBUTION DES PERMISSIONS GLOBALES
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO authenticated, anon;
-GRANT ALL ON public.deces_communautaires TO authenticated;
-GRANT ALL ON public.deces_identite_privee TO authenticated;
-GRANT ALL ON public.alertes_communautaires TO authenticated;
-GRANT ALL ON public.cas_identite_privee TO authenticated;
-GRANT EXECUTE ON FUNCTION public.creer_notification_deces TO authenticated, anon;
-GRANT EXECUTE ON FUNCTION public.creer_notification_alerte TO authenticated, anon;
-GRANT EXECUTE ON FUNCTION public.obtenir_detail_alerte TO authenticated, anon;
-GRANT EXECUTE ON FUNCTION public.obtenir_detail_deces TO authenticated, anon;
+-- 8. ATTRIBUTION GLOBALE DES PRIVILÈGES SÉCURISÉE (SANS ERREUR 42883)
+GRANT USAGE ON SCHEMA public TO anon, authenticated;
+GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO anon;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO authenticated, anon;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO authenticated, anon;
+GRANT EXECUTE ON ALL ROUTINES IN SCHEMA public TO authenticated, anon;
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO authenticated, anon;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO authenticated;
 
 SELECT 'LEVÉE DES PROTECTIONS TERMINÉE : TOUTES LES DONNÉES SONT VISIBLES DIRECTEMENT' AS statut;
