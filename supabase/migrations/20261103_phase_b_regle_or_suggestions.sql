@@ -157,7 +157,7 @@ BEGIN
 
     -- Enregistrer dans l'audit
     INSERT INTO public.journal_audit (
-        utilisateur_id, capacite, action, details
+        utilisateur_id, capacite, action, details, table_cible, enregistrement_id
     ) VALUES (
         auth.uid(),
         COALESCE(v_user.role_nomination, v_user.role_technique),
@@ -168,7 +168,9 @@ BEGIN
             'cible_id', p_cible_id,
             'proprietaire_id', p_proprietaire_id,
             'champ', p_champ
-        )
+        ),
+        p_cible_table,
+        p_cible_id
     );
 
     RETURN v_new_id;
@@ -224,7 +226,7 @@ BEGIN
         WHERE id = p_suggestion_id;
 
         INSERT INTO public.journal_audit (
-            utilisateur_id, capacite, action, details
+            utilisateur_id, capacite, action, details, table_cible, enregistrement_id
         ) VALUES (
             auth.uid(),
             'AUTEUR',
@@ -235,7 +237,9 @@ BEGIN
                 'cible_id', v_sug.cible_id,
                 'champ', v_sug.champ,
                 'valeur_appliquee', v_sug.valeur_proposee
-            )
+            ),
+            v_sug.cible_table,
+            v_sug.cible_id
         );
 
         RETURN jsonb_build_object('success', true, 'message', 'Correction appliquee avec succes');
@@ -247,7 +251,7 @@ BEGIN
         WHERE id = p_suggestion_id;
 
         INSERT INTO public.journal_audit (
-            utilisateur_id, capacite, action, details
+            utilisateur_id, capacite, action, details, table_cible, enregistrement_id
         ) VALUES (
             auth.uid(),
             'AUTEUR',
@@ -257,7 +261,9 @@ BEGIN
                 'cible_table', v_sug.cible_table,
                 'cible_id', v_sug.cible_id,
                 'motif_refus', p_motif_refus
-            )
+            ),
+            v_sug.cible_table,
+            v_sug.cible_id
         );
 
         RETURN jsonb_build_object('success', true, 'message', 'Suggestion refusee avec motif');

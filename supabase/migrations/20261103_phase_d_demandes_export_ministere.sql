@@ -107,7 +107,9 @@ BEGIN
             'format', p_format,
             'type_donnees', p_type_donnees,
             'destinataire', p_destinataire
-        )
+        ),
+        'demandes_export_ministere',
+        v_new_id
     );
 
     RETURN v_new_id;
@@ -196,7 +198,9 @@ BEGIN
                 'demande_id', p_demande_id,
                 'demandeur_id', v_dem.demandeur_id,
                 'motif_refus', p_motif_refus
-            )
+            ),
+            'demandes_export_ministere',
+            p_demande_id
         );
 
         RETURN jsonb_build_object(
@@ -246,7 +250,7 @@ BEGIN
 
     -- Audit
     INSERT INTO public.journal_audit (
-        utilisateur_id, capacite, action, details
+        utilisateur_id, capacite, action, details, table_cible, enregistrement_id
     ) VALUES (
         auth.uid(),
         'MEMBRE_MINISTERE',

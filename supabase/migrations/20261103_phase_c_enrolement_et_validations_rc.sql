@@ -118,7 +118,7 @@ BEGIN
 
     -- Journal d'audit
     INSERT INTO public.journal_audit (
-        utilisateur_id, capacite, action, details
+        utilisateur_id, capacite, action, details, table_cible, enregistrement_id
     ) VALUES (
         auth.uid(),
         COALESCE(v_caller.role_nomination, v_caller.role_technique),
@@ -127,7 +127,9 @@ BEGIN
             'rc_id', p_rc_utilisateur_id,
             'statut', p_statut,
             'motif', p_motif
-        )
+        ),
+        'relais_communautaires',
+        p_rc_utilisateur_id
     );
 
     RETURN jsonb_build_object('success', true, 'statut', p_statut);
@@ -211,7 +213,7 @@ BEGIN
 
     -- Audit
     INSERT INTO public.journal_audit (
-        utilisateur_id, capacite, action, details
+        utilisateur_id, capacite, action, details, table_cible, enregistrement_id
     ) VALUES (
         auth.uid(),
         COALESCE(v_caller.role_nomination, v_caller.role_technique),
@@ -221,7 +223,9 @@ BEGIN
             'fiche_id', p_fiche_id,
             'statut', p_statut,
             'motif', p_motif
-        )
+        ),
+        p_table,
+        p_fiche_id
     );
 
     RETURN jsonb_build_object('success', true, 'statut', p_statut);

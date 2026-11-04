@@ -49,7 +49,7 @@ WHERE poste = 'RC' OR role_technique IN ('RELAIS', 'PUBLIC');
 
 -- Enregistrer le nettoyage dans le journal d'audit
 INSERT INTO public.journal_audit (
-    utilisateur_id, capacite, action, details
+    utilisateur_id, capacite, action, details, table_cible
 ) VALUES (
     (SELECT id FROM public.utilisateurs WHERE telephone LIKE '%69031463%' LIMIT 1),
     'SUPER_ADMIN',
@@ -58,7 +58,8 @@ INSERT INTO public.journal_audit (
         'date', NOW(),
         'roles_maintenus', ARRAY['RC', 'ASCQ', 'REPRESENTANT_COMMUNAL', 'PF_CCLS_TP', 'MEMBRE_MINISTERE', 'SUPER_ADMIN'],
         'statut', 'SUCCES'
-    )
+    ),
+    'utilisateurs'
 );
 
 

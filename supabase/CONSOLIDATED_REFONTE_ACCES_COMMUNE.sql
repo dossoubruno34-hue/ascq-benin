@@ -16,6 +16,31 @@
 -- Suppression des profils et accès départementaux
 -- =====================================================================
 
+-- 0.0 Normalisation immédiate de journal_audit (sécurisation table_cible et colonnes étendues)
+DO $
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='journal_audit') THEN
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='journal_audit' AND column_name='table_cible') THEN
+            ALTER TABLE public.journal_audit ALTER COLUMN table_cible DROP NOT NULL;
+            ALTER TABLE public.journal_audit ALTER COLUMN table_cible SET DEFAULT 'SYSTEME';
+        ELSE
+            ALTER TABLE public.journal_audit ADD COLUMN table_cible TEXT DEFAULT 'SYSTEME';
+        END IF;
+
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='journal_audit' AND column_name='enregistrement_id') THEN
+            ALTER TABLE public.journal_audit ALTER COLUMN enregistrement_id DROP NOT NULL;
+        END IF;
+
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='journal_audit' AND column_name='capacite') THEN
+            ALTER TABLE public.journal_audit ADD COLUMN capacite TEXT NOT NULL DEFAULT 'UTILISATEUR';
+        END IF;
+
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='journal_audit' AND column_name='commune_id') THEN
+            ALTER TABLE public.journal_audit ADD COLUMN commune_id UUID REFERENCES public.communes(id);
+        END IF;
+    END IF;
+END $;
+
 -- 0. Suppression préalable des anciennes contraintes pour autoriser la normalisation
 ALTER TABLE public.utilisateurs DROP CONSTRAINT IF EXISTS utilisateurs_role_technique_check;
 ALTER TABLE public.utilisateurs DROP CONSTRAINT IF EXISTS utilisateurs_role_nomination_check;
@@ -554,7 +579,7 @@ BEGIN
 
     -- Enregistrer dans l'audit
     INSERT INTO public.journal_audit (
-        utilisateur_id, capacite, action, details
+        utilisateur_id, capacite, action, details, table_cible, enregistrement_id
     ) VALUES (
         auth.uid(),
         COALESCE(v_user.role_nomination, v_user.role_technique),
@@ -565,7 +590,9 @@ BEGIN
             'cible_id', p_cible_id,
             'proprietaire_id', p_proprietaire_id,
             'champ', p_champ
-        )
+        ),
+        p_cible_table,
+        p_cible_id
     );
 
     RETURN v_new_id;
@@ -621,7 +648,7 @@ BEGIN
         WHERE id = p_suggestion_id;
 
         INSERT INTO public.journal_audit (
-            utilisateur_id, capacite, action, details
+            utilisateur_id, capacite, action, details, table_cible, enregistrement_id
         ) VALUES (
             auth.uid(),
             'AUTEUR',
@@ -632,7 +659,9 @@ BEGIN
                 'cible_id', v_sug.cible_id,
                 'champ', v_sug.champ,
                 'valeur_appliquee', v_sug.valeur_proposee
-            )
+            ),
+            v_sug.cible_table,
+            v_sug.cible_id
         );
 
         RETURN jsonb_build_object('success', true, 'message', 'Correction appliquee avec succes');
@@ -644,7 +673,7 @@ BEGIN
         WHERE id = p_suggestion_id;
 
         INSERT INTO public.journal_audit (
-            utilisateur_id, capacite, action, details
+            utilisateur_id, capacite, action, details, table_cible, enregistrement_id
         ) VALUES (
             auth.uid(),
             'AUTEUR',
@@ -654,7 +683,9 @@ BEGIN
                 'cible_table', v_sug.cible_table,
                 'cible_id', v_sug.cible_id,
                 'motif_refus', p_motif_refus
-            )
+            ),
+            v_sug.cible_table,
+            v_sug.cible_id
         );
 
         RETURN jsonb_build_object('success', true, 'message', 'Suggestion refusee avec motif');
@@ -904,7 +935,7 @@ BEGIN
 
     -- Journal d'audit
     INSERT INTO public.journal_audit (
-        utilisateur_id, capacite, action, details
+        utilisateur_id, capacite, action, details, table_cible, enregistrement_id
     ) VALUES (
         auth.uid(),
         COALESCE(v_caller.role_nomination, v_caller.role_technique),
@@ -913,7 +944,9 @@ BEGIN
             'rc_id', p_rc_utilisateur_id,
             'statut', p_statut,
             'motif', p_motif
-        )
+        ),
+        'relais_communautaires',
+        p_rc_utilisateur_id
     );
 
     RETURN jsonb_build_object('success', true, 'statut', p_statut);
@@ -997,7 +1030,7 @@ BEGIN
 
     -- Audit
     INSERT INTO public.journal_audit (
-        utilisateur_id, capacite, action, details
+        utilisateur_id, capacite, action, details, table_cible, enregistrement_id
     ) VALUES (
         auth.uid(),
         COALESCE(v_caller.role_nomination, v_caller.role_technique),
@@ -1007,7 +1040,9 @@ BEGIN
             'fiche_id', p_fiche_id,
             'statut', p_statut,
             'motif', p_motif
-        )
+        ),
+        p_table,
+        p_fiche_id
     );
 
     RETURN jsonb_build_object('success', true, 'statut', p_statut);
@@ -1129,7 +1164,9 @@ BEGIN
             'format', p_format,
             'type_donnees', p_type_donnees,
             'destinataire', p_destinataire
-        )
+        ),
+        'demandes_export_ministere',
+        v_new_id
     );
 
     RETURN v_new_id;
@@ -1218,7 +1255,9 @@ BEGIN
                 'demande_id', p_demande_id,
                 'demandeur_id', v_dem.demandeur_id,
                 'motif_refus', p_motif_refus
-            )
+            ),
+            'demandes_export_ministere',
+            p_demande_id
         );
 
         RETURN jsonb_build_object(
@@ -1268,7 +1307,7 @@ BEGIN
 
     -- Audit
     INSERT INTO public.journal_audit (
-        utilisateur_id, capacite, action, details
+        utilisateur_id, capacite, action, details, table_cible, enregistrement_id
     ) VALUES (
         auth.uid(),
         'MEMBRE_MINISTERE',
@@ -1473,15 +1512,26 @@ CREATE TABLE IF NOT EXISTS public.journal_audit (
 );
 
 -- Colonnes additionnelles si la table existait déjà
-DO $$
+DO $
 BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='journal_audit' AND column_name='table_cible') THEN
+        ALTER TABLE public.journal_audit ALTER COLUMN table_cible DROP NOT NULL;
+        ALTER TABLE public.journal_audit ALTER COLUMN table_cible SET DEFAULT 'SYSTEME';
+    ELSE
+        ALTER TABLE public.journal_audit ADD COLUMN table_cible TEXT DEFAULT 'SYSTEME';
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='journal_audit' AND column_name='enregistrement_id') THEN
+        ALTER TABLE public.journal_audit ALTER COLUMN enregistrement_id DROP NOT NULL;
+    END IF;
+
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='journal_audit' AND column_name='capacite') THEN
         ALTER TABLE public.journal_audit ADD COLUMN capacite TEXT NOT NULL DEFAULT 'UTILISATEUR';
     END IF;
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='journal_audit' AND column_name='commune_id') THEN
         ALTER TABLE public.journal_audit ADD COLUMN commune_id UUID REFERENCES public.communes(id);
     END IF;
-END $$;
+END $;
 
 -- Trigger d'immutabilité absolue sur journal_audit (Interdiction totale d'UPDATE et DELETE)
 CREATE OR REPLACE FUNCTION public.empecher_modification_journal_audit()
@@ -1569,13 +1619,15 @@ BEGIN
         WHERE id = v_user.id;
 
         INSERT INTO public.journal_audit (
-            utilisateur_id, capacite, commune_id, action, details
+            utilisateur_id, capacite, commune_id, action, details, table_cible, enregistrement_id
         ) VALUES (
             v_user.id,
             COALESCE(v_user.role_nomination, v_user.role_technique),
             v_user.commune_id,
             'CONNEXION_REUSSIE',
-            jsonb_build_object('telephone', v_clean_tel)
+            jsonb_build_object('telephone', v_clean_tel),
+            'utilisateurs',
+            v_user.id
         );
 
         RETURN jsonb_build_object('bloque', false, 'succes', true);
@@ -1590,7 +1642,7 @@ BEGIN
         WHERE id = v_user.id;
 
         INSERT INTO public.journal_audit (
-            utilisateur_id, capacite, commune_id, action, details
+            utilisateur_id, capacite, commune_id, action, details, table_cible, enregistrement_id
         ) VALUES (
             v_user.id,
             COALESCE(v_user.role_nomination, v_user.role_technique),
@@ -1600,7 +1652,9 @@ BEGIN
                 'telephone', v_clean_tel,
                 'tentative_numero', v_user.tentatives_echouees + 1,
                 'est_bloque', (v_user.tentatives_echouees + 1 >= 5)
-            )
+            ),
+            'utilisateurs',
+            v_user.id
         );
 
         IF v_user.tentatives_echouees + 1 >= 5 THEN
@@ -1694,7 +1748,7 @@ WHERE poste = 'RC' OR role_technique IN ('RELAIS', 'PUBLIC');
 
 -- Enregistrer le nettoyage dans le journal d'audit
 INSERT INTO public.journal_audit (
-    utilisateur_id, capacite, action, details
+    utilisateur_id, capacite, action, details, table_cible
 ) VALUES (
     (SELECT id FROM public.utilisateurs WHERE telephone LIKE '%69031463%' LIMIT 1),
     'SUPER_ADMIN',
@@ -1703,7 +1757,8 @@ INSERT INTO public.journal_audit (
         'date', NOW(),
         'roles_maintenus', ARRAY['RC', 'ASCQ', 'REPRESENTANT_COMMUNAL', 'PF_CCLS_TP', 'MEMBRE_MINISTERE', 'SUPER_ADMIN'],
         'statut', 'SUCCES'
-    )
+    ),
+    'utilisateurs'
 );
 
 

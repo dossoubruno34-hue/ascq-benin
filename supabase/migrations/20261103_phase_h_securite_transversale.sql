@@ -20,15 +20,26 @@ CREATE TABLE IF NOT EXISTS public.journal_audit (
 );
 
 -- Colonnes additionnelles si la table existait déjà
-DO $$
+DO $
 BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='journal_audit' AND column_name='table_cible') THEN
+        ALTER TABLE public.journal_audit ALTER COLUMN table_cible DROP NOT NULL;
+        ALTER TABLE public.journal_audit ALTER COLUMN table_cible SET DEFAULT 'SYSTEME';
+    ELSE
+        ALTER TABLE public.journal_audit ADD COLUMN table_cible TEXT DEFAULT 'SYSTEME';
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='journal_audit' AND column_name='enregistrement_id') THEN
+        ALTER TABLE public.journal_audit ALTER COLUMN enregistrement_id DROP NOT NULL;
+    END IF;
+
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='journal_audit' AND column_name='capacite') THEN
         ALTER TABLE public.journal_audit ADD COLUMN capacite TEXT NOT NULL DEFAULT 'UTILISATEUR';
     END IF;
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='journal_audit' AND column_name='commune_id') THEN
         ALTER TABLE public.journal_audit ADD COLUMN commune_id UUID REFERENCES public.communes(id);
     END IF;
-END $$;
+END $;
 
 -- Trigger d'immutabilité absolue sur journal_audit (Interdiction totale d'UPDATE et DELETE)
 CREATE OR REPLACE FUNCTION public.empecher_modification_journal_audit()
@@ -116,13 +127,15 @@ BEGIN
         WHERE id = v_user.id;
 
         INSERT INTO public.journal_audit (
-            utilisateur_id, capacite, commune_id, action, details
+            utilisateur_id, capacite, commune_id, action, details, table_cible, enregistrement_id
         ) VALUES (
             v_user.id,
             COALESCE(v_user.role_nomination, v_user.role_technique),
             v_user.commune_id,
             'CONNEXION_REUSSIE',
-            jsonb_build_object('telephone', v_clean_tel)
+            jsonb_build_object('telephone', v_clean_tel),
+            'utilisateurs',
+            v_user.id
         );
 
         RETURN jsonb_build_object('bloque', false, 'succes', true);
@@ -137,7 +150,7 @@ BEGIN
         WHERE id = v_user.id;
 
         INSERT INTO public.journal_audit (
-            utilisateur_id, capacite, commune_id, action, details
+            utilisateur_id, capacite, commune_id, action, details, table_cible, enregistrement_id
         ) VALUES (
             v_user.id,
             COALESCE(v_user.role_nomination, v_user.role_technique),
@@ -147,7 +160,9 @@ BEGIN
                 'telephone', v_clean_tel,
                 'tentative_numero', v_user.tentatives_echouees + 1,
                 'est_bloque', (v_user.tentatives_echouees + 1 >= 5)
-            )
+            ),
+            'utilisateurs',
+            v_user.id
         );
 
         IF v_user.tentatives_echouees + 1 >= 5 THEN

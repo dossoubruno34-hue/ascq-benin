@@ -5,6 +5,31 @@
 -- Suppression des profils et accès départementaux
 -- =====================================================================
 
+-- 0.0 Normalisation immédiate de journal_audit (sécurisation table_cible et colonnes étendues)
+DO $
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='journal_audit') THEN
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='journal_audit' AND column_name='table_cible') THEN
+            ALTER TABLE public.journal_audit ALTER COLUMN table_cible DROP NOT NULL;
+            ALTER TABLE public.journal_audit ALTER COLUMN table_cible SET DEFAULT 'SYSTEME';
+        ELSE
+            ALTER TABLE public.journal_audit ADD COLUMN table_cible TEXT DEFAULT 'SYSTEME';
+        END IF;
+
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='journal_audit' AND column_name='enregistrement_id') THEN
+            ALTER TABLE public.journal_audit ALTER COLUMN enregistrement_id DROP NOT NULL;
+        END IF;
+
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='journal_audit' AND column_name='capacite') THEN
+            ALTER TABLE public.journal_audit ADD COLUMN capacite TEXT NOT NULL DEFAULT 'UTILISATEUR';
+        END IF;
+
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='journal_audit' AND column_name='commune_id') THEN
+            ALTER TABLE public.journal_audit ADD COLUMN commune_id UUID REFERENCES public.communes(id);
+        END IF;
+    END IF;
+END $;
+
 -- 0. Suppression préalable des anciennes contraintes pour autoriser la normalisation
 ALTER TABLE public.utilisateurs DROP CONSTRAINT IF EXISTS utilisateurs_role_technique_check;
 ALTER TABLE public.utilisateurs DROP CONSTRAINT IF EXISTS utilisateurs_role_nomination_check;
