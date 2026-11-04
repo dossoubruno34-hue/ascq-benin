@@ -429,13 +429,7 @@ BEGIN
             p_nom_parent,
             p_telephone_parent,
             p_adresse_domicile
-        )
-        ON CONFLICT (deces_id) DO UPDATE
-        SET nom_defunt = EXCLUDED.nom_defunt,
-            prenoms_defunt = EXCLUDED.prenoms_defunt,
-            nom_parent = EXCLUDED.nom_parent,
-            telephone_parent = EXCLUDED.telephone_parent,
-            adresse_domicile = EXCLUDED.adresse_domicile;
+        );
     END IF;
 
     IF p_registre_id IS NOT NULL THEN
@@ -677,12 +671,7 @@ BEGIN
             p_telephone_cas,
             p_adresse_cas,
             p_date_naissance_cas
-        )
-        ON CONFLICT (alerte_id) DO UPDATE
-        SET nom = EXCLUDED.nom,
-            prenoms = EXCLUDED.prenoms,
-            telephone_contact = EXCLUDED.telephone_contact,
-            adresse_domicile = EXCLUDED.adresse_domicile;
+        );
     END IF;
 
     RETURN jsonb_build_object(
