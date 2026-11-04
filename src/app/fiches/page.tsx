@@ -134,7 +134,7 @@ export default function MesFichesPage() {
       type: "ALR",
       typeLibelle: "Alerte SIMR",
       numero: a.numero_alerte,
-      titre: corrigerAccents(a.type_alerte_nom),
+      titre: (a.cas_nom_prenom || a.nom_cas) ? `${(a.cas_nom_prenom || `${a.nom_cas} ${a.prenoms_cas || ''}`).trim()} — ${corrigerAccents(a.type_alerte_nom)}` : corrigerAccents(a.type_alerte_nom),
       village: a.village_nom,
       commune: a.commune_nom,
       departement: a.departement_nom,
@@ -178,7 +178,7 @@ export default function MesFichesPage() {
       type: "DEC",
       typeLibelle: "Décès Communautaire",
       numero: d.numero_deces,
-      titre: corrigerAccents(d.type_deces_nom),
+      titre: (d.defunt_nom_prenom || d.nom_defunt) ? `${(d.defunt_nom_prenom || `${d.nom_defunt} ${d.prenoms_defunt || ''}`).trim()} — ${corrigerAccents(d.type_deces_nom)}` : corrigerAccents(d.type_deces_nom),
       village: d.village_nom,
       commune: "Zone sanitaire",
       departement: "Département",
@@ -818,23 +818,34 @@ export default function MesFichesPage() {
                     <strong className="text-slate-900 text-sm">{ficheConsultation.impact}</strong>
                   </div>
                   
-                  {/* Détails du cas (Toutes les informations doivent apparaître sur la fiche transmise) */}
-                  {(ficheConsultation.rawData?.cas_nom || ficheConsultation.rawData?.sexe || ficheConsultation.rawData?.age_valeur) && (
+                  {/* Détails du cas ou du défunt (Identité complète sans masquage) */}
+                  {(ficheConsultation.rawData?.nom_defunt || ficheConsultation.rawData?.defunt_nom_prenom || ficheConsultation.rawData?.cas_nom || ficheConsultation.rawData?.nom_cas || ficheConsultation.rawData?.sexe || ficheConsultation.rawData?.age_valeur) && (
                     <div className="p-2.5 bg-white rounded-xl border border-slate-200 text-xs sm:col-span-2">
-                      <span className="text-slate-500 font-bold block text-[11px] mb-1">Identité & Caractéristiques du Cas Notifié :</span>
+                      <span className="text-slate-500 font-bold block text-[11px] mb-1">
+                        {ficheConsultation.type === "DEC" ? "Identité du Défunt & Proches :" : "Identité & Caractéristiques du Cas Notifié :"}
+                      </span>
                       <p className="text-slate-900 font-semibold">
-                        {ficheConsultation.rawData.cas_nom ? `${ficheConsultation.rawData.cas_nom} ${ficheConsultation.rawData.cas_prenoms || ""}` : "Cas index notifié"} 
+                        {ficheConsultation.type === "DEC"
+                          ? (ficheConsultation.rawData.defunt_nom_prenom || `${ficheConsultation.rawData.nom_defunt || ''} ${ficheConsultation.rawData.prenoms_defunt || ''}`.trim() || "Défunt notifié")
+                          : (ficheConsultation.rawData.cas_nom || `${ficheConsultation.rawData.nom_cas || ''} ${ficheConsultation.rawData.prenoms_cas || ''}`.trim() || "Cas index notifié")
+                        } 
                         {ficheConsultation.rawData.sexe && ` • Sexe : ${ficheConsultation.rawData.sexe === "M" ? "Masculin" : "Féminin"}`}
                         {ficheConsultation.rawData.age_valeur && ` • Âge : ${ficheConsultation.rawData.age_valeur} ${ficheConsultation.rawData.age_unite || "ans"}`}
                       </p>
-                      {ficheConsultation.rawData.telephone && (
+                      {(ficheConsultation.rawData.nom_parent || ficheConsultation.rawData.telephone_parent) && (
                         <p className="text-[11px] text-slate-600 mt-0.5">
-                          Téléphone contact : <strong className="text-slate-900">{ficheConsultation.rawData.telephone}</strong>
+                          Parent / Proche : <strong className="text-slate-900">{ficheConsultation.rawData.nom_parent || "-"}</strong>
+                          {ficheConsultation.rawData.telephone_parent && ` (${ficheConsultation.rawData.telephone_parent})`}
                         </p>
                       )}
-                      {ficheConsultation.rawData.adresse && (
+                      {(ficheConsultation.rawData.telephone || ficheConsultation.rawData.telephone_contact) && (
                         <p className="text-[11px] text-slate-600 mt-0.5">
-                          Adresse / Hameau : <strong className="text-slate-900">{ficheConsultation.rawData.adresse}</strong>
+                          Téléphone contact : <strong className="text-slate-900">{ficheConsultation.rawData.telephone || ficheConsultation.rawData.telephone_contact}</strong>
+                        </p>
+                      )}
+                      {(ficheConsultation.rawData.adresse || ficheConsultation.rawData.adresse_domicile) && (
+                        <p className="text-[11px] text-slate-600 mt-0.5">
+                          Adresse / Hameau : <strong className="text-slate-900">{ficheConsultation.rawData.adresse || ficheConsultation.rawData.adresse_domicile}</strong>
                         </p>
                       )}
                     </div>

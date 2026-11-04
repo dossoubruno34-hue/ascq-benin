@@ -528,17 +528,26 @@ export default function RegistreConsultationsPage() {
                   <span className="text-slate-400">Pathologie / Diagnostic :</span>
                   <strong className="text-slate-900 font-bold">{selectedConsultation.diagnostic_possible || "Soin Communautaire"}</strong>
                 </div>
+                {(selectedConsultation.nom_patient || selectedConsultation.prenoms_patient) && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Identité du patient :</span>
+                    <strong className="text-slate-900 font-bold">{selectedConsultation.nom_patient} {selectedConsultation.prenoms_patient}</strong>
+                  </div>
+                )}
+                {selectedConsultation.nom_parent_tuteur && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Parent / Tuteur :</span>
+                    <strong className="text-slate-800">{selectedConsultation.nom_parent_tuteur}</strong>
+                  </div>
+                )}
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Profil patient (non nominatif) :</span>
+                  <span className="text-slate-400">Âge & Sexe :</span>
                   <strong>{selectedConsultation.age_valeur} {selectedConsultation.age_unite?.toLowerCase()} • Sexe {selectedConsultation.sexe}</strong>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-400">Localisation géographique :</span>
                   <strong>Village {selectedConsultation.village}</strong>
                 </div>
-                <p className="text-[10px] text-slate-500 italic pt-1 border-t border-slate-200">
-                  Conformément aux normes déontologiques et à la politique de santé communautaire, l'identité et les coordonnées nominatives du patient ne sont pas divulguées afin de préserver l'anonymat médical.
-                </p>
               </div>
 
               {/* EXAMEN & TDR */}

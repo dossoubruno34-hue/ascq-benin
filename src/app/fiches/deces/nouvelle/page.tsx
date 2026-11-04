@@ -204,7 +204,12 @@ export default function NouveauDecesPage() {
       setSuccessResult(data);
 
     } catch (err: any) {
-      setErrorMessage(err.message || "Erreur lors de la notification de décès.");
+      console.error("Erreur notification deces:", err);
+      let msg = err.message || "Erreur lors de la notification de décès.";
+      if (msg.includes("Failed to fetch") || msg.includes("NetworkError")) {
+        msg = "Erreur réseau / session interrompue. Veuillez vérifier votre connexion ou vous reconnecter pour valider votre session.";
+      }
+      setErrorMessage(msg);
     } finally {
       setSubmitting(false);
     }
@@ -410,16 +415,15 @@ export default function NouveauDecesPage() {
             </div>
           </div>
 
-          {/* Identité du défunt (Protégée sous RLS) */}
+          {/* Identité du défunt */}
           <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm space-y-3.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-[#005c30]">
                 <User className="w-5 h-5" />
                 <h2 className="font-extrabold text-sm text-slate-900">Identité du défunt</h2>
               </div>
-              <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100 flex items-center gap-1">
-                <Lock className="w-3 h-3" />
-                <span>Protégé RLS</span>
+              <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200 flex items-center gap-1">
+                <span>Identification terrain</span>
               </span>
             </div>
 

@@ -666,7 +666,7 @@ export default function NouvelleAlertePage() {
               </div>
             </div>
 
-            {/* Cadre Identité du Cas (Protégée sous RLS) */}
+            {/* Cadre Identité du Cas */}
             <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm space-y-3.5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-[#005c30]">
@@ -675,9 +675,8 @@ export default function NouvelleAlertePage() {
                     Identité du cas index
                   </h2>
                 </div>
-                <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-100">
-                  <Lock className="w-3 h-3" />
-                  <span>Données de santé protégées</span>
+                <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200">
+                  <span>Identification terrain</span>
                 </span>
               </div>
 

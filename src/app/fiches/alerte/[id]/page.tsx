@@ -314,7 +314,7 @@ export default function DetailAlertePage() {
           )}
         </div>
 
-        {/* 2. Cadre Identité du Cas (Données de santé protégées) */}
+        {/* 2. Cadre Identité du Cas */}
         <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-[#005c30]">
@@ -323,59 +323,52 @@ export default function DetailAlertePage() {
                 Identité du cas index
               </h3>
             </div>
-            <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
-              <Lock className="w-3 h-3" />
-              <span>Protégé RLS</span>
+            <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200">
+              <span>Identification terrain</span>
             </span>
           </div>
 
-          {alerte.cas_prive ? (
-            <div className="space-y-2 text-xs">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
-                  <span className="text-slate-400 block text-[11px]">Nom & Prénoms</span>
-                  <strong className="font-extrabold text-slate-900 text-sm">
-                    {alerte.cas_prive.nom} {alerte.cas_prive.prenoms}
-                  </strong>
-                </div>
-
-                <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
-                  <span className="text-slate-400 block text-[11px]">Sexe & Âge</span>
-                  <strong className="font-extrabold text-slate-900 text-sm">
-                    {alerte.sexe === "M" ? "Masculin" : "Féminin"} • {alerte.age_valeur} {alerte.age_unite?.toLowerCase()}
-                  </strong>
-                </div>
+          <div className="space-y-2 text-xs">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                <span className="text-slate-400 block text-[11px]">Nom & Prénoms</span>
+                <strong className="font-extrabold text-slate-900 text-sm">
+                  {alerte.cas_prive?.nom || alerte.nom_cas || "Nom non précisé"} {alerte.cas_prive?.prenoms || alerte.prenoms_cas || ""}
+                </strong>
               </div>
 
-              {alerte.cas_prive.telephone && (
-                <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between flex-wrap gap-2">
-                  <span className="text-slate-500 flex items-center gap-1">
-                    <Phone className="w-3.5 h-3.5" />
-                    <span>Téléphone du cas :</span>
-                  </span>
-                  <BeninPhoneAction telephone={alerte.cas_prive.telephone} variant="button-group" />
-                </div>
-              )}
-
-              {alerte.cas_prive.adresse && (
-                <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
-                  <span className="text-slate-400 block text-[11px]">Adresse exacte</span>
-                  <p className="font-medium text-slate-800 mt-0.5">{alerte.cas_prive.adresse}</p>
-                </div>
-              )}
-
-              {alerte.cas_prive.npi && (
-                <div className="text-[11px] text-slate-500 flex justify-between pt-1">
-                  <span>NPI du cas :</span>
-                  <strong className="font-mono text-slate-700">{alerte.cas_prive.npi}</strong>
-                </div>
-              )}
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                <span className="text-slate-400 block text-[11px]">Sexe & Âge</span>
+                <strong className="font-extrabold text-slate-900 text-sm">
+                  {alerte.sexe === "M" ? "Masculin" : "Féminin"} • {alerte.age_valeur} {alerte.age_unite?.toLowerCase()}
+                </strong>
+              </div>
             </div>
-          ) : (
-            <p className="text-xs text-slate-400 italic">
-              Données nominatives masquées conformément à la politique de confidentialité.
-            </p>
-          )}
+
+            {(alerte.cas_prive?.telephone || alerte.telephone_contact) && (
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between flex-wrap gap-2">
+                <span className="text-slate-500 flex items-center gap-1">
+                  <Phone className="w-3.5 h-3.5" />
+                  <span>Téléphone du cas :</span>
+                </span>
+                <BeninPhoneAction telephone={alerte.cas_prive?.telephone || alerte.telephone_contact} variant="button-group" />
+              </div>
+            )}
+
+            {(alerte.cas_prive?.adresse || alerte.adresse_domicile) && (
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                <span className="text-slate-400 block text-[11px]">Adresse exacte</span>
+                <p className="font-medium text-slate-800 mt-0.5">{alerte.cas_prive?.adresse || alerte.adresse_domicile}</p>
+              </div>
+            )}
+
+            {(alerte.cas_prive?.npi || alerte.npi_cas) && (
+              <div className="text-[11px] text-slate-500 flex justify-between pt-1">
+                <span>NPI du cas :</span>
+                <strong className="font-mono text-slate-700">{alerte.cas_prive?.npi || alerte.npi_cas}</strong>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* 3. Cadre Signes et Symptômes constatés */}
