@@ -59,7 +59,7 @@ Deno.serve(async (req) => {
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-  // 2. CONTRÔLE D'ACCÈS STRICT (Point 4 : Cron ou Secret d'invocation uniquement)
+  // 2. CONTRÔLE D'ACCÈS STRICT (Cron ou Secret d'invocation uniquement)
   const authHeader = req.headers.get("Authorization") || "";
   const cronHeader = req.headers.get("x-cron-secret") || "";
   const cronSecret = Deno.env.get("CRON_SYNC_SECRET") || supabaseServiceKey;
@@ -102,11 +102,11 @@ Deno.serve(async (req) => {
   }
 
   // 3. Récupérer les secrets Facebook stockés UNIQUEMENT dans Supabase Secrets
-  const pageId = Deno.env.get("FB_PAGE_ID");
-  const pageToken = Deno.env.get("FB_PAGE_TOKEN");
+  const pageId = Deno.env.get("FB_PAGE_ID") || "61595028870500";
+  const initialToken = Deno.env.get("FB_PAGE_TOKEN");
 
-  if (!pageId || !pageToken) {
-    const errorMsg = "Secrets FB_PAGE_ID ou FB_PAGE_TOKEN non configurés dans Supabase Secrets.";
+  if (!initialToken) {
+    const errorMsg = "Secret FB_PAGE_TOKEN non configuré dans Supabase Secrets.";
     console.error(`[sync-facebook-posts] ${errorMsg}`);
 
     await supabase.from("facebook_sync_logs").insert({
@@ -124,71 +124,134 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // 4. Appel API Graph Meta v25.0
-    // SÉCURITÉ STRICTE (Point 3) : 
-    // - Le jeton passe UNIQUEMENT dans l'en-tête Authorization: Bearer <TOKEN>
-    // - JAMAIS dans l'URL ni dans les paramètres de requête.
     const graphApiVersion = "v25.0";
-    const graphUrl = `https://graph.facebook.com/${graphApiVersion}/${encodeURIComponent(pageId)}/posts?fields=id,message,created_time,permalink_url&limit=10`;
+    let activeToken = initialToken;
+    let resolvedPageName = "Page officielle";
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // Timeout 10s strict
-
-    let fbRes: Response;
+    // 4. RÉSOLUTION D'IDENTITÉ INTELLIGENTE DU JETON (Page Token vs User Token)
+    // Permet de fonctionner de manière transparente même si l'utilisateur a configuré un jeton utilisateur
     try {
-      fbRes = await fetch(graphUrl, {
-        method: "GET",
-        signal: controller.signal,
+      const meRes = await fetch(`https://graph.facebook.com/${graphApiVersion}/me?fields=id,name,category`, {
         headers: {
           "Accept": "application/json",
-          "Authorization": `Bearer ${pageToken}`, // Jeton dans l'en-tête
+          "Authorization": `Bearer ${initialToken}`,
         },
       });
-    } finally {
-      clearTimeout(timeoutId);
+      const meData = await meRes.json();
+
+      if (meData?.id) {
+        if (meData.category) {
+          // Le jeton est déjà un jeton direct de page !
+          resolvedPageName = meData.name || resolvedPageName;
+          console.log(`[sync-facebook-posts] Jeton de Page direct vérifié : "${meData.name}" (ID: ${meData.id})`);
+        } else {
+          // Le jeton est un jeton utilisateur -> récupérer le jeton de page via /me/accounts
+          console.log(`[sync-facebook-posts] Jeton Utilisateur détecté : "${meData.name}". Recherche automatique du jeton de page via /me/accounts...`);
+          const accRes = await fetch(`https://graph.facebook.com/${graphApiVersion}/me/accounts?fields=id,name,access_token`, {
+            headers: {
+              "Accept": "application/json",
+              "Authorization": `Bearer ${initialToken}`,
+            },
+          });
+          const accData = await accRes.json();
+          if (Array.isArray(accData?.data) && accData.data.length > 0) {
+            // Trouver la page du Collectif ou la première page disponible
+            const matchingPage = accData.data.find((p: any) => 
+              p.id === pageId || (p.name || "").toLowerCase().includes("ascq") || (p.name || "").toLowerCase().includes("collectif")
+            ) || accData.data[0];
+
+            if (matchingPage?.access_token) {
+              activeToken = matchingPage.access_token;
+              resolvedPageName = matchingPage.name || resolvedPageName;
+              console.log(`[sync-facebook-posts] Jeton de Page obtenu avec succès pour "${matchingPage.name}" (ID: ${matchingPage.id})`);
+            }
+          }
+        }
+      }
+    } catch (discoveryErr) {
+      console.warn("[sync-facebook-posts] Résolution d'identité /me contournée:", discoveryErr.message);
     }
 
-    const fbData: FacebookApiResponse = await fbRes.json();
+    // 5. Appel de l'API Graph Meta v25.0
+    // Teste d'abord /{pageId}/posts puis /me/posts puis /me/feed
+    const candidateEndpoints = [
+      `https://graph.facebook.com/${graphApiVersion}/${encodeURIComponent(pageId)}/posts?fields=id,message,created_time,permalink_url&limit=10`,
+      `https://graph.facebook.com/${graphApiVersion}/me/posts?fields=id,message,created_time,permalink_url&limit=10`,
+      `https://graph.facebook.com/${graphApiVersion}/${encodeURIComponent(pageId)}/feed?fields=id,message,created_time,permalink_url&limit=10`,
+      `https://graph.facebook.com/${graphApiVersion}/me/feed?fields=id,message,created_time,permalink_url&limit=10`
+    ];
 
-    // 5. Gestion des erreurs de l'API Graph (Code 190 ou erreur serveur)
-    if (!fbRes.ok || fbData.error) {
-      const errCode = fbData.error?.code || fbRes.status;
-      const errSubcode = fbData.error?.error_subcode;
-      const rawErrMsg = fbData.error?.message || `Erreur HTTP ${fbRes.status} depuis l'API Graph Meta`;
+    let lastErrorData: any = null;
+    let successfulPosts: FacebookPost[] | null = null;
+
+    for (const url of candidateEndpoints) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+      try {
+        const res = await fetch(url, {
+          method: "GET",
+          signal: controller.signal,
+          headers: {
+            "Accept": "application/json",
+            "Authorization": `Bearer ${activeToken}`,
+          },
+        });
+        clearTimeout(timeoutId);
+
+        const data: FacebookApiResponse = await res.json();
+        if (res.ok && !data.error && Array.isArray(data.data)) {
+          successfulPosts = data.data;
+          console.log(`[sync-facebook-posts] Données récupérées avec succès via ${url.split('?')[0]}`);
+          break;
+        } else {
+          lastErrorData = data.error || { message: `HTTP ${res.status}` };
+        }
+      } catch (err: any) {
+        clearTimeout(timeoutId);
+        lastErrorData = { message: err.message || "Erreur de connexion" };
+      }
+    }
+
+    // Si aucun endpoint n'a pu répondre favorablement
+    if (!successfulPosts) {
+      const errCode = lastErrorData?.code || 400;
+      const rawErrMsg = lastErrorData?.message || "Impossible de récupérer les publications Meta.";
       const errMsg = assainirMessage(rawErrMsg);
 
-      console.error(`[sync-facebook-posts] Erreur API Meta (code ${errCode}, subcode ${errSubcode}): ${errMsg}`);
+      console.error(`[sync-facebook-posts] Échec de récupération Graph API : ${errMsg}`);
 
-      // Enregistrer l'erreur dans facebook_sync_logs (SANS AUCUN JETON)
-      // Les données précédentes en base restent 100% conservées
+      let explanation = errMsg;
+      if (errCode === 190) {
+        explanation = `Jeton Facebook expiré ou invalide (Code 190). Veuillez renouveler le jeton de page dans Supabase Secrets.`;
+      } else if (errMsg.includes("Unsupported get request") || errMsg.includes("does not exist") || errMsg.includes("missing permissions")) {
+        explanation = `Autorisations insuffisantes ou jeton non relié à la page : le jeton utilisé ne possède pas la permission 'pages_read_engagement' pour la page ${pageId}. Assurez-vous d'avoir sélectionné la Page 'Collectif des ASCQ Bénin' dans le menu déroulant de l'Explorateur Graph avant de copier le jeton.`;
+      }
+
       await supabase.from("facebook_sync_logs").insert({
         status: "ERROR",
         status_code: errCode,
-        message: errCode === 190 
-          ? `Jeton de page Facebook expiré ou révoqué (Code 190) : ${errMsg}` 
-          : `Erreur API Meta Graph : ${errMsg}`,
+        message: explanation,
         posts_count: 0,
         error_details: {
           code: errCode,
-          subcode: errSubcode,
-          type: fbData.error?.type,
+          type: lastErrorData?.type,
         },
       });
 
       return new Response(
         JSON.stringify({
           success: false,
-          error: errMsg,
+          error: explanation,
           code: errCode,
-          note: "La version précédente des publications a été conservée sans altération.",
+          note: "Les données précédemment en base ont été conservées.",
         }),
         { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     // 6. Filtrage : ignorer les publications sans texte et garder les 3 plus récentes
-    const rawPosts = Array.isArray(fbData.data) ? fbData.data : [];
-    const postsAvecTexte = rawPosts.filter(
+    const postsAvecTexte = successfulPosts.filter(
       (p) => p.message && p.message.trim().length > 0 && p.created_time
     );
 
@@ -203,7 +266,7 @@ Deno.serve(async (req) => {
       await supabase.from("facebook_sync_logs").insert({
         status: "SUCCESS",
         status_code: 200,
-        message: "Synchronisation réussie : 0 nouvelle publication trouvée. Publications existantes conservées.",
+        message: `Synchronisation réussie pour ${resolvedPageName} : 0 nouvelle publication avec texte trouvée. Publications précédentes conservées.`,
         posts_count: 0,
         error_details: { action: "RETAIN_EXISTING_DATA" },
       });
@@ -245,7 +308,7 @@ Deno.serve(async (req) => {
     await supabase.from("facebook_sync_logs").insert({
       status: "SUCCESS",
       status_code: 200,
-      message: `Synchronisation réussie : ${top3Posts.length} publication(s) mises à jour.`,
+      message: `Synchronisation réussie (${resolvedPageName}) : ${top3Posts.length} publication(s) mises à jour.`,
       posts_count: top3Posts.length,
     });
 
@@ -253,6 +316,7 @@ Deno.serve(async (req) => {
       JSON.stringify({
         success: true,
         posts_synced: top3Posts.length,
+        page_name: resolvedPageName,
         items: top3Posts.map((p) => ({ id: p.id, created_time: p.created_time })),
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
