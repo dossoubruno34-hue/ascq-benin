@@ -7,6 +7,7 @@ import { HeartPulse, ExternalLink } from "lucide-react";
 import { SocialPlatformsCard, FacebookIcon } from "@/components/SocialLinks";
 import CarteCouvertureBenin from "@/components/CarteCouvertureBenin";
 import HomeAuthButtons from "@/components/HomeAuthButtons";
+import DernieresPublicationsFacebook, { PublicationFacebook } from "@/components/DernieresPublicationsFacebook";
 
 export const dynamic = "force-dynamic";
 
@@ -18,16 +19,18 @@ export default async function HomePage() {
   let nbMenages = 0;
   let nbPersonnes = "0";
   let conseils: any[] = [];
+  let publicationsFacebook: PublicationFacebook[] = [];
   let couvertureData: Array<{ commune_id: string; nombre_ascq: number }> = [];
 
   try {
-    const [depsRes, ascqCountRes, profilsRes, rcCountRes, rmaRes, conseilsRes, couvertureRpcRes] = await Promise.all([
+    const [depsRes, ascqCountRes, profilsRes, rcCountRes, rmaRes, conseilsRes, fbRes, couvertureRpcRes] = await Promise.all([
       supabase.from("departements").select("id, nom").order("nom"),
       supabase.from("utilisateurs").select("*", { count: "exact", head: true }).eq("poste", "ASCQ").eq("statut_compte", "VALIDE"),
       supabase.from("ascq_profils").select("nombre_rc"),
       supabase.from("relais_communautaires").select("*", { count: "exact", head: true }),
       supabase.from("rapports_mensuels_ascq").select("menages_visites, personnes_touchees_total"),
       supabase.from("conseils_sante").select("*").eq("est_publie", true).order("created_at", { ascending: false }),
+      supabase.from("publications_facebook").select("id_facebook, message, permalink_url, created_time, fetched_at").order("created_time", { ascending: false }).limit(3),
       supabase.rpc("obtenir_couverture_communale_ascq"),
     ]);
 
@@ -40,6 +43,7 @@ export default async function HomePage() {
     nbMenages = sumMenages;
     nbPersonnes = sumPersonnes > 0 ? sumPersonnes.toLocaleString("fr-FR") : "0";
     conseils = conseilsRes.data || [];
+    publicationsFacebook = (fbRes?.data as PublicationFacebook[]) || [];
 
     if (!couvertureRpcRes.error && Array.isArray(couvertureRpcRes.data)) {
       couvertureData = couvertureRpcRes.data.map((c: any) => ({
@@ -196,84 +200,8 @@ export default async function HomePage() {
           <CarteCouvertureBenin couverture={couvertureData} />
         )}
 
-        {/* 6. Carte « Conseils santé » avec aperçu Facebook */}
-        <section className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/80 shadow-sm space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <HeartPulse className="w-4 h-4 text-[#0e7f47]" />
-              <span>Conseils santé</span>
-            </h2>
-            <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-              Sensibilisation communautaire
-            </span>
-          </div>
-
-          {conseils && conseils.length > 0 ? (
-            <div className="space-y-3 pt-1">
-              {conseils.slice(0, 4).map((c: any) => {
-                let lienFb = c.lien_externe || "";
-                if (!lienFb && c.contenu) {
-                  const match = c.contenu.match(/\[LIEN_SOURCE:\s*([^\]]+)\]/);
-                  if (match) lienFb = match[1].trim();
-                  else {
-                    const urlMatch = c.contenu.match(/(https?:\/\/[^\s]+)/);
-                    if (urlMatch) lienFb = urlMatch[1].trim();
-                  }
-                }
-                const isFb = lienFb && (lienFb.includes("facebook.com") || lienFb.includes("fb.me") || lienFb.includes("fb.watch"));
-                const textePur = (c.contenu || "").replace(/\[LIEN_SOURCE:[^\]]+\]/g, "").trim();
-
-                return (
-                  <div key={c.id} className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2 hover:border-[#0e7f47]/50 transition-colors text-left">
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="font-bold text-xs text-slate-900 leading-snug">{c.titre}</p>
-                      {isFb ? (
-                        <span className="shrink-0 inline-flex items-center gap-1 text-[10px] font-extrabold text-[#1877F2] bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
-                          <FacebookIcon className="w-3 h-3 text-[#1877F2]" />
-                          <span>Facebook</span>
-                        </span>
-                      ) : (
-                        <span className="shrink-0 text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                          {c.categorie || "Santé"}
-                        </span>
-                      )}
-                    </div>
-
-                    <p className="text-xs text-slate-600 line-clamp-3 leading-relaxed">{textePur}</p>
-
-                    {lienFb ? (
-                      <div className="pt-1 border-t border-slate-200/60 flex items-center justify-between">
-                        <a
-                          href={lienFb}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 text-xs font-black text-[#0e7f47] hover:text-[#0b6d3c] active:scale-95 transition-transform"
-                        >
-                          {isFb ? (
-                            <>
-                              <FacebookIcon className="w-3.5 h-3.5 text-[#1877F2]" />
-                              <span>Lire l'intégralité sur Facebook</span>
-                              <ExternalLink className="w-3 h-3 text-slate-400" />
-                            </>
-                          ) : (
-                            <>
-                              <span>Lire l'article complet</span>
-                              <ExternalLink className="w-3 h-3 text-slate-400" />
-                            </>
-                          )}
-                        </a>
-                      </div>
-                    ) : null}
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="text-xs text-slate-400 font-normal">
-              Aucun conseil publié pour le moment.
-            </p>
-          )}
-        </section>
+        {/* 6. Zone « Dernières publications » Facebook (remplace l'ancienne carte Conseils santé) */}
+        <DernieresPublicationsFacebook publications={publicationsFacebook} />
 
         {/* 7. Carte « Qui est l'ASCQ de mon milieu ? » */}
         <section>

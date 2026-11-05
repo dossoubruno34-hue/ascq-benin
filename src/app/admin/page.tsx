@@ -149,6 +149,20 @@ export default function AdminPage() {
   const [nouveauConseilLien, setNouveauConseilLien] = useState("");
   const [publierConseilLoading, setPublierConseilLoading] = useState(false);
 
+  // Synchronisation Facebook (API Graph -> Dernières publications)
+  const [facebookSyncState, setFacebookSyncState] = useState<{
+    nb_publications_en_base?: number;
+    derniere_recup_date?: string | null;
+    dernier_log?: {
+      status: string;
+      status_code?: number;
+      message?: string;
+      posts_count?: number;
+      created_at?: string;
+    } | null;
+  } | null>(null);
+  const [facebookSyncLoading, setFacebookSyncLoading] = useState(false);
+
   // Bibliothèque documentaire
   const [documentsBiblio, setDocumentsBiblio] = useState<any[]>([]);
   const [searchBiblio, setSearchBiblio] = useState("");
@@ -569,8 +583,54 @@ export default function AdminPage() {
         .select("*")
         .order("created_at", { ascending: false });
       setDocumentsBiblio(biblio || []);
+
+      // 8. État de synchronisation Facebook
+      await chargerEtatSyncFacebook();
     } catch (e) {
       console.error("Erreur chargement données secondaires:", e);
+    }
+  };
+
+  const chargerEtatSyncFacebook = async () => {
+    try {
+      const { data, error } = await supabase.rpc("obtenir_etat_sync_facebook");
+      if (!error && data) {
+        setFacebookSyncState(data);
+      } else {
+        const { data: pubs } = await supabase
+          .from("publications_facebook")
+          .select("created_time, fetched_at")
+          .order("created_time", { ascending: false });
+        if (pubs && pubs.length > 0) {
+          setFacebookSyncState({
+            nb_publications_en_base: pubs.length,
+            derniere_recup_date: pubs[0]?.fetched_at || null,
+            dernier_log: {
+              status: "SUCCESS",
+              message: `${pubs.length} publication(s) en cache local`,
+              posts_count: pubs.length,
+              created_at: pubs[0]?.fetched_at
+            }
+          });
+        }
+      }
+    } catch (e) {
+      console.warn("Info sync Facebook:", e);
+    }
+  };
+
+  const handleDeclencherSyncFacebook = async () => {
+    setFacebookSyncLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("sync-facebook-posts");
+      if (error) throw error;
+      setToastMessage({ text: "Synchronisation Facebook exécutée avec succès !", error: false });
+      await chargerEtatSyncFacebook();
+    } catch (err: any) {
+      setToastMessage({ text: "Information synchronisation : " + (err.message || err), error: true });
+      await chargerEtatSyncFacebook();
+    } finally {
+      setFacebookSyncLoading(false);
     }
   };
 
@@ -1449,6 +1509,35 @@ export default function AdminPage() {
                 <RefreshCw className="w-3.5 h-3.5" />
                 <span>Actualiser les chiffres</span>
               </button>
+
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-xs shadow-sm">
+                <span className="font-bold text-slate-600">Dernière synchronisation Facebook :</span>
+                <span className={`inline-flex items-center gap-1 font-bold ${
+                  facebookSyncState?.dernier_log?.status === "ERROR"
+                    ? "text-red-600"
+                    : facebookSyncState?.derniere_recup_date
+                    ? "text-emerald-700"
+                    : "text-slate-500"
+                }`}>
+                  <span className={`w-2 h-2 rounded-full ${
+                    facebookSyncState?.dernier_log?.status === "ERROR"
+                      ? "bg-red-500 animate-pulse"
+                      : facebookSyncState?.derniere_recup_date
+                      ? "bg-emerald-500"
+                      : "bg-slate-400"
+                  }`} />
+                  {facebookSyncState?.derniere_recup_date
+                    ? new Date(facebookSyncState.derniere_recup_date).toLocaleString("fr-FR", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit"
+                      })
+                    : "Non synchronisé"}
+                  {facebookSyncState?.dernier_log?.status === "ERROR" && " (Erreur)"}
+                </span>
+              </div>
             </div>
 
             {/* GRILLE DES INDICATEURS CLÉS */}
@@ -2856,7 +2945,111 @@ export default function AdminPage() {
         {/* ONGLET 6 : ÉCOUTE CITOYENNE & CONSEILS SANTÉ */}
         {/* ========================================================= */}
         {tab === "ecoute_conseils" && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="space-y-6">
+            {/* CARTE : DERNIÈRE SYNCHRONISATION FACEBOOK */}
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
+                    <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                      <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-extrabold text-sm text-slate-900">
+                        Dernière synchronisation Facebook
+                      </h3>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                        facebookSyncState?.dernier_log?.status === "ERROR"
+                          ? "bg-red-100 text-red-800 border border-red-200"
+                          : facebookSyncState?.derniere_recup_date
+                          ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                          : "bg-slate-100 text-slate-600 border border-slate-200"
+                      }`}>
+                        {facebookSyncState?.dernier_log?.status === "ERROR"
+                          ? "Erreur API"
+                          : facebookSyncState?.derniere_recup_date
+                          ? "Opérationnel"
+                          : "En attente"}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500">
+                      Alimente automatiquement l'accueil public avec les 3 publications les plus récentes de la page officielle.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <a
+                    href="https://www.facebook.com/profile.php?id=61595028870500"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>Page officielle</span>
+                  </a>
+                  <button
+                    type="button"
+                    onClick={handleDeclencherSyncFacebook}
+                    disabled={facebookSyncLoading}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs shadow-sm transition-all active:scale-95"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${facebookSyncLoading ? "animate-spin" : ""}`} />
+                    <span>{facebookSyncLoading ? "Synchronisation..." : "Synchroniser maintenant"}</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Date & Heure</span>
+                  <span className="text-xs font-bold text-slate-800 block mt-0.5">
+                    {facebookSyncState?.derniere_recup_date
+                      ? new Date(facebookSyncState.derniere_recup_date).toLocaleString("fr-FR", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit"
+                        })
+                      : "Aucune exécution enregistrée"}
+                  </span>
+                </div>
+
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Publications Actives</span>
+                  <span className="text-xs font-bold text-slate-800 block mt-0.5">
+                    {facebookSyncState?.nb_publications_en_base ?? 0} en base (Top 3 affichées sur l'accueil)
+                  </span>
+                </div>
+
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">État du Jeton / Journal</span>
+                  <span className={`text-xs font-bold block mt-0.5 ${
+                    facebookSyncState?.dernier_log?.status === "ERROR" ? "text-red-700" : "text-emerald-700"
+                  }`}>
+                    {facebookSyncState?.dernier_log?.message || "Prêt pour la synchronisation automatique (60 min)"}
+                  </span>
+                </div>
+              </div>
+
+              {facebookSyncState?.dernier_log?.status === "ERROR" && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-800 flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold">Alerte sécurité / API Graph :</p>
+                    <p className="text-[11px] mt-0.5">
+                      {facebookSyncState.dernier_log.message}
+                      {facebookSyncState.dernier_log.status_code === 190 && " (Erreur 190 : Le jeton de page Facebook a expiré ou a été révoqué. Les publications précédentes restent affichées aux visiteurs pour assurer la continuité de service. Veuillez renouveler le jeton de page longue durée dans Supabase Secrets)."}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* A. SUGGESTIONS ET RÉCLAMATIONS DU PUBLIC */}
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
               <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
@@ -3026,6 +3219,7 @@ export default function AdminPage() {
                 )}
               </div>
             </div>
+          </div>
           </div>
         )}
 
