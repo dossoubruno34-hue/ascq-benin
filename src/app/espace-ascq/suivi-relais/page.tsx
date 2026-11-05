@@ -270,23 +270,28 @@ export default function SuiviRelaisPage() {
     }
   };
 
-  const chargerPlanningsEtRapportsHebdo = async (ascqId: string, annee: number, semaine: number) => {
+  const chargerPlanningsEtRapportsHebdo = async (ascqId: string, annee: number, semaine: number, rcs?: any[]) => {
     setLoadingHebdo(true);
     try {
-      const [pRes, rRes] = await Promise.all([
-        supabase
-          .from("plannings_hebdo_relais")
-          .select("*")
-          .eq("ascq_id", ascqId)
-          .eq("annee", annee)
-          .eq("semaine_num", semaine),
-        supabase
-          .from("rapports_hebdo_activites_relais")
-          .select("*")
-          .eq("ascq_id", ascqId)
-          .eq("annee", annee)
-          .eq("semaine_num", semaine),
-      ]);
+      const activeRcs = rcs || listeRelais;
+      const rcUserIds = (activeRcs || []).map((r: any) => r.user_id).filter(Boolean);
+      const rcIds = (activeRcs || []).map((r: any) => r.id).filter(Boolean);
+      const allPossibleRelaisIds = Array.from(new Set([...rcUserIds, ...rcIds]));
+
+      // Requête résiliente : par ascq_id OU par relais_id faisant partie de la cohorte du superviseur
+      let pQuery = supabase.from("plannings_hebdo_relais").select("*").eq("annee", annee).eq("semaine_num", semaine);
+      let rQuery = supabase.from("rapports_hebdo_activites_relais").select("*").eq("annee", annee).eq("semaine_num", semaine);
+
+      if (allPossibleRelaisIds.length > 0) {
+        const idFilter = allPossibleRelaisIds.map((id) => `relais_id.eq.${id}`).join(",");
+        pQuery = pQuery.or(`ascq_id.eq.${ascqId},${idFilter}`);
+        rQuery = rQuery.or(`ascq_id.eq.${ascqId},${idFilter}`);
+      } else {
+        pQuery = pQuery.eq("ascq_id", ascqId);
+        rQuery = rQuery.eq("ascq_id", ascqId);
+      }
+
+      const [pRes, rRes] = await Promise.all([pQuery, rQuery]);
 
       const pMap: Record<string, any> = {};
       (pRes.data || []).forEach((p: any) => {
@@ -315,13 +320,33 @@ export default function SuiviRelaisPage() {
   const handleValiderRapportRc = async (rapportId: string, approuve: boolean) => {
     setValidatingSaving(true);
     try {
-      const { data, error } = await supabase.rpc("valider_rapport_hebdo_rc_par_ascq", {
-        p_rapport_id: rapportId,
-        p_approuve: approuve,
-        p_observations: obsValidation || (approuve ? "Rapport validé par l'ASCQ." : "À corriger."),
-      });
+      let rpcError: any = null;
+      try {
+        const { data, error } = await supabase.rpc("valider_rapport_hebdo_rc_par_ascq", {
+          p_rapport_id: rapportId,
+          p_approuve: approuve,
+          p_observations: obsValidation || (approuve ? "Rapport validé par l'ASCQ." : "À corriger."),
+        });
+        if (error) rpcError = error;
+      } catch (e: any) {
+        rpcError = e;
+      }
 
-      if (error) throw error;
+      if (rpcError) {
+        // Fallback direct sur table si la RPC n'est pas encore migrée ou schema cache
+        const { error: updateErr } = await supabase
+          .from("rapports_hebdo_activites_relais")
+          .update({
+            statut: approuve ? "APPROUVE_ASCQ" : "REJETE",
+            lu_et_approuve_ascq: approuve,
+            date_approbation_ascq: new Date().toISOString(),
+            observations_ascq: obsValidation || (approuve ? "Rapport validé par l'ASCQ." : "À corriger."),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", rapportId);
+
+        if (updateErr) throw updateErr;
+      }
 
       setMessage({
         text: approuve ? "✅ Rapport hebdomadaire validé avec succès !" : "⚠️ Rapport renvoyé pour correction.",

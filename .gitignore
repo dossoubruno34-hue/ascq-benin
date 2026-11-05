@@ -33,6 +33,7 @@ Thumbs.db
 .vscode/
 .idea/
 
-# TypeScript
+# Supabase CLI temp
+supabase/.temp/
 *.tsbuildinfo
 next-env.d.ts

@@ -147,10 +147,13 @@ export default function FicheHebdoActivitesRcOfficielle({ rcProfile, isAscqSuper
     setSaving(true);
     setSavedSuccess(false);
     try {
-      let rid = rcProfile?.id || rcProfile?.rc_id || rcProfile?.user_id;
+      let rid = rcProfile?.user_id || rcProfile?.id;
       if (!rid) {
         const { data: { user } } = await supabase.auth.getUser();
         rid = user?.id;
+      }
+      if (!rid) {
+        rid = rcProfile?.rc_id;
       }
       if (!rid) {
         alert("Session expirée ou profil introuvable. Veuillez vous reconnecter.");

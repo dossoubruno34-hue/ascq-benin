@@ -140,10 +140,15 @@ export default function EspaceRelaisPage() {
     setPlanningSaving(true);
     setPlanningMsg(null);
     try {
+      const authUser = (await supabase.auth.getUser()).data.user;
+      const targetUserId = rcData?.user_id || authUser?.id || rcIdActif;
+      const orRelaisIds = [targetUserId, rcData?.rc_id, rcData?.id].filter(Boolean);
+      const orFilter = orRelaisIds.map((id) => `relais_id.eq.${id}`).join(",");
+
       const { data: pData } = await supabase
         .from("plannings_hebdo_relais")
         .select("*")
-        .eq("relais_id", rcIdActif)
+        .or(orFilter)
         .eq("annee", anneePrecedente)
         .eq("semaine_num", semPrecedente)
         .maybeSingle();
@@ -217,7 +222,12 @@ export default function EspaceRelaisPage() {
     // 1. Charger immédiatement le cache local du Relais s'il existe
     const cached = getCachedRcSpace();
     if (cached) {
-      const normalizedCached = { ...cached, id: cached.id || cached.rc_id || cached.user_id };
+      const normalizedCached = {
+        ...cached,
+        id: cached.user_id || cached.id,
+        user_id: cached.user_id || cached.id,
+        rc_id: cached.rc_id || cached.id,
+      };
       setRcData(normalizedCached);
       setLoading(false);
     }
@@ -239,7 +249,31 @@ export default function EspaceRelaisPage() {
         return;
       }
 
-      const normalizedData = data ? { ...data, id: data.id || data.rc_id || data.user_id } : null;
+      const normalizedData = data
+        ? {
+            ...data,
+            id: data.user_id || data.id,
+            user_id: data.user_id || data.id,
+            rc_id: data.rc_id,
+          }
+        : null;
+
+      // Récupérer les identifiants clés du Relais (ascq_id, arrondissement_id)
+      if (normalizedData?.user_id) {
+        try {
+          const { data: rcRow } = await supabase
+            .from("relais_communautaires")
+            .select("ascq_id, arrondissement_id, village_nom")
+            .eq("user_id", normalizedData.user_id)
+            .maybeSingle();
+          if (rcRow) {
+            if (rcRow.ascq_id) normalizedData.ascq_id = rcRow.ascq_id;
+            if (rcRow.village_nom) normalizedData.village_nom = rcRow.village_nom;
+            if (rcRow.arrondissement_id) normalizedData.arrondissement_id = rcRow.arrondissement_id;
+          }
+        } catch {}
+      }
+
       setRcData(normalizedData);
       saveCachedRcSpace(normalizedData);
 
@@ -264,18 +298,22 @@ export default function EspaceRelaisPage() {
     loadProfile();
   }, []);
 
-  const rcIdActif = rcData?.id || rcData?.rc_id || rcData?.user_id;
+  const rcIdActif = rcData?.user_id || rcData?.id;
 
   // Charger les données de la semaine (planning & rapport)
   const chargerDonneesSemaine = async (annee: number, semaine: number, userId?: string) => {
-    const uid = userId || rcIdActif;
+    const authUser = (await supabase.auth.getUser()).data.user;
+    const uid = userId || rcData?.user_id || authUser?.id || rcIdActif;
     if (!uid) return;
     try {
+      const orRelaisIds = [uid, rcData?.rc_id, rcData?.id].filter(Boolean);
+      const orFilter = orRelaisIds.map((id) => `relais_id.eq.${id}`).join(",");
+
       // 1. Charger planning hebdo
       const { data: pData } = await supabase
         .from("plannings_hebdo_relais")
         .select("*")
-        .eq("relais_id", uid)
+        .or(orFilter)
         .eq("annee", annee)
         .eq("semaine_num", semaine)
         .maybeSingle();
@@ -290,7 +328,7 @@ export default function EspaceRelaisPage() {
       const { data: rData } = await supabase
         .from("rapports_hebdo_activites_relais")
         .select("*")
-        .eq("relais_id", uid)
+        .or(orFilter)
         .eq("annee", annee)
         .eq("semaine_num", semaine)
         .maybeSingle();
@@ -338,6 +376,20 @@ export default function EspaceRelaisPage() {
     setPlanningSaving(true);
     setPlanningMsg(null);
     try {
+      const authUser = (await supabase.auth.getUser()).data.user;
+      const validRelaisId = rcData?.user_id || authUser?.id || rcIdActif;
+      let ascqId = rcData?.ascq_id;
+      if (!ascqId && validRelaisId) {
+        try {
+          const { data: rcRow } = await supabase
+            .from("relais_communautaires")
+            .select("ascq_id")
+            .eq("user_id", validRelaisId)
+            .maybeSingle();
+          if (rcRow?.ascq_id) ascqId = rcRow.ascq_id;
+        } catch {}
+      }
+
       let rpcError: any = null;
       try {
         const { data, error } = await supabase.rpc("enregistrer_planning_hebdo_rc", {
@@ -353,13 +405,13 @@ export default function EspaceRelaisPage() {
       }
 
       if (rpcError) {
-        // Fallback direct sur table si la RPC n'est pas encore migrée
+        // Fallback direct sur table si la RPC n'est pas encore migrée ou schema cache
         const total = lignesPlanning.reduce((acc, l) => acc + (Number(l.nombre_prevu) || 0), 0);
         const { error: upsertErr } = await supabase
           .from("plannings_hebdo_relais")
           .upsert({
-            relais_id: rcIdActif,
-            ascq_id: rcData?.ascq_id || null,
+            relais_id: validRelaisId,
+            ascq_id: ascqId || null,
             village_nom: rcData?.village_nom || "Village",
             annee: anneeChoisie,
             semaine_num: semaineChoisie,
@@ -369,15 +421,15 @@ export default function EspaceRelaisPage() {
             updated_at: new Date().toISOString(),
           }, { onConflict: "relais_id,annee,semaine_num" });
 
-        // Sauvegarde locale de secours
-        try {
-          localStorage.setItem(`planning_rc_${anneeChoisie}_${semaineChoisie}`, JSON.stringify(lignesPlanning));
-        } catch {}
-
-        if (upsertErr && !upsertErr.message.includes("schema cache")) {
+        if (upsertErr) {
           throw upsertErr;
         }
       }
+
+      // Sauvegarde locale de secours
+      try {
+        localStorage.setItem(`planning_rc_${anneeChoisie}_${semaineChoisie}`, JSON.stringify(lignesPlanning));
+      } catch {}
 
       setPlanningMsg({ text: "Planning hebdomadaire transmis avec succès à votre superviseur ASCQ !", error: false });
       // Synchroniser le rapport s'il était vide
@@ -406,6 +458,20 @@ export default function EspaceRelaisPage() {
     setRapportSaving(true);
     setRapportMsg(null);
     try {
+      const authUser = (await supabase.auth.getUser()).data.user;
+      const validRelaisId = rcData?.user_id || authUser?.id || rcIdActif;
+      let ascqId = rcData?.ascq_id;
+      if (!ascqId && validRelaisId) {
+        try {
+          const { data: rcRow } = await supabase
+            .from("relais_communautaires")
+            .select("ascq_id")
+            .eq("user_id", validRelaisId)
+            .maybeSingle();
+          if (rcRow?.ascq_id) ascqId = rcRow.ascq_id;
+        } catch {}
+      }
+
       const signatureNom = (rcData?.nom || "") + " " + (rcData?.prenoms || "");
       let rpcError: any = null;
       try {
@@ -422,14 +488,14 @@ export default function EspaceRelaisPage() {
       }
 
       if (rpcError) {
-        // Fallback direct sur table si la RPC n'est pas encore migrée
+        // Fallback direct sur table si la RPC n'est pas encore migrée ou schema cache
         const totalP = lignesRapport.reduce((acc, l) => acc + (Number(l.nombre_prevu) || 0), 0);
         const totalF = lignesRapport.reduce((acc, l) => acc + (Number(l.nombre_fait) || 0), 0);
         const { error: upsertErr } = await supabase
           .from("rapports_hebdo_activites_relais")
           .upsert({
-            relais_id: rcIdActif,
-            ascq_id: rcData?.ascq_id || null,
+            relais_id: validRelaisId,
+            ascq_id: ascqId || null,
             village_nom: rcData?.village_nom || "Village",
             annee: anneeChoisie,
             semaine_num: semaineChoisie,
@@ -441,7 +507,7 @@ export default function EspaceRelaisPage() {
             updated_at: new Date().toISOString(),
           }, { onConflict: "relais_id,annee,semaine_num" });
 
-        if (upsertErr && !upsertErr.message.includes("schema cache")) {
+        if (upsertErr) {
           throw upsertErr;
         }
       }

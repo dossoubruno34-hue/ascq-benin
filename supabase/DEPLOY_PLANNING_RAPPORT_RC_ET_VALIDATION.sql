@@ -423,10 +423,61 @@ BEGIN
 END;
 $$;
 
--- 7. Permissions globales d'exécution
+-- 7. FONCTION : obtenir_espace_rc avec ascq_id et id utilisateur
+CREATE OR REPLACE FUNCTION public.obtenir_espace_rc()
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth, extensions
+AS $$
+DECLARE
+    v_user_id UUID;
+    v_rc RECORD;
+    v_ascq RECORD;
+BEGIN
+    v_user_id := auth.uid();
+    IF v_user_id IS NULL THEN
+        RAISE EXCEPTION 'Non authentifié.';
+    END IF;
+
+    SELECT rc.* INTO v_rc
+    FROM public.relais_communautaires rc
+    WHERE rc.user_id = v_user_id
+    LIMIT 1;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Fiche Relais Communautaire introuvable pour ce compte.';
+    END IF;
+
+    -- Informations de l'ASCQ référent
+    SELECT nom, prenoms, telephone INTO v_ascq
+    FROM public.utilisateurs
+    WHERE id = v_rc.ascq_id;
+
+    RETURN jsonb_build_object(
+        'rc_id', v_rc.id,
+        'user_id', v_rc.user_id,
+        'id', v_rc.user_id,
+        'ascq_id', v_rc.ascq_id,
+        'nom', v_rc.nom,
+        'prenoms', v_rc.prenoms,
+        'telephone', v_rc.telephone,
+        'village_nom', v_rc.village_nom,
+        'grappe', v_rc.grappe,
+        'nom_grappe', v_rc.nom_grappe,
+        'code_temporaire_utilise', v_rc.code_temporaire_utilise,
+        'ascq_nom', COALESCE(v_ascq.nom, 'NON RENSEIGNÉ'),
+        'ascq_prenoms', COALESCE(v_ascq.prenoms, ''),
+        'ascq_telephone', v_ascq.telephone
+    );
+END;
+$$;
+
+-- 8. Permissions globales d'exécution
 GRANT ALL ON TABLE public.plannings_hebdo_relais TO authenticated, anon;
 GRANT ALL ON TABLE public.rapports_hebdo_activites_relais TO authenticated, anon;
 
+GRANT EXECUTE ON FUNCTION public.obtenir_espace_rc() TO authenticated, anon;
 GRANT EXECUTE ON FUNCTION public.enregistrer_planning_hebdo_rc(INT, INT, DATE, JSONB, TEXT) TO authenticated, anon;
 GRANT EXECUTE ON FUNCTION public.enregistrer_rapport_hebdo_rc(INT, INT, JSONB, TEXT, TEXT) TO authenticated, anon;
 GRANT EXECUTE ON FUNCTION public.valider_rapport_hebdo_rc_par_ascq(UUID, BOOLEAN, TEXT) TO authenticated, anon;
