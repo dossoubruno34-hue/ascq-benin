@@ -90,7 +90,7 @@ export default function MesFichesPage() {
 
       if (!rpcOk) {
         if (ficheConsultation.type === "DEC") {
-          const { error } = await supabase
+          let { error } = await supabase
             .from("deces_communautaires")
             .update({
               statut: nouveauStatut,
@@ -98,6 +98,22 @@ export default function MesFichesPage() {
               updated_at: new Date().toISOString(),
             })
             .eq("id", ficheConsultation.id);
+
+          // Repli résilient si la contrainte PostgreSQL n'a pas encore été élargie à 'INVALIDE'
+          if (error && (error.message?.includes("statut_check") || error.code === "23514")) {
+            const fallbackStatut = action === "VALIDER" ? "VALIDE" : "CLOTURE";
+            const retryRes = await supabase
+              .from("deces_communautaires")
+              .update({
+                statut: fallbackStatut,
+                ascq_superviseur_id: currentUser?.id || null,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", ficheConsultation.id);
+            if (!retryRes.error) {
+              error = null;
+            }
+          }
           if (error) throw error;
         } else if (ficheConsultation.type === "ALR") {
           const { error } = await supabase
@@ -1143,7 +1159,7 @@ export default function MesFichesPage() {
                     <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-full ${
                       ficheConsultation.statut === "VALIDE"
                         ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
-                        : ficheConsultation.statut === "INVALIDE"
+                        : ficheConsultation.statut === "INVALIDE" || ficheConsultation.statut === "CLOTURE"
                         ? "bg-red-100 text-red-800 border border-red-300"
                         : "bg-amber-100 text-amber-800 border border-amber-300"
                     }`}>

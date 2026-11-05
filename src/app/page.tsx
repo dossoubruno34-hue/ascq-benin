@@ -3,7 +3,8 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import QuiEstAscqCard from "@/components/QuiEstAscqCard";
 import SuggestionsCard from "@/components/SuggestionsCard";
-import { SocialPlatformsCard } from "@/components/SocialLinks";
+import { HeartPulse, ExternalLink } from "lucide-react";
+import { SocialPlatformsCard, FacebookIcon } from "@/components/SocialLinks";
 import CarteCouvertureBenin from "@/components/CarteCouvertureBenin";
 import HomeAuthButtons from "@/components/HomeAuthButtons";
 
@@ -11,62 +12,43 @@ export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   // Récupérer les données réelles pour la page d'accueil
-  const [depsRes, ascqCountRes, profilsRes, rcCountRes, rmaRes, conseilsRes, couvertureRpcRes] = await Promise.all([
-    supabase.from("departements").select("id, nom").order("nom"),
-    supabase.from("utilisateurs").select("*", { count: "exact", head: true }).eq("poste", "ASCQ").eq("statut_compte", "VALIDE"),
-    supabase.from("ascq_profils").select("nombre_rc"),
-    supabase.from("relais_communautaires").select("*", { count: "exact", head: true }),
-    supabase.from("rapports_mensuels_ascq").select("menages_visites, personnes_touchees_total"),
-    supabase.from("conseils_sante").select("*").eq("est_publie", true).order("created_at", { ascending: false }),
-    supabase.rpc("obtenir_couverture_communale_ascq"),
-  ]);
-
-  const departements = depsRes.data || [];
-  
-  // Chiffres réels strictement calculés d'après les enregistrements de la base de données
-  const nbAscq = ascqCountRes.count ?? 0;
-  
-  // Nombre de RC : somme exacte déclarée par les ASCQ validés dans leurs profils ou comptes créés
-  const sumRcProfils = (profilsRes.data || []).reduce((acc: number, p: any) => acc + (Number(p.nombre_rc) || 0), 0);
-  const nbRc = Math.max(sumRcProfils, rcCountRes.count ?? 0);
-  
-  // Ménages & Personnes touchées d'après les rapports mensuels et activités réelles (0 si aucun rapport)
-  const sumMenages = (rmaRes.data || []).reduce((acc: number, r: any) => acc + (Number(r.menages_visites) || 0), 0);
-  const sumPersonnes = (rmaRes.data || []).reduce((acc: number, r: any) => acc + (Number(r.personnes_touchees_total) || 0), 0);
-  
-  const nbMenages = sumMenages;
-  const nbPersonnes = sumPersonnes > 0 ? sumPersonnes.toLocaleString("fr-FR") : "0";
-  const conseils = conseilsRes.data || [];
-
-  // Couverture nationale des communes (données réelles anonymisées)
+  let departements: any[] = [];
+  let nbAscq = 0;
+  let nbRc = 0;
+  let nbMenages = 0;
+  let nbPersonnes = "0";
+  let conseils: any[] = [];
   let couvertureData: Array<{ commune_id: string; nombre_ascq: number }> = [];
-  if (!couvertureRpcRes.error && Array.isArray(couvertureRpcRes.data)) {
-    couvertureData = couvertureRpcRes.data.map((c: any) => ({
-      commune_id: c.commune_id,
-      nombre_ascq: Number(c.nombre_ascq) || 0
-    }));
-  } else {
-    // Fallback transparent respectant strictement les RLS publiques
-    try {
-      const { data: rawAscq } = await supabase
-        .from("utilisateurs")
-        .select("commune_id")
-        .eq("poste", "ASCQ")
-        .eq("statut_compte", "VALIDE");
 
-      if (rawAscq) {
-        const counts: Record<string, number> = {};
-        for (const item of rawAscq) {
-          if (item.commune_id) {
-            counts[item.commune_id] = (counts[item.commune_id] || 0) + 1;
-          }
-        }
-        couvertureData = Object.entries(counts).map(([commune_id, count]) => ({
-          commune_id,
-          nombre_ascq: count
-        }));
-      }
-    } catch {}
+  try {
+    const [depsRes, ascqCountRes, profilsRes, rcCountRes, rmaRes, conseilsRes, couvertureRpcRes] = await Promise.all([
+      supabase.from("departements").select("id, nom").order("nom"),
+      supabase.from("utilisateurs").select("*", { count: "exact", head: true }).eq("poste", "ASCQ").eq("statut_compte", "VALIDE"),
+      supabase.from("ascq_profils").select("nombre_rc"),
+      supabase.from("relais_communautaires").select("*", { count: "exact", head: true }),
+      supabase.from("rapports_mensuels_ascq").select("menages_visites, personnes_touchees_total"),
+      supabase.from("conseils_sante").select("*").eq("est_publie", true).order("created_at", { ascending: false }),
+      supabase.rpc("obtenir_couverture_communale_ascq"),
+    ]);
+
+    departements = depsRes.data || [];
+    nbAscq = ascqCountRes.count ?? 0;
+    const sumRcProfils = (profilsRes.data || []).reduce((acc: number, p: any) => acc + (Number(p.nombre_rc) || 0), 0);
+    nbRc = Math.max(sumRcProfils, rcCountRes.count ?? 0);
+    const sumMenages = (rmaRes.data || []).reduce((acc: number, r: any) => acc + (Number(r.menages_visites) || 0), 0);
+    const sumPersonnes = (rmaRes.data || []).reduce((acc: number, r: any) => acc + (Number(r.personnes_touchees_total) || 0), 0);
+    nbMenages = sumMenages;
+    nbPersonnes = sumPersonnes > 0 ? sumPersonnes.toLocaleString("fr-FR") : "0";
+    conseils = conseilsRes.data || [];
+
+    if (!couvertureRpcRes.error && Array.isArray(couvertureRpcRes.data)) {
+      couvertureData = couvertureRpcRes.data.map((c: any) => ({
+        commune_id: c.commune_id,
+        nombre_ascq: Number(c.nombre_ascq) || 0
+      }));
+    }
+  } catch (err) {
+    console.warn("Accueil hors-ligne / réseau instable :", err);
   }
 
   return (
@@ -214,20 +196,77 @@ export default async function HomePage() {
           <CarteCouvertureBenin couverture={couvertureData} />
         )}
 
-        {/* 6. Carte « Conseils santé » */}
+        {/* 6. Carte « Conseils santé » avec aperçu Facebook */}
         <section className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/80 shadow-sm space-y-3">
-          <h2 className="text-base font-bold text-slate-900">
-            Conseils santé
-          </h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <HeartPulse className="w-4 h-4 text-[#0e7f47]" />
+              <span>Conseils santé</span>
+            </h2>
+            <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+              Sensibilisation communautaire
+            </span>
+          </div>
 
           {conseils && conseils.length > 0 ? (
             <div className="space-y-3 pt-1">
-              {conseils.slice(0, 2).map((c) => (
-                <div key={c.id} className="text-xs space-y-1 border-l-2 border-[#0e7f47] pl-3 py-0.5">
-                  <p className="font-bold text-slate-900">{c.titre}</p>
-                  <p className="text-slate-600 line-clamp-2">{c.contenu}</p>
-                </div>
-              ))}
+              {conseils.slice(0, 4).map((c: any) => {
+                let lienFb = c.lien_externe || "";
+                if (!lienFb && c.contenu) {
+                  const match = c.contenu.match(/\[LIEN_SOURCE:\s*([^\]]+)\]/);
+                  if (match) lienFb = match[1].trim();
+                  else {
+                    const urlMatch = c.contenu.match(/(https?:\/\/[^\s]+)/);
+                    if (urlMatch) lienFb = urlMatch[1].trim();
+                  }
+                }
+                const isFb = lienFb && (lienFb.includes("facebook.com") || lienFb.includes("fb.me") || lienFb.includes("fb.watch"));
+                const textePur = (c.contenu || "").replace(/\[LIEN_SOURCE:[^\]]+\]/g, "").trim();
+
+                return (
+                  <div key={c.id} className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2 hover:border-[#0e7f47]/50 transition-colors text-left">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="font-bold text-xs text-slate-900 leading-snug">{c.titre}</p>
+                      {isFb ? (
+                        <span className="shrink-0 inline-flex items-center gap-1 text-[10px] font-extrabold text-[#1877F2] bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+                          <FacebookIcon className="w-3 h-3 text-[#1877F2]" />
+                          <span>Facebook</span>
+                        </span>
+                      ) : (
+                        <span className="shrink-0 text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                          {c.categorie || "Santé"}
+                        </span>
+                      )}
+                    </div>
+
+                    <p className="text-xs text-slate-600 line-clamp-3 leading-relaxed">{textePur}</p>
+
+                    {lienFb ? (
+                      <div className="pt-1 border-t border-slate-200/60 flex items-center justify-between">
+                        <a
+                          href={lienFb}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 text-xs font-black text-[#0e7f47] hover:text-[#0b6d3c] active:scale-95 transition-transform"
+                        >
+                          {isFb ? (
+                            <>
+                              <FacebookIcon className="w-3.5 h-3.5 text-[#1877F2]" />
+                              <span>Lire l'intégralité sur Facebook</span>
+                              <ExternalLink className="w-3 h-3 text-slate-400" />
+                            </>
+                          ) : (
+                            <>
+                              <span>Lire l'article complet</span>
+                              <ExternalLink className="w-3 h-3 text-slate-400" />
+                            </>
+                          )}
+                        </a>
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
             </div>
           ) : (
             <p className="text-xs text-slate-400 font-normal">

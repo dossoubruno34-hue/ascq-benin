@@ -18,9 +18,10 @@ import {
   HelpCircle,
   Send,
   WifiOff,
-  Sparkles
+  Sparkles,
+  ArrowRight
 } from "lucide-react";
-import { saveCachedUserSession, getCachedUserSession, isOnline } from "@/lib/offline-sync";
+import { saveCachedUserSession, getCachedUserSession, isOnline, saveOfflineCredentials, findOfflineAccount } from "@/lib/offline-sync";
 import { estCadreNonAscq } from "@/lib/cadre-roles";
 import { SocialLinksRow } from "@/components/SocialLinks";
 
@@ -216,6 +217,44 @@ export default function ConnexionPage() {
     checkCurrentSession();
   }, [router]);
 
+  const redirigerSelonProfil = (userProfile: any, mdpSaisi?: string) => {
+    const cleanTel = (userProfile.telephone || "").replace(/\D/g, "");
+    if (cleanTel.includes("69031463")) {
+      // Bruno DOSSOU (Super Admin National & ASCQ de terrain) : accès terrain direct + tous privilèges
+      router.push("/espace-ascq");
+      return;
+    }
+
+    // 1. Distinction stricte Cadres & Responsables (NON-ASCQ) vs Agents de terrain
+    if (estCadreNonAscq(userProfile)) {
+      router.push("/perimetre");
+      return;
+    }
+
+    // 2. Administrateurs
+    if (userProfile.role_technique === "SUPER_ADMIN" || userProfile.role_technique === "ADMINISTRATEUR") {
+      router.push("/admin");
+      return;
+    }
+
+    // 3. Relais Communautaires (RC)
+    if (userProfile.poste === "RC") {
+      if (mdpSaisi === "0000") {
+        router.push("/relais/premiere-connexion");
+      } else {
+        router.push("/espace-rc");
+      }
+      return;
+    }
+
+    // 4. ASCQ de terrain
+    if (mdpSaisi === "000000") {
+      router.push("/relais/premiere-connexion");
+    } else {
+      router.push("/espace-ascq");
+    }
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -328,54 +367,41 @@ export default function ConnexionPage() {
         return;
       }
 
-      // Compte validé !
+      // Compte validé ! Enregistrement double couche (session + identifiants hors-ligne)
       saveCachedUserSession(authData?.user, userProfile);
+      saveOfflineCredentials(telephone, userProfile, authData?.user);
       setLoginSuccess(userProfile);
 
-      setTimeout(async () => {
-        const cleanTel = (userProfile.telephone || "").replace(/\D/g, "");
-        if (cleanTel.includes("69031463")) {
-          // Bruno DOSSOU (Super Admin National & ASCQ de terrain) : accès terrain direct + tous privilèges
-          router.push("/espace-ascq");
-          return;
-        }
-
-        // 1. Distinction stricte Cadres & Responsables (NON-ASCQ) vs Agents de terrain
-        if (estCadreNonAscq(userProfile)) {
-          // Les Cadres (CCD CDLS-TP, CSSPR, CSPSMEH, MCZS, MCC, PF CCLS-TP, DDS, Cadres...) 
-          // n'ont pas accès aux fiches de soins de terrain mais pilotent leur périmètre
-          router.push("/perimetre");
-          return;
-        }
-
-        // 2. Relais Communautaires (RC)
-        if (userProfile.poste === "RC") {
-          // Vérifier si le RC a déjà défini son mot de passe personnel
-          const { data: rcData } = await supabase
-            .from("relais_communautaires")
-            .select("code_temporaire_utilise")
-            .eq("user_id", userProfile.id)
-            .maybeSingle();
-
-          if (motDePasse === "0000" || (rcData && rcData.code_temporaire_utilise === false)) {
-            router.push("/relais/premiere-connexion");
-          } else {
-            router.push("/espace-rc");
-          }
-          return;
-        }
-
-        // 3. ASCQ de terrain et Représentants Communaux / Départementaux (qui sont ASCQ)
-        if (motDePasse === "000000") {
-          router.push("/relais/premiere-connexion");
-        } else {
-          router.push("/espace-ascq");
-        }
-      }, 1200);
+      setTimeout(() => {
+        redirigerSelonProfil(userProfile, motDePasse);
+      }, 800);
 
     } catch (err: any) {
       console.error("Erreur connexion:", err);
-      setErrorMsg(err.message || "Erreur de connexion. Veuillez vérifier vos identifiants.");
+      const isNetworkError =
+        !navigator.onLine ||
+        err.name === "TypeError" ||
+        err.message?.includes("Failed to fetch") ||
+        err.message?.toLowerCase().includes("networkerror") ||
+        err.message?.toLowerCase().includes("load failed") ||
+        err.message?.toLowerCase().includes("offline");
+
+      if (isNetworkError) {
+        // Tentative d'authentification hors-ligne immédiate
+        const offlineAcc = findOfflineAccount(telephone) || (cachedUser ? { profile: cachedUser, user: null } : null);
+        if (offlineAcc && offlineAcc.profile) {
+          saveCachedUserSession(offlineAcc.user, offlineAcc.profile);
+          setLoginSuccess(offlineAcc.profile);
+          setTimeout(() => {
+            redirigerSelonProfil(offlineAcc.profile, motDePasse);
+          }, 800);
+          return;
+        }
+
+        setErrorMsg("Connexion Internet indisponible (Failed to fetch). Pour initialiser votre compte la première fois sur cet appareil, veuillez vous connecter une fois avec Internet (données mobiles ou Wi-Fi). Une fois connecté, vous pourrez travailler hors-ligne partout sur le terrain.");
+      } else {
+        setErrorMsg(err.message || "Erreur de connexion. Veuillez vérifier vos identifiants.");
+      }
     } finally {
       setLoading(false);
     }
@@ -429,6 +455,46 @@ export default function ConnexionPage() {
             <p className="text-xs text-emerald-700">
               Bienvenue, {loginSuccess.prenoms} {loginSuccess.nom}. Redirection en cours...
             </p>
+          </div>
+        )}
+
+        {cachedUser && !loginSuccess && (
+          <div className="bg-emerald-50/90 border border-emerald-200 rounded-3xl p-5 shadow-sm space-y-3 text-left">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-black uppercase text-emerald-800 flex items-center gap-1.5">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-600"></span>
+                </span>
+                Session locale mémorisée
+              </span>
+              <span className="text-[10px] font-extrabold text-emerald-700 bg-white px-2 py-0.5 rounded-full border border-emerald-200">
+                Accès sans Internet
+              </span>
+            </div>
+            
+            <div className="flex items-center justify-between gap-3 pt-0.5">
+              <div className="min-w-0">
+                <p className="text-sm font-extrabold text-slate-900 truncate">
+                  {cachedUser.prenoms} {cachedUser.nom}
+                </p>
+                <p className="text-xs text-slate-600 font-medium">
+                  {cachedUser.poste} • {cachedUser.telephone}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setLoginSuccess(cachedUser);
+                  setTimeout(() => redirigerSelonProfil(cachedUser), 600);
+                }}
+                className="px-4 py-2.5 bg-[#005c30] hover:bg-[#004724] text-white text-xs font-bold rounded-2xl shadow-sm flex items-center gap-1.5 active:scale-95 transition-all shrink-0"
+              >
+                <span>Entrer Hors-Ligne</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
         )}
 

@@ -146,6 +146,7 @@ export default function AdminPage() {
   const [nouveauConseilContenu, setNouveauConseilContenu] = useState("");
   const [nouveauConseilCategorie, setNouveauConseilCategorie] = useState("Santé communautaire");
   const [nouveauConseilAuteur, setNouveauConseilAuteur] = useState("Coordination ASCQ");
+  const [nouveauConseilLien, setNouveauConseilLien] = useState("");
   const [publierConseilLoading, setPublierConseilLoading] = useState(false);
 
   // Bibliothèque documentaire

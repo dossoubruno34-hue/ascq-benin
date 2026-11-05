@@ -87,6 +87,50 @@ export function getCachedUserSession(): { user: any | null; profile: any | null 
   }
 }
 
+export function saveOfflineCredentials(telephone: string, profile: any, user: any): void {
+  if (typeof window === "undefined" || !telephone) return;
+  try {
+    const rawDigits = telephone.replace(/\D/g, "");
+    const cleanTel = rawDigits.startsWith("229") ? rawDigits.substring(3) : rawDigits;
+    const knownAccountsStr = localStorage.getItem("ascq_offline_known_accounts");
+    const accounts = knownAccountsStr ? JSON.parse(knownAccountsStr) : {};
+    accounts[cleanTel] = {
+      profile,
+      user,
+      lastLogin: new Date().toISOString()
+    };
+    localStorage.setItem("ascq_offline_known_accounts", JSON.stringify(accounts));
+    localStorage.setItem("ascq_offline_last_phone", cleanTel);
+  } catch (e) {
+    console.warn("Échec sauvegarde identifiants hors-ligne:", e);
+  }
+}
+
+export function findOfflineAccount(telephone: string): { profile: any; user: any } | null {
+  if (typeof window === "undefined" || !telephone) return null;
+  try {
+    const rawDigits = telephone.replace(/\D/g, "");
+    const cleanTel = rawDigits.startsWith("229") ? rawDigits.substring(3) : rawDigits;
+    const knownAccountsStr = localStorage.getItem("ascq_offline_known_accounts");
+    if (knownAccountsStr) {
+      const accounts = JSON.parse(knownAccountsStr);
+      if (accounts[cleanTel]) return accounts[cleanTel];
+    }
+    // Vérifier aussi le profil en session actuelle
+    const session = getCachedUserSession();
+    if (session?.profile) {
+      const sessTel = (session.profile.telephone || "").replace(/\D/g, "");
+      const cleanSess = sessTel.startsWith("229") ? sessTel.substring(3) : sessTel;
+      if (cleanSess === cleanTel || (cleanTel.length >= 8 && cleanSess.includes(cleanTel))) {
+        return { profile: session.profile, user: session.user };
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export function saveCachedMonEspace(data: any): void {
   if (typeof window === "undefined" || !data) return;
   try {

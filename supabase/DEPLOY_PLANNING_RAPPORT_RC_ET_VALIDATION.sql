@@ -4,6 +4,14 @@
 -- Exécuter ce script dans l'éditeur SQL de votre projet Supabase.
 -- =====================================================================
 
+-- 0. AJUSTEMENT DES CONTRAINTES DE VALIDATION (DÉCÈS & CONSEILS SANTÉ)
+ALTER TABLE public.deces_communautaires DROP CONSTRAINT IF EXISTS deces_communautaires_statut_check;
+ALTER TABLE public.deces_communautaires ADD CONSTRAINT deces_communautaires_statut_check 
+CHECK (statut IN ('NOTIFIE', 'EN_ATTENTE', 'AUTOPSIE_EN_ATTENTE', 'CAUSE_RENSEIGNEE', 'VALIDE', 'CLOTURE', 'INVALIDE', 'REJETE', 'TRANSMIS', 'VALIDE_ASCQ', 'REJETE_ASCQ'));
+
+ALTER TABLE public.conseils_sante ADD COLUMN IF NOT EXISTS lien_externe TEXT;
+ALTER TABLE public.conseils_sante ADD COLUMN IF NOT EXISTS image_url TEXT;
+
 -- 1. TABLE : plannings_hebdo_relais
 CREATE TABLE IF NOT EXISTS public.plannings_hebdo_relais (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -377,12 +385,22 @@ DECLARE
     v_ascq_id UUID := auth.uid();
 BEGIN
     IF p_type = 'DEC' THEN
-        UPDATE public.deces_communautaires
-        SET
-            statut = v_statut,
-            ascq_superviseur_id = COALESCE(v_ascq_id, ascq_superviseur_id),
-            updated_at = NOW()
-        WHERE id = p_id;
+        BEGIN
+            UPDATE public.deces_communautaires
+            SET
+                statut = v_statut,
+                ascq_superviseur_id = COALESCE(v_ascq_id, ascq_superviseur_id),
+                updated_at = NOW()
+            WHERE id = p_id;
+        EXCEPTION WHEN check_violation THEN
+            -- Repli sécurisé si ancienne contrainte sans 'INVALIDE'
+            UPDATE public.deces_communautaires
+            SET
+                statut = CASE WHEN p_action = 'VALIDER' THEN 'VALIDE' ELSE 'CLOTURE' END,
+                ascq_superviseur_id = COALESCE(v_ascq_id, ascq_superviseur_id),
+                updated_at = NOW()
+            WHERE id = p_id;
+        END;
     ELSIF p_type = 'ALR' THEN
         UPDATE public.alertes_communautaires
         SET
