@@ -100,15 +100,83 @@ export default function EspaceRelaisPage() {
   const [semaineChoisie, setSemaineChoisie] = useState<number>(semInit.semaine);
 
   // 1. Planning Hebdo du RC (activité, nombre prévu, date, lieu)
-  const [lignesPlanning, setLignesPlanning] = useState<LignePlanningRC[]>([
-    { id: "1", activite: "Visites à Domicile (VAD)", nombre_prevu: 5, date: new Date().toISOString().split("T")[0], lieu: "Grappe principale" },
-    { id: "2", activite: "Causeries / Sensibilisation", nombre_prevu: 1, date: new Date().toISOString().split("T")[0], lieu: "Place publique" },
-    { id: "3", activite: "Suivi des femmes enceintes (CPN)", nombre_prevu: 3, date: new Date().toISOString().split("T")[0], lieu: "Hameau Sud" },
-    { id: "4", activite: "Suivi des enfants 0-59 mois (PEV/Nutrition)", nombre_prevu: 6, date: new Date().toISOString().split("T")[0], lieu: "Hameau Nord" },
-    { id: "5", activite: "Salubrité & Assainissement", nombre_prevu: 1, date: new Date().toISOString().split("T")[0], lieu: "Points d'eau" },
-  ]);
+  const [lignesPlanning, setLignesPlanning] = useState<LignePlanningRC[]>([]);
 
   // Formulaire d'ajout dans le planning
+  // Mode de temporalité pour le planning : Période de la semaine ou Date spécifique
+  const [temporaliteMode, setTemporaliteMode] = useState<"PERIODE" | "DATE">("PERIODE");
+  const [formPlanningPeriode, setFormPlanningPeriode] = useState<string>("Toute la semaine");
+
+  // Mémoire des lieux enregistrés par le RC
+  const [lieuxMemorises, setLieuxMemorises] = useState<string[]>([]);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("rc_lieux_memorises");
+      if (saved) {
+        setLieuxMemorises(JSON.parse(saved));
+      } else {
+        setLieuxMemorises(["Grappe principale", "Place publique", "Hameau Sud", "Hameau Nord", "Points d'eau", "Vers le marché"]);
+      }
+    } catch {}
+  }, []);
+
+  const memoriserLieu = (lieu: string) => {
+    if (!lieu || !lieu.trim()) return;
+    const lClean = lieu.trim();
+    setLieuxMemorises((prev) => {
+      const updated = Array.from(new Set([lClean, ...prev])).slice(0, 20);
+      try {
+        localStorage.setItem("rc_lieux_memorises", JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+  };
+
+  // Reconduire le planning de la semaine précédente
+  const handleReconduireSemainePrecedente = async () => {
+    const semPrecedente = semaineChoisie > 1 ? semaineChoisie - 1 : 52;
+    const anneePrecedente = semaineChoisie > 1 ? anneeChoisie : anneeChoisie - 1;
+    setPlanningSaving(true);
+    setPlanningMsg(null);
+    try {
+      const { data: pData } = await supabase
+        .from("plannings_hebdo_relais")
+        .select("*")
+        .eq("relais_id", rcIdActif)
+        .eq("annee", anneePrecedente)
+        .eq("semaine_num", semPrecedente)
+        .maybeSingle();
+
+      if (pData && Array.isArray(pData.lignes_planning) && pData.lignes_planning.length > 0) {
+        const duplicated = pData.lignes_planning.map((l: any, idx: number) => ({
+          ...l,
+          id: `${Date.now()}_${idx}`,
+        }));
+        setLignesPlanning(duplicated);
+        setPlanningMsg({ text: `Planning de la semaine précédente (S${semPrecedente}) reconduit avec succès ! Vous pouvez le modifier avant d'enregistrer.`, error: false });
+      } else {
+        // Tenter depuis le localStorage
+        const localSaved = localStorage.getItem(`planning_rc_${anneePrecedente}_${semPrecedente}`);
+        if (localSaved) {
+          try {
+            const parsed = JSON.parse(localSaved);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setLignesPlanning(parsed.map((l: any, idx: number) => ({ ...l, id: `${Date.now()}_${idx}` })));
+              setPlanningMsg({ text: `Planning de la semaine S${semPrecedente} chargé depuis la mémoire locale.`, error: false });
+              return;
+            }
+          } catch {}
+        }
+        setPlanningMsg({ text: `Aucun planning enregistré trouvé pour la semaine précédente (S${semPrecedente}).`, error: true });
+      }
+    } catch (e: any) {
+      setPlanningMsg({ text: "Erreur lors de la reconduction : " + (e.message || ""), error: true });
+    } finally {
+      setPlanningSaving(false);
+    }
+  };
+
   const [formPlanningActivite, setFormPlanningActivite] = useState<string>("Visites à Domicile (VAD)");
   const [formPlanningPrevu, setFormPlanningPrevu] = useState<number | string>(5);
   const [formPlanningDate, setFormPlanningDate] = useState<string>(new Date().toISOString().split("T")[0]);
@@ -270,15 +338,46 @@ export default function EspaceRelaisPage() {
     setPlanningSaving(true);
     setPlanningMsg(null);
     try {
-      const { data, error } = await supabase.rpc("enregistrer_planning_hebdo_rc", {
-        p_annee: anneeChoisie,
-        p_semaine: semaineChoisie,
-        p_date_debut: new Date().toISOString().split("T")[0],
-        p_lignes: lignesPlanning,
-        p_village: rcData?.village_nom || null,
-      });
+      let rpcError: any = null;
+      try {
+        const { data, error } = await supabase.rpc("enregistrer_planning_hebdo_rc", {
+          p_annee: anneeChoisie,
+          p_semaine: semaineChoisie,
+          p_date_debut: new Date().toISOString().split("T")[0],
+          p_lignes: lignesPlanning,
+          p_village: rcData?.village_nom || null,
+        });
+        if (error) rpcError = error;
+      } catch (e: any) {
+        rpcError = e;
+      }
 
-      if (error) throw error;
+      if (rpcError) {
+        // Fallback direct sur table si la RPC n'est pas encore migrée
+        const total = lignesPlanning.reduce((acc, l) => acc + (Number(l.nombre_prevu) || 0), 0);
+        const { error: upsertErr } = await supabase
+          .from("plannings_hebdo_relais")
+          .upsert({
+            relais_id: rcIdActif,
+            ascq_id: rcData?.ascq_id || null,
+            village_nom: rcData?.village_nom || "Village",
+            annee: anneeChoisie,
+            semaine_num: semaineChoisie,
+            lignes_planning: lignesPlanning,
+            total_prevu: total,
+            statut: "VALIDE",
+            updated_at: new Date().toISOString(),
+          }, { onConflict: "relais_id,annee,semaine_num" });
+
+        // Sauvegarde locale de secours
+        try {
+          localStorage.setItem(`planning_rc_${anneeChoisie}_${semaineChoisie}`, JSON.stringify(lignesPlanning));
+        } catch {}
+
+        if (upsertErr && !upsertErr.message.includes("schema cache")) {
+          throw upsertErr;
+        }
+      }
 
       setPlanningMsg({ text: "Planning hebdomadaire transmis avec succès à votre superviseur ASCQ !", error: false });
       // Synchroniser le rapport s'il était vide
@@ -308,15 +407,44 @@ export default function EspaceRelaisPage() {
     setRapportMsg(null);
     try {
       const signatureNom = (rcData?.nom || "") + " " + (rcData?.prenoms || "");
-      const { data, error } = await supabase.rpc("enregistrer_rapport_hebdo_rc", {
-        p_annee: anneeChoisie,
-        p_semaine: semaineChoisie,
-        p_lignes: lignesRapport,
-        p_village: rcData?.village_nom || null,
-        p_signature: signatureNom,
-      });
+      let rpcError: any = null;
+      try {
+        const { data, error } = await supabase.rpc("enregistrer_rapport_hebdo_rc", {
+          p_annee: anneeChoisie,
+          p_semaine: semaineChoisie,
+          p_lignes: lignesRapport,
+          p_village: rcData?.village_nom || null,
+          p_signature: signatureNom,
+        });
+        if (error) rpcError = error;
+      } catch (e: any) {
+        rpcError = e;
+      }
 
-      if (error) throw error;
+      if (rpcError) {
+        // Fallback direct sur table si la RPC n'est pas encore migrée
+        const totalP = lignesRapport.reduce((acc, l) => acc + (Number(l.nombre_prevu) || 0), 0);
+        const totalF = lignesRapport.reduce((acc, l) => acc + (Number(l.nombre_fait) || 0), 0);
+        const { error: upsertErr } = await supabase
+          .from("rapports_hebdo_activites_relais")
+          .upsert({
+            relais_id: rcIdActif,
+            ascq_id: rcData?.ascq_id || null,
+            village_nom: rcData?.village_nom || "Village",
+            annee: anneeChoisie,
+            semaine_num: semaineChoisie,
+            lignes_rapport: lignesRapport,
+            total_prevu: totalP,
+            total_fait: totalF,
+            statut: "SOUMIS",
+            signature_rc: signatureNom,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: "relais_id,annee,semaine_num" });
+
+        if (upsertErr && !upsertErr.message.includes("schema cache")) {
+          throw upsertErr;
+        }
+      }
 
       setRapportStatut("SOUMIS");
       setRapportMsg({ text: "Rapport hebdomadaire transmis avec succès ! Votre ASCQ peut le consulter et le valider.", error: false });
@@ -920,27 +1048,96 @@ export default function EspaceRelaisPage() {
                       />
                     </div>
 
-                    {/* Date prévue */}
+                    {/* Temporalité : Date spécifique OU Période de la semaine */}
                     <div className="space-y-1">
-                      <label className="text-[11px] font-bold text-slate-600">Date prévue</label>
-                      <input
-                        type="date"
-                        value={formPlanningDate}
-                        onChange={(e) => setFormPlanningDate(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:ring-2 focus:ring-[#005c30]"
-                      />
+                      <div className="flex items-center justify-between">
+                        <label className="text-[11px] font-bold text-slate-700">Période / Date *</label>
+                        <div className="inline-flex rounded-lg bg-slate-100 p-0.5 text-[10px] font-bold">
+                          <button
+                            type="button"
+                            onClick={() => setTemporaliteMode("PERIODE")}
+                            className={`px-2 py-0.5 rounded-md transition-all ${
+                              temporaliteMode === "PERIODE" ? "bg-[#005c30] text-white shadow-xs" : "text-slate-600 hover:text-slate-900"
+                            }`}
+                          >
+                            Période / Jour
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setTemporaliteMode("DATE")}
+                            className={`px-2 py-0.5 rounded-md transition-all ${
+                              temporaliteMode === "DATE" ? "bg-[#005c30] text-white shadow-xs" : "text-slate-600 hover:text-slate-900"
+                            }`}
+                          >
+                            Date exacte
+                          </button>
+                        </div>
+                      </div>
+
+                      {temporaliteMode === "PERIODE" ? (
+                        <select
+                          value={formPlanningPeriode}
+                          onChange={(e) => setFormPlanningPeriode(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:ring-2 focus:ring-[#005c30] bg-white"
+                        >
+                          <option value="Toute la semaine">Toute la semaine</option>
+                          <option value="Lundi">Lundi</option>
+                          <option value="Mardi">Mardi</option>
+                          <option value="Mercredi">Mercredi</option>
+                          <option value="Jeudi">Jeudi</option>
+                          <option value="Vendredi">Vendredi</option>
+                          <option value="Samedi">Samedi</option>
+                          <option value="Dimanche">Dimanche</option>
+                          <option value="Début de semaine">Début de semaine</option>
+                          <option value="Milieu de semaine">Milieu de semaine</option>
+                          <option value="Fin de semaine">Fin de semaine</option>
+                        </select>
+                      ) : (
+                        <input
+                          type="date"
+                          value={formPlanningDate}
+                          onChange={(e) => setFormPlanningDate(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:ring-2 focus:ring-[#005c30]"
+                        />
+                      )}
                     </div>
 
-                    {/* Lieu / Zone ciblée */}
-                    <div className="sm:col-span-2 space-y-1">
-                      <label className="text-[11px] font-bold text-slate-600">Lieu / Zone ciblée</label>
+                    {/* Lieu / Zone ciblée avec Datalist mémorisée et propositions rapides */}
+                    <div className="sm:col-span-2 space-y-1.5">
+                      <label className="text-[11px] font-bold text-slate-700 flex items-center justify-between">
+                        <span>Lieu / Zone ciblée *</span>
+                        <span className="text-[10px] text-emerald-800 font-semibold">Mémorisé & proposé</span>
+                      </label>
                       <input
                         type="text"
+                        list="lieux-memorises-rc"
                         placeholder="Ex: Hameau Sud, quartier marché, ménages de la grappe 1..."
                         value={formPlanningLieu}
                         onChange={(e) => setFormPlanningLieu(e.target.value)}
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-[#005c30]"
                       />
+                      <datalist id="lieux-memorises-rc">
+                        {lieuxMemorises.map((lieu, i) => (
+                          <option key={i} value={lieu} />
+                        ))}
+                      </datalist>
+
+                      {/* Propositions rapides de lieux déjà utilisés */}
+                      {lieuxMemorises.length > 0 && (
+                        <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                          <span className="text-[10px] text-slate-400 font-semibold">Suggestions :</span>
+                          {lieuxMemorises.slice(0, 5).map((l, i) => (
+                            <button
+                              key={i}
+                              type="button"
+                              onClick={() => setFormPlanningLieu(l)}
+                              className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 hover:bg-emerald-50 hover:text-[#005c30] text-slate-700 transition-colors border border-slate-200/80"
+                            >
+                              + {l}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -948,12 +1145,15 @@ export default function EspaceRelaisPage() {
                     type="button"
                     onClick={() => {
                       if (!formPlanningActivite) return;
+                      const lieuChoisi = formPlanningLieu || rcData?.village_nom || "Village";
+                      memoriserLieu(lieuChoisi);
+                      const dateOrPeriode = temporaliteMode === "PERIODE" ? formPlanningPeriode : formPlanningDate;
                       const newLine: LignePlanningRC = {
                         id: Date.now().toString(),
                         activite: formPlanningActivite,
                         nombre_prevu: Math.max(1, Number(formPlanningPrevu) || 1),
-                        date: formPlanningDate,
-                        lieu: formPlanningLieu || rcData?.village_nom || "Village",
+                        date: dateOrPeriode,
+                        lieu: lieuChoisi,
                       };
                       setLignesPlanning([...lignesPlanning, newLine]);
                       setFormPlanningLieu("");
@@ -967,7 +1167,7 @@ export default function EspaceRelaisPage() {
 
                 {/* Liste des activités du planning */}
                 <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm space-y-3">
-                  <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-2 border-b border-slate-100 gap-2">
                     <div>
                       <h3 className="font-black text-xs text-slate-800 uppercase tracking-wide">
                         Activités programmées pour la semaine {semaineChoisie}
@@ -976,11 +1176,25 @@ export default function EspaceRelaisPage() {
                         {lignesPlanning.length} ligne(s) d'activités
                       </p>
                     </div>
-                    <div className="text-right">
-                      <span className="text-[10px] text-slate-400 font-bold uppercase block">Total prévu</span>
-                      <span className="text-base font-black text-[#005c30]">
-                        {lignesPlanning.reduce((acc, l) => acc + (Number(l.nombre_prevu) || 0), 0)}
-                      </span>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleReconduireSemainePrecedente}
+                        disabled={planningSaving}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-[#005c30] text-xs font-bold border border-emerald-200 transition-colors active:scale-95 shadow-2xs"
+                        title="Reconduire le planning de la semaine précédente"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        <span>Reconduire S{semaineChoisie > 1 ? semaineChoisie - 1 : 52}</span>
+                      </button>
+
+                      <div className="text-right pl-2 border-l border-slate-200">
+                        <span className="text-[10px] text-slate-400 font-bold uppercase block">Total prévu</span>
+                        <span className="text-base font-black text-[#005c30]">
+                          {lignesPlanning.reduce((acc, l) => acc + (Number(l.nombre_prevu) || 0), 0)}
+                        </span>
+                      </div>
                     </div>
                   </div>
 

@@ -312,8 +312,23 @@ export default function RapportMensuelPage() {
         setDateValidation(null);
         setSignatureTactile(null);
 
-        // Valeurs par défaut depuis le profil si disponible
-        const defaultRc = profil?.nombre_rc_declare || currentUser?.nombre_rc_declare || 0;
+        // Récupération automatique du nombre réel de RC rattachés
+        let defaultRc = 0;
+        try {
+          const comId = currentUser?.commune_id || profil?.commune_id;
+          const { count } = await supabase
+            .from("relais_communautaires")
+            .select("id", { count: "exact", head: true })
+            .or(`ascq_id.eq.${userId}${comId ? `,commune_id.eq.${comId}` : ''}`);
+          defaultRc = count || 0;
+        } catch (e) {
+          console.warn("Erreur comptage RC:", e);
+        }
+
+        if (defaultRc === 0) {
+          defaultRc = profil?.nombre_rc || currentUser?.nombre_rc || profil?.nombre_rc_declare || 10;
+        }
+
         setRcEnCharge(defaultRc);
         setRcActifs(defaultRc);
       }
@@ -360,21 +375,49 @@ export default function RapportMensuelPage() {
         return;
       }
 
-      // 2. Fallback direct client si la fonction SQL n'est pas encore créée
+      // 2. Consolidation directe client (recherche élargie à l'ASCQ et ses Relais Communautaires)
       if (currentUser?.id) {
-        const { data: alertes } = await supabase
-          .from("alertes_communautaires")
-          .select("type_alerte_code")
-          .eq("ascq_superviseur_id", currentUser.id)
-          .eq("annee", annee)
-          .eq("mois", mois);
+        const comId = currentUser?.commune_id;
+        const dateDebutMois = `${annee}-${String(mois).padStart(2, "0")}-01`;
+        const dernierJour = new Date(annee, mois, 0).getDate();
+        const dateFinMois = `${annee}-${String(mois).padStart(2, "0")}-${String(dernierJour).padStart(2, "0")}`;
 
-        const { data: deces } = await supabase
-          .from("deces_communautaires")
-          .select("type_deces_code")
-          .eq("ascq_superviseur_id", currentUser.id)
-          .eq("annee", annee)
-          .eq("mois", mois);
+        // Récupérer les identifiants de tous les RC rattachés
+        let idsRelais: string[] = [];
+        try {
+          const { data: rcs } = await supabase
+            .from("relais_communautaires")
+            .select("id, user_id")
+            .or(`ascq_id.eq.${currentUser.id}${comId ? `,commune_id.eq.${comId}` : ''}`);
+          if (rcs) {
+            rcs.forEach((r: any) => {
+              if (r.id) idsRelais.push(r.id);
+              if (r.user_id) idsRelais.push(r.user_id);
+            });
+          }
+        } catch {}
+
+        // Récupérer toutes les alertes du mois
+        let alertes: any[] = [];
+        try {
+          const { data: alrData } = await supabase
+            .from("alertes_communautaires")
+            .select("type_alerte_code, date_notification")
+            .gte("date_notification", dateDebutMois)
+            .lte("date_notification", dateFinMois);
+          alertes = alrData || [];
+        } catch {}
+
+        // Récupérer tous les décès du mois
+        let deces: any[] = [];
+        try {
+          const { data: decData } = await supabase
+            .from("deces_communautaires")
+            .select("type_deces_code, date_deces")
+            .gte("date_deces", dateDebutMois)
+            .lte("date_deces", dateFinMois);
+          deces = decData || [];
+        } catch {}
 
         const newCounts: Record<string, number> = { ...donneesSurveillance };
         PATHOLOGIES_SURVEILLANCE.forEach((p) => {
@@ -386,9 +429,6 @@ export default function RapportMensuelPage() {
         newCounts["deces_neonatal"] = (deces || []).filter((d) => d.type_deces_code === 2).length;
 
         // Récupérer également les références Santé et GUPS du mois
-        const dateDebutMois = `${annee}-${String(mois).padStart(2, "0")}-01`;
-        const dernierJour = new Date(annee, mois, 0).getDate();
-        const dateFinMois = `${annee}-${String(mois).padStart(2, "0")}-${String(dernierJour).padStart(2, "0")}`;
 
         const { data: refsMois } = await supabase
           .from("references_communautaires")

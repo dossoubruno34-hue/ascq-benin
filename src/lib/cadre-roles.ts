@@ -105,41 +105,34 @@ export function getPerimetreScope(user: any): PerimetreScope {
   const nomination = String(user.role_nomination || "").toUpperCase();
   const poste = String(user.poste || "").toUpperCase();
 
-  // 1. Périmètre National : SUPER_ADMIN & MEMBRE_MINISTERE
-  const isNational = cleanTel.includes("69031463") ||
-    role === "SUPER_ADMIN" ||
-    role === "MEMBRE_MINISTERE" ||
+  // Règle d'or terrain : Si l'utilisateur a une commune de rattachement (ex: Bruno DOSSOU affecté à OUINHI),
+  // dans "Mon Périmètre", il voit UNIQUEMENT sa commune (OUINHI) et ses arrondissements.
+  // La vue globale de l'ensemble du pays (tous les départements et les 77 communes) est exclusivement réservée à l'Espace Administration (/admin).
+  if (user.commune_id && (cleanTel.includes("69031463") || role === "SUPER_ADMIN" || poste === "ASCQ" || nomination === "REPRESENTANT_COMMUNAL" || role === "PF_CCLS_TP" || nomination === "PF_CCLS_TP")) {
+    const comNom = user.commune_nom || (cleanTel.includes("69031463") ? "Ouinhi" : "Commune");
+    return {
+      level: "COMMUNAL",
+      filterType: "commune_id",
+      id: user.commune_id,
+      libelle: `Commune : ${comNom}`
+    };
+  }
+
+  // Périmètre National : Uniquement pour MEMBRE_MINISTERE ou profil national sans rattachement communal
+  const isNational = role === "MEMBRE_MINISTERE" ||
     nomination === "MEMBRE_MINISTERE" ||
-    poste === "MEMBRE_MINISTERE";
+    poste === "MEMBRE_MINISTERE" ||
+    (role === "SUPER_ADMIN" && !user.commune_id);
 
   if (isNational) {
     return { level: "NATIONAL", filterType: "all", id: null, libelle: "National (Tout le Bénin)" };
   }
 
-  // 2. Périmètre Communal strict : REPRESENTANT_COMMUNAL & PF_CCLS_TP
-  if (nomination === "REPRESENTANT_COMMUNAL" || role === "PF_CCLS_TP" || nomination === "PF_CCLS_TP" || poste === "PF_CCLS_TP") {
-    return {
-      level: "COMMUNAL",
-      filterType: "commune_id",
-      id: user.commune_id || null,
-      libelle: user.commune_nom ? `Commune : ${user.commune_nom}` : "Périmètre Communal"
-    };
-  }
-
-  // 3. ASCQ de terrain
-  if (role === "ASCQ" || poste === "ASCQ" || role === "ASCQ_OPERATEUR") {
-    return {
-      level: "COMMUNAL",
-      filterType: "commune_id",
-      id: user.commune_id || null,
-      libelle: user.commune_nom ? `Commune : ${user.commune_nom}` : "Périmètre Communal"
-    };
-  }
-
+  // Périmètre Communal strict
   return {
-    level: "TERRAIN",
-    filterType: "user_id",
-    id: user.id,
-    libelle: "Terrain"
+    level: "COMMUNAL",
+    filterType: "commune_id",
+    id: user.commune_id || null,
+    libelle: user.commune_nom ? `Commune : ${user.commune_nom}` : "Périmètre Communal"
   };
 }

@@ -62,6 +62,88 @@ export default function MesFichesPage() {
   const [ficheConsultation, setFicheConsultation] = useState<any | null>(null);
   // Mode d'impression du registre complet
   const [imprimerModeRegistre, setImprimerModeRegistre] = useState<boolean>(false);
+
+  // État et action de validation par l'ASCQ superviseur
+  const [validationEnCours, setValidationEnCours] = useState(false);
+  const [observationValidation, setObservationValidation] = useState("");
+  const [msgValidation, setMsgValidation] = useState<{ text: string; error: boolean } | null>(null);
+
+  const handleValiderOuInvaliderNotification = async (action: "VALIDER" | "INVALIDER") => {
+    if (!ficheConsultation) return;
+    setValidationEnCours(true);
+    setMsgValidation(null);
+
+    const nouveauStatut = action === "VALIDER" ? "VALIDE" : "INVALIDE";
+    const nouveauResultat = action === "VALIDER" ? "AVEREE" : "NON_AVEREE";
+
+    try {
+      let rpcOk = false;
+      try {
+        const { error: rpcErr } = await supabase.rpc("valider_notification_communautaire", {
+          p_type: ficheConsultation.type,
+          p_id: ficheConsultation.id,
+          p_action: action,
+          p_observations: observationValidation || (action === "VALIDER" ? "Validé par le superviseur ASCQ" : "Invalidé après vérification"),
+        });
+        if (!rpcErr) rpcOk = true;
+      } catch {}
+
+      if (!rpcOk) {
+        if (ficheConsultation.type === "DEC") {
+          const { error } = await supabase
+            .from("deces_communautaires")
+            .update({
+              statut: nouveauStatut,
+              ascq_superviseur_id: currentUser?.id || null,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", ficheConsultation.id);
+          if (error) throw error;
+        } else if (ficheConsultation.type === "ALR") {
+          const { error } = await supabase
+            .from("alertes_communautaires")
+            .update({
+              statut: nouveauStatut,
+              resultat_verification: nouveauResultat,
+              commentaire_verification: observationValidation || (action === "VALIDER" ? "Validé par l'ASCQ" : "Invalidé"),
+              ascq_superviseur_id: currentUser?.id || null,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", ficheConsultation.id);
+          if (error) throw error;
+        } else if (ficheConsultation.type === "REG") {
+          const { error } = await supabase
+            .from("registre_alertes_rumeurs")
+            .update({
+              statut: action === "VALIDER" ? "TRANSFORMEE_ALERTE" : "CLASSEE_SANS_SUITE",
+              ascq_superviseur_id: currentUser?.id || null,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", ficheConsultation.id);
+          if (error) throw error;
+        }
+      }
+
+      setFicheConsultation((prev: any) => prev ? ({
+        ...prev,
+        statut: nouveauStatut,
+        resultat: nouveauResultat,
+      }) : null);
+
+      setMsgValidation({
+        text: action === "VALIDER" 
+          ? "✅ Déclaration validée avec succès !" 
+          : "⚠️ Déclaration invalidée avec succès.",
+        error: false,
+      });
+
+      await chargerFiches();
+    } catch (err: any) {
+      setMsgValidation({ text: err.message || "Erreur lors de la mise à jour du statut", error: true });
+    } finally {
+      setValidationEnCours(false);
+    }
+  };
   // Référentiel territorial en état React
   const [territoryMaps, setTerritoryMaps] = useState<{
     dMap: Record<string, string>;
@@ -1047,6 +1129,74 @@ export default function MesFichesPage() {
                   </div>
                 );
               })()}
+
+              {/* CADRE OFFICIEL DE VALIDATION SUPERVISEUR ASCQ (Masqué à l'impression) */}
+              {(currentUser?.poste === "ASCQ" || currentUser?.role_technique === "SUPER_ADMIN" || currentUser?.role_technique === "ASCQ" || currentUser?.role_technique === "REPRESENTANT_COMMUNAL") && (
+                <div className="bg-emerald-50/80 border-2 border-[#005c30] rounded-3xl p-4 sm:p-5 space-y-3 print:hidden">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="w-5 h-5 text-[#005c30]" />
+                      <h4 className="font-extrabold text-xs sm:text-sm text-slate-900 uppercase tracking-wide">
+                        Validation & Décision Superviseur ASCQ
+                      </h4>
+                    </div>
+                    <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-full ${
+                      ficheConsultation.statut === "VALIDE"
+                        ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                        : ficheConsultation.statut === "INVALIDE"
+                        ? "bg-red-100 text-red-800 border border-red-300"
+                        : "bg-amber-100 text-amber-800 border border-amber-300"
+                    }`}>
+                      Statut actuel : {ficheConsultation.statut || "NOTIFIÉ"}
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-slate-600">
+                    En tant que superviseur ASCQ d'arrondissement, validez ou invalidez cette fiche de surveillance transmise par votre Relais Communautaire (<strong>{ficheConsultation.notificateur}</strong>).
+                  </p>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-slate-700">Observations / Motifs du superviseur (facultatif)</label>
+                    <input
+                      type="text"
+                      placeholder="Ex: Événement vérifié sur le terrain à Gangban, conforme au protocole SIMR..."
+                      value={observationValidation}
+                      onChange={(e) => setObservationValidation(e.target.value)}
+                      className="w-full text-xs px-3.5 py-2 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#005c30]"
+                    />
+                  </div>
+
+                  {msgValidation && (
+                    <div className={`p-2.5 rounded-xl text-xs font-bold ${
+                      msgValidation.error ? "bg-red-50 text-red-800 border border-red-200" : "bg-emerald-100 text-emerald-900 border border-emerald-300"
+                    }`}>
+                      {msgValidation.text}
+                    </div>
+                  )}
+
+                  <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                    <button
+                      type="button"
+                      disabled={validationEnCours}
+                      onClick={() => handleValiderOuInvaliderNotification("VALIDER")}
+                      className="flex-1 py-2.5 px-4 rounded-xl font-extrabold text-xs text-white bg-[#005c30] hover:bg-[#004724] shadow-sm transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-1.5"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>{validationEnCours ? "Validation..." : "✅ Valider officiellement cette déclaration"}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={validationEnCours}
+                      onClick={() => handleValiderOuInvaliderNotification("INVALIDER")}
+                      className="py-2.5 px-4 rounded-xl font-bold text-xs text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-1.5"
+                    >
+                      <X className="w-4 h-4" />
+                      <span>{validationEnCours ? "Traitement..." : "❌ Invalider / Rejeter"}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Lien optionnel vers la page complète alerte si ALR */}
               {ficheConsultation.type === "ALR" && (

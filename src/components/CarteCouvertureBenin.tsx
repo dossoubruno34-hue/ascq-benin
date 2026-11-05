@@ -185,37 +185,44 @@ export default function CarteCouvertureBenin({ couverture = [], simulation100 = 
             </g>
           </svg>
 
-          {/* Mini-infobulle contextuelle lors d'un tap / clic sur mobile */}
-          {selectedCommune && (
-            <div className="absolute bottom-2 left-2 right-2 bg-white/95 backdrop-blur-md p-2.5 rounded-xl border border-slate-200/90 shadow-md text-xs flex items-center justify-between gap-2 z-10 animate-fade-in">
-              <div className="flex items-center gap-2 min-w-0">
-                <MapPin className="w-4 h-4 text-[#0e7f47] shrink-0" />
-                <div className="truncate">
-                  <p className="font-extrabold text-slate-900 leading-tight truncate">
-                    {selectedCommune.nomAffiche}
-                  </p>
-                  <p className="text-[11px] text-slate-500 font-medium">
-                    {selectedCommune.count > 0 ? (
-                      <span className="text-[#0e7f47] font-bold">
-                        ✓ {selectedCommune.count} ASCQ présent{selectedCommune.count > 1 ? "s" : ""}
-                      </span>
-                    ) : (
-                      <span className="text-slate-500">Pas encore couverte</span>
-                    )}
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedCommune(null)}
-                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg shrink-0"
-                aria-label="Fermer l'infobulle"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
         </div>
+
+        {/* Panneau d'information HORS CARTE (ne masque plus les communes du Sud) */}
+        {selectedCommune ? (
+          <div className="bg-emerald-50/90 border border-emerald-200 p-2.5 rounded-2xl shadow-xs text-xs flex items-center justify-between gap-2 animate-fade-in">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-white flex items-center justify-center border border-emerald-200 shadow-2xs shrink-0">
+                <MapPin className="w-4 h-4 text-[#0e7f47]" />
+              </div>
+              <div className="truncate">
+                <p className="font-extrabold text-slate-900 leading-tight truncate text-xs sm:text-sm">
+                  {selectedCommune.nomAffiche}
+                </p>
+                <p className="text-[11px] text-slate-600 font-medium">
+                  {selectedCommune.count > 0 ? (
+                    <span className="text-[#0e7f47] font-bold">
+                      ✓ {selectedCommune.count} ASCQ présent{selectedCommune.count > 1 ? "s" : ""}
+                    </span>
+                  ) : (
+                    <span className="text-slate-500">Pas encore couverte par un ASCQ</span>
+                  )}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSelectedCommune(null)}
+              className="p-1.5 text-slate-400 hover:text-slate-700 bg-white hover:bg-slate-100 rounded-xl border border-slate-200 shrink-0 transition-colors"
+              aria-label="Fermer l'infobulle"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        ) : (
+          <p className="text-[11px] text-center text-slate-400 italic">
+            Touchez ou cliquez sur une commune sur la carte ci-dessus pour voir ses détails
+          </p>
+        )}
 
         {/* Légende minimale à 2 pastilles */}
         <div className="flex items-center justify-between pt-1 px-1 text-[11px] text-slate-600 font-semibold border-t border-slate-100">

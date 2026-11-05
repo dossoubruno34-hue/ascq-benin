@@ -346,35 +346,47 @@ export default function SuiviRelaisPage() {
     setSelectedRc(rc);
     setLoadingFichesRc(true);
     try {
-      // 1. Tenter la RPC lister_fiches_rc_pour_ascq
-      const { data: rpcData, error: rpcErr } = await supabase.rpc("lister_fiches_rc_pour_ascq", {
-        p_rc_id: rcId,
+      const rcUserId = rc.user_id || rcId;
+      const cleanNom = (rc.nom || "").trim();
+      const cleanPrenoms = (rc.prenoms || "").trim();
+
+      // Construction des filtres souples pour retrouver toutes les notifications du relais
+      const orFilterDeces = [
+        rcUserId ? `notificateur_id.eq.${rcUserId}` : null,
+        rcId ? `notificateur_id.eq.${rcId}` : null,
+        cleanNom ? `notificateur_nom_complet.ilike.%${cleanNom}%` : null,
+        cleanPrenoms ? `notificateur_nom_complet.ilike.%${cleanPrenoms}%` : null,
+      ].filter(Boolean).join(",");
+
+      const orFilterAlertes = [
+        rcUserId ? `declare_par_id.eq.${rcUserId}` : null,
+        rcId ? `declare_par_id.eq.${rcId}` : null,
+        rcUserId ? `notificateur_id.eq.${rcUserId}` : null,
+        rcId ? `notificateur_id.eq.${rcId}` : null,
+        cleanNom ? `notificateur_nom_complet.ilike.%${cleanNom}%` : null,
+        cleanPrenoms ? `notificateur_nom_complet.ilike.%${cleanPrenoms}%` : null,
+      ].filter(Boolean).join(",");
+
+      const orFilterRegistre = [
+        rcId ? `relais_id.eq.${rcId}` : null,
+        rcUserId ? `relais_id.eq.${rcUserId}` : null,
+        cleanNom ? `relais_nom_complet.ilike.%${cleanNom}%` : null,
+        cleanPrenoms ? `relais_nom_complet.ilike.%${cleanPrenoms}%` : null,
+      ].filter(Boolean).join(",");
+
+      const [alrRes, regRes, refRes, decRes] = await Promise.all([
+        supabase.from("alertes_communautaires").select("*, cas_identite_privee(nom, prenoms)").or(orFilterAlertes),
+        supabase.from("registre_alertes_rumeurs").select("*").or(orFilterRegistre),
+        supabase.from("references_communautaires").select("*").or(`relais_id.eq.${rcId},relais_id.eq.${rcUserId}`),
+        supabase.from("deces_communautaires").select("*, deces_identite_privee(nom_defunt, prenoms_defunt)").or(orFilterDeces),
+      ]);
+
+      setRcFiches({
+        alertes: alrRes.data || [],
+        registre: regRes.data || [],
+        references: refRes.data || [],
+        deces: decRes.data || [],
       });
-
-      if (!rpcErr && rpcData) {
-        setRcFiches({
-          alertes: rpcData.alertes || [],
-          registre: rpcData.registre || [],
-          references: rpcData.references || [],
-          deces: [],
-        });
-      } else {
-        // Fallback requêtes directes
-        const rcUserId = rc.user_id || rcId;
-        const [alrRes, regRes, refRes, decRes] = await Promise.all([
-          supabase.from("alertes_communautaires").select("*").or(`declare_par_id.eq.${rcUserId},notificateur_nom_complet.ilike.%${rc.nom || ""}%`),
-          supabase.from("registre_alertes_rumeurs").select("*").or(`relais_id.eq.${rcId},relais_nom_complet.ilike.%${rc.nom || ""}%`),
-          supabase.from("references_communautaires").select("*").eq("relais_id", rcId),
-          supabase.from("deces_communautaires").select("*").or(`notificateur_id.eq.${rcUserId},notificateur_nom_complet.ilike.%${rc.nom || ""}%`),
-        ]);
-
-        setRcFiches({
-          alertes: alrRes.data || [],
-          registre: regRes.data || [],
-          references: refRes.data || [],
-          deces: decRes.data || [],
-        });
-      }
     } catch (err) {
       console.error("Erreur chargement fiches du RC:", err);
     } finally {
@@ -1071,9 +1083,12 @@ export default function SuiviRelaisPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 text-xs">
-                    <span className="px-2.5 py-1 rounded-xl bg-slate-100 text-slate-700 font-bold">
-                      {rcFiches.alertes.length} Alertes
+                  <div className="flex items-center gap-2 text-xs flex-wrap">
+                    <span className="px-2.5 py-1 rounded-xl bg-slate-100 text-slate-800 font-bold">
+                      {rcFiches.alertes.length} Alerte(s)
+                    </span>
+                    <span className="px-2.5 py-1 rounded-xl bg-purple-100 text-purple-900 font-extrabold border border-purple-200">
+                      {rcFiches.deces.length} Décès
                     </span>
                     <span className="px-2.5 py-1 rounded-xl bg-blue-50 text-blue-800 font-bold">
                       {rcFiches.registre.length} Rumeurs
@@ -1211,6 +1226,63 @@ export default function SuiviRelaisPage() {
                               </button>
                             </div>
                           ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* SECTION D : NOTIFICATIONS DE DÉCÈS COMMUNAUTAIRES DU RC */}
+                    <div className="space-y-2 pt-2 border-t border-slate-100">
+                      <h3 className="font-extrabold text-xs uppercase tracking-wide text-purple-900 flex items-center gap-1.5">
+                        <Skull className="w-4 h-4 text-purple-700" />
+                        <span>Décès communautaires déclarés par ce Relais ({rcFiches.deces.length})</span>
+                      </h3>
+
+                      {rcFiches.deces.length === 0 ? (
+                        <div className="p-3 bg-purple-50/40 rounded-2xl text-xs text-slate-500 text-center border border-purple-100">
+                          Aucun décès déclaré par ce Relais.
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {rcFiches.deces.map((dec) => {
+                            const priv = Array.isArray(dec.deces_identite_privee) ? dec.deces_identite_privee[0] : dec.deces_identite_privee;
+                            const nomDef = dec.nom_defunt || priv?.nom_defunt || "";
+                            const prenomsDef = dec.prenoms_defunt || priv?.prenoms_defunt || "";
+                            const nomComplet = (dec.defunt_nom_prenom || `${nomDef} ${prenomsDef}`.trim()) || "Défunt";
+
+                            return (
+                              <div key={dec.id} className="p-3.5 bg-purple-50/50 rounded-2xl border border-purple-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                                <div>
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="font-mono text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-white text-purple-800 border border-purple-200">
+                                      {dec.numero_deces}
+                                    </span>
+                                    <strong className="text-slate-900 font-black">{nomComplet}</strong>
+                                    <span className="text-[10px] font-bold text-purple-800 bg-purple-100 px-2 py-0.5 rounded-full">
+                                      {dec.type_deces_nom}
+                                    </span>
+                                    <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                                      dec.statut === "VALIDE" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
+                                    }`}>
+                                      {dec.statut === "VALIDE" ? "Validé ✓" : dec.statut || "Notifié"}
+                                    </span>
+                                  </div>
+                                  <p className="text-[11px] text-slate-600 mt-1">
+                                    Décès le {dec.date_deces} • Lieu : {dec.lieu_deces_nom} • Circonstance : {dec.circonstance_nom} • Village : {dec.village_nom}
+                                  </p>
+                                </div>
+
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <Link
+                                    href="/fiches"
+                                    className="px-3 py-1.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-extrabold text-xs shadow-xs flex items-center gap-1.5 transition-all"
+                                  >
+                                    <Eye className="w-3.5 h-3.5" />
+                                    <span>Examiner / Valider</span>
+                                  </Link>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                     </div>

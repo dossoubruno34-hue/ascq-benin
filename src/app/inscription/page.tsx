@@ -16,17 +16,14 @@ import {
   Mail,
   ShieldCheck,
   Check,
-  X
+  X,
+  UserCheck,
+  MapPin,
+  Building2
 } from "lucide-react";
 
 export default function InscriptionPage() {
-  // Données du formulaire
-  const [telephone, setTelephone] = useState("");
-  const [email, setEmail] = useState("");
-  const [motDePasse, setMotDePasse] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [nom, setNom] = useState("");
-  const [prenoms, setPrenoms] = useState("");
+  // 1. Profil & Poste en premier (Profil en tête)
   const [poste, setPoste] = useState("ASCQ");
   const [posteAutre, setPosteAutre] = useState("");
 
@@ -36,14 +33,22 @@ export default function InscriptionPage() {
   const isTerrainAscq = poste === "ASCQ";
   const isTerrainRc = poste === "RC";
 
+  // Identité et accès
+  const [telephone, setTelephone] = useState("");
+  const [email, setEmail] = useState("");
+  const [motDePasse, setMotDePasse] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [nom, setNom] = useState("");
+  const [prenoms, setPrenoms] = useState("");
+
   // ASCQ de rattachement pour l'auto-enrôlement autonome du RC
   const [selectedAscqRattachement, setSelectedAscqRattachement] = useState("");
   const [ascqsCommune, setAscqsCommune] = useState<Array<{ id: string; nom: string; prenoms: string; telephone: string }>>([]);
   const [loadingAscqs, setLoadingAscqs] = useState(false);
 
-  // Critères de robustesse du mot de passe (obligatoire pour ASCQ et cadres - anti-hack)
+  // Critères de robustesse du mot de passe
   const pwdMinLength = motDePasse.length >= 8;
-  const pwdSpecialChar = /[!@#$%^&*(),.?":{}|<>_\-+=\[\]\\\/]/.test(motDePasse);
+  const pwdSpecialChar = /[!@#$%^&*(),.?":{}|<>_+=~\-\[\]\\/]/.test(motDePasse);
   const pwdLetter = /[a-zA-Z]/.test(motDePasse);
   const pwdNumber = /[0-9]/.test(motDePasse);
   const pwdRobustesseConforme = isTerrainRc ? (motDePasse.length === 4 && /^\d{4}$/.test(motDePasse)) : (pwdMinLength && pwdSpecialChar && pwdLetter && pwdNumber);
@@ -144,7 +149,7 @@ export default function InscriptionPage() {
     loadArrondissements();
   }, [selectedCom]);
 
-  // Cascade : Si profil RC, charger les ASCQ validés de la commune pour le rattachement
+  // Cascade : Si profil RC, charger TOUS les ASCQ superviseurs validés de la commune (incluant Bruno DOSSOU)
   useEffect(() => {
     if (!selectedCom || !isTerrainRc) {
       setAscqsCommune([]);
@@ -155,11 +160,12 @@ export default function InscriptionPage() {
     async function loadAscqsDeLaCommune() {
       setLoadingAscqs(true);
       try {
+        // Inclut poste = 'ASCQ' et tous les rôles superviseurs de la commune (SUPER_ADMIN, ASCQ, etc.)
         const { data } = await supabase
           .from("utilisateurs")
           .select("id, nom, prenoms, telephone")
           .eq("commune_id", selectedCom)
-          .in("role_technique", ["ASCQ", "ASCQ_OPERATEUR"])
+          .or("poste.eq.ASCQ,role_technique.in.(ASCQ,ASCQ_OPERATEUR,REPRESENTANT_COMMUNAL,ADMIN_COMMUNAL,SUPER_ADMIN)")
           .eq("statut_compte", "VALIDE")
           .order("nom");
         setAscqsCommune(data || []);
@@ -203,7 +209,7 @@ export default function InscriptionPage() {
         return;
       }
       if (!selectedAscqRattachement) {
-        setErrorMsg("Veuillez sélectionner votre ASCQ de rattachement dans cette commune.");
+        setErrorMsg("Veuillez sélectionner votre ASCQ superviseur de rattachement dans cette commune.");
         setLoading(false);
         return;
       }
@@ -305,7 +311,7 @@ export default function InscriptionPage() {
       let { error: rpcError } = await supabase.rpc("inscrire_nouvel_agent", rpcParams);
 
       if (rpcError && (rpcError.message.includes("p_ascq_rattachement_id") || rpcError.message.includes("p_email") || rpcError.message.includes("schema cache") || rpcError.message.includes("function") || rpcError.message.includes("not found"))) {
-        // Fallback sans p_ascq_rattachement_id si la nouvelle signature RPC n'a pas encore été migrée sur Supabase
+        // Fallback sans p_ascq_rattachement_id si la signature RPC legacy est active
         const { p_ascq_rattachement_id, ...paramsWithoutAscq } = rpcParams;
         let fallback = await supabase.rpc("inscrire_nouvel_agent", paramsWithoutAscq);
         if (fallback.error && fallback.error.message.includes("p_email")) {
@@ -317,7 +323,7 @@ export default function InscriptionPage() {
 
       if (rpcError) throw rpcError;
 
-      // Si RC avec ASCQ de rattachement, enregistrement direct de la liaison en attente dans relais_communautaires
+      // Si RC avec ASCQ de rattachement, enregistrement direct de la liaison dans relais_communautaires
       if (isTerrainRc && selectedAscqRattachement) {
         try {
           await supabase.from("relais_communautaires").insert({
@@ -372,7 +378,7 @@ export default function InscriptionPage() {
             Inscription Professionnelle
           </h1>
           <p className="text-xs sm:text-sm text-slate-600 max-w-lg mx-auto">
-            Formulaire réservé aux ASCQ et cadres de santé communautaire du Bénin. Votre compte sera activé après vérification administrative.
+            Plateforme communautaire de santé SantéCom Bénin. Choisissez votre profil en premier pour adapter le formulaire.
           </p>
         </div>
 
@@ -399,7 +405,7 @@ export default function InscriptionPage() {
               </div>
               <p>
                 {poste === "RC"
-                  ? "Votre auto-enrôlement a bien été enregistré. Votre ASCQ de rattachement ou le Représentant Communal de votre commune a été notifié pour valider votre compte."
+                  ? "Votre auto-enrôlement a bien été enregistré. Votre ASCQ de rattachement ou le Représentant Communal a été notifié pour valider votre compte."
                   : poste === "PF_CCLS_TP"
                   ? "Votre demande a bien été enregistrée pour votre commune. Le Super Administrateur National a été notifié pour valider votre accès en consultation communale."
                   : poste === "MEMBRE_MINISTERE"
@@ -408,7 +414,7 @@ export default function InscriptionPage() {
               </p>
               <p className="font-semibold text-slate-800 pt-1">
                 {poste === "RC"
-                  ? `Dès validation par votre ASCQ ou le représentant communal, vous pourrez vous connecter directement avec votre numéro ${telephone} et votre code à 4 chiffres.`
+                  ? `Dès validation par votre ASCQ, vous pourrez vous connecter directement avec votre numéro ${telephone} et votre code à 4 chiffres.`
                   : "Dès validation, vous pourrez vous connecter directement avec votre numéro de téléphone et votre mot de passe."}
               </p>
             </div>
@@ -439,247 +445,112 @@ export default function InscriptionPage() {
               </div>
             )}
 
-            {/* Section 1 : Identité & Connexion */}
+            {/* SECTION 1 : CHOIX DU PROFIL EN PREMIER (PROFIL EN TÊTE) */}
             <div className="space-y-4">
-              <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-2">
-                1. Identité et Connexion
-              </h2>
+              <div className="flex items-center justify-between border-b border-emerald-100 pb-2.5">
+                <h2 className="text-sm font-extrabold text-emerald-950 uppercase tracking-wider flex items-center gap-2">
+                  <UserCheck className="w-4 h-4 text-emerald-700" />
+                  <span>1. Choix du Profil Professionnel (En tête)</span>
+                </h2>
+                <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                  Étape obligatoire
+                </span>
+              </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Nom de famille *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={nom}
-                    onChange={(e) => setNom(e.target.value)}
-                    placeholder="Ex: DOSSOU"
-                    className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 uppercase"
-                  />
-                </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-800 mb-1.5">
+                  Choisissez votre fonction ou profil *
+                </label>
+                <select
+                  value={poste}
+                  onChange={(e) => {
+                    const newP = e.target.value;
+                    setPoste(newP);
+                    if (newP === "RC") {
+                      setNombreRc(0);
+                    }
+                    if (newP === "MEMBRE_MINISTERE") {
+                      setSelectedDep("");
+                      setSelectedZs("");
+                      setSelectedCom("");
+                      setSelectedArr("");
+                      setSelectedAscqRattachement("");
+                    } else if (newP === "PF_CCLS_TP") {
+                      setSelectedZs("");
+                      setSelectedArr("");
+                      setSelectedAscqRattachement("");
+                    }
+                  }}
+                  className="w-full text-sm sm:text-base rounded-2xl border-2 border-emerald-500 bg-emerald-50/30 px-4 py-3 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-extrabold text-slate-900 shadow-xs"
+                >
+                  <option value="RC">Relais Communautaire (RC) — Auto-enrôlement autonome</option>
+                  <option value="ASCQ">Agent de Santé Communautaire Qualifié (ASCQ)</option>
+                  <option value="PF_CCLS_TP">Point Focal CCLS-TP (Mairie)</option>
+                  <option value="MEMBRE_MINISTERE">Ministère de la Santé (Désigné)</option>
+                </select>
+              </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Prénoms *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={prenoms}
-                    onChange={(e) => setPrenoms(e.target.value)}
-                    placeholder="Ex: Bruno"
-                    className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  />
-                </div>
-
-                {/* Champ Email obligatoire pour ASCQ et cadres (caché pour les RC) */}
-                {!isTerrainRc && (
-                  <div className="sm:col-span-2">
-                    <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
-                      <span>Adresse Email Professionnelle ou Personnelle *</span>
-                      <span className="text-[10px] text-emerald-800 font-bold bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                        Obligatoire ASCQ & Cadres
-                      </span>
-                    </label>
-                    <div className="relative">
-                      <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 text-sm">
-                        <Mail className="w-4 h-4" />
-                      </span>
-                      <input
-                        type="email"
-                        required={!isTerrainRc}
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        placeholder="ex: prenom.nom@sante.gouv.bj ou email@gmail.com"
-                        className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 pl-10 pr-3.5 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
-                      />
-                    </div>
-                    <p className="text-[11px] text-slate-500 mt-1">
-                      Obligatoire pour les ASCQ et cadres : permet de sécuriser vos accès officiels, recevoir les notifications et éviter les piratages de comptes.
-                    </p>
-                  </div>
-                )}
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Numéro de téléphone (Votre identifiant) *
-                  </label>
-                  <div className="relative">
-                    <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 text-sm">
-                      <Phone className="w-4 h-4" />
-                    </span>
-                    <input
-                      type="tel"
-                      required
-                      value={telephone}
-                      onChange={(e) => setTelephone(e.target.value)}
-                      placeholder="0197000000"
-                      className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 pl-10 pr-3.5 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
-                    />
-                  </div>
-                  <p className="text-[11px] text-slate-500 mt-1">
-                    Pas besoin de code par SMS. Votre numéro servira à vous connecter.
+              {/* Bannières explicatives dynamiques selon le profil choisi */}
+              {isTerrainRc && (
+                <div className="p-4 bg-emerald-50/90 border border-emerald-200 rounded-2xl text-xs text-emerald-950 space-y-1.5 animate-fade-in">
+                  <p className="font-extrabold text-emerald-900 flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4 text-emerald-700 shrink-0" />
+                    <span>Auto-enrôlement du Relais Communautaire (RC)</span>
+                  </p>
+                  <p className="text-[11px] leading-relaxed text-emerald-800">
+                    Sélectionnez votre département et votre commune, puis choisissez votre ASCQ superviseur. Aucun email n'est exigé : un simple code PIN à 4 chiffres (ex: 1234) et votre numéro de téléphone suffisent.
                   </p>
                 </div>
+              )}
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
-                    <span>{isTerrainRc ? "Code secret à 4 chiffres (PIN) *" : "Mot de passe renforcé *"}</span>
-                    {!isTerrainRc && (
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${pwdRobustesseConforme ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
-                        {pwdRobustesseConforme ? "Sécurisé ✓" : "Caractère spécial requis"}
-                      </span>
-                    )}
-                  </label>
-                  <div className="relative">
-                    <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 text-sm">
-                      <Lock className="w-4 h-4" />
-                    </span>
-                    <input
-                      type={showPassword ? "text" : "password"}
-                      required
-                      maxLength={isTerrainRc ? 4 : undefined}
-                      minLength={isTerrainRc ? 4 : 8}
-                      inputMode={isTerrainRc ? "numeric" : "text"}
-                      pattern={isTerrainRc ? "[0-9]{4}" : undefined}
-                      value={motDePasse}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        if (isTerrainRc) {
-                          setMotDePasse(val.replace(/\D/g, "").slice(0, 4));
-                        } else {
-                          setMotDePasse(val);
-                        }
-                      }}
-                      placeholder={isTerrainRc ? "Ex: 1234" : "8 caractères min. avec @#$%"}
-                      className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 pl-10 pr-10 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600"
-                    >
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                  
-                  {isTerrainRc ? (
-                    <p className="text-[11px] text-slate-500 mt-1">
-                      Code PIN à 4 chiffres que vous utiliserez pour vous connecter avec votre numéro.
-                    </p>
-                  ) : (
-                    <div className="mt-2 space-y-1 bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-[11px]">
-                      <span className="text-slate-500 font-bold block mb-1">Critères de sécurité anti-piratage :</span>
-                      <div className="grid grid-cols-2 gap-1 text-[10px]">
-                        <div className={`flex items-center gap-1 font-semibold ${pwdMinLength ? "text-emerald-700" : "text-slate-400"}`}>
-                          {pwdMinLength ? <Check className="w-3 h-3 text-emerald-600" /> : <X className="w-3 h-3 text-slate-400" />}
-                          <span>Au moins 8 caractères</span>
-                        </div>
-                        <div className={`flex items-center gap-1 font-semibold ${(pwdLetter && pwdNumber) ? "text-emerald-700" : "text-slate-400"}`}>
-                          {(pwdLetter && pwdNumber) ? <Check className="w-3 h-3 text-emerald-600" /> : <X className="w-3 h-3 text-slate-400" />}
-                          <span>Lettres & Chiffres</span>
-                        </div>
-                        <div className={`col-span-2 flex items-center gap-1 font-semibold ${pwdSpecialChar ? "text-emerald-700" : "text-amber-700"}`}>
-                          {pwdSpecialChar ? <Check className="w-3 h-3 text-emerald-600" /> : <AlertCircle className="w-3 h-3 text-amber-600" />}
-                          <span>Caractère spécial (!@#$%^&*...)</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
+              {isTerrainAscq && (
+                <div className="p-4 bg-blue-50/90 border border-blue-200 rounded-2xl text-xs text-blue-950 space-y-1.5 animate-fade-in">
+                  <p className="font-extrabold text-blue-900 flex items-center gap-2">
+                    <Building2 className="w-4 h-4 text-blue-700 shrink-0" />
+                    <span>Agent de Santé Communautaire Qualifié (ASCQ)</span>
+                  </p>
+                  <p className="text-[11px] leading-relaxed text-blue-800">
+                    Renseignez votre zone sanitaire, commune et arrondissement d'affectation. Une adresse email et un mot de passe renforcé sont obligatoires pour sécuriser vos accès.
+                  </p>
                 </div>
-              </div>
+              )}
+
+              {isPfCclsTp && (
+                <div className="p-4 bg-amber-50/90 border border-amber-200 rounded-2xl text-xs text-amber-950 space-y-1.5 animate-fade-in">
+                  <p className="font-extrabold text-amber-900">
+                    🏛️ Point Focal CCLS-TP (Mairie)
+                  </p>
+                  <p className="text-[11px] leading-relaxed text-amber-800">
+                    Sélectionnez votre commune de rattachement. Après validation par le Super Administrateur National, vous accéderez en consultation seule aux données de votre commune.
+                  </p>
+                </div>
+              )}
+
+              {isMembreMinistere && (
+                <div className="p-4 bg-purple-50/90 border border-purple-200 rounded-2xl text-xs text-purple-950 space-y-1.5 animate-fade-in">
+                  <p className="font-extrabold text-purple-900">
+                    🇧🇯 Ministère de la Santé (Désigné)
+                  </p>
+                  <p className="text-[11px] leading-relaxed text-purple-800">
+                    Votre compte sera validé pour une consultation analytique globale de l'ensemble du territoire béninois.
+                  </p>
+                </div>
+              )}
             </div>
 
-            {/* Section 2 : Poste professionnel */}
-            <div className="space-y-4 pt-2">
-              <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-2">
-                2. Poste Professionnel
-              </h2>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Votre fonction ou poste *
-                  </label>
-                  <select
-                    value={poste}
-                    onChange={(e) => {
-                      const newP = e.target.value;
-                      setPoste(newP);
-                      if (newP === "RC") {
-                        setNombreRc(0);
-                      }
-                      if (newP === "MEMBRE_MINISTERE") {
-                        setSelectedDep("");
-                        setSelectedZs("");
-                        setSelectedCom("");
-                        setSelectedArr("");
-                        setSelectedAscqRattachement("");
-                      } else if (newP === "PF_CCLS_TP") {
-                        setSelectedZs("");
-                        setSelectedArr("");
-                        setSelectedAscqRattachement("");
-                      }
-                    }}
-                    className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-slate-800"
-                  >
-                    <option value="ASCQ">Agent de Santé Communautaire Qualifié (ASCQ)</option>
-                    <option value="RC">Relais Communautaire (RC) — Auto-enrôlement</option>
-                    <option value="PF_CCLS_TP">Point Focal CCLS-TP (Mairie)</option>
-                    <option value="MEMBRE_MINISTERE">Ministère de la Santé (désigné)</option>
-                  </select>
-                </div>
-
-                {isTerrainRc && (
-                  <div className="sm:col-span-2 p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs text-emerald-950 space-y-1.5">
-                    <p className="font-extrabold text-emerald-900 flex items-center gap-1.5">
-                      <ShieldCheck className="w-4 h-4 text-emerald-700" />
-                      Auto-enrôlement autonome du Relais Communautaire (RC)
-                    </p>
-                    <p className="text-[11px] leading-relaxed text-emerald-800">
-                      Renseignez votre département, votre commune et sélectionnez votre ASCQ de rattachement. Dès validation par votre ASCQ ou le Représentant Communal, votre compte sera immédiatement actif.
-                    </p>
-                  </div>
-                )}
-
-                {isPfCclsTp && (
-                  <div className="sm:col-span-2 p-3.5 bg-blue-50 border border-blue-200 rounded-2xl text-xs text-blue-950 space-y-1.5">
-                    <p className="font-extrabold text-blue-900">
-                      🏛️ Point Focal CCLS-TP (Mairie)
-                    </p>
-                    <p className="text-[11px] leading-relaxed text-blue-800">
-                      Sélectionnez votre département et votre commune de rattachement. Après validation par le Super Administrateur, vous accéderez en consultation seule aux données et synthèses de votre commune.
-                    </p>
-                  </div>
-                )}
-
-                {isMembreMinistere && (
-                  <div className="sm:col-span-2 p-3.5 bg-purple-50 border border-purple-200 rounded-2xl text-xs text-purple-950 space-y-1.5">
-                    <p className="font-extrabold text-purple-900">
-                      🇧🇯 Ministère de la Santé (Désigné)
-                    </p>
-                    <p className="text-[11px] leading-relaxed text-purple-800">
-                      Votre compte sera nommé par le Super Administrateur National pour la consultation seule de l'ensemble du territoire national. Aucun rattachement communal n'est requis.
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Section 3 : Aire géographique */}
+            {/* SECTION 2 : AFFECTATION GÉOGRAPHIQUE & SUPERVISEUR */}
             <div className="space-y-4 pt-2">
               <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-                  3. Affectation Géographique
+                <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-slate-600" />
+                  <span>2. Affectation Géographique {isTerrainRc ? "& Superviseur" : ""}</span>
                 </h2>
-                <span className="text-[11px] text-slate-500">Filtrage en cascade</span>
+                <span className="text-[11px] text-slate-500 font-medium">Filtrage direct</span>
               </div>
 
               {isMembreMinistere ? (
                 <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-600 text-center font-medium">
-                  ✅ Aire géographique : <strong>Territoire National (Tout le Bénin)</strong>. Consultation seule globale.
+                  ✅ Aire géographique : <strong>Territoire National (Tout le Bénin)</strong>.
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -692,7 +563,7 @@ export default function InscriptionPage() {
                         required
                         value={selectedDep}
                         onChange={(e) => setSelectedDep(e.target.value)}
-                        className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
                       >
                         <option value="">Sélectionnez un département</option>
                         {departements.map((d) => (
@@ -713,7 +584,7 @@ export default function InscriptionPage() {
                         value={selectedZs}
                         onChange={(e) => setSelectedZs(e.target.value)}
                         disabled={!selectedDep}
-                        className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50"
+                        className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50 font-medium"
                       >
                         <option value="">Sélectionnez une zone sanitaire</option>
                         {zonesSanitaires.map((z) => (
@@ -735,7 +606,7 @@ export default function InscriptionPage() {
                         value={selectedCom}
                         onChange={(e) => setSelectedCom(e.target.value)}
                         disabled={!selectedDep}
-                        className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50"
+                        className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50 font-bold text-slate-900"
                       >
                         <option value="">Sélectionnez une commune</option>
                         {filteredCommunes.map((c) => (
@@ -747,9 +618,10 @@ export default function InscriptionPage() {
                     </div>
                   )}
 
+                  {/* Choix de l'ASCQ superviseur pour le Relais Communautaire (affiche tous les ASCQ dont Bruno DOSSOU) */}
                   {isTerrainRc && (
                     <div className="sm:col-span-2">
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      <label className="block text-xs font-bold text-emerald-950 mb-1">
                         ASCQ de rattachement (Superviseur) *
                       </label>
                       <select
@@ -757,16 +629,16 @@ export default function InscriptionPage() {
                         value={selectedAscqRattachement}
                         onChange={(e) => setSelectedAscqRattachement(e.target.value)}
                         disabled={!selectedCom || loadingAscqs}
-                        className="w-full text-sm rounded-xl border border-emerald-300 bg-emerald-50/40 px-3 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-semibold text-slate-800 disabled:opacity-50"
+                        className="w-full text-sm rounded-xl border-2 border-emerald-400 bg-emerald-50/60 px-3.5 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-extrabold text-slate-900 disabled:opacity-50"
                       >
                         <option value="">
                           {loadingAscqs
-                            ? "Chargement des ASCQ..."
+                            ? "Chargement des ASCQ superviseurs..."
                             : selectedCom
                             ? ascqsCommune.length > 0
                               ? "Sélectionnez votre ASCQ superviseur"
                               : "Aucun ASCQ trouvé dans cette commune"
-                            : "Sélectionnez d'abord votre commune"}
+                            : "Sélectionnez d'abord votre département et votre commune"}
                         </option>
                         {ascqsCommune.map((a) => (
                           <option key={a.id} value={a.id}>
@@ -774,6 +646,9 @@ export default function InscriptionPage() {
                           </option>
                         ))}
                       </select>
+                      <p className="text-[11px] text-emerald-800 mt-1 font-medium">
+                        Votre demande sera automatiquement transmise à cet ASCQ pour validation et activation de votre compte.
+                      </p>
                     </div>
                   )}
 
@@ -787,7 +662,7 @@ export default function InscriptionPage() {
                         value={selectedArr}
                         onChange={(e) => setSelectedArr(e.target.value)}
                         disabled={!selectedCom}
-                        className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50"
+                        className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50 font-medium"
                       >
                         <option value="">Sélectionnez un arrondissement</option>
                         {arrondissements.map((a) => (
@@ -839,7 +714,160 @@ export default function InscriptionPage() {
               )}
             </div>
 
-            {/* Section 4 : Paramètres spécifiques ASCQ */}
+            {/* SECTION 3 : IDENTITÉ & ACCÈS DE SÉCURITÉ */}
+            <div className="space-y-4 pt-2">
+              <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-2">
+                3. Identité et Connexion
+              </h2>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Nom de famille *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={nom}
+                    onChange={(e) => setNom(e.target.value)}
+                    placeholder="Ex: DOSSOU"
+                    className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 uppercase font-semibold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Prénoms *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={prenoms}
+                    onChange={(e) => setPrenoms(e.target.value)}
+                    placeholder="Ex: Frédéric"
+                    className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-semibold"
+                  />
+                </div>
+
+                {/* Champ Email obligatoire pour ASCQ et cadres (TOTALEMENT MASQUÉ pour les RC) */}
+                {!isTerrainRc && (
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                      <span>Adresse Email Professionnelle ou Personnelle *</span>
+                      <span className="text-[10px] text-emerald-800 font-bold bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                        Obligatoire ASCQ & Cadres
+                      </span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 text-sm">
+                        <Mail className="w-4 h-4" />
+                      </span>
+                      <input
+                        type="email"
+                        required={!isTerrainRc}
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="ex: prenom.nom@sante.gouv.bj ou email@gmail.com"
+                        className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 pl-10 pr-3.5 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
+                      />
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      Obligatoire pour les ASCQ et cadres : permet de sécuriser vos accès et de recevoir les alertes officielles.
+                    </p>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Numéro de téléphone (Votre identifiant) *
+                  </label>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 text-sm">
+                      <Phone className="w-4 h-4" />
+                    </span>
+                    <input
+                      type="tel"
+                      required
+                      value={telephone}
+                      onChange={(e) => setTelephone(e.target.value)}
+                      placeholder="0197000000"
+                      className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 pl-10 pr-3.5 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono font-bold"
+                    />
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Pas besoin de code par SMS. Votre numéro servira à vous connecter.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                    <span>{isTerrainRc ? "Code secret à 4 chiffres (PIN) *" : "Mot de passe renforcé *"}</span>
+                    {!isTerrainRc && (
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${pwdRobustesseConforme ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
+                        {pwdRobustesseConforme ? "Sécurisé ✓" : "Caractère spécial requis"}
+                      </span>
+                    )}
+                  </label>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 text-sm">
+                      <Lock className="w-4 h-4" />
+                    </span>
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      required
+                      maxLength={isTerrainRc ? 4 : undefined}
+                      minLength={isTerrainRc ? 4 : 8}
+                      inputMode={isTerrainRc ? "numeric" : "text"}
+                      pattern={isTerrainRc ? "[0-9]{4}" : undefined}
+                      value={motDePasse}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (isTerrainRc) {
+                          setMotDePasse(val.replace(/\D/g, "").slice(0, 4));
+                        } else {
+                          setMotDePasse(val);
+                        }
+                      }}
+                      placeholder={isTerrainRc ? "Ex: 1234" : "8 caractères min. avec @#$%"}
+                      className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 pl-10 pr-10 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono font-bold"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600"
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  
+                  {isTerrainRc ? (
+                    <p className="text-[11px] text-emerald-800 font-medium mt-1">
+                      Code PIN à 4 chiffres simple à retenir pour vous connecter sur le terrain.
+                    </p>
+                  ) : (
+                    <div className="mt-2 space-y-1 bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-[11px]">
+                      <span className="text-slate-500 font-bold block mb-1">Critères de sécurité anti-piratage :</span>
+                      <div className="grid grid-cols-2 gap-1 text-[10px]">
+                        <div className={`flex items-center gap-1 font-semibold ${pwdMinLength ? "text-emerald-700" : "text-slate-400"}`}>
+                          {pwdMinLength ? <Check className="w-3 h-3 text-emerald-600" /> : <X className="w-3 h-3 text-slate-400" />}
+                          <span>Au moins 8 caractères</span>
+                        </div>
+                        <div className={`flex items-center gap-1 font-semibold ${(pwdLetter && pwdNumber) ? "text-emerald-700" : "text-slate-400"}`}>
+                          {(pwdLetter && pwdNumber) ? <Check className="w-3 h-3 text-emerald-600" /> : <X className="w-3 h-3 text-slate-400" />}
+                          <span>Lettres & Chiffres</span>
+                        </div>
+                        <div className={`col-span-2 flex items-center gap-1 font-semibold ${pwdSpecialChar ? "text-emerald-700" : "text-amber-700"}`}>
+                          {pwdSpecialChar ? <Check className="w-3 h-3 text-emerald-600" /> : <AlertCircle className="w-3 h-3 text-amber-600" />}
+                          <span>Caractère spécial (!@#$%^&*...)</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* SECTION 4 : FINANCEMENT ET ÉQUIPE RC (Uniquement pour profil ASCQ) */}
             {showAscqProfil && (
               <div className="space-y-4 pt-2">
                 <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-2">
