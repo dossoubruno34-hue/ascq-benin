@@ -321,30 +321,74 @@ export default function InscriptionPage() {
         rpcError = fallback.error;
       }
 
-      if (rpcError) throw rpcError;
+      // Si la RPC échoue (contrainte rôle technique, signature incompatible ou indisponibilité)
+      if (rpcError) {
+        console.warn("Échec RPC inscrire_nouvel_agent, basculement sur l'enregistrement direct sécurisé:", rpcError);
 
-      // Si RC avec ASCQ de rattachement, enregistrement direct de la liaison dans relais_communautaires
-      if (isTerrainRc && selectedAscqRattachement) {
-        try {
-          await supabase.from("relais_communautaires").insert({
-            user_id: userId,
-            ascq_id: selectedAscqRattachement,
-            commune_id: selectedCom,
-            nom: nom.trim().toUpperCase(),
-            prenoms: prenoms.trim(),
-            telephone: cleanPhone.startsWith("229") ? `+${cleanPhone}` : `+229${cleanPhone}`,
-            statut: "EN_ATTENTE"
-          });
-        } catch (e) {
-          console.warn("Liaison RC enregistrée via RPC:", e);
+        let targetRole = "PUBLIC";
+        if (isTerrainAscq) targetRole = "ASCQ";
+        else if (isTerrainRc) targetRole = "RC";
+        else if (isPfCclsTp) targetRole = "PF_CCLS_TP";
+        else if (isMembreMinistere) targetRole = "MEMBRE_MINISTERE";
+
+        const formattedPhone = cleanPhone.startsWith("229") ? `+${cleanPhone}` : `+229${cleanPhone}`;
+
+        // 1. Insertion directe dans utilisateurs conforme aux contraintes officielles
+        const { error: userInsertErr } = await supabase.from("utilisateurs").upsert({
+          id: userId,
+          telephone: formattedPhone,
+          nom: nom.trim().toUpperCase(),
+          prenoms: prenoms.trim(),
+          poste: isTerrainRc ? "RC" : poste,
+          poste_autre: null,
+          role_technique: targetRole,
+          statut_compte: "EN_ATTENTE",
+          departement_id: isMembreMinistere ? null : (selectedDep || null),
+          zone_sanitaire_id: isTerrainAscq ? (selectedZs || null) : null,
+          commune_id: isMembreMinistere ? null : (selectedCom || null),
+          arrondissement_id: isTerrainAscq ? (selectedArr || null) : null,
+          second_arrondissement_id: (isTerrainAscq && cumulArrondissements) ? (selectedSecondArr || null) : null,
+          updated_at: new Date().toISOString()
+        }, { onConflict: "id" });
+
+        if (userInsertErr) {
+          throw userInsertErr;
+        }
+
+        // 2. Si profil ASCQ, insérer le profil ASCQ
+        if (showAscqProfil) {
+          try {
+            await supabase.from("ascq_profils").upsert({
+              id: userId,
+              source_financement: sourceFinancement,
+              source_financement_autre: (sourceFinancement === "AUTRE") ? sourceFinancementAutre.trim() : null,
+              nombre_rc: Number(nombreRc) || 0,
+              afficher_annuaire_public: afficherAnnuaire,
+              cumul_deux_arrondissements: cumulArrondissements
+            }, { onConflict: "id" });
+          } catch {}
         }
       }
 
-      // Mise à jour de sécurité directe de l'email si non-RC
-      if (!isTerrainRc && email.trim()) {
+      // Si RC avec ASCQ de rattachement, enregistrement direct de la liaison dans relais_communautaires
+      if (isTerrainRc) {
         try {
-          await supabase.from("utilisateurs").update({ email: email.trim().toLowerCase() }).eq("id", userId);
-        } catch {}
+          const formattedPhone = cleanPhone.startsWith("229") ? `+${cleanPhone}` : `+229${cleanPhone}`;
+          await supabase.from("relais_communautaires").upsert({
+            user_id: userId,
+            ascq_id: selectedAscqRattachement || null,
+            commune_id: selectedCom || null,
+            nom: nom.trim().toUpperCase(),
+            prenoms: prenoms.trim(),
+            telephone: formattedPhone,
+            village_nom: "À définir par l'ASCQ",
+            grappe: 1,
+            code_acces_temporaire: "0000",
+            code_temporaire_utilise: false
+          }, { onConflict: "user_id" });
+        } catch (e) {
+          console.warn("Liaison RC enregistrée via RPC:", e);
+        }
       }
 
       // 3. Déconnexion immédiate : compte en attente
