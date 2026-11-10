@@ -171,8 +171,7 @@ export default function GestionRelaisPage() {
 
           const filtered = (directUsers || []).filter((u: any) => 
             (currentProfile.arrondissement_id && u.arrondissement_id === currentProfile.arrondissement_id) ||
-            (currentProfile.second_arrondissement_id && u.arrondissement_id === currentProfile.second_arrondissement_id) ||
-            (currentProfile.commune_id && u.commune_id === currentProfile.commune_id)
+            (currentProfile.second_arrondissement_id && u.arrondissement_id === currentProfile.second_arrondissement_id)
           );
           setRelaisEnAttente(filtered);
         }
