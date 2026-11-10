@@ -93,13 +93,13 @@ export default function FicheHebdoActivitesRcOfficielle({ rcProfile, isAscqSuper
   const [luEtApprouveAscq, setLuEtApprouveAscq] = useState(false);
   const [observationsAscq, setObservationsAscq] = useState("");
 
-  // Identifiant du Relais robuste (id, rc_id ou user_id)
-  const relaisIdActif = rcProfile?.id || rcProfile?.rc_id || rcProfile?.user_id;
+  // Identifiant du Relais robuste (user_id prioritaire car relais_id réfère à utilisateurs)
+  const relaisIdActif = rcProfile?.user_id || rcProfile?.id;
 
   // Chargement de la fiche existante si elle existe
   useEffect(() => {
     const chargerFiche = async () => {
-      const rid = rcProfile?.id || rcProfile?.rc_id || rcProfile?.user_id;
+      const rid = rcProfile?.user_id || rcProfile?.id;
       if (!rid) return;
       try {
         const { data } = await supabase
@@ -147,13 +147,13 @@ export default function FicheHebdoActivitesRcOfficielle({ rcProfile, isAscqSuper
     setSaving(true);
     setSavedSuccess(false);
     try {
-      let rid = rcProfile?.user_id || rcProfile?.id;
-      if (!rid) {
+      let rid = rcProfile?.user_id;
+      if (!rid && !isAscqSuperviseur) {
         const { data: { user } } = await supabase.auth.getUser();
         rid = user?.id;
       }
       if (!rid) {
-        rid = rcProfile?.rc_id;
+        rid = rcProfile?.id || rcProfile?.rc_id;
       }
       if (!rid) {
         alert("Session expirée ou profil introuvable. Veuillez vous reconnecter.");

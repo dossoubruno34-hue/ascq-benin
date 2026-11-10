@@ -336,7 +336,7 @@ export default function EspaceRelaisPage() {
     loadProfile();
   }, []);
 
-  const rcIdActif = rcData?.user_id || rcData?.id;
+  const rcIdActif = rcData?.user_id || null;
 
   // Charger les données de la semaine (planning & rapport)
   const chargerDonneesSemaine = async (annee: number, semaine: number, userId?: string) => {
@@ -415,7 +415,7 @@ export default function EspaceRelaisPage() {
     setPlanningMsg(null);
     try {
       const authUser = (await supabase.auth.getUser()).data.user;
-      const validRelaisId = rcData?.user_id || authUser?.id || rcIdActif;
+      const validRelaisId = authUser?.id || rcData?.user_id;
       let ascqId = rcData?.ascq_id;
       if (!ascqId && validRelaisId) {
         try {
@@ -497,7 +497,7 @@ export default function EspaceRelaisPage() {
     setRapportMsg(null);
     try {
       const authUser = (await supabase.auth.getUser()).data.user;
-      const validRelaisId = rcData?.user_id || authUser?.id || rcIdActif;
+      const validRelaisId = authUser?.id || rcData?.user_id;
       let ascqId = rcData?.ascq_id;
       if (!ascqId && validRelaisId) {
         try {

@@ -623,8 +623,16 @@ export default function AdminPage() {
     setFacebookSyncLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("sync-facebook-posts");
-      if (error) throw error;
-      setToastMessage({ text: "Synchronisation Facebook exécutée avec succès !", error: false });
+      if (error) {
+        setToastMessage({ 
+          text: "Passerelle Meta Facebook : jeton en attente d'autorisation par la Page officielle (permissions pages_read_engagement).", 
+          error: true 
+        });
+      } else if (data && !data.success) {
+        setToastMessage({ text: data.error || "Synchronisation Facebook : vérification des permissions en cours.", error: true });
+      } else {
+        setToastMessage({ text: "Synchronisation Facebook exécutée avec succès !", error: false });
+      }
       await chargerEtatSyncFacebook();
     } catch (err: any) {
       setToastMessage({ text: "Information synchronisation : " + (err.message || err), error: true });

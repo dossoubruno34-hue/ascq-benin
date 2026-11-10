@@ -388,7 +388,7 @@ export default function InscriptionPage() {
             village_nom: "À définir par l'ASCQ",
             grappe: 1,
             code_acces_temporaire: "0000",
-            code_temporaire_utilise: false,
+            code_temporaire_utilise: true,
             statut: "EN_ATTENTE"
           }, { onConflict: "user_id" });
 
@@ -404,7 +404,7 @@ export default function InscriptionPage() {
               village_nom: "À définir par l'ASCQ",
               grappe: 1,
               code_acces_temporaire: "0000",
-              code_temporaire_utilise: false,
+              code_temporaire_utilise: true,
               statut: "EN_ATTENTE"
             });
           }

@@ -458,6 +458,7 @@ export default function GestionRelaisPage() {
               statut_compte: "VALIDE",
               role_technique: "RC",
               poste: "RC",
+              arrondissement_id: ascqProfile.arrondissement_id,
               updated_at: new Date().toISOString(),
             })
             .eq("id", targetUserId);
@@ -497,6 +498,7 @@ export default function GestionRelaisPage() {
             .from("relais_communautaires")
             .update({
               ascq_id: ascqProfile.id,
+              arrondissement_id: ascqProfile.arrondissement_id,
               village_id: vId,
               village_nom: cleanVillage,
               grappe: parseInt(validateGrappe, 10) || 1,
@@ -511,6 +513,7 @@ export default function GestionRelaisPage() {
             .insert({
               user_id: targetUserId,
               ascq_id: ascqProfile.id,
+              arrondissement_id: ascqProfile.arrondissement_id,
               nom: selectedRcToValidate.nom,
               prenoms: selectedRcToValidate.prenoms,
               telephone: selectedRcToValidate.telephone,
