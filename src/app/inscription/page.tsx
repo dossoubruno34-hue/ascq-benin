@@ -381,7 +381,6 @@ export default function InscriptionPage() {
           const { error: rcErr1 } = await supabase.from("relais_communautaires").upsert({
             user_id: userId,
             ascq_id: selectedAscqRattachement || null,
-            commune_id: selectedCom || null,
             arrondissement_id: targetArrondissementId,
             nom: nom.trim().toUpperCase(),
             prenoms: prenoms.trim(),
@@ -398,7 +397,6 @@ export default function InscriptionPage() {
             await supabase.from("relais_communautaires").insert({
               user_id: userId,
               ascq_id: selectedAscqRattachement || null,
-              commune_id: selectedCom || null,
               arrondissement_id: targetArrondissementId,
               nom: nom.trim().toUpperCase(),
               prenoms: prenoms.trim(),
