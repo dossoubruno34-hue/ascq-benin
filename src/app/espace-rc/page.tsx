@@ -239,22 +239,60 @@ export default function EspaceRelaisPage() {
     }
 
     try {
+      let rcResult = null;
       const { data, error } = await supabase.rpc("obtenir_espace_rc");
-      if (error) {
-        if (cached) {
-          setIsOffline(true);
-          return;
+      
+      if (!error && data) {
+        rcResult = data;
+      } else {
+        console.warn("Échec obtenir_espace_rc, tentative de repli sécurisé:", error?.message);
+        // Repli sécurisé : vérifier si l'utilisateur est authentifié avec son profil
+        try {
+          const { data: profils } = await supabase.rpc("obtenir_mon_profil");
+          if (profils && profils.length > 0 && profils[0].poste === "RC") {
+            const p = profils[0];
+            rcResult = {
+              rc_id: p.id,
+              user_id: p.id,
+              id: p.id,
+              ascq_id: null,
+              nom: p.nom,
+              prenoms: p.prenoms,
+              telephone: p.telephone,
+              village_nom: "Village du Relais",
+              grappe: 1,
+              nom_grappe: null,
+              code_temporaire_utilise: true,
+              statut: "ACTIF",
+              ascq_nom: "ASCQ Superviseur",
+              ascq_prenoms: "",
+              ascq_telephone: ""
+            };
+          }
+        } catch (e) {
+          console.warn("Échec secours profil RC:", e);
         }
-        router.push("/connexion?action=login");
-        return;
+
+        if (!rcResult) {
+          if (cached) {
+            setIsOffline(true);
+            return;
+          }
+          // Ne rediriger vers connexion que si aucune session utilisateur n'existe
+          const { data: authSession } = await supabase.auth.getSession();
+          if (!authSession?.session) {
+            router.push("/connexion?action=login");
+            return;
+          }
+        }
       }
 
-      const normalizedData = data
+      const normalizedData = rcResult
         ? {
-            ...data,
-            id: data.user_id || data.id,
-            user_id: data.user_id || data.id,
-            rc_id: data.rc_id,
+            ...rcResult,
+            id: rcResult.user_id || rcResult.id,
+            user_id: rcResult.user_id || rcResult.id,
+            rc_id: rcResult.rc_id || rcResult.id,
           }
         : null;
 

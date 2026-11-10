@@ -159,16 +159,22 @@ export default function GestionRelaisPage() {
       // 5. Charger les Relais Communautaires auto-inscrits en attente de validation
       try {
         const { data: enAttente, error: attError } = await supabase.rpc("lister_relais_en_attente_ascq");
-        if (!attError && enAttente) {
+        if (!attError && Array.isArray(enAttente) && enAttente.length > 0) {
           setRelaisEnAttente(enAttente);
         } else {
+          // Secours résilient direct : trouver les RC en attente rattachés à la commune ou arrondissement
           const { data: directUsers } = await supabase
             .from("utilisateurs")
-            .select("id, nom, prenoms, telephone, arrondissement_id, created_at")
+            .select("id, nom, prenoms, telephone, arrondissement_id, commune_id, created_at")
             .eq("poste", "RC")
-            .eq("statut_compte", "EN_ATTENTE")
-            .eq("arrondissement_id", currentProfile.arrondissement_id);
-          setRelaisEnAttente(directUsers || []);
+            .eq("statut_compte", "EN_ATTENTE");
+
+          const filtered = (directUsers || []).filter((u: any) => 
+            (currentProfile.arrondissement_id && u.arrondissement_id === currentProfile.arrondissement_id) ||
+            (currentProfile.second_arrondissement_id && u.arrondissement_id === currentProfile.second_arrondissement_id) ||
+            (currentProfile.commune_id && u.commune_id === currentProfile.commune_id)
+          );
+          setRelaisEnAttente(filtered);
         }
       } catch (e) {
         console.warn("Erreur chargement relais en attente:", e);
@@ -451,7 +457,7 @@ export default function GestionRelaisPage() {
             .from("utilisateurs")
             .update({
               statut_compte: "VALIDE",
-              role_technique: "RELAIS",
+              role_technique: "RC",
               poste: "RC",
               updated_at: new Date().toISOString(),
             })

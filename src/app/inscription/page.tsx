@@ -43,7 +43,7 @@ export default function InscriptionPage() {
 
   // ASCQ de rattachement pour l'auto-enrôlement autonome du RC
   const [selectedAscqRattachement, setSelectedAscqRattachement] = useState("");
-  const [ascqsCommune, setAscqsCommune] = useState<Array<{ id: string; nom: string; prenoms: string; telephone: string }>>([]);
+  const [ascqsCommune, setAscqsCommune] = useState<Array<{ id: string; nom: string; prenoms: string; telephone: string; arrondissement_id?: string | null }>>([]);
   const [loadingAscqs, setLoadingAscqs] = useState(false);
 
   // Critères de robustesse du mot de passe
@@ -163,7 +163,7 @@ export default function InscriptionPage() {
         // Inclut poste = 'ASCQ' et tous les rôles superviseurs de la commune (SUPER_ADMIN, ASCQ, etc.)
         const { data } = await supabase
           .from("utilisateurs")
-          .select("id, nom, prenoms, telephone")
+          .select("id, nom, prenoms, telephone, arrondissement_id")
           .eq("commune_id", selectedCom)
           .or("poste.eq.ASCQ,role_technique.in.(ASCQ,ASCQ_OPERATEUR,REPRESENTANT_COMMUNAL,ADMIN_COMMUNAL,SUPER_ADMIN)")
           .eq("statut_compte", "VALIDE")
@@ -286,6 +286,9 @@ export default function InscriptionPage() {
         throw new Error("Impossible de générer l'identifiant du compte. Veuillez réessayer.");
       }
 
+      const selectedAscqObj = isTerrainRc ? ascqsCommune.find((a: any) => a.id === selectedAscqRattachement) : null;
+      const targetArrondissementId = isTerrainAscq ? (selectedArr || null) : (selectedAscqObj?.arrondissement_id || null);
+
       // 2. Appel de la fonction RPC sécurisée (anti-récursion et écriture garantie)
       const rpcParams: any = {
         p_id: userId,
@@ -297,7 +300,7 @@ export default function InscriptionPage() {
         p_departement_id: isMembreMinistere ? null : (selectedDep || null),
         p_zone_sanitaire_id: isTerrainAscq ? (selectedZs || null) : null,
         p_commune_id: isMembreMinistere ? null : (selectedCom || null),
-        p_arrondissement_id: isTerrainAscq ? (selectedArr || null) : null,
+        p_arrondissement_id: targetArrondissementId,
         p_second_arrondissement_id: (isTerrainAscq && cumulArrondissements) ? (selectedSecondArr || null) : null,
         p_source_financement: showAscqProfil ? sourceFinancement : "LLF_FADEC",
         p_source_financement_autre: (showAscqProfil && sourceFinancement === "AUTRE") ? sourceFinancementAutre.trim() : null,
@@ -346,7 +349,7 @@ export default function InscriptionPage() {
           departement_id: isMembreMinistere ? null : (selectedDep || null),
           zone_sanitaire_id: isTerrainAscq ? (selectedZs || null) : null,
           commune_id: isMembreMinistere ? null : (selectedCom || null),
-          arrondissement_id: isTerrainAscq ? (selectedArr || null) : null,
+          arrondissement_id: targetArrondissementId,
           second_arrondissement_id: (isTerrainAscq && cumulArrondissements) ? (selectedSecondArr || null) : null,
           updated_at: new Date().toISOString()
         }, { onConflict: "id" });
@@ -374,18 +377,39 @@ export default function InscriptionPage() {
       if (isTerrainRc) {
         try {
           const formattedPhone = cleanPhone.startsWith("229") ? `+${cleanPhone}` : `+229${cleanPhone}`;
-          await supabase.from("relais_communautaires").upsert({
+          // 1. Tenter par user_id
+          const { error: rcErr1 } = await supabase.from("relais_communautaires").upsert({
             user_id: userId,
             ascq_id: selectedAscqRattachement || null,
             commune_id: selectedCom || null,
+            arrondissement_id: targetArrondissementId,
             nom: nom.trim().toUpperCase(),
             prenoms: prenoms.trim(),
             telephone: formattedPhone,
             village_nom: "À définir par l'ASCQ",
             grappe: 1,
             code_acces_temporaire: "0000",
-            code_temporaire_utilise: false
+            code_temporaire_utilise: false,
+            statut: "EN_ATTENTE"
           }, { onConflict: "user_id" });
+
+          // 2. Secours si la contrainte unique sur user_id n'est pas encore posée
+          if (rcErr1) {
+            await supabase.from("relais_communautaires").insert({
+              user_id: userId,
+              ascq_id: selectedAscqRattachement || null,
+              commune_id: selectedCom || null,
+              arrondissement_id: targetArrondissementId,
+              nom: nom.trim().toUpperCase(),
+              prenoms: prenoms.trim(),
+              telephone: formattedPhone,
+              village_nom: "À définir par l'ASCQ",
+              grappe: 1,
+              code_acces_temporaire: "0000",
+              code_temporaire_utilise: false,
+              statut: "EN_ATTENTE"
+            });
+          }
         } catch (e) {
           console.warn("Liaison RC enregistrée via RPC:", e);
         }
