@@ -624,18 +624,29 @@ export default function AdminPage() {
     try {
       const { data, error } = await supabase.functions.invoke("sync-facebook-posts");
       if (error) {
+        let errorDetails = "Jeton Facebook expiré ou non autorisé (Code 190). Veuillez renouveler le jeton de page dans Supabase Secrets.";
+        try {
+          if (error && typeof (error as any).context?.json === "function") {
+            const body = await (error as any).context.json();
+            if (body?.error) errorDetails = body.error;
+          }
+        } catch {}
         setToastMessage({ 
-          text: "Passerelle Meta Facebook : jeton en attente d'autorisation par la Page officielle (permissions pages_read_engagement).", 
+          text: errorDetails, 
           error: true 
         });
       } else if (data && !data.success) {
-        setToastMessage({ text: data.error || "Synchronisation Facebook : vérification des permissions en cours.", error: true });
+        setToastMessage({ text: data.error || "Synchronisation Facebook : vérification du jeton.", error: true });
       } else {
         setToastMessage({ text: "Synchronisation Facebook exécutée avec succès !", error: false });
       }
       await chargerEtatSyncFacebook();
     } catch (err: any) {
-      setToastMessage({ text: "Information synchronisation : " + (err.message || err), error: true });
+      let msg = err?.message || String(err);
+      if (msg.includes("non-2xx") || msg.includes("status code")) {
+        msg = "Jeton Facebook expiré ou non autorisé (Code 190). Veuillez renouveler le jeton de page dans Supabase Secrets.";
+      }
+      setToastMessage({ text: msg, error: true });
       await chargerEtatSyncFacebook();
     } finally {
       setFacebookSyncLoading(false);
