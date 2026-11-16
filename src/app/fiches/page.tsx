@@ -38,6 +38,13 @@ import {
   exporterRegistreSurveillanceExcel, 
   exporterFicheSurveillanceIndividuelleExcel 
 } from "@/lib/excelExport";
+import {
+  FicheOfficielleRegistreAlertes,
+  FicheOfficielleNotificationAlerte,
+  FicheOfficielleNotificationDeces,
+  FicheOfficielleInvestigationEvenement,
+  FicheOfficielleRapportHebdoSurveillance
+} from "@/components/fiches-officielles";
 
 export default function MesFichesPage() {
   const router = useRouter();
@@ -62,6 +69,206 @@ export default function MesFichesPage() {
   const [ficheConsultation, setFicheConsultation] = useState<any | null>(null);
   // Mode d'impression du registre complet
   const [imprimerModeRegistre, setImprimerModeRegistre] = useState<boolean>(false);
+  // Mode modèle officiel vierge pour téléchargement/impression directe
+  const [modeVierge, setModeVierge] = useState<boolean>(false);
+  const [modalChoixModeleVierge, setModalChoixModeleVierge] = useState<boolean>(false);
+
+  // Mappings pour les fiches officielles du Ministère de la Santé
+  const mapDecesData = (fc: any) => {
+    const r = fc.rawData || {};
+    let ageAnnees = r.age_annees;
+    let ageMois = r.age_mois;
+    let ageJours = r.age_jours;
+    if (r.age_valeur !== undefined && r.age_valeur !== null) {
+      if (r.age_unite === "mois") {
+        ageMois = r.age_valeur;
+      } else if (r.age_unite === "jours" || r.age_unite === "jour") {
+        ageJours = r.age_valeur;
+      } else {
+        ageAnnees = r.age_valeur;
+      }
+    }
+
+    return {
+      annee: fc.annee || r.annee || new Date().getFullYear(),
+      semaineEpidemio: fc.semaine || r.semaine_epidemio,
+      mois: r.mois || (fc.date ? fc.date.split("-")[1] : ""),
+      npiDefunt: r.npi_defunt || r.defunt_npi || "",
+      numeroDeces: fc.numero || r.numero_deces,
+      departement: fc.departement,
+      zoneSanitaire: r.zone_sanitaire_nom || r.zone_sanitaire || fc.departement,
+      commune: fc.commune,
+      arrondissement: fc.arrondissement,
+      village: fc.village,
+      numeroGrappe: r.numero_grappe || r.grappe || "",
+      adresse: r.adresse_domicile || r.adresse || "",
+      nomPrenomsDefunt: r.defunt_nom_prenom || `${r.nom_defunt || ""} ${r.prenoms_defunt || ""}`.trim(),
+      nomParent: r.nom_parent || "",
+      telephoneParent: r.telephone_parent || "",
+      dateNaissance: r.date_naissance || "",
+      ageAnnees,
+      ageMois,
+      ageJours,
+      sexe: r.sexe,
+      gpsLongitude: r.gps_longitude || r.longitude,
+      gpsLatitude: r.gps_latitude || r.latitude,
+      typeDecesCode: r.type_deces_code,
+      dateDeces: r.date_deces || fc.date,
+      dateNotification: r.date_notification || (r.created_at ? r.created_at.split("T")[0] : fc.date),
+      dateSaisie: r.created_at ? r.created_at.split("T")[0] : fc.date,
+      lieuDecesCode: r.lieu_deces_code,
+      lieuPaysEtranger: r.lieu_pays_etranger,
+      lieuAutrePrecision: r.lieu_autre_precision,
+      circonstancesCode: r.circonstance_code || r.circonstances_code,
+      circonstancesAutrePrecision: r.circonstance_autre_precision,
+      causeProbableCim10: r.cause_probable_cim10 || r.cause_probable || r.type_deces_nom,
+      notificateurNom: r.notificateur_nom_complet || fc.notificateur,
+      notificateurTitre: r.notificateur_titre || fc.notificateurTitre || "ASCQ",
+      notificateurStructure: r.notificateur_structure || `Arrondissement de ${fc.arrondissement || ""}`,
+      notificateurTelephone: r.notificateur_telephone || fc.notificateurTel || "",
+    };
+  };
+
+  const mapAlerteData = (fc: any) => {
+    const r = fc.rawData || {};
+    return {
+      pointFocalNom: r.notificateur_nom_complet || fc.notificateur,
+      telephone: r.notificateur_telephone || fc.notificateurTel || "",
+      arrondissement: fc.arrondissement,
+      commune: fc.commune,
+      zoneSanitaire: r.zone_sanitaire_nom || r.zone_sanitaire || fc.departement,
+      dateNotification: r.date_notification || fc.date,
+      typeMaladieDescription: `${corrigerAccents(fc.titre || r.type_alerte_nom || "")}${r.description_signes ? " — " + r.description_signes : ""}`,
+      dateSurvenueHeure: r.date_survenue ? `${r.date_survenue} ${r.heure_survenue || ""}`.trim() : "",
+      dateDetectionHeure: r.date_detection ? `${r.date_detection} ${r.heure_detection || ""}`.trim() : "",
+      lieuProvenance: `${fc.village || ""}${r.adresse_domicile ? " (" + r.adresse_domicile + ")" : ""}`,
+      nbPersonnesTouchees: r.nb_personnes_touchees ?? 1,
+      decesPresence: (Number(r.nb_personnes_mortes) > 0 || r.deces_presence) ? "OUI" : "NON",
+      nbDeces: r.nb_personnes_mortes ?? 0,
+      animauxImpliques: r.animaux_impliques ? "OUI" : "NON",
+      evenementEnCours: r.evenement_en_cours !== false ? "OUI" : "NON",
+      mesuresPrises: r.mesures_prises || r.actions_immediates || "",
+      signatureNom: r.notificateur_nom_complet || fc.notificateur,
+    };
+  };
+
+  const mapRegistreData = (fc: any) => {
+    const r = fc.rawData || {};
+    return {
+      zoneSanitaire: r.zone_sanitaire_nom || fc.departement,
+      commune: fc.commune,
+      arrondissement: fc.arrondissement,
+      centreSante: r.centre_sante || `CS ${fc.arrondissement || ""}`,
+      village: fc.village,
+      mois: r.mois || (fc.date ? fc.date.split("-")[1] : ""),
+      annee: fc.annee || r.annee || new Date().getFullYear(),
+      lignes: [
+        {
+          numero: 1,
+          typeCode: r.type_code || 1,
+          dateSurvenue: r.date_survenue || fc.date,
+          lieuDetection: fc.village,
+          nbTouchees: r.nb_personnes_touchees ?? 1,
+          nbDecedes: r.nb_personnes_decedees ?? 0,
+          mesurePrise: r.mesure_prise || r.mesures_prises || "Transmis à l'ASCQ",
+        }
+      ]
+    };
+  };
+
+  const mapInvestigationData = (fc: any) => {
+    const r = fc.rawData || {};
+    return {
+      departement: fc.departement,
+      zoneSanitaire: r.zone_sanitaire_nom || fc.departement,
+      commune: fc.commune,
+      arrondissement: fc.arrondissement,
+      village: fc.village,
+      relaisNomPrenom: r.relais_nom_prenom || r.relais_nom || "",
+      relaisTelephone: r.relais_telephone || "",
+      ascqNomPrenom: r.investigateur_nom || fc.notificateur,
+      ascqTelephone: r.investigateur_telephone || fc.notificateurTel || "",
+      coordonneesGps: r.coordonnees_gps || (r.latitude && r.longitude ? `${r.latitude}, ${r.longitude}` : ""),
+      evenementAvere: r.evenement_avere ? "OUI" : "NON",
+      sourceInformation: r.source_information || "Signalement communautaire",
+      maladieEvenementConcerne: r.type_alerte_nom || fc.titre,
+      descriptionEvenement: r.description_evenement || r.description || "",
+      circonstancesSurvenue: r.circonstances_survenue || "",
+      dateSurvenue: r.date_survenue || "",
+      dateNotification: r.date_notification || "",
+      dateInvestigation: r.date_investigation || fc.date,
+      cas: {
+        cas0_11m_m: r.cas_0_11m_m || 0,
+        cas0_11m_f: r.cas_0_11m_f || 0,
+        cas1_5a_m: r.cas_1_5a_m || 0,
+        cas1_5a_f: r.cas_1_5a_f || 0,
+        cas6_15a_m: r.cas_6_15a_m || 0,
+        cas6_15a_f: r.cas_6_15a_f || 0,
+        casPlus15a_m: r.cas_plus_15a_m || 0,
+        casPlus15a_f: r.cas_plus_15a_f || 0,
+      },
+      deces: {
+        deces0_11m_m: r.deces_0_11m_m || 0,
+        deces0_11m_f: r.deces_0_11m_f || 0,
+        deces1_5a_m: r.deces_1_5a_m || 0,
+        deces1_5a_f: r.deces_1_5a_f || 0,
+        deces6_15a_m: r.deces_6_15a_m || 0,
+        deces6_15a_f: r.deces_6_15a_f || 0,
+        decesPlus15a_m: r.deces_plus_15a_m || 0,
+        decesPlus15a_f: r.deces_plus_15a_f || 0,
+      },
+      syntheseActions: r.synthese_actions || r.actions_menees || "",
+      signatureInvestigateurs: r.investigateur_nom || fc.notificateur,
+    };
+  };
+
+  const mapRapportData = (fc: any) => {
+    const r = fc.rawData || {};
+    return {
+      departement: fc.departement,
+      zoneSanitaire: r.zone_sanitaire_nom || fc.departement,
+      commune: fc.commune,
+      arrondissement: fc.arrondissement,
+      village: fc.village,
+      semaineNum: fc.semaine || r.semaine_epidemio,
+      dateDebut: r.date_debut_semaine || fc.date,
+      dateFin: r.date_fin_semaine || "",
+      alertesDetectees: r.alertes_detectees || 0,
+      personnesTouchees: r.personnes_touchees || 0,
+      personnesDecedees: r.personnes_decedees || 0,
+      alertesVerifiees48h: r.alertes_verifiees_48h || 0,
+      alertesAverees: r.alertes_averees || 0,
+      decesMaternels: r.deces_maternels || 0,
+      decesNeonatals: r.deces_neonatals || 0,
+      decesInfantiles: r.deces_infantiles || 0,
+      decesInfantoJuveniles: r.deces_infanto_juveniles || 0,
+      decesPlus5Ans: r.deces_plus_5_ans || 0,
+      actionsMenees: r.actions_menees || r.actions || "",
+      signatureRapporteur: r.rapporteur_nom || fc.notificateur,
+    };
+  };
+
+  const ouvrirModeleVierge = (type: "REG" | "ALR" | "DEC" | "INV" | "RAP", titre: string) => {
+    setModeVierge(true);
+    setFicheConsultation({
+      id: "modele-vierge",
+      type,
+      numero: "MODÈLE OFFICIEL VIERGE",
+      typeLibelle: titre,
+      titre,
+      departement: currentUser?.departement_nom || "Zou",
+      commune: currentUser?.commune_nom || "Ouinhi",
+      arrondissement: currentUser?.arrondissement_nom || "Tohoues",
+      village: currentUser?.village_nom || "",
+      date: new Date().toISOString().split("T")[0],
+      annee: new Date().getFullYear(),
+      notificateur: currentUser ? `${currentUser.poste || 'ASCQ'} : ${currentUser.prenoms} ${currentUser.nom}` : "ASCQ",
+      notificateurTel: currentUser?.telephone || "",
+      notificateurTitre: currentUser?.poste || "ASCQ",
+      rawData: {}
+    });
+    setModalChoixModeleVierge(false);
+  };
 
   // État et action de validation par l'ASCQ superviseur
   const [validationEnCours, setValidationEnCours] = useState(false);
@@ -555,7 +762,17 @@ export default function MesFichesPage() {
               <span>Registre filtré : <strong>{fichesFiltrees.length}</strong> fiche(s)</span>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setModalChoixModeleVierge(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs border border-amber-300 shadow-sm transition-all"
+                title="Télécharger ou imprimer les modèles officiels vierges du Ministère (A4)"
+              >
+                <FileText className="w-3.5 h-3.5 text-amber-700" />
+                <span>Modèles Vierges Officiels</span>
+              </button>
+
               <button
                 type="button"
                 onClick={handleImprimerRegistre}
@@ -891,37 +1108,69 @@ export default function MesFichesPage() {
       {/* MODALE OFFICIELLE DE CONSULTATION ET D'IMPRESSION A4 D'UNE FICHE INDIVIDUELLE */}
       {/* ========================================================================= */}
       {ficheConsultation && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5 overflow-y-auto print:p-0 print:bg-white print:static print:inset-auto">
-          <div className="bg-white rounded-3xl w-full max-w-2xl border border-slate-200 shadow-2xl overflow-hidden my-auto print:border-none print:shadow-none print:rounded-none">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-2 sm:p-5 overflow-y-auto print:p-0 print:bg-white print:static print:inset-auto">
+          <div className="bg-white rounded-3xl w-full max-w-4xl border border-slate-200 shadow-2xl overflow-hidden my-auto print:border-none print:shadow-none print:rounded-none print:w-full print:max-w-none">
             
             {/* Barre d'outils de la modale (masquée à l'impression) */}
-            <div className="bg-[#005c30] text-white p-4 flex items-center justify-between gap-3 print:hidden">
+            <div className="bg-[#005c30] text-white p-3 sm:p-4 flex flex-wrap items-center justify-between gap-3 print:hidden">
               <div className="flex items-center gap-2">
-                <FileText className="w-5 h-5" />
-                <span className="text-xs font-mono font-bold">{ficheConsultation.numero}</span>
+                <FileText className="w-5 h-5 text-amber-300 shrink-0" />
+                <div>
+                  <span className="text-xs font-mono font-bold block">{ficheConsultation.numero}</span>
+                  <span className="text-[10px] text-emerald-100 font-semibold uppercase">Modèle Officiel Ministère de la Santé</span>
+                </div>
               </div>
+
+              {/* Sélecteur de version : Remplie avec données de terrain / Modèle vierge officiel */}
+              <div className="flex items-center bg-black/25 p-1 rounded-xl gap-1 text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => setModeVierge(false)}
+                  className={`px-3 py-1.5 rounded-lg transition-all ${
+                    !modeVierge ? "bg-white text-[#005c30] shadow" : "text-white/80 hover:text-white"
+                  }`}
+                >
+                  Version Remplie
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModeVierge(true)}
+                  className={`px-3 py-1.5 rounded-lg transition-all ${
+                    modeVierge ? "bg-white text-[#005c30] shadow" : "text-white/80 hover:text-white"
+                  }`}
+                >
+                  Modèle Vierge
+                </button>
+              </div>
+
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => window.print()}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white text-[#005c30] font-bold text-xs shadow hover:bg-emerald-50 transition-colors"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white text-[#005c30] font-bold text-xs shadow hover:bg-emerald-50 active:scale-95 transition-all"
+                  title="Imprimer ou enregistrer en PDF au format officiel A4"
                 >
                   <Printer className="w-3.5 h-3.5" />
-                  <span>Imprimer la Fiche (A4)</span>
+                  <span>Imprimer / PDF (A4)</span>
                 </button>
+
+                {!modeVierge && (
+                  <button
+                    type="button"
+                    onClick={() => exporterFicheSurveillanceIndividuelleExcel(ficheConsultation)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#FCD116] text-slate-900 font-black text-xs shadow hover:bg-yellow-400 active:scale-95 transition-all"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Excel</span>
+                  </button>
+                )}
 
                 <button
                   type="button"
-                  onClick={() => exporterFicheSurveillanceIndividuelleExcel(ficheConsultation)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#FCD116] text-slate-900 font-black text-xs shadow hover:bg-yellow-400 transition-colors"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Télécharger Excel</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setFicheConsultation(null)}
+                  onClick={() => {
+                    setFicheConsultation(null);
+                    setModeVierge(false);
+                  }}
                   className="p-1.5 rounded-xl bg-black/20 hover:bg-black/40 text-white transition-colors"
                 >
                   <X className="w-4 h-4" />
@@ -929,226 +1178,52 @@ export default function MesFichesPage() {
               </div>
             </div>
 
-            {/* Contenu officiel de la fiche (affiché et imprimé) */}
-            <div className="p-6 sm:p-8 space-y-6 print:p-0 text-slate-800">
+            {/* Contenu officiel de la fiche — Typiquement la version officielle conforme DDS */}
+            <div className="p-3 sm:p-6 print:p-0 text-slate-900 bg-white overflow-x-auto">
+              {ficheConsultation.type === "DEC" && (
+                <FicheOfficielleNotificationDeces
+                  data={mapDecesData(ficheConsultation)}
+                  isVierge={modeVierge}
+                />
+              )}
+              {ficheConsultation.type === "ALR" && (
+                <FicheOfficielleNotificationAlerte
+                  data={mapAlerteData(ficheConsultation)}
+                  isVierge={modeVierge}
+                />
+              )}
+              {ficheConsultation.type === "REG" && (
+                <FicheOfficielleRegistreAlertes
+                  data={mapRegistreData(ficheConsultation)}
+                  isVierge={modeVierge}
+                />
+              )}
+              {ficheConsultation.type === "INV" && (
+                <FicheOfficielleInvestigationEvenement
+                  data={mapInvestigationData(ficheConsultation)}
+                  isVierge={modeVierge}
+                />
+              )}
+              {ficheConsultation.type === "RAP" && (
+                <FicheOfficielleRapportHebdoSurveillance
+                  data={mapRapportData(ficheConsultation)}
+                  isVierge={modeVierge}
+                />
+              )}
+              {!["DEC", "ALR", "REG", "INV", "RAP"].includes(ficheConsultation.type) && (
+                <FicheOfficielleNotificationAlerte
+                  data={mapAlerteData(ficheConsultation)}
+                  isVierge={modeVierge}
+                />
+              )}
+            </div>
+
+            {/* Section de gestion & validation (Masquée à l'impression) */}
+            <div className="p-4 sm:p-6 pt-0 space-y-4 print:hidden border-t border-slate-100 bg-slate-50/50">
               
-              {/* En-tête officiel République du Bénin */}
-              <div className="border-b-2 border-slate-900 pb-4 text-center space-y-1">
-                <div className="flex items-center justify-center gap-2">
-                  <span className="w-8 h-1 bg-[#008751]"></span>
-                  <span className="w-8 h-1 bg-[#FCD116]"></span>
-                  <span className="w-8 h-1 bg-[#E8112D]"></span>
-                </div>
-                <h1 className="text-sm font-black uppercase tracking-wider text-slate-900">
-                  RÉPUBLIQUE DU BÉNIN
-                </h1>
-                <h2 className="text-xs font-bold uppercase text-slate-700">
-                  Ministère de la Santé — Direction Nationale de la Santé Publique
-                </h2>
-                <h3 className="text-xs font-bold text-[#005c30]">
-                  Surveillance Intégrée des Maladies et de la Riposte (SIMR Bénin)
-                </h3>
-                <div className="inline-block mt-2 px-3 py-1 bg-slate-100 rounded-lg border border-slate-300">
-                  <span className="text-xs font-extrabold uppercase text-slate-900">
-                    FICHE OFFICIELLE : {ficheConsultation.typeLibelle || "SURVEILLANCE"} — N° {ficheConsultation.numero}
-                  </span>
-                </div>
-              </div>
-
-              {/* 1. Identification & Période SIMR */}
-              <div className="border border-slate-300 rounded-xl p-4 space-y-2 bg-slate-50/50 print:bg-transparent">
-                <h4 className="text-xs font-black uppercase text-[#005c30] border-b pb-1 border-slate-200">
-                  1. Identification de l'événement & Période SIMR
-                </h4>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
-                  <div>
-                    <span className="text-slate-400 block text-[10px]">Type d'événement :</span>
-                    <strong className="text-slate-900">{ficheConsultation.titre}</strong>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 block text-[10px]">Semaine & Année :</span>
-                    <strong className="text-slate-900">Semaine {ficheConsultation.semaine || "N/A"} ({ficheConsultation.annee})</strong>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 block text-[10px]">Date d'enregistrement :</span>
-                    <strong className="text-slate-900">{ficheConsultation.date}</strong>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 block text-[10px]">Niveau de Priorité :</span>
-                    <strong className={ficheConsultation.estPrioritaire ? "text-red-700" : "text-emerald-700"}>
-                      {ficheConsultation.estPrioritaire ? "⚠️ Haute Priorité (Alerte Riposte)" : "Normale (Routine)"}
-                    </strong>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 block text-[10px]">Statut / Résultat :</span>
-                    <strong className="text-slate-900">{ficheConsultation.resultat || ficheConsultation.statut || "ENREGISTRÉE"}</strong>
-                  </div>
-                </div>
-              </div>
-
-              {/* 2. Localisation Administrative */}
-              <div className="border border-slate-300 rounded-xl p-4 space-y-2 bg-slate-50/50 print:bg-transparent">
-                <h4 className="text-xs font-black uppercase text-[#005c30] border-b pb-1 border-slate-200">
-                  2. Localisation Administrative
-                </h4>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                  <div>
-                    <span className="text-slate-400 block text-[10px]">Département :</span>
-                    <strong className="text-slate-900">{(!ficheConsultation.departement || ficheConsultation.departement === "Département" || ficheConsultation.departement === "Zone Sanitaire") ? "Zou" : ficheConsultation.departement}</strong>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 block text-[10px]">Commune :</span>
-                    <strong className="text-slate-900">{(!ficheConsultation.commune || ficheConsultation.commune === "Zone sanitaire" || ficheConsultation.commune === "Communauté") ? "Ouinhi" : ficheConsultation.commune}</strong>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 block text-[10px]">Arrondissement :</span>
-                    <strong className="text-slate-900">{(!ficheConsultation.arrondissement || ficheConsultation.arrondissement === "Local" || ficheConsultation.arrondissement === "Arrondissement") ? "Tohoues" : ficheConsultation.arrondissement}</strong>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 block text-[10px]">Village / Quartier :</span>
-                    <strong className="text-[#005c30]">{ficheConsultation.village || "Akassa"}</strong>
-                  </div>
-                </div>
-              </div>
-
-              {/* 3. Données Sanitaires & Impact Communautaire */}
-              <div className="border border-slate-300 rounded-xl p-4 space-y-2 bg-slate-50/50 print:bg-transparent">
-                <h4 className="text-xs font-black uppercase text-[#005c30] border-b pb-1 border-slate-200">
-                  3. Données Sanitaires & Impact Communautaire
-                </h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                  <div>
-                    <span className="text-slate-400 block text-[10px]">Impact sanitaire constaté :</span>
-                    <strong className="text-slate-900 text-sm">{ficheConsultation.impact}</strong>
-                  </div>
-                  
-                  {/* Détails du cas ou du défunt (Identité complète sans masquage) */}
-                  <div className="p-3 bg-white rounded-xl border border-slate-200 text-xs sm:col-span-2 space-y-1">
-                    <span className="text-slate-500 font-bold block text-[11px] mb-1">
-                      {ficheConsultation.type === "DEC" ? "Identité Officielle du Défunt & Proches :" : "Identité Officielle du Patient / Cas Index :"}
-                    </span>
-                    <p className="text-slate-900 font-bold text-sm">
-                      {ficheConsultation.type === "DEC"
-                        ? (ficheConsultation.rawData?.defunt_nom_prenom || `${ficheConsultation.rawData?.nom_defunt || ''} ${ficheConsultation.rawData?.prenoms_defunt || ''}`.trim() || "Défunt notifié")
-                        : (ficheConsultation.rawData?.cas_nom_prenom || `${ficheConsultation.rawData?.nom_cas || ficheConsultation.rawData?.cas_nom || ''} ${ficheConsultation.rawData?.prenoms_cas || ficheConsultation.rawData?.cas_prenoms || ''}`.trim() || "Patient / Cas index")
-                      } 
-                      {ficheConsultation.rawData?.sexe && ` • Sexe : ${ficheConsultation.rawData.sexe === "M" ? "Masculin" : "Féminin"}`}
-                      {ficheConsultation.rawData?.age_valeur && ` • Âge : ${ficheConsultation.rawData.age_valeur} ${ficheConsultation.rawData.age_unite || "ans"}`}
-                    </p>
-                    {(ficheConsultation.rawData?.nom_parent || ficheConsultation.rawData?.telephone_parent) && (
-                      <p className="text-[11px] text-slate-700">
-                        Parent / Proche : <strong className="text-slate-900">{ficheConsultation.rawData.nom_parent || "-"}</strong>
-                        {ficheConsultation.rawData.telephone_parent && ` (${ficheConsultation.rawData.telephone_parent})`}
-                      </p>
-                    )}
-                    {(ficheConsultation.rawData?.telephone || ficheConsultation.rawData?.telephone_contact) && (
-                      <p className="text-[11px] text-slate-700">
-                        Téléphone contact : <strong className="text-slate-900">{ficheConsultation.rawData.telephone || ficheConsultation.rawData.telephone_contact}</strong>
-                      </p>
-                    )}
-                    {(ficheConsultation.rawData?.adresse || ficheConsultation.rawData?.adresse_domicile) && (
-                      <p className="text-[11px] text-slate-700">
-                        Adresse / Hameau : <strong className="text-slate-900">{ficheConsultation.rawData.adresse || ficheConsultation.rawData.adresse_domicile}</strong>
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Symptômes ou manifestations cliniques */}
-                  {ficheConsultation.rawData?.symptomes_noms && ficheConsultation.rawData.symptomes_noms.length > 0 && (
-                    <div className="sm:col-span-2">
-                      <span className="text-slate-400 block text-[10px]">Signes et symptômes constatés :</span>
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {ficheConsultation.rawData.symptomes_noms.map((s: string, idx: number) => (
-                          <span key={idx} className="px-2 py-0.5 rounded-md bg-emerald-50 text-[#005c30] font-bold text-[10px] border border-emerald-200">
-                            ✓ {corrigerAccents(s)}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {ficheConsultation.rawData?.mesures_prises && (
-                    <div>
-                      <span className="text-slate-400 block text-[10px]">Mesures immédiates prises :</span>
-                      <p className="text-slate-800 italic mt-0.5">{ficheConsultation.rawData.mesures_prises}</p>
-                    </div>
-                  )}
-
-                  {ficheConsultation.rawData?.commentaire_verification && (
-                    <div className="sm:col-span-2">
-                      <span className="text-slate-400 block text-[10px]">Commentaire de vérification superviseur :</span>
-                      <p className="text-slate-800 italic mt-0.5">« {ficheConsultation.rawData.commentaire_verification} »</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* 4. Notificateur & Traçabilité */}
-              <div className="border border-slate-300 rounded-xl p-4 space-y-2 bg-slate-50/50 print:bg-transparent">
-                <h4 className="text-xs font-black uppercase text-[#005c30] border-b pb-1 border-slate-200">
-                  4. Déclarant & Traçabilité Officielle
-                </h4>
-                <div className="grid grid-cols-2 gap-3 text-xs">
-                  <div>
-                    <span className="text-slate-400 block text-[10px]">Agent Déclarant / Enquêteur :</span>
-                    <strong className="text-slate-900">{ficheConsultation.notificateur}</strong>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 block text-[10px]">Téléphone officiel :</span>
-                    <strong className="text-slate-900">{ficheConsultation.notificateurTel || "-"}</strong>
-                  </div>
-                </div>
-              </div>
-
-              {/* 5. Cadre Officiel de Validation & Signature (Une seule personne signe selon le rôle du notificateur) */}
-              {(() => {
-                const notifTitre = (ficheConsultation.rawData?.notificateur_titre || ficheConsultation.notificateurTitre || "").toUpperCase();
-                const notifNom = (ficheConsultation.notificateur || "").toUpperCase();
-                const estNotifieParAscq = notifTitre === "ASCQ" || notifNom.startsWith("ASCQ") || notifNom.includes("ASCQ");
-
-                return (
-                  <div className="pt-4 text-xs border-t border-slate-300">
-                    <div className="max-w-md mx-auto p-4 bg-slate-50/80 rounded-2xl border border-slate-300 text-center space-y-2">
-                      <p className="font-black text-slate-900 uppercase text-xs tracking-wide">
-                        {estNotifieParAscq
-                          ? "SIGNATURE DU NOTIFICATEUR (ASCQ D'ARRONDISSEMENT)"
-                          : "SIGNATURE DU NOTIFICATEUR (RELAIS COMMUNAUTAIRE)"
-                        }
-                      </p>
-                      <p className="text-xs font-bold text-slate-800">
-                        {ficheConsultation.notificateur}
-                      </p>
-                      <p className="text-[11px] text-slate-600">
-                        {estNotifieParAscq ? (
-                          <>Arrondissement : <strong>{ficheConsultation.arrondissement || "Arrondissement sanitaire"}</strong> • Commune : <strong>{ficheConsultation.commune || "Commune"}</strong></>
-                        ) : (
-                          <>Village / Quartier : <strong>{ficheConsultation.village || "Village"}</strong> • Arrondissement : <strong>{ficheConsultation.arrondissement || "Arrondissement"}</strong></>
-                        )}
-                      </p>
-                      
-                      {ficheConsultation.rawData?.signature_tactile ? (
-                        <div className="my-2 p-2 bg-white border border-slate-300 rounded-xl inline-block shadow-sm">
-                          <img
-                            src={ficheConsultation.rawData.signature_tactile}
-                            alt={estNotifieParAscq ? "Signature ASCQ" : "Signature RC"}
-                            className="max-h-20 w-auto object-contain mx-auto"
-                          />
-                        </div>
-                      ) : (
-                        <div className="my-6 border-b border-black w-48 mx-auto"></div>
-                      )}
-                      
-                      <p className="text-[10px] text-slate-500 font-medium">
-                        Signature tactile officielle enregistrée le {ficheConsultation.date}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })()}
-
               {/* CADRE OFFICIEL DE VALIDATION SUPERVISEUR ASCQ (Masqué à l'impression) */}
-              {(currentUser?.poste === "ASCQ" || currentUser?.role_technique === "SUPER_ADMIN" || currentUser?.role_technique === "ASCQ" || currentUser?.role_technique === "REPRESENTANT_COMMUNAL") && (
-                <div className="bg-emerald-50/80 border-2 border-[#005c30] rounded-3xl p-4 sm:p-5 space-y-3 print:hidden">
+              {!modeVierge && (currentUser?.poste === "ASCQ" || currentUser?.role_technique === "SUPER_ADMIN" || currentUser?.role_technique === "ASCQ" || currentUser?.role_technique === "REPRESENTANT_COMMUNAL") && (
+                <div className="bg-emerald-50/80 border-2 border-[#005c30] rounded-3xl p-4 sm:p-5 space-y-3 mt-4">
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <div className="flex items-center gap-2">
                       <ShieldCheck className="w-5 h-5 text-[#005c30]" />
@@ -1215,8 +1290,8 @@ export default function MesFichesPage() {
               )}
 
               {/* Lien optionnel vers la page complète alerte si ALR */}
-              {ficheConsultation.type === "ALR" && (
-                <div className="pt-3 print:hidden text-center">
+              {!modeVierge && ficheConsultation.type === "ALR" && ficheConsultation.id !== "modele-vierge" && (
+                <div className="pt-2 print:hidden text-center">
                   <Link
                     href={`/fiches/alerte/${ficheConsultation.id}`}
                     className="inline-flex items-center gap-1.5 text-xs font-bold text-[#005c30] hover:underline"
@@ -1227,6 +1302,112 @@ export default function MesFichesPage() {
                 </div>
               )}
 
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODALE DE SÉLECTION D'UN MODÈLE OFFICIEL VIERGE DU MINISTÈRE (A4)         */}
+      {/* ========================================================================= */}
+      {modalChoixModeleVierge && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-lg border border-slate-200 shadow-2xl p-6 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-[#005c30]" />
+                <h3 className="text-base font-extrabold text-slate-900">
+                  Modèles Officiels Vierges (A4)
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalChoixModeleVierge(false)}
+                className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600">
+              Sélectionnez le formulaire officiel conforme aux exigences du Ministère de la Santé à afficher, télécharger ou imprimer vierge pour le travail de terrain :
+            </p>
+
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => ouvrirModeleVierge("REG", "Registre des alertes et rumeurs communautaires")}
+                className="w-full text-left p-3.5 rounded-2xl border border-slate-200 hover:border-[#005c30] hover:bg-emerald-50/50 transition-all flex items-center justify-between group"
+              >
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-[10px] font-black px-2 py-0.5 rounded bg-blue-100 text-blue-800">REG</span>
+                    <strong className="text-xs text-slate-900">Registre des alertes et rumeurs communautaires</strong>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-0.5">À remplir par le Relais Communautaire (RC) — 15 lignes & codes SIMR</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-[#005c30] group-hover:translate-x-0.5 transition-all" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => ouvrirModeleVierge("ALR", "Fiche de notification des alertes communautaires")}
+                className="w-full text-left p-3.5 rounded-2xl border border-slate-200 hover:border-[#005c30] hover:bg-emerald-50/50 transition-all flex items-center justify-between group"
+              >
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-[10px] font-black px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">ALR</span>
+                    <strong className="text-xs text-slate-900">Fiche de notification des alertes communautaires</strong>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-0.5">À remplir par l'ASCQ — 12 rubriques officielles</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-[#005c30] group-hover:translate-x-0.5 transition-all" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => ouvrirModeleVierge("DEC", "Formulaire de notification des décès en communauté")}
+                className="w-full text-left p-3.5 rounded-2xl border border-slate-200 hover:border-[#005c30] hover:bg-emerald-50/50 transition-all flex items-center justify-between group"
+              >
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-[10px] font-black px-2 py-0.5 rounded bg-purple-100 text-purple-800">DEC</span>
+                    <strong className="text-xs text-slate-900">Formulaire de notification des décès en communauté</strong>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Sections 1, 2, 3 officielles avec bandeaux saumon #FCE4D6 et codes CIM-10</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-[#005c30] group-hover:translate-x-0.5 transition-all" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => ouvrirModeleVierge("INV", "Fiche d’investigation des événements de santé")}
+                className="w-full text-left p-3.5 rounded-2xl border border-slate-200 hover:border-[#005c30] hover:bg-emerald-50/50 transition-all flex items-center justify-between group"
+              >
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-[10px] font-black px-2 py-0.5 rounded bg-amber-100 text-amber-800">INV</span>
+                    <strong className="text-xs text-slate-900">Fiche d'investigation des événements de santé (ASCQ)</strong>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Version V14.11.2025 avec tableau officiel cas/décès par tranche d'âge</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-[#005c30] group-hover:translate-x-0.5 transition-all" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => ouvrirModeleVierge("RAP", "Rapport hebdomadaire de la surveillance à base communautaire")}
+                className="w-full text-left p-3.5 rounded-2xl border border-slate-200 hover:border-[#005c30] hover:bg-emerald-50/50 transition-all flex items-center justify-between group"
+              >
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-[10px] font-black px-2 py-0.5 rounded bg-rose-100 text-rose-800">RAP</span>
+                    <strong className="text-xs text-slate-900">Rapport hebdomadaire de surveillance communautaire</strong>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Version V29.05.2025 avec tableaux récapitulatifs et lignes pointillées</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-[#005c30] group-hover:translate-x-0.5 transition-all" />
+              </button>
             </div>
           </div>
         </div>

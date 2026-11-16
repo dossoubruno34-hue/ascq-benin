@@ -1,7 +1,7 @@
 {
-  "name": "SantéCom Bénin",
-  "short_name": "SantéCom",
-  "description": "Plateforme communautaire de santé — Développé pour et par le Collectif des ASCQ du Bénin",
+  "name": "ASC Santé Communautaire du Bénin",
+  "short_name": "ASC Bénin",
+  "description": "Plateforme officielle de Santé Communautaire du Bénin — Proximité • Prévention • Solidarité",
   "start_url": "/?source=pwa",
   "scope": "/",
   "id": "/?source=pwa",

@@ -57,13 +57,13 @@ export default async function HomePage() {
 
   return (
     <div className="min-h-screen bg-[#f4f7f5] text-slate-800 antialiased pb-16">
-      {/* 1. En-tête vert foncé avec le logo, « ASCQ Bénin » et « Ministère de la Santé » */}
+      {/* 1. En-tête vert foncé avec le logo, « ASC Bénin » et « Ministère de la Santé » */}
       <header className="bg-[#005c30] text-white">
         <div className="max-w-xl mx-auto px-4 h-14 flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-full bg-white p-1 flex items-center justify-center shrink-0 shadow-sm overflow-hidden">
             <Image
-              src="/logo-ascq.png"
-              alt="Logo ASCQ Bénin"
+              src="/logo-asc.png"
+              alt="Logo ASC Bénin"
               width={32}
               height={32}
               className="object-contain"
@@ -71,10 +71,10 @@ export default async function HomePage() {
           </div>
           <div className="leading-tight">
             <h1 className="font-extrabold text-sm sm:text-base tracking-tight text-white">
-              ASCQ Bénin
+              ASC Bénin
             </h1>
             <p className="text-[11px] text-white/80 font-normal">
-              Ministère de la Santé
+              Santé Communautaire • Ministère de la Santé
             </p>
           </div>
         </div>
@@ -90,34 +90,37 @@ export default async function HomePage() {
       {/* Contenu principal : mobile-first, centré, largeur maximale confortable */}
       <main className="max-w-md sm:max-w-lg mx-auto px-4 pt-6 space-y-5">
         
-        {/* 2. Titre « Bienvenue », pastille « ASCQ DU BÉNIN » et Logo officiel */}
+        {/* 2. Titre « Bienvenue », pastille « ASC DU BÉNIN » et Logo officiel */}
         <section className="text-center space-y-3 pt-2">
           <h2 className="font-handwritten text-[#1e3a8a] text-4xl sm:text-5xl font-bold tracking-wide">
             Bienvenue
           </h2>
           
           <p className="text-xs sm:text-sm font-semibold text-slate-700">
-            sur l'application officielle des
+            sur la plateforme officielle de la
           </p>
 
           <div>
             <span className="inline-block bg-[#0e7f47] text-white font-extrabold text-sm sm:text-base px-6 py-2 rounded-2xl shadow-sm tracking-wider uppercase">
-              ASCQ DU BÉNIN
+              SANTÉ COMMUNAUTAIRE DU BÉNIN
             </span>
           </div>
 
           {/* Logo officiel centré sans chevauchement */}
-          <div className="pt-2 flex justify-center">
-            <div className="w-48 sm:w-56 h-auto drop-shadow-sm">
+          <div className="pt-2 flex flex-col items-center justify-center">
+            <div className="w-52 sm:w-60 h-auto drop-shadow-sm">
               <Image
-                src="/logo-ascq.png"
-                alt="Collectif des Agents de Santé Communautaire Qualifiés du Bénin"
-                width={240}
-                height={140}
+                src="/logo-asc.png"
+                alt="ASC - Santé Communautaire du Bénin"
+                width={260}
+                height={160}
                 priority
                 className="w-full h-auto object-contain"
               />
             </div>
+            <p className="mt-2 text-xs font-black tracking-widest text-[#005c30] uppercase">
+              Proximité • Prévention • Solidarité
+            </p>
           </div>
         </section>
 

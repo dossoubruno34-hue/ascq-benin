@@ -27,6 +27,7 @@ import {
 import { corrigerAccents, getNomTypeAlerte } from "@/lib/fiches";
 import { exporterFicheSurveillanceIndividuelleExcel } from "@/lib/excelExport";
 import BeninPhoneAction from "@/components/BeninPhoneAction";
+import { FicheOfficielleNotificationAlerte } from "@/components/fiches-officielles";
 
 export default function DetailAlertePage() {
   const params = useParams();
@@ -167,7 +168,7 @@ export default function DetailAlertePage() {
         </div>
       </header>
 
-      <main className="max-w-xl mx-auto px-4 pt-5 space-y-4 print:max-w-none print:px-0 print:pt-0">
+      <main className="max-w-xl mx-auto px-4 pt-5 space-y-4 print:hidden">
         
         {/* EN-TÊTE OFFICIEL RÉPUBLIQUE DU BÉNIN POUR L'IMPRESSION A4 */}
         <div className="hidden print:block text-center border-b-2 border-black pb-4 mb-4">
@@ -666,6 +667,33 @@ export default function DetailAlertePage() {
         </div>
 
       </main>
+
+      {/* VUE D'IMPRESSION STRICTEMENT CONFORME AU MODÈLE OFFICIEL DU MINISTÈRE */}
+      {alerte && (
+        <div className="hidden print:block p-0 bg-white text-black">
+          <FicheOfficielleNotificationAlerte
+            data={{
+              pointFocalNom: alerte.notificateur_nom_complet,
+              telephone: alerte.notificateur_telephone || "",
+              arrondissement: alerte.arrondissement_nom,
+              commune: alerte.commune_nom,
+              zoneSanitaire: alerte.zone_sanitaire_nom || alerte.departement_nom,
+              dateNotification: alerte.date_notification,
+              typeMaladieDescription: `${corrigerAccents(alerte.type_alerte_nom || "")}${alerte.autre_evenement_precision ? " — " + alerte.autre_evenement_precision : ""}`,
+              dateSurvenueHeure: alerte.date_survenue ? `${alerte.date_survenue} ${alerte.heure_survenue || ""}`.trim() : "",
+              dateDetectionHeure: alerte.date_detection ? `${alerte.date_detection} ${alerte.heure_detection || ""}`.trim() : "",
+              lieuProvenance: `${alerte.village_nom || ""}${alerte.adresse_domicile ? " (" + alerte.adresse_domicile + ")" : ""}`,
+              nbPersonnesTouchees: alerte.nb_personnes_touchees ?? 1,
+              decesPresence: (Number(alerte.nb_personnes_mortes) > 0 || alerte.deces_presence) ? "OUI" : "NON",
+              nbDeces: alerte.nb_personnes_mortes ?? 0,
+              animauxImpliques: alerte.animaux_impliques ? "OUI" : "NON",
+              evenementEnCours: alerte.evenement_en_cours !== false ? "OUI" : "NON",
+              mesuresPrises: alerte.mesures_prises || alerte.actions_immediates || "",
+              signatureNom: alerte.notificateur_nom_complet,
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }

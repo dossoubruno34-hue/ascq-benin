@@ -6,14 +6,14 @@ import NotificationWatcher from "@/components/NotificationWatcher";
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://ascq-benin.vercel.app"),
-  title: "SantéCom Bénin - Plateforme communautaire de santé",
-  description: "Plateforme communautaire de santé — Développé pour et par le Collectif des ASCQ du Bénin.",
-  applicationName: "SantéCom Bénin",
+  title: "ASC Santé Communautaire du Bénin — Proximité • Prévention • Solidarité",
+  description: "Plateforme officielle de Santé Communautaire du Bénin — Proximité • Prévention • Solidarité. Développé sous la supervision du Ministère de la Santé du Bénin.",
+  applicationName: "ASC Santé Communautaire du Bénin",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "SantéCom Bénin",
+    title: "ASC Bénin",
   },
   authors: [{ name: "Ministère de la Santé du Bénin / Bruno DOSSOU" }],
   publisher: "Ministère de la Santé du Bénin",
@@ -29,23 +29,23 @@ export const metadata: Metadata = {
     type: "website",
     locale: "fr_BJ",
     url: "https://ascq-benin.vercel.app",
-    siteName: "SantéCom Bénin - Plateforme communautaire de santé",
-    title: "ASCQ BÉNIN - Application Officielle de Santé Communautaire",
-    description: "Plateforme officielle de suivi épidémiologique et de rapportage communautaire du Bénin.",
+    siteName: "ASC Santé Communautaire du Bénin",
+    title: "ASC Santé Communautaire du Bénin — Proximité • Prévention • Solidarité",
+    description: "Plateforme officielle de suivi épidémiologique et de santé communautaire du Bénin.",
     images: [
       {
-        url: "/logo-ascq.png",
+        url: "/logo-asc.png",
         width: 512,
         height: 512,
-        alt: "Logo Officiel ASCQ Bénin",
+        alt: "Logo Officiel ASC Santé Communautaire du Bénin",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "ASCQ BÉNIN - Application Officielle",
-    description: "Plateforme officielle de santé communautaire du Bénin.",
-    images: ["/logo-ascq.png"],
+    title: "ASC Santé Communautaire du Bénin",
+    description: "Plateforme officielle de santé communautaire du Bénin — Proximité • Prévention • Solidarité.",
+    images: ["/logo-asc.png"],
   },
 };
 

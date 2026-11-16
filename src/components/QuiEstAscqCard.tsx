@@ -205,7 +205,7 @@ export default function QuiEstAscqCard({ departements }: Props) {
                     const phone = parseBeninPhone(ascq.telephone);
                     const rawClean = ascq.telephone ? String(ascq.telephone).replace(/\D/g, "") : "";
                     const waBase = phone?.whatsappUrl || `https://wa.me/${rawClean}`;
-                    const waUrl = `${waBase}?text=${encodeURIComponent("Bonjour, je vous contacte depuis l'application SantéCom Bénin.")}`;
+                    const waUrl = `${waBase}?text=${encodeURIComponent("Bonjour, je vous contacte depuis l'application ASC Santé Communautaire du Bénin.")}`;
                     const telUrl = phone?.telUrl || `tel:${ascq.telephone}`;
                     const displayPhone = phone?.displayShort || ascq.telephone;
 
