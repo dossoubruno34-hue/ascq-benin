@@ -1,0 +1,187 @@
+{
+  "id": "BJ_REGISTRE_ALERTES",
+  "titre": "Registre des alertes et rumeurs communautaires",
+  "modelePdf": "/modeles-officiels/modele_01_registre_alertes_relais.pdf",
+  "format": "A4",
+  "pageLargeur": 595.32,
+  "pageHauteur": 841.92,
+  "lignesParPage": 11,
+  "champsEnTete": [
+    {
+      "id": "zone_sanitaire",
+      "page": 1,
+      "x": 135,
+      "y": 694.5,
+      "largeur": 90,
+      "hauteur": 12,
+      "police": "regular",
+      "taille": 9,
+      "alignement": "left",
+      "type": "texte",
+      "maxCaracteres": 25
+    },
+    {
+      "id": "commune",
+      "page": 1,
+      "x": 280,
+      "y": 694.5,
+      "largeur": 95,
+      "hauteur": 12,
+      "police": "regular",
+      "taille": 9,
+      "alignement": "left",
+      "type": "texte",
+      "maxCaracteres": 25
+    },
+    {
+      "id": "arrondissement",
+      "page": 1,
+      "x": 450,
+      "y": 694.5,
+      "largeur": 105,
+      "hauteur": 12,
+      "police": "regular",
+      "taille": 9,
+      "alignement": "left",
+      "type": "texte",
+      "maxCaracteres": 25
+    },
+    {
+      "id": "centre_sante",
+      "page": 1,
+      "x": 200,
+      "y": 679.1,
+      "largeur": 350,
+      "hauteur": 12,
+      "police": "regular",
+      "taille": 9,
+      "alignement": "left",
+      "type": "texte",
+      "maxCaracteres": 60
+    },
+    {
+      "id": "village",
+      "page": 1,
+      "x": 105,
+      "y": 663.6,
+      "largeur": 445,
+      "hauteur": 12,
+      "police": "regular",
+      "taille": 9,
+      "alignement": "left",
+      "type": "texte",
+      "maxCaracteres": 70
+    },
+    {
+      "id": "mois",
+      "page": 1,
+      "x": 100,
+      "y": 648,
+      "largeur": 290,
+      "hauteur": 12,
+      "police": "regular",
+      "taille": 9,
+      "alignement": "left",
+      "type": "texte",
+      "maxCaracteres": 25
+    },
+    {
+      "id": "annee",
+      "page": 1,
+      "x": 442,
+      "y": 648,
+      "largeur": 110,
+      "hauteur": 12,
+      "police": "regular",
+      "taille": 9,
+      "alignement": "left",
+      "type": "texte",
+      "maxCaracteres": 10
+    }
+  ],
+  "colonnesTableau": [
+    {
+      "id": "numero",
+      "x": 73,
+      "largeur": 18,
+      "alignement": "center",
+      "police": "bold",
+      "taille": 9,
+      "type": "nombre",
+      "maxCaracteres": 4
+    },
+    {
+      "id": "type_code",
+      "x": 95,
+      "largeur": 108,
+      "alignement": "center",
+      "police": "bold",
+      "taille": 9,
+      "type": "texte",
+      "maxCaracteres": 20
+    },
+    {
+      "id": "date_survenue",
+      "x": 208,
+      "largeur": 66,
+      "alignement": "center",
+      "police": "regular",
+      "taille": 8.5,
+      "type": "texte",
+      "maxCaracteres": 12
+    },
+    {
+      "id": "lieu_detection",
+      "x": 279,
+      "largeur": 81,
+      "alignement": "left",
+      "police": "regular",
+      "taille": 8.5,
+      "type": "texte",
+      "maxCaracteres": 22
+    },
+    {
+      "id": "nb_personnes_touchees",
+      "x": 364,
+      "largeur": 60,
+      "alignement": "center",
+      "police": "bold",
+      "taille": 9,
+      "type": "nombre",
+      "maxCaracteres": 6
+    },
+    {
+      "id": "nb_personnes_decedees",
+      "x": 428,
+      "largeur": 60,
+      "alignement": "center",
+      "police": "bold",
+      "taille": 9,
+      "type": "nombre",
+      "maxCaracteres": 6
+    },
+    {
+      "id": "mesure_prise",
+      "x": 492,
+      "largeur": 63,
+      "alignement": "center",
+      "police": "regular",
+      "taille": 8.5,
+      "type": "texte",
+      "maxCaracteres": 15
+    }
+  ],
+  "yRangées": [
+    572,
+    532,
+    492,
+    452,
+    412,
+    372,
+    332,
+    292,
+    252,
+    212,
+    172
+  ]
+}

@@ -45,6 +45,7 @@ import {
   FicheOfficielleInvestigationEvenement,
   FicheOfficielleRapportHebdoSurveillance
 } from "@/components/fiches-officielles";
+import ModalApercuFidelePdf from "@/components/ModalApercuFidelePdf";
 
 export default function MesFichesPage() {
   const router = useRouter();
@@ -72,6 +73,24 @@ export default function MesFichesPage() {
   // Mode modèle officiel vierge pour téléchargement/impression directe
   const [modeVierge, setModeVierge] = useState<boolean>(false);
   const [modalChoixModeleVierge, setModalChoixModeleVierge] = useState<boolean>(false);
+
+  // État de l'Aperçu Fidèle Vectoriel Officiel DDS (pdf-lib superposition sur PDF officiel)
+  const [ficheApercuPdf, setFicheApercuPdf] = useState<{
+    type: "REG" | "ALR" | "DEC" | "INV" | "RAP";
+    donnees: any;
+    titre?: string;
+    isVierge?: boolean;
+  } | null>(null);
+
+  const ouvrirApercuFidele = (fiche: any, isVierge: boolean = false) => {
+    const type = (fiche.type || "ALR") as "REG" | "ALR" | "DEC" | "INV" | "RAP";
+    setFicheApercuPdf({
+      type,
+      donnees: fiche,
+      titre: fiche.typeLibelle || fiche.titre || "Fiche officielle de surveillance",
+      isVierge
+    });
+  };
 
   // Mappings pour les fiches officielles du Ministère de la Santé
   const mapDecesData = (fc: any) => {
@@ -249,8 +268,8 @@ export default function MesFichesPage() {
   };
 
   const ouvrirModeleVierge = (type: "REG" | "ALR" | "DEC" | "INV" | "RAP", titre: string) => {
-    setModeVierge(true);
-    setFicheConsultation({
+    setModalChoixModeleVierge(false);
+    ouvrirApercuFidele({
       id: "modele-vierge",
       type,
       numero: "MODÈLE OFFICIEL VIERGE",
@@ -266,8 +285,7 @@ export default function MesFichesPage() {
       notificateurTel: currentUser?.telephone || "",
       notificateurTitre: currentUser?.poste || "ASCQ",
       rawData: {}
-    });
-    setModalChoixModeleVierge(false);
+    }, true);
   };
 
   // État et action de validation par l'ASCQ superviseur
@@ -1042,32 +1060,52 @@ export default function MesFichesPage() {
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <button
                         type="button"
-                        onClick={() => setFicheConsultation(f)}
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors"
-                        title="Consulter tous les détails officiels de la fiche"
+                        onClick={() => ouvrirApercuFidele(f, false)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-[#005c30] font-extrabold text-xs border border-emerald-300 shadow-sm active:scale-95 transition-all"
+                        title="Aperçu fidèle vectoriel 100% conforme au PDF officiel de la DDS"
                       >
-                        <Eye className="w-3.5 h-3.5 text-slate-600" />
-                        <span>Consulter</span>
+                        <ShieldCheck className="w-3.5 h-3.5 text-[#005c30]" />
+                        <span>Aperçu fidèle</span>
                       </button>
 
                       <button
                         type="button"
-                        onClick={() => handleImprimerFiche(f)}
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-[#005c30] font-bold text-xs border border-emerald-200 transition-colors"
-                        title="Imprimer directement cette fiche au format A4"
+                        onClick={() => ouvrirApercuFidele(f, false)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-[#FCD116] hover:bg-yellow-400 text-slate-900 font-extrabold text-xs shadow-sm active:scale-95 transition-all"
+                        title="Télécharger le PDF officiel conforme DDS"
                       >
-                        <Printer className="w-3.5 h-3.5" />
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Télécharger le PDF</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => ouvrirApercuFidele(f, false)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-800 font-bold text-xs border border-slate-300 shadow-sm transition-colors"
+                        title="Imprimer au format officiel A4"
+                      >
+                        <Printer className="w-3.5 h-3.5 text-slate-600" />
                         <span>Imprimer</span>
                       </button>
 
                       <button
                         type="button"
-                        onClick={() => exporterFicheSurveillanceIndividuelleExcel(f)}
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-sm active:scale-95 transition-all"
-                        title="Télécharger cette fiche en format Excel officiel"
+                        onClick={() => ouvrirApercuFidele(f, true)}
+                        className="inline-flex items-center gap-1 px-2 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold text-xs transition-colors"
+                        title="Télécharger ou imprimer le modèle officiel vierge"
                       >
-                        <Download className="w-3.5 h-3.5" />
-                        <span>Télécharger (Excel)</span>
+                        <FileText className="w-3 h-3 text-slate-500" />
+                        <span>PDF vierge</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setFicheConsultation(f)}
+                        className="inline-flex items-center gap-1 px-2 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-500 font-medium text-xs border border-slate-200 transition-colors"
+                        title="Consulter les détails terrain et métadonnées"
+                      >
+                        <Eye className="w-3 h-3" />
+                        <span>Détails</span>
                       </button>
                     </div>
                   </div>
@@ -1146,12 +1184,22 @@ export default function MesFichesPage() {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => window.print()}
+                  onClick={() => ouvrirApercuFidele(ficheConsultation, modeVierge)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-400 text-slate-900 font-black text-xs shadow hover:bg-emerald-300 active:scale-95 transition-all"
+                  title="Ouvrir l'Aperçu Fidèle Vectoriel DDS (Superposition 100% conforme sur PDF officiel)"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>Aperçu fidèle PDF</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => ouvrirApercuFidele(ficheConsultation, modeVierge)}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white text-[#005c30] font-bold text-xs shadow hover:bg-emerald-50 active:scale-95 transition-all"
                   title="Imprimer ou enregistrer en PDF au format officiel A4"
                 >
                   <Printer className="w-3.5 h-3.5" />
-                  <span>Imprimer / PDF (A4)</span>
+                  <span>Imprimer (A4)</span>
                 </button>
 
                 {!modeVierge && (
@@ -1476,6 +1524,19 @@ export default function MesFichesPage() {
             Conforme aux directives SIMR / PNSC de la République du Bénin : La validation des fiches de notification terrain s'effectue exclusivement entre le RC et l'ASCQ Superviseur. Aucun visa du médecin coordonnateur n'est requis.
           </p>
         </div>
+      )}
+
+      {/* MODALE D'APERÇU FIDÈLE VECTORIEL SUR PDF OFFICIEL */}
+      {ficheApercuPdf && (
+        <ModalApercuFidelePdf
+          isOpen={Boolean(ficheApercuPdf)}
+          onClose={() => setFicheApercuPdf(null)}
+          typeFiche={ficheApercuPdf.type}
+          donnees={ficheApercuPdf.donnees}
+          currentUser={currentUser}
+          titre={ficheApercuPdf.titre}
+          isViergeInitial={ficheApercuPdf.isVierge}
+        />
       )}
 
     </div>

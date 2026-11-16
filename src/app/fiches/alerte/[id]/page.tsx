@@ -22,12 +22,14 @@ import {
   Phone,
   Check,
   Printer,
-  Download
+  Download,
+  ShieldCheck
 } from "lucide-react";
 import { corrigerAccents, getNomTypeAlerte } from "@/lib/fiches";
 import { exporterFicheSurveillanceIndividuelleExcel } from "@/lib/excelExport";
 import BeninPhoneAction from "@/components/BeninPhoneAction";
 import { FicheOfficielleNotificationAlerte } from "@/components/fiches-officielles";
+import ModalApercuFidelePdf from "@/components/ModalApercuFidelePdf";
 
 export default function DetailAlertePage() {
   const params = useParams();
@@ -44,6 +46,10 @@ export default function DetailAlertePage() {
   const [verifCommentaire, setVerifCommentaire] = useState("");
   const [verifLoading, setVerifLoading] = useState(false);
   const [verifSuccess, setVerifSuccess] = useState<string | null>(null);
+
+  // État Aperçu fidèle PDF superposé
+  const [modalPdfOuvert, setModalPdfOuvert] = useState(false);
+  const [modeViergePdf, setModeViergePdf] = useState(false);
 
   const chargerAlerte = async () => {
     setLoading(true);
@@ -185,32 +191,74 @@ export default function DetailAlertePage() {
           </p>
         </div>
 
-        {/* BARRE D'ACTION ÉCRAN : IMPRESSION & TÉLÉCHARGEMENT EXCEL */}
-        <div className="bg-white rounded-2xl p-3 border border-slate-200/80 shadow-sm flex items-center justify-between gap-2 print:hidden">
+        {/* BARRE D'ACTION ÉCRAN : APERÇU FIDÈLE, TÉLÉCHARGEMENT PDF & EXCEL */}
+        <div className="bg-white rounded-2xl p-3 border border-slate-200/80 shadow-sm flex flex-wrap items-center justify-between gap-2 print:hidden">
           <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-            <FileText className="w-4 h-4 text-[#005c30]" />
-            <span>Fiche SIMR</span>
+            <ShieldCheck className="w-4 h-4 text-[#005c30]" />
+            <span>Fiche Officielle DDS</span>
           </span>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 flex-wrap">
             <button
               type="button"
-              onClick={() => window.print()}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-[#005c30] font-bold text-xs border border-emerald-200 shadow-sm transition-all"
-              title="Imprimer cette fiche au format officiel A4"
+              onClick={() => {
+                setModeViergePdf(false);
+                setModalPdfOuvert(true);
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-[#005c30] font-extrabold text-xs border border-emerald-300 shadow-sm active:scale-95 transition-all"
+              title="Aperçu fidèle vectoriel 100% conforme sur le PDF officiel DDS"
             >
-              <Printer className="w-3.5 h-3.5" />
-              <span>Imprimer (A4)</span>
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>Aperçu fidèle</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setModeViergePdf(false);
+                setModalPdfOuvert(true);
+              }}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-[#FCD116] hover:bg-yellow-400 text-slate-900 font-extrabold text-xs shadow-sm active:scale-95 transition-all"
+              title="Télécharger le PDF officiel de la fiche"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Télécharger le PDF</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setModeViergePdf(false);
+                setModalPdfOuvert(true);
+              }}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-800 font-bold text-xs border border-slate-300 shadow-sm transition-colors"
+              title="Imprimer au format officiel A4"
+            >
+              <Printer className="w-3.5 h-3.5 text-slate-600" />
+              <span>Imprimer</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setModeViergePdf(true);
+                setModalPdfOuvert(true);
+              }}
+              className="inline-flex items-center gap-1 px-2 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold text-xs transition-colors"
+              title="Télécharger ou imprimer le modèle officiel vierge"
+            >
+              <FileText className="w-3 h-3 text-slate-500" />
+              <span>PDF vierge</span>
             </button>
 
             <button
               type="button"
               onClick={() => exporterFicheSurveillanceIndividuelleExcel(alerte)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#005c30] hover:bg-[#004724] text-white font-bold text-xs shadow-sm active:scale-95 transition-all"
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 font-medium text-xs border border-slate-200 transition-colors"
               title="Télécharger cette fiche en format Excel"
             >
               <Download className="w-3.5 h-3.5" />
-              <span>Télécharger (Excel)</span>
+              <span>Excel</span>
             </button>
           </div>
         </div>
@@ -693,6 +741,39 @@ export default function DetailAlertePage() {
             }}
           />
         </div>
+      )}
+
+      {/* MODALE D'APERÇU FIDÈLE VECTORIEL SUR PDF OFFICIEL */}
+      {modalPdfOuvert && alerte && (
+        <ModalApercuFidelePdf
+          isOpen={modalPdfOuvert}
+          onClose={() => setModalPdfOuvert(false)}
+          typeFiche="ALR"
+          donnees={{
+            point_focal_nom: alerte.notificateur_nom_complet,
+            telephone: alerte.notificateur_telephone || "",
+            arrondissement: alerte.arrondissement_nom,
+            commune: alerte.commune_nom,
+            zone_sanitaire: alerte.zone_sanitaire_nom || alerte.departement_nom,
+            date_notification: alerte.date_notification,
+            type_maladie: `${corrigerAccents(alerte.type_alerte_nom || "")}${alerte.autre_evenement_precision ? " — " + alerte.autre_evenement_precision : ""}`,
+            date_survenue: alerte.date_survenue ? `${alerte.date_survenue} ${alerte.heure_survenue || ""}`.trim() : "",
+            date_detection: alerte.date_detection ? `${alerte.date_detection} ${alerte.heure_detection || ""}`.trim() : "",
+            lieu_provenance: `${alerte.village_nom || ""}${alerte.adresse_domicile ? " (" + alerte.adresse_domicile + ")" : ""}`,
+            nb_personnes_touchees: alerte.nb_personnes_touchees ?? 1,
+            deces_presence_nb: (Number(alerte.nb_personnes_mortes) > 0 || alerte.deces_presence) ? `OUI (${alerte.nb_personnes_mortes || 1} décès)` : "NON",
+            animaux_impliques: alerte.animaux_impliques ? "OUI" : "NON",
+            evenement_en_cours: alerte.evenement_en_cours !== false ? "OUI" : "NON",
+            mesures_prises: alerte.mesures_prises || alerte.actions_immediates || "",
+            signature_nom: alerte.notificateur_nom_complet,
+            village: alerte.village_nom,
+            numero: alerte.numero_alerte,
+            id: alerte.id
+          }}
+          currentUser={currentUser}
+          titre="Fiche de notification des alertes communautaires (ASCQ)"
+          isViergeInitial={modeViergePdf}
+        />
       )}
     </div>
   );

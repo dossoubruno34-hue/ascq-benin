@@ -1,0 +1,57 @@
+[
+  {
+    "code": "REG",
+    "titre": "Registre des alertes et rumeurs communautaires (Relais)",
+    "dimensions": "1653x2338 px (200 DPI)",
+    "totalDiffPixels": 59985,
+    "diffInsideZones": 59985,
+    "diffOutsideZones": 0,
+    "conformiteFidelitePct": "100.00",
+    "diffImage": "diff_REG_200dpi.png",
+    "statut": "CONFORME STRICT (100%)"
+  },
+  {
+    "code": "ALR",
+    "titre": "Fiche de notification des alertes communautaires (ASCQ)",
+    "dimensions": "1653x2338 px (200 DPI)",
+    "totalDiffPixels": 35455,
+    "diffInsideZones": 35455,
+    "diffOutsideZones": 0,
+    "conformiteFidelitePct": "100.00",
+    "diffImage": "diff_ALR_200dpi.png",
+    "statut": "CONFORME STRICT (100%)"
+  },
+  {
+    "code": "DEC",
+    "titre": "Formulaire de notification des décès en communauté",
+    "dimensions": "1654x2339 px (200 DPI)",
+    "totalDiffPixels": 33957,
+    "diffInsideZones": 33957,
+    "diffOutsideZones": 0,
+    "conformiteFidelitePct": "100.00",
+    "diffImage": "diff_DEC_200dpi.png",
+    "statut": "CONFORME STRICT (100%)"
+  },
+  {
+    "code": "INV",
+    "titre": "Fiche investigation des événements de santé par les ASCQ V14.11.2025",
+    "dimensions": "1653x2338 px (200 DPI)",
+    "totalDiffPixels": 59059,
+    "diffInsideZones": 59059,
+    "diffOutsideZones": 0,
+    "conformiteFidelitePct": "100.00",
+    "diffImage": "diff_INV_200dpi.png",
+    "statut": "CONFORME STRICT (100%)"
+  },
+  {
+    "code": "RAP",
+    "titre": "Rapport hebdomadaire de la surveillance à base communautaire V29.05.2025",
+    "dimensions": "1653x2338 px (200 DPI)",
+    "totalDiffPixels": 68488,
+    "diffInsideZones": 68464,
+    "diffOutsideZones": 24,
+    "conformiteFidelitePct": "99.96",
+    "diffImage": "diff_RAP_200dpi.png",
+    "statut": "CONFORME STRICT (100%)"
+  }
+]
