@@ -17,9 +17,11 @@ import {
   RefreshCw,
   Info,
   Printer,
-  Download
+  Download,
+  FileText
 } from "lucide-react";
 import SignatureCanvas from "@/components/SignatureCanvas";
+import ModalApercuFidelePdf from "@/components/ModalApercuFidelePdf";
 import { getEpidemiologicalWeek, calculerDatesSemaine } from "@/lib/fiches";
 import { exporterFicheSurveillanceIndividuelleExcel } from "@/lib/excelExport";
 
@@ -30,6 +32,7 @@ export default function NouveauRapportHebdoPage() {
   const [preLoading, setPreLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successResult, setSuccessResult] = useState<any>(null);
+  const [modalPdfOuvert, setModalPdfOuvert] = useState(false);
 
   // Profil & géographie
   const [userProfile, setUserProfile] = useState<any>(null);
@@ -250,25 +253,72 @@ export default function NouveauRapportHebdoPage() {
           </div>
 
           {/* BOUTONS D'IMPRESSION & TÉLÉCHARGEMENT DIRECTS */}
-          <div className="grid grid-cols-2 gap-2 pt-1">
+          <div className="space-y-2 pt-1">
             <button
               type="button"
-              onClick={() => window.print()}
-              className="py-2.5 px-3 rounded-2xl bg-indigo-50 hover:bg-indigo-100 text-indigo-900 font-bold text-xs border border-indigo-200 flex items-center justify-center gap-1.5 transition-colors"
+              onClick={() => setModalPdfOuvert(true)}
+              className="w-full py-3 px-4 rounded-2xl bg-[#005c30] hover:bg-[#004724] text-white font-black text-xs shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
             >
-              <Printer className="w-4 h-4" />
-              <span>Imprimer (A4)</span>
+              <FileText className="w-4 h-4 text-emerald-300" />
+              <span>Télécharger / Imprimer le PDF officiel DDS</span>
             </button>
 
-            <button
-              type="button"
-              onClick={() => exporterFicheSurveillanceIndividuelleExcel(ficheRapExport)}
-              className="py-2.5 px-3 rounded-2xl bg-[#005c30] hover:bg-[#004724] text-white font-bold text-xs shadow-sm flex items-center justify-center gap-1.5 transition-all"
-            >
-              <Download className="w-4 h-4" />
-              <span>Télécharger Excel</span>
-            </button>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setModalPdfOuvert(true)}
+                className="py-2.5 px-3 rounded-2xl bg-indigo-50 hover:bg-indigo-100 text-indigo-900 font-bold text-xs border border-indigo-200 flex items-center justify-center gap-1.5 transition-colors"
+              >
+                <Printer className="w-4 h-4" />
+                <span>Aperçu A4</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => exporterFicheSurveillanceIndividuelleExcel(ficheRapExport)}
+                className="py-2.5 px-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs shadow-sm flex items-center justify-center gap-1.5 transition-all"
+              >
+                <Download className="w-4 h-4" />
+                <span>Export Excel</span>
+              </button>
+            </div>
           </div>
+
+          {modalPdfOuvert && (
+            <ModalApercuFidelePdf
+              isOpen={modalPdfOuvert}
+              onClose={() => setModalPdfOuvert(false)}
+              typeFiche="RAP"
+              donnees={{
+                numero: successResult.numero_rapport,
+                semaine_num: semaine,
+                annee: annee,
+                date_debut: dateDebut,
+                date_fin: dateFin,
+                departement: departements.find(d => d.id === departementId)?.nom || "",
+                zone_sanitaire: userProfile?.zone_sanitaire_nom || "",
+                commune: communes.find(c => c.id === communeId)?.nom || "",
+                arrondissement: arrondissements.find(a => a.id === arrondissementId)?.nom || "",
+                village: villageNom,
+                alertes_detectees: alertesDetectees,
+                personnes_touchees: personnesTouchees,
+                personnes_decedees: personnesDecedees,
+                alertes_verifiees_48h: alertesVerifiees48h,
+                alertes_averees: alertesAverees,
+                deces_maternels: decesMaternels,
+                deces_neonatals: decesNeonatals,
+                deces_infantiles: decesInfantiles,
+                deces_infanto_juveniles: decesInfantoJuveniles,
+                deces_plus_5_ans: decesPlus5Ans,
+                actions_menees: actionsMenees,
+                difficultes: difficultes,
+                signature_tactile: signatureTactile,
+                signature_rapporteur: userProfile?.nom_complet || "ASCQ",
+                signature_nom: userProfile?.nom_complet || "ASCQ"
+              }}
+              currentUser={userProfile}
+            />
+          )}
 
           <div className="pt-2 flex flex-col gap-2">
             <Link
@@ -517,6 +567,43 @@ export default function NouveauRapportHebdoPage() {
               </label>
             </div>
           )}
+
+          {/* 3. Actions menées au cours de la semaine (Section officielle sur lignes pointillées) */}
+          <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm space-y-3.5">
+            <div className="flex items-center justify-between">
+              <h2 className="font-extrabold text-sm text-slate-900">3. Actions menées au cours de la semaine *</h2>
+              <span className="text-[10px] text-[#005c30] font-bold bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                Lignes pointillées officielles DDS
+              </span>
+            </div>
+            <p className="text-xs text-slate-500">
+              Renseignez les activités réalisées (visites à domicile ménages, dépistages TDR, sensibilisations, désinfections, références CS, réunions Relais...). Le texte sera automatiquement posé sur les lignes pointillées du formulaire officiel.
+            </p>
+            <textarea
+              rows={6}
+              required
+              placeholder="Exemple :
+1. Réunion de coordination hebdomadaire tenue avec les Relais Communautaires.
+2. Visites à domicile réalisées dans 45 ménages ciblés pour le suivi épidémiologique.
+3. Dépistage actif par TDR chez 8 enfants fébriles : 3 cas positifs référés et traités.
+4. Sensibilisation collective sur l'hygiène de l'eau et l'assainissement de base..."
+              value={actionsMenees}
+              onChange={(e) => setActionsMenees(e.target.value)}
+              className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-[#005c30] leading-relaxed"
+            />
+          </div>
+
+          {/* 4. Difficultés rencontrées et besoins (Facultatif) */}
+          <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm space-y-2">
+            <h2 className="font-extrabold text-sm text-slate-900">4. Difficultés rencontrées et besoins (optionnel)</h2>
+            <textarea
+              rows={2}
+              placeholder="Ex: Pénurie temporaire d'Aquatabs, voies d'accès inondées..."
+              value={difficultes}
+              onChange={(e) => setDifficultes(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium"
+            />
+          </div>
 
           {/* Signature */}
           <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm space-y-3">

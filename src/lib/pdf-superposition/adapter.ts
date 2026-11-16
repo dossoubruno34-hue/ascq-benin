@@ -44,7 +44,9 @@ export function adapterDonneesFicheVersPdf(type: string, raw: any): Record<strin
         village: d.village || r.village || "",
         mois: r.mois || (d.date ? d.date.split("-")[1] : ""),
         annee: String(d.annee || r.annee || new Date().getFullYear()),
-        lignes: lignesNormalisees
+        lignes: lignesNormalisees,
+        signature_nom: r.notificateur_nom_complet || d.notificateur || "",
+        signature_tactile: r.signature_tactile || d.signature_tactile || d.signature || null
       };
     }
 
@@ -67,7 +69,8 @@ export function adapterDonneesFicheVersPdf(type: string, raw: any): Record<strin
         animaux_impliques: r.animaux_impliques ? "OUI" : "NON",
         evenement_en_cours: r.evenement_en_cours !== false ? "OUI" : "NON",
         mesures_prises: r.mesures_prises || r.actions_immediates || "",
-        signature_nom: r.notificateur_nom_complet || d.notificateur || ""
+        signature_nom: r.notificateur_nom_complet || d.notificateur || "",
+        signature_tactile: r.signature_tactile || d.signature_tactile || d.signature || null
       };
     }
 
@@ -77,19 +80,19 @@ export function adapterDonneesFicheVersPdf(type: string, raw: any): Record<strin
         annee: String(d.annee || r.annee || new Date().getFullYear()),
         semaine_epidemio: String(d.semaine || r.semaine_epidemio || ""),
         mois: r.mois || (d.date ? d.date.split("-")[1] : ""),
-        npi_defunt: r.npi_defunt || r.defunt_npi || "",
+        npi_defunt: r.npi_defunt || r.npiDefunt || r.defunt_npi || d.npi_defunt || d.npiDefunt || "",
         numero_deces: d.numero || r.numero_deces || "",
         departement: d.departement || r.departement || "",
         zone_sanitaire: r.zone_sanitaire_nom || r.zone_sanitaire || d.departement || "",
         commune: d.commune || r.commune || "",
         arrondissement: d.arrondissement || r.arrondissement || "",
         village: d.village || r.village || "",
-        numero_grappe: r.numero_grappe || r.grappe || "",
+        numero_grappe: r.numero_grappe || r.numeroGrappe || r.grappe || d.numero_grappe || "",
         adresse: r.adresse_domicile || r.adresse || "",
         nom_prenoms_defunt: defuntNom,
         nom_parent: r.nom_parent || "",
         telephone_parent: r.telephone_parent || "",
-        date_naissance: r.date_naissance || "",
+        date_naissance: r.date_naissance || r.dateNaissance || d.date_naissance || "",
         age_annees: r.age_annees ?? r.age_valeur ?? "",
         sexe: (r.sexe || "").toUpperCase() === "M" ? "M" : (r.sexe || "").toUpperCase() === "F" ? "F" : "",
         gps_longitude: r.gps_longitude || r.longitude || "",
@@ -105,7 +108,9 @@ export function adapterDonneesFicheVersPdf(type: string, raw: any): Record<strin
         notificateur_titre: r.notificateur_titre || d.notificateurTitre || "ASCQ",
         notificateur_structure: r.notificateur_structure || `Arrondissement de ${d.arrondissement || ""}`,
         notificateur_telephone: r.notificateur_telephone || d.notificateurTel || "",
-        signature_date: `Fait le ${d.date || new Date().toLocaleDateString('fr-FR')}`
+        signature_date: `Fait le ${d.date || new Date().toLocaleDateString('fr-FR')}`,
+        signature_nom: r.notificateur_nom_complet || d.notificateur || "",
+        signature_tactile: r.signature_tactile || d.signature_tactile || d.signature || null
       };
     }
 
@@ -148,7 +153,9 @@ export function adapterDonneesFicheVersPdf(type: string, raw: any): Record<strin
         deces_plus_15a_m: r.deces_plus_15a_m ?? dec.decesPlus15a_m ?? 0,
         deces_plus_15a_f: r.deces_plus_15a_f ?? dec.decesPlus15a_f ?? 0,
         synthese_actions: r.synthese_actions || r.actions_menees || "",
-        signature_investigateurs: r.investigateur_nom || d.notificateur || ""
+        signature_investigateurs: r.investigateur_nom || d.notificateur || "",
+        signature_nom: r.investigateur_nom || d.notificateur || "",
+        signature_tactile: r.signature_tactile || d.signature_tactile || d.signature || null
       };
     }
 
@@ -191,8 +198,10 @@ export function adapterDonneesFicheVersPdf(type: string, raw: any): Record<strin
         deces_infantiles: r.deces_infantiles ?? 0,
         deces_infanto_juveniles: r.deces_infanto_juveniles ?? 0,
         deces_plus_5_ans: r.deces_plus_5_ans ?? 0,
-        actions_menees: r.actions_menees || r.actions || "",
-        signature_rapporteur: r.rapporteur_nom || d.notificateur || ""
+        actions_menees: r.actions_menees || r.actionsMenees || r.actions || d.actions_menees || d.actionsMenees || "",
+        signature_rapporteur: r.rapporteur_nom || d.notificateur || "",
+        signature_nom: r.rapporteur_nom || d.notificateur || "",
+        signature_tactile: r.signature_tactile || d.signature_tactile || d.signature || null
       };
     }
 

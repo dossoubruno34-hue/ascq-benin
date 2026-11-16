@@ -17,10 +17,12 @@ import {
   Skull,
   User,
   Printer,
-  Download
+  Download,
+  FileText
 } from "lucide-react";
 import { REGISTRE_TYPES_OFFICIELS } from "@/lib/fiches";
 import GpsLocationCapture from "@/components/GpsLocationCapture";
+import ModalApercuFidelePdf from "@/components/ModalApercuFidelePdf";
 import { exporterFicheSurveillanceIndividuelleExcel } from "@/lib/excelExport";
 
 export default function NouveauRegistrePage() {
@@ -29,6 +31,7 @@ export default function NouveauRegistrePage() {
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successResult, setSuccessResult] = useState<any>(null);
+  const [modalPdfOuvert, setModalPdfOuvert] = useState(false);
 
   // Profil & géographie
   const [userProfile, setUserProfile] = useState<any>(null);
@@ -187,25 +190,66 @@ export default function NouveauRegistrePage() {
           </div>
 
           {/* BOUTONS D'IMPRESSION & TÉLÉCHARGEMENT DIRECTS */}
-          <div className="grid grid-cols-2 gap-2 pt-1">
+          <div className="space-y-2 pt-1">
             <button
               type="button"
-              onClick={() => window.print()}
-              className="py-2.5 px-3 rounded-2xl bg-blue-50 hover:bg-blue-100 text-blue-800 font-bold text-xs border border-blue-200 flex items-center justify-center gap-1.5 transition-colors"
+              onClick={() => setModalPdfOuvert(true)}
+              className="w-full py-3 px-4 rounded-2xl bg-[#005c30] hover:bg-[#004724] text-white font-black text-xs shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
             >
-              <Printer className="w-4 h-4" />
-              <span>Imprimer (A4)</span>
+              <FileText className="w-4 h-4 text-emerald-300" />
+              <span>Télécharger / Imprimer le Registre officiel DDS</span>
             </button>
 
-            <button
-              type="button"
-              onClick={() => exporterFicheSurveillanceIndividuelleExcel(ficheRegExport)}
-              className="py-2.5 px-3 rounded-2xl bg-[#005c30] hover:bg-[#004724] text-white font-bold text-xs shadow-sm flex items-center justify-center gap-1.5 transition-all"
-            >
-              <Download className="w-4 h-4" />
-              <span>Télécharger Excel</span>
-            </button>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setModalPdfOuvert(true)}
+                className="py-2.5 px-3 rounded-2xl bg-blue-50 hover:bg-blue-100 text-blue-800 font-bold text-xs border border-blue-200 flex items-center justify-center gap-1.5 transition-colors"
+              >
+                <Printer className="w-4 h-4" />
+                <span>Aperçu A4</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => exporterFicheSurveillanceIndividuelleExcel(ficheRegExport)}
+                className="py-2.5 px-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs shadow-sm flex items-center justify-center gap-1.5 transition-all"
+              >
+                <Download className="w-4 h-4" />
+                <span>Export Excel</span>
+              </button>
+            </div>
           </div>
+
+          {modalPdfOuvert && (
+            <ModalApercuFidelePdf
+              isOpen={modalPdfOuvert}
+              onClose={() => setModalPdfOuvert(false)}
+              typeFiche="REG"
+              donnees={{
+                numero: successResult.numero_ligne || "L1",
+                mois: new Date(dateSurvenue).getMonth() + 1,
+                annee: new Date(dateSurvenue).getFullYear(),
+                commune: communes.find(c => c.id === communeId)?.nom || "",
+                arrondissement: arrondissements.find(a => a.id === arrondissementId)?.nom || "",
+                village: villageNom,
+                lignes: [
+                  {
+                    numero: 1,
+                    type_code: typeCode,
+                    date_survenue: dateSurvenue,
+                    lieu_detection: villageNom || lieuDetection,
+                    nb_touches: nbPersonnesTouchees,
+                    nb_morts: nbPersonnesDecedees,
+                    mesures_prises: mesurePrise || "Signalé à l'ASCQ"
+                  }
+                ],
+                notificateur: userProfile?.nom_complet || "Relais Communautaire",
+                signature_nom: userProfile?.nom_complet || "Relais Communautaire"
+              }}
+              currentUser={userProfile}
+            />
+          )}
 
           <div className="pt-2 flex flex-col gap-2">
             <Link

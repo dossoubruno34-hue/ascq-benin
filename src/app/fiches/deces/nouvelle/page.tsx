@@ -18,10 +18,12 @@ import {
   Clock,
   ChevronRight,
   Printer,
-  Download
+  Download,
+  FileText
 } from "lucide-react";
 import SignatureCanvas from "@/components/SignatureCanvas";
 import GpsLocationCapture from "@/components/GpsLocationCapture";
+import ModalApercuFidelePdf from "@/components/ModalApercuFidelePdf";
 import { exporterFicheSurveillanceIndividuelleExcel } from "@/lib/excelExport";
 import { 
   DECES_TYPES_OFFICIELS, 
@@ -64,6 +66,7 @@ export default function NouveauDecesPage() {
   const [nomDefunt, setNomDefunt] = useState("");
   const [prenomsDefunt, setPrenomsDefunt] = useState("");
   const [npiDefunt, setNpiDefunt] = useState("");
+  const [dateNaissance, setDateNaissance] = useState("");
   const [sexe, setSexe] = useState<"M" | "F">("M");
   const [ageValeur, setAgeValeur] = useState<number | string>(30);
   const [ageUnite, setAgeUnite] = useState<"ANS" | "MOIS" | "JOURS">("ANS");
@@ -80,9 +83,11 @@ export default function NouveauDecesPage() {
   const [lieuPaysEtranger, setLieuPaysEtranger] = useState("");
   const [circonstanceCode, setCirconstanceCode] = useState<number>(2); // Maladie par défaut
   const [circonstanceAutrePrecision, setCirconstanceAutrePrecision] = useState("");
+  const [causeProbableCim10, setCauseProbableCim10] = useState("");
 
-  // Signature
+  // Signature & Modal PDF
   const [signatureTactile, setSignatureTactile] = useState<string | null>(null);
+  const [modalPdfOuvert, setModalPdfOuvert] = useState(false);
 
   const epidemio = getEpidemiologicalWeek(dateNotification);
 
@@ -194,7 +199,7 @@ export default function NouveauDecesPage() {
         p_nom_defunt: nomDefunt.trim(),
         p_prenoms_defunt: prenomsDefunt.trim(),
         p_npi_defunt: npiDefunt.trim() || null,
-        p_date_naissance: null,
+        p_date_naissance: dateNaissance || null,
         p_nom_parent: nomParent.trim() || null,
         p_telephone_parent: telephoneParent.trim() || null,
         p_adresse_domicile: adresseDomicile.trim() || null,
@@ -250,25 +255,82 @@ export default function NouveauDecesPage() {
           </div>
 
           {/* BOUTONS D'IMPRESSION & TÉLÉCHARGEMENT DIRECTS */}
-          <div className="grid grid-cols-2 gap-2 pt-1">
+          <div className="space-y-2 pt-1">
             <button
               type="button"
-              onClick={() => window.print()}
-              className="py-2.5 px-3 rounded-2xl bg-purple-50 hover:bg-purple-100 text-purple-800 font-bold text-xs border border-purple-200 flex items-center justify-center gap-1.5 transition-colors"
+              onClick={() => setModalPdfOuvert(true)}
+              className="w-full py-3 px-4 rounded-2xl bg-[#005c30] hover:bg-[#004724] text-white font-black text-xs shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
             >
-              <Printer className="w-4 h-4" />
-              <span>Imprimer (A4)</span>
+              <FileText className="w-4 h-4 text-emerald-300" />
+              <span>Télécharger / Imprimer le PDF officiel DDS</span>
             </button>
 
-            <button
-              type="button"
-              onClick={() => exporterFicheSurveillanceIndividuelleExcel(ficheDecesExport)}
-              className="py-2.5 px-3 rounded-2xl bg-[#005c30] hover:bg-[#004724] text-white font-bold text-xs shadow-sm flex items-center justify-center gap-1.5 transition-all"
-            >
-              <Download className="w-4 h-4" />
-              <span>Télécharger Excel</span>
-            </button>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setModalPdfOuvert(true)}
+                className="py-2.5 px-3 rounded-2xl bg-purple-50 hover:bg-purple-100 text-purple-800 font-bold text-xs border border-purple-200 flex items-center justify-center gap-1.5 transition-colors"
+              >
+                <Printer className="w-4 h-4" />
+                <span>Aperçu A4</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => exporterFicheSurveillanceIndividuelleExcel(ficheDecesExport)}
+                className="py-2.5 px-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs shadow-sm flex items-center justify-center gap-1.5 transition-all"
+              >
+                <Download className="w-4 h-4" />
+                <span>Export Excel</span>
+              </button>
+            </div>
           </div>
+
+          {modalPdfOuvert && (
+            <ModalApercuFidelePdf
+              isOpen={modalPdfOuvert}
+              onClose={() => setModalPdfOuvert(false)}
+              typeFiche="DEC"
+              donnees={{
+                numero: successResult.numero_deces,
+                annee: successResult.annee || new Date().getFullYear(),
+                semaine: successResult.semaine_epidemio,
+                mois: new Date(dateDeces).getMonth() + 1,
+                npi_defunt: npiDefunt,
+                departement: departements.find(d => d.id === departementId)?.nom || "",
+                zone_sanitaire: userProfile?.zone_sanitaire_nom || "",
+                commune: communes.find(c => c.id === communeId)?.nom || "",
+                arrondissement: arrondissements.find(a => a.id === arrondissementId)?.nom || "",
+                village: villageNom,
+                numero_grappe: numeroGrappe,
+                nom_grappe: nomGrappe,
+                adresse: adresseDomicile,
+                nom_prenoms_defunt: `${nomDefunt} ${prenomsDefunt}`.trim(),
+                nom_parent: nomParent,
+                telephone_parent: telephoneParent,
+                date_naissance: dateNaissance,
+                age_valeur: ageValeur,
+                age_unite: ageUnite,
+                sexe: sexe,
+                gps_latitude: gpsLatitude,
+                gps_longitude: gpsLongitude,
+                type_deces_code: typeDecesCode,
+                date_deces: dateDeces,
+                heure_deces: heureDeces,
+                date_notification: dateNotification,
+                lieu_deces_code: lieuDecesCode,
+                lieu_pays_etranger: lieuPaysEtranger,
+                circonstance_code: circonstanceCode,
+                circonstance_autre_precision: circonstanceAutrePrecision,
+                cause_probable_cim10: causeProbableCim10,
+                notificateur: userProfile?.nom_complet || "ASCQ",
+                notificateurTel: userProfile?.telephone || "",
+                signature_tactile: signatureTactile,
+                signature_nom: userProfile?.nom_complet || "ASCQ"
+              }}
+              currentUser={userProfile}
+            />
+          )}
 
           <div className="pt-2 flex flex-col gap-2">
             <Link
@@ -380,6 +442,31 @@ export default function NouveauDecesPage() {
               </div>
             </div>
 
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-700">N° de Grappe (recensement)</label>
+                <input
+                  type="number"
+                  min={1}
+                  placeholder="Ex: 1"
+                  value={numeroGrappe}
+                  onChange={(e) => setNumeroGrappe(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-700">Nom de la grappe (optionnel)</label>
+                <input
+                  type="text"
+                  placeholder="Ex: Hameau Nord"
+                  value={nomGrappe}
+                  onChange={(e) => setNomGrappe(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white"
+                />
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-3 pt-1">
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-700">Date du décès *</label>
@@ -423,8 +510,24 @@ export default function NouveauDecesPage() {
                 <h2 className="font-extrabold text-sm text-slate-900">Identité du défunt</h2>
               </div>
               <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200 flex items-center gap-1">
-                <span>Identification terrain</span>
+                <span>Section 2 Officielle DDS</span>
               </span>
+            </div>
+
+            {/* Champ NPI du défunt */}
+            <div className="space-y-1 p-3 bg-slate-50/80 rounded-2xl border border-slate-200">
+              <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                <span>NPI du défunt (Numéro Personnel d'Identification)</span>
+                <span className="text-[10px] text-slate-500 font-semibold">10 ou 16 chiffres ANIP (optionnel si non disponible)</span>
+              </label>
+              <input
+                type="text"
+                placeholder="Ex: 1234567890123456"
+                maxLength={16}
+                value={npiDefunt}
+                onChange={(e) => setNpiDefunt(e.target.value.replace(/\D/g, ""))}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 font-mono text-xs bg-white tracking-widest placeholder:tracking-normal placeholder:font-sans"
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -449,6 +552,26 @@ export default function NouveauDecesPage() {
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs"
                 />
               </div>
+            </div>
+
+            {/* Date de naissance optionnelle */}
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                <span>Date de naissance exacte (si connue)</span>
+                <span className="text-[10px] text-slate-400 font-normal">Calcule l'âge automatiquement</span>
+              </label>
+              <input
+                type="date"
+                value={dateNaissance}
+                onChange={(e) => {
+                  setDateNaissance(e.target.value);
+                  if (e.target.value) {
+                    const diffYears = new Date().getFullYear() - new Date(e.target.value).getFullYear();
+                    if (diffYears >= 0) setAgeValeur(diffYears);
+                  }
+                }}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white"
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -612,6 +735,21 @@ export default function NouveauDecesPage() {
                 />
               </div>
             )}
+
+            {/* Cause probable ou signes majeurs observés */}
+            <div className="space-y-1 pt-1">
+              <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                <span>Cause probable du décès / Signes majeurs constatés</span>
+                <span className="text-[10px] text-slate-400 font-normal">Section 5 Officielle DDS</span>
+              </label>
+              <input
+                type="text"
+                placeholder="Ex: Fièvre prolongée, difficultés respiratoires, convulsion, hémorragie post-partum..."
+                value={causeProbableCim10}
+                onChange={(e) => setCauseProbableCim10(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-xs bg-white"
+              />
+            </div>
           </div>
 
           {/* Signature notificateur */}

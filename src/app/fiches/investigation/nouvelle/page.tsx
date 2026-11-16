@@ -17,9 +17,11 @@ import {
   CheckCircle2,
   XCircle,
   Printer,
-  Download
+  Download,
+  FileText
 } from "lucide-react";
 import SignatureCanvas from "@/components/SignatureCanvas";
+import ModalApercuFidelePdf from "@/components/ModalApercuFidelePdf";
 import { TYPES_ALERTES_OFFICIELS, getEpidemiologicalWeek } from "@/lib/fiches";
 import { exporterFicheSurveillanceIndividuelleExcel } from "@/lib/excelExport";
 
@@ -34,6 +36,7 @@ function NouvelleInvestigationContent() {
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successResult, setSuccessResult] = useState<any>(null);
+  const [modalPdfOuvert, setModalPdfOuvert] = useState(false);
 
   // Profil & géographie
   const [userProfile, setUserProfile] = useState<any>(null);
@@ -241,25 +244,80 @@ function NouvelleInvestigationContent() {
           </div>
 
           {/* BOUTONS D'IMPRESSION & TÉLÉCHARGEMENT DIRECTS */}
-          <div className="grid grid-cols-2 gap-2 pt-1">
+          <div className="space-y-2 pt-1">
             <button
               type="button"
-              onClick={() => window.print()}
-              className="py-2.5 px-3 rounded-2xl bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs border border-amber-200 flex items-center justify-center gap-1.5 transition-colors"
+              onClick={() => setModalPdfOuvert(true)}
+              className="w-full py-3 px-4 rounded-2xl bg-[#005c30] hover:bg-[#004724] text-white font-black text-xs shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
             >
-              <Printer className="w-4 h-4" />
-              <span>Imprimer (A4)</span>
+              <FileText className="w-4 h-4 text-emerald-300" />
+              <span>Télécharger / Imprimer le PDF officiel DDS</span>
             </button>
 
-            <button
-              type="button"
-              onClick={() => exporterFicheSurveillanceIndividuelleExcel(ficheInvExport)}
-              className="py-2.5 px-3 rounded-2xl bg-[#005c30] hover:bg-[#004724] text-white font-bold text-xs shadow-sm flex items-center justify-center gap-1.5 transition-all"
-            >
-              <Download className="w-4 h-4" />
-              <span>Télécharger Excel</span>
-            </button>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setModalPdfOuvert(true)}
+                className="py-2.5 px-3 rounded-2xl bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs border border-amber-200 flex items-center justify-center gap-1.5 transition-colors"
+              >
+                <Printer className="w-4 h-4" />
+                <span>Aperçu A4</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => exporterFicheSurveillanceIndividuelleExcel(ficheInvExport)}
+                className="py-2.5 px-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs shadow-sm flex items-center justify-center gap-1.5 transition-all"
+              >
+                <Download className="w-4 h-4" />
+                <span>Export Excel</span>
+              </button>
+            </div>
           </div>
+
+          {modalPdfOuvert && (
+            <ModalApercuFidelePdf
+              isOpen={modalPdfOuvert}
+              onClose={() => setModalPdfOuvert(false)}
+              typeFiche="INV"
+              donnees={{
+                numero: successResult.numero_investigation,
+                type: "INV",
+                titre: "Fiche d'investigation des événements de santé",
+                semaine: successResult.semaine_epidemio,
+                annee: successResult.annee,
+                date_survenue: dateSurvenue,
+                date_investigation: dateInvestigation,
+                departement: departements.find(d => d.id === departementId)?.nom || "",
+                zone_sanitaire: userProfile?.zone_sanitaire_nom || "",
+                commune: communes.find(c => c.id === communeId)?.nom || "",
+                arrondissement: arrondissements.find(a => a.id === arrondissementId)?.nom || "",
+                village: villageNom,
+                description_evenement: descriptionEvenement,
+                cas_0_11m_m: cas0_11m_m,
+                cas_0_11m_f: cas0_11m_f,
+                cas_1_5a_m: cas1_5a_m,
+                cas_1_5a_f: cas1_5a_f,
+                cas_6_15a_m: cas6_15a_m,
+                cas_6_15a_f: cas6_15a_f,
+                cas_plus_15a_m: casPlus15a_m,
+                cas_plus_15a_f: casPlus15a_f,
+                deces_0_11m_m: deces0_11m_m,
+                deces_0_11m_f: deces0_11m_f,
+                deces_1_5a_m: deces1_5a_m,
+                deces_1_5a_f: deces1_5a_f,
+                deces_6_15a_m: deces6_15a_m,
+                deces_6_15a_f: deces6_15a_f,
+                deces_plus_15a_m: decesPlus15a_m,
+                deces_plus_15a_f: decesPlus15a_f,
+                synthese_actions: syntheseActions,
+                signature_tactile: signatureTactile,
+                signature_investigateurs: userProfile?.nom_complet || "ASCQ Investigateur",
+                signature_nom: userProfile?.nom_complet || "ASCQ Investigateur"
+              }}
+              currentUser={userProfile}
+            />
+          )}
 
           <div className="pt-2 flex flex-col gap-2">
             <Link

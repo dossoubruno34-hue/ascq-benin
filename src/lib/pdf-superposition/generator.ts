@@ -94,6 +94,76 @@ function fitFontSize(
 }
 
 /**
+ * Intègre la signature officielle du déclarant / notificateur :
+ * 1. Si une signature tactile (image PNG/JPEG base64) est présente, elle est intégrée et centrée dans la case.
+ * 2. Si aucune image n'est disponible, une signature électronique textuelle conforme est dessinée.
+ */
+async function dessinerSignature(
+  pdfDoc: PDFDocument,
+  page: PDFPage,
+  box: { x: number; y: number; largeur: number; hauteur: number },
+  signatureTactile: string | null | undefined,
+  nomSignataire: string,
+  fontRegular: PDFFont,
+  fontBold: PDFFont
+) {
+  let imageEmbedded = false;
+
+  if (signatureTactile && typeof signatureTactile === "string" && signatureTactile.trim().length > 50) {
+    try {
+      let rawBase64 = signatureTactile.trim();
+      const isJpg = rawBase64.includes("image/jpeg") || rawBase64.includes("image/jpg");
+      rawBase64 = rawBase64.replace(/^data:image\/(png|jpeg|jpg);base64,/, "");
+
+      let bytes: Uint8Array;
+      if (typeof Buffer !== "undefined") {
+        bytes = new Uint8Array(Buffer.from(rawBase64, "base64"));
+      } else {
+        const bin = atob(rawBase64);
+        bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) {
+          bytes[i] = bin.charCodeAt(i);
+        }
+      }
+
+      const img = isJpg ? await pdfDoc.embedJpg(bytes) : await pdfDoc.embedPng(bytes);
+      const dims = img.scaleToFit(box.largeur, box.hauteur);
+      const drawX = box.x + Math.max(0, (box.largeur - dims.width) / 2);
+      const drawY = box.y + Math.max(0, (box.hauteur - dims.height) / 2);
+
+      page.drawImage(img, {
+        x: drawX,
+        y: drawY,
+        width: dims.width,
+        height: dims.height
+      });
+      imageEmbedded = true;
+    } catch (err) {
+      console.warn("Échec du décodage de la signature tactile, repli sur signature textuelle:", err);
+    }
+  }
+
+  if (!imageEmbedded && nomSignataire) {
+    const textTitre = "Signé électroniquement :";
+    const textNom = nomSignataire;
+    page.drawText(textTitre, {
+      x: box.x + 4,
+      y: box.y + box.hauteur - 12,
+      size: 7.5,
+      font: fontRegular,
+      color: rgb(0.2, 0.2, 0.2)
+    });
+    page.drawText(textNom, {
+      x: box.x + 4,
+      y: box.y + box.hauteur - 23,
+      size: 8.5,
+      font: fontBold,
+      color: rgb(0, 0, 0)
+    });
+  }
+}
+
+/**
  * Construit le nom de fichier officiel selon la convention :
  * BJ_[TYPE]_[SEMAINE ou DATE]_[VILLAGE].pdf
  */
@@ -258,6 +328,19 @@ export async function genererFichePdfSuperposee(
         }
       }
     }
+
+    // Signature du notificateur Relais Communautaire sur la dernière page
+    const dernierePage = pdfDoc.getPage(pdfDoc.getPageCount() - 1);
+    const nomRelais = cleanVal(donnees.signature_nom || donnees.notificateur || donnees.notificateur_nom_complet);
+    await dessinerSignature(
+      pdfDoc,
+      dernierePage,
+      { x: 410, y: 35, largeur: 135, hauteur: 32 },
+      donnees.signature_tactile,
+      nomRelais,
+      fontRegular,
+      fontBold
+    );
   }
 
   // =========================================================================
@@ -328,6 +411,18 @@ export async function genererFichePdfSuperposee(
         }
       }
     }
+
+    // Signature du rapporteur (ASCQ)
+    const nomRapporteur = cleanVal(donnees.signature_rapporteur || donnees.signature_nom || donnees.notificateur);
+    await dessinerSignature(
+      pdfDoc,
+      page,
+      { x: 380, y: 18, largeur: 160, hauteur: 28 },
+      donnees.signature_tactile,
+      nomRapporteur,
+      fontRegular,
+      fontBold
+    );
   }
 
   // =========================================================================
@@ -439,6 +534,42 @@ export async function genererFichePdfSuperposee(
           color: rgb(0, 0, 0)
         });
       }
+    }
+
+    // Signature officielle selon le type de fiche
+    if (typeFiche === "ALR") {
+      const nomPointFocal = cleanVal(donnees.signature_nom || donnees.notificateur || donnees.point_focal_nom);
+      await dessinerSignature(
+        pdfDoc,
+        page,
+        { x: 410, y: 195, largeur: 130, hauteur: 42 },
+        donnees.signature_tactile,
+        nomPointFocal,
+        fontRegular,
+        fontBold
+      );
+    } else if (typeFiche === "DEC") {
+      const nomNotificateur = cleanVal(donnees.signature_nom || donnees.notificateur_nom || donnees.notificateur);
+      await dessinerSignature(
+        pdfDoc,
+        page,
+        { x: 395, y: 32, largeur: 145, hauteur: 38 },
+        donnees.signature_tactile,
+        nomNotificateur,
+        fontRegular,
+        fontBold
+      );
+    } else if (typeFiche === "INV") {
+      const nomInvestigateur = cleanVal(donnees.signature_investigateurs || donnees.signature_nom || donnees.investigateur_nom);
+      await dessinerSignature(
+        pdfDoc,
+        page,
+        { x: 360, y: 25, largeur: 155, hauteur: 35 },
+        donnees.signature_tactile,
+        nomInvestigateur,
+        fontRegular,
+        fontBold
+      );
     }
   }
 

@@ -46,8 +46,22 @@ export default function ModalApercuFidelePdf({
   const [erreur, setErreur] = useState<string | null>(null);
   const [afficherRappelImpression, setAfficherRappelImpression] = useState<boolean>(false);
   const [telechargementReussi, setTelechargementReussi] = useState<boolean>(false);
+  const [isMobile, setIsMobile] = useState<boolean>(false);
 
   const iframePrintRef = useRef<HTMLIFrameElement | null>(null);
+
+  // Détection mobile réactive (Android / iOS / petit écran)
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const checkMobile = () => {
+        const userAgentMobile = /Android|iPhone|iPad|iPod|Opera Mini|IEMobile|WPDesktop/i.test(navigator.userAgent);
+        setIsMobile(userAgentMobile || window.innerWidth < 768);
+      };
+      checkMobile();
+      window.addEventListener("resize", checkMobile);
+      return () => window.removeEventListener("resize", checkMobile);
+    }
+  }, []);
 
   // Synchroniser l'état vierge à l'ouverture
   useEffect(() => {
@@ -102,45 +116,63 @@ export default function ModalApercuFidelePdf({
 
   if (!isOpen) return null;
 
-  // Téléchargement sécurisé (compatible Mobile Web Share et Desktop)
+  // Ouvrir le PDF directement (hautement compatible Android / iOS / Desktop)
+  const handleOuvrirPdf = () => {
+    if (!result || !result.blobUrl) return;
+    window.open(result.blobUrl, "_blank");
+  };
+
+  // Téléchargement sécurisé et garanti sur Android, iOS et Desktop
   const handleTelecharger = async () => {
     if (!result || !result.blobUrl) return;
 
     try {
-      const file = new File([result.pdfBytes as any], result.nomFichier, { type: "application/pdf" });
-
-      // Essayer le partage natif sur mobile si disponible
-      if (typeof navigator !== "undefined" && navigator.canShare && navigator.canShare({ files: [file] })) {
+      // 1. Sur Mobile : tenter Web Share API si disponible pour un partage natif (WhatsApp, Drive, Enregistrer...)
+      if (typeof navigator !== "undefined" && navigator.canShare) {
         try {
-          await navigator.share({
-            files: [file],
-            title: result.nomFichier,
-            text: "Fiche officielle de surveillance - SantéCom Bénin"
-          });
-          enregistrerAuditPdf({
-            fiche_type: typeFiche,
-            enregistrement_id: donnees?.id || donnees?.numero,
-            action: "TELECHARGEMENT",
-            utilisateur_id: currentUser?.id,
-            utilisateur_nom: currentUser?.nom_complet,
-            commune: donnees?.commune || currentUser?.commune
-          });
-          setTelechargementReussi(true);
-          setTimeout(() => setTelechargementReussi(false), 3000);
-          return;
+          const file = new File([result.pdfBytes as any], result.nomFichier, { type: "application/pdf" });
+          if (navigator.canShare({ files: [file] })) {
+            await navigator.share({
+              files: [file],
+              title: result.nomFichier,
+              text: "Fiche officielle de surveillance - SantéCom Bénin"
+            });
+            enregistrerAuditPdf({
+              fiche_type: typeFiche,
+              enregistrement_id: donnees?.id || donnees?.numero,
+              action: "TELECHARGEMENT",
+              utilisateur_id: currentUser?.id,
+              utilisateur_nom: currentUser?.nom_complet,
+              commune: donnees?.commune || currentUser?.commune
+            });
+            setTelechargementReussi(true);
+            setTimeout(() => setTelechargementReussi(false), 3000);
+            return;
+          }
         } catch (e: any) {
-          // Si l'utilisateur annule le dialogue de partage natif, fallback sur téléchargement normal
           if (e.name === "AbortError") return;
+          console.warn("Partage natif non disponible ou annulé, bascule vers téléchargement direct:", e);
         }
       }
 
-      // Téléchargement direct standard
+      // 2. Téléchargement direct standard (DOM Anchor avec click direct)
       const a = document.createElement("a");
       a.href = result.blobUrl;
       a.download = result.nomFichier;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
       document.body.appendChild(a);
       a.click();
-      document.body.removeChild(a);
+      setTimeout(() => {
+        try {
+          document.body.removeChild(a);
+        } catch (_) {}
+      }, 500);
+
+      // 3. Fallback mobile Android : si Android bloque le téléchargement d'un blob, ouvrir directement
+      if (isMobile) {
+        window.open(result.blobUrl, "_blank");
+      }
 
       enregistrerAuditPdf({
         fiche_type: typeFiche,
@@ -155,6 +187,8 @@ export default function ModalApercuFidelePdf({
       setTimeout(() => setTelechargementReussi(false), 3000);
     } catch (e) {
       console.error("Erreur téléchargement:", e);
+      // Dernier recours universel : ouverture directe dans un nouvel onglet
+      window.open(result.blobUrl, "_blank");
     }
   };
 
@@ -162,31 +196,37 @@ export default function ModalApercuFidelePdf({
   const handleImprimer = () => {
     if (!result || !result.blobUrl) return;
 
+    enregistrerAuditPdf({
+      fiche_type: typeFiche,
+      enregistrement_id: donnees?.id || donnees?.numero,
+      action: "IMPRESSION",
+      utilisateur_id: currentUser?.id,
+      utilisateur_nom: currentUser?.nom_complet,
+      commune: donnees?.commune || currentUser?.commune
+    });
+
     setAfficherRappelImpression(true);
 
-    // Déclencher l'impression via l'iframe dédiée pour n'imprimer STRICTEMENT QUE le PDF officiel
+    // Sur mobile (Android / iOS), l'impression via iframe est ignorée par les navigateurs.
+    // L'ouverture directe déclenche la visionneuse système avec option Imprimer intégrée.
+    if (isMobile) {
+      window.open(result.blobUrl, "_blank");
+      return;
+    }
+
+    // Sur Desktop, déclencher l'impression via l'iframe dédiée pour n'imprimer STRICTEMENT QUE le PDF officiel
     setTimeout(() => {
       if (iframePrintRef.current && iframePrintRef.current.contentWindow) {
         try {
           iframePrintRef.current.contentWindow.focus();
           iframePrintRef.current.contentWindow.print();
-
-          enregistrerAuditPdf({
-            fiche_type: typeFiche,
-            enregistrement_id: donnees?.id || donnees?.numero,
-            action: "IMPRESSION",
-            utilisateur_id: currentUser?.id,
-            utilisateur_nom: currentUser?.nom_complet,
-            commune: donnees?.commune || currentUser?.commune
-          });
         } catch (e) {
-          // Fallback : ouverture dans une nouvelle fenêtre pour impression
           window.open(result.blobUrl, "_blank");
         }
       } else {
         window.open(result.blobUrl, "_blank");
       }
-    }, 500);
+    }, 400);
   };
 
   const getTitreFiche = () => {
@@ -250,13 +290,32 @@ export default function ModalApercuFidelePdf({
               </button>
             </div>
 
-            {/* Bouton Télécharger */}
+            {/* Bouton Plein Écran / Ouvrir dans le lecteur */}
             <button
               type="button"
-              onClick={handleTelecharger}
+              onClick={handleOuvrirPdf}
               disabled={loading || !result}
+              className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs transition-colors"
+              title="Ouvrir dans la visionneuse système / plein écran"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              <span>Plein écran</span>
+            </button>
+
+            {/* Bouton Télécharger (Ancre native compatible 100% Android) */}
+            <a
+              href={result?.blobUrl || "#"}
+              download={result?.nomFichier || "document.pdf"}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => {
+                if (!result) { e.preventDefault(); return; }
+                handleTelecharger();
+              }}
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs shadow active:scale-95 transition-all ${
-                telechargementReussi 
+                loading || !result
+                  ? "opacity-50 pointer-events-none bg-slate-300 text-slate-500"
+                  : telechargementReussi 
                   ? "bg-emerald-400 text-slate-900" 
                   : "bg-[#FCD116] text-slate-900 hover:bg-yellow-400"
               }`}
@@ -265,7 +324,7 @@ export default function ModalApercuFidelePdf({
               {telechargementReussi ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Download className="w-3.5 h-3.5" />}
               <span className="hidden sm:inline">{telechargementReussi ? "Téléchargé !" : "Télécharger PDF"}</span>
               <span className="sm:hidden">PDF</span>
-            </button>
+            </a>
 
             {/* Bouton Imprimer */}
             <button
@@ -345,7 +404,77 @@ export default function ModalApercuFidelePdf({
             </div>
           )}
 
-          {!loading && !erreur && result && result.blobUrl && (
+          {/* VUE MOBILE SPÉCIFIQUE (ÉVITE LE BLOCAGE IFRAME SUR CHROME ANDROID) */}
+          {isMobile && !loading && !erreur && result && (
+            <div className="w-full h-full p-4 overflow-y-auto flex flex-col items-center justify-center text-center space-y-4 bg-slate-100">
+              <div className="max-w-md w-full bg-white p-5 rounded-3xl shadow-lg border border-slate-200/80 space-y-4">
+                <div className="w-14 h-14 mx-auto rounded-2xl bg-emerald-50 text-[#005c30] flex items-center justify-center border border-emerald-200 shadow-inner">
+                  <FileText className="w-7 h-7" />
+                </div>
+                
+                <div className="space-y-1">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-100 text-[#005c30] font-extrabold text-[10px]">
+                    <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                    PDF Officiel DDS Prêt
+                  </span>
+                  <h4 className="font-extrabold text-slate-900 text-sm sm:text-base pt-1">
+                    {getTitreFiche()}
+                  </h4>
+                  <p className="text-[11px] text-slate-500 font-mono">
+                    {result.nomFichier} • {result.nbPages} page(s)
+                  </p>
+                </div>
+
+                <div className="p-3 bg-amber-50 rounded-2xl border border-amber-200 text-left space-y-1">
+                  <p className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
+                    <Printer className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>Affichage sur mobile (Android / iOS) :</span>
+                  </p>
+                  <p className="text-[11px] text-amber-800 leading-relaxed">
+                    Touchez <strong>« Visualiser le PDF »</strong> pour l'ouvrir dans la visionneuse de votre téléphone avec zoom, partage et impression native.
+                  </p>
+                </div>
+
+                <div className="flex flex-col gap-2.5 pt-1">
+                  <button
+                    type="button"
+                    onClick={handleOuvrirPdf}
+                    className="w-full py-3 px-4 rounded-2xl bg-[#005c30] hover:bg-[#004724] text-white font-extrabold text-xs shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    <span>Visualiser le PDF en plein écran</span>
+                  </button>
+
+                  <a
+                    href={result.blobUrl}
+                    download={result.nomFichier}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => {
+                      setTelechargementReussi(true);
+                      setTimeout(() => setTelechargementReussi(false), 3000);
+                    }}
+                    className="w-full py-2.5 px-4 rounded-2xl bg-[#FCD116] hover:bg-yellow-400 text-slate-900 font-extrabold text-xs shadow-sm active:scale-95 transition-all flex items-center justify-center gap-2"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>{telechargementReussi ? "Téléchargement lancé !" : "Télécharger sur l'appareil"}</span>
+                  </a>
+
+                  <button
+                    type="button"
+                    onClick={handleImprimer}
+                    className="w-full py-2.5 px-4 rounded-2xl bg-white hover:bg-slate-50 text-slate-800 font-bold text-xs border border-slate-300 shadow-sm active:scale-95 transition-all flex items-center justify-center gap-2"
+                  >
+                    <Printer className="w-4 h-4 text-slate-600" />
+                    <span>Imprimer via le mobile</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* VUE DESKTOP : IFRAME PLEIN ÉCRAN */}
+          {!isMobile && !loading && !erreur && result && result.blobUrl && (
             <iframe
               src={`${result.blobUrl}#toolbar=0&navpanes=0&scrollbar=1&view=FitH`}
               className="w-full h-full border-0 bg-slate-200"
