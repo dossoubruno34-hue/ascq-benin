@@ -3,14 +3,17 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import QuiEstAscqCard from "@/components/QuiEstAscqCard";
 import SuggestionsCard from "@/components/SuggestionsCard";
-import { HeartPulse, ExternalLink } from "lucide-react";
+import { HeartPulse, ExternalLink, RefreshCw, Sparkles, MapPin } from "lucide-react";
 import { SocialPlatformsCard, FacebookIcon } from "@/components/SocialLinks";
 import CarteCouvertureBenin from "@/components/CarteCouvertureBenin";
 import HomeAuthButtons from "@/components/HomeAuthButtons";
 import DernieresPublicationsFacebook, { PublicationFacebook } from "@/components/DernieresPublicationsFacebook";
 import BoutonVerifierMiseAJour from "@/components/BoutonVerifierMiseAJour";
+import { APP_VERSION } from "@/lib/version";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
 
 export default async function HomePage() {
   // Récupérer les données réelles pour la page d'accueil
@@ -58,65 +61,74 @@ export default async function HomePage() {
 
   return (
     <div className="min-h-screen bg-[#f4f7f5] text-slate-800 antialiased pb-16">
-      {/* 1. En-tête vert foncé avec le logo, « ASC Bénin » et « Ministère de la Santé » */}
-      <header className="bg-[#005c30] text-white">
-        <div className="max-w-xl mx-auto px-4 h-14 flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-full bg-white p-1 flex items-center justify-center shrink-0 shadow-sm overflow-hidden">
+      {/* 1. En-tête officiel certifié : Bannière CNLS-TP / Présidence du Bénin & Logo ASC Santé Communautaire */}
+      <header className="bg-white border-b border-slate-200 shadow-xs sticky top-0 z-30">
+        <div className="max-w-xl mx-auto px-4 py-2 flex items-center justify-between">
+          <div className="flex items-center gap-2">
             <Image
-              src="/logo-asc.png"
-              alt="Logo ASC Bénin"
-              width={32}
-              height={32}
-              className="object-contain"
+              src="/banniere-cnlstp.png"
+              alt="Bannière Officielle CNLS-TP"
+              width={220}
+              height={50}
+              priority
+              className="h-10 sm:h-12 w-auto object-contain"
             />
           </div>
-          <div className="leading-tight">
-            <h1 className="font-extrabold text-sm sm:text-base tracking-tight text-white">
-              ASC Bénin
-            </h1>
-            <p className="text-[11px] text-white/80 font-normal">
-              Santé Communautaire • Ministère de la Santé
-            </p>
+          <div className="flex items-center gap-2">
+            <BoutonVerifierMiseAJour variant="compact" />
+            <div className="w-9 h-9 rounded-full overflow-hidden border border-emerald-500/30 shadow-xs shrink-0">
+              <Image
+                src="/logo-asc-benin.jpg"
+                alt="Logo ASC Bénin"
+                width={36}
+                height={36}
+                className="w-full h-full object-cover"
+              />
+            </div>
           </div>
         </div>
 
-        {/* Bandeau tricolore vert, jaune, rouge juste en dessous */}
+        {/* Bandeau tricolore vert, jaune, rouge officiel */}
         <div className="h-1 w-full flex">
           <span className="w-1/3 bg-[#008751]"></span>
           <span className="w-1/3 bg-[#FCD116]"></span>
           <span className="w-1/3 bg-[#E8112D]"></span>
         </div>
+
+        {/* Bandeau Phase Pilote Officielle Département du Zou */}
+        <div className="bg-[#005c30] text-white px-3 py-1.5 text-center text-xs font-bold flex items-center justify-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-amber-300 animate-pulse"></span>
+          <span>📍 PHASE PILOTE OFFICIELLE EN COURS — DÉPARTEMENT DU ZOU</span>
+        </div>
       </header>
 
       {/* Contenu principal : mobile-first, centré, largeur maximale confortable */}
-      <main className="max-w-md sm:max-w-lg mx-auto px-4 pt-6 space-y-5">
+      <main className="max-w-md sm:max-w-lg mx-auto px-4 pt-4 space-y-4">
         
-        {/* 2. Titre « Bienvenue », pastille « ASC DU BÉNIN » et Logo officiel */}
-        <section className="text-center space-y-3 pt-2">
-          <h2 className="font-handwritten text-[#1e3a8a] text-4xl sm:text-5xl font-bold tracking-wide">
-            Bienvenue
-          </h2>
-          
-          <p className="text-xs sm:text-sm font-semibold text-slate-700">
-            sur la plateforme officielle de la
+        {/* 2. Titre officiel certifié & Logo Santé Communautaire */}
+        <section className="text-center space-y-2 pt-1 bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs">
+          <p className="text-[11px] uppercase tracking-widest font-black text-slate-500">
+            République du Bénin • Présidence de la République
           </p>
 
-          <div>
-            <span className="inline-block bg-[#0e7f47] text-white font-extrabold text-sm sm:text-base px-6 py-2 rounded-2xl shadow-sm tracking-wider uppercase">
-              SANTÉ COMMUNAUTAIRE DU BÉNIN
-            </span>
+          <h2 className="text-lg sm:text-xl font-black text-[#002d62] uppercase tracking-wide leading-tight">
+            Santé Communautaire du Bénin
+          </h2>
+
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-[#005c30] text-xs font-black border border-emerald-200">
+            <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Programme National de Santé Communautaire (PNSC)</span>
           </div>
 
-          {/* Logo officiel centré sans chevauchement */}
           <div className="pt-2 flex flex-col items-center justify-center">
-            <div className="w-52 sm:w-60 h-auto drop-shadow-sm">
+            <div className="w-44 sm:w-52 h-auto drop-shadow-xs">
               <Image
-                src="/logo-asc.png"
+                src="/logo-asc-benin.jpg"
                 alt="ASC - Santé Communautaire du Bénin"
-                width={260}
-                height={160}
+                width={208}
+                height={208}
                 priority
-                className="w-full h-auto object-contain"
+                className="w-full h-auto object-contain rounded-2xl"
               />
             </div>
             <p className="mt-2 text-xs font-black tracking-widest text-[#005c30] uppercase">
@@ -153,6 +165,20 @@ export default async function HomePage() {
           </a>
         </nav>
 
+        {/* Barre de statut dynamique et synchronisation en direct */}
+        <div className="flex items-center justify-between text-[11px] bg-white px-3.5 py-2 rounded-2xl border border-slate-200/80 shadow-xs">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span className="font-bold text-slate-800">Données en direct</span>
+            <span className="text-slate-400 font-mono text-[10px]">• v{APP_VERSION}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-emerald-800 font-bold bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+              Phase Pilote Zou
+            </span>
+          </div>
+        </div>
+
         {/* 4. Boutons intelligents d'acces */}
         <HomeAuthButtons />
 
@@ -164,13 +190,19 @@ export default async function HomePage() {
               {nbAscq}
             </p>
             <p className="text-[11px] sm:text-xs text-slate-500 font-medium leading-tight">
-              ASCQ opérationnels
+              ASCQ opérationnels (Zou)
             </p>
           </div>
 
           {/* Carte 2 */}
           <div className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-200/80 shadow-sm space-y-1">
             <p className="text-2xl sm:text-3xl font-extrabold text-[#005b60] tracking-tight">
+              {nbRc}
+            </p>
+            <p className="text-[11px] sm:text-xs text-slate-500 font-medium leading-tight">
+              Relais communautaires (Zou)
+            </p>
+          </div>
               {nbRc}
             </p>
             <p className="text-[11px] sm:text-xs text-slate-500 font-medium leading-tight">

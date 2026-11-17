@@ -1,12 +1,13 @@
-// Service Worker officiel ASCQ BÉNIN (PWA) - Mode Hors-Ligne Renforcé V16
+// Service Worker officiel ASCQ BÉNIN (PWA) - Mode Hors-Ligne Renforcé V17
 // Garanti d'ouverture 100% hors-ligne en zones rurales blanches & Purge automatique des caches
-const CACHE_NAME = "ascq-benin-v16";
+const CACHE_NAME = "ascq-benin-v17";
 
-// Pages et ressources critiques à pré-mettre en cache
+// Pages et ressources critiques à pré-mettre en cache (la racine "/" est exclue pour toujours servir la version fraîche en ligne)
 const PRECACHE_ASSETS = [
-  "/",
   "/manifest.json",
-  "/logo-ascq.png",
+  "/banniere-cnlstp.png",
+  "/logo-asc-benin.jpg",
+  "/logo-asc.png",
   "/icon-192.png",
   "/icon-512.png",
   "/connexion",
@@ -133,59 +134,44 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // B. Navigation de pages HTML : RÉSEAU AVEC TIMEOUT COURT (1.2s), SECOURS INSTANTANÉ SUR CACHE
+  // B. Navigation de pages HTML : STRATÉGIE NETWORK-FIRST RÉSILIENTE
+  // Priorité absolue au réseau pour garantir que l'accueil et les pages reflètent immédiatement les nouveaux déploiements
   const isNavigation = event.request.mode === "navigate" || event.request.headers.get("accept")?.includes("text/html");
 
   if (isNavigation) {
     event.respondWith(
-      new Promise((resolve) => {
-        let timedOut = false;
+      (async () => {
+        const isRoot = url.pathname === "/" || url.pathname === "";
+        const timeoutMs = isRoot ? 3500 : 2500;
 
-        // Timeout rapide de 1.2s pour éviter les blocages de réseau 2G/3G instable
-        const timeoutId = setTimeout(() => {
-          timedOut = true;
-          // Chercher d'abord dans le cache
-          caches.match(event.request).then((cached) => {
-            if (cached) {
-              resolve(cached);
-            } else {
-              // Si la page exacte n'est pas en cache, renvoyer la racine ou /espace-ascq
-              caches.match("/").then((fallback) => {
-                if (fallback) resolve(fallback);
-                else resolve(createOfflineResponse());
-              });
-            }
-          });
-        }, 1200);
+        try {
+          // Contrôleur de timeout pour réseau mobile instable
+          const abortController = new AbortController();
+          const timerId = setTimeout(() => abortController.abort(), timeoutMs);
 
-        // Tentative réseau
-        fetch(event.request)
-          .then((response) => {
-            clearTimeout(timeoutId);
-            if (!timedOut) {
-              if (response && response.status === 200) {
-                const clone = response.clone();
-                caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-              }
-              resolve(response);
-            }
-          })
-          .catch(() => {
-            clearTimeout(timeoutId);
-            if (!timedOut) {
-              caches.match(event.request).then((cached) => {
-                if (cached) {
-                  resolve(cached);
-                } else {
-                  caches.match("/").then((fallback) => {
-                    if (fallback) resolve(fallback);
-                    else resolve(createOfflineResponse());
-                  });
-                }
-              });
-            }
+          const response = await fetch(event.request, { 
+            signal: abortController.signal,
+            cache: isRoot ? "no-cache" : "default"
           });
-      })
+          clearTimeout(timerId);
+
+          if (response && response.status === 200) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
+          return response;
+        } catch (netErr) {
+          // Si le réseau est trop lent ou indisponible (hors-ligne), bascule gracieuse sur le cache
+          const cached = await caches.match(event.request);
+          if (cached) return cached;
+
+          // Si la page demandée n'est pas en cache, chercher la racine ou fallback hors-ligne
+          const fallbackRoot = await caches.match("/");
+          if (fallbackRoot) return fallbackRoot;
+
+          return createOfflineResponse();
+        }
+      })()
     );
     return;
   }

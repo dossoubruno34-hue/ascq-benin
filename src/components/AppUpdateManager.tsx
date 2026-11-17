@@ -185,6 +185,11 @@ export default function AppUpdateManager() {
         console.warn("Service Worker registration:", error);
       });
 
+    // ⚡ VÉRIFICATION IMMÉDIATE AU CHARGEMENT DE LA PAGE
+    if (navigator.onLine) {
+      verifierNouvelleVersion(false);
+    }
+
     // Écouter l'événement global pour déclencher la vérification depuis n'importe où
     const handleCustomCheck = () => {
       verifierNouvelleVersion(true);
