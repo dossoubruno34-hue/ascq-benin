@@ -23,6 +23,7 @@ import {
   generatePdfPlanningRc, 
   telechargerPdf, 
   imprimerPdf, 
+  genererNomFichierPlanningRc,
   RcPlanningData,
   RcPlanningSlot
 } from "@/lib/pdf-plannings";
@@ -325,7 +326,14 @@ export default function FicheHebdoActivitesRcOfficielle({ rcProfile, isAscqSuper
       setPdfGenerating(true);
       const data = preparerDonneesPdf();
       const pdfBytes = await generatePdfPlanningRc(data);
-      await imprimerPdf(pdfBytes);
+      const filename = genererNomFichierPlanningRc({
+        semaineNum: data.semaineNum,
+        annee: data.annee,
+        arrondissement: data.arrondissement,
+        village: data.village,
+        rcName: data.rcName
+      });
+      await imprimerPdf(pdfBytes, filename);
     } catch (err) {
       console.error("Erreur génération PDF:", err);
       alert("Impossible de générer le PDF officiel du planning.");
@@ -339,7 +347,13 @@ export default function FicheHebdoActivitesRcOfficielle({ rcProfile, isAscqSuper
       setPdfGenerating(true);
       const data = preparerDonneesPdf();
       const pdfBytes = await generatePdfPlanningRc(data);
-      const filename = `BJ_PLANNING_RC_S${data.semaineNum}_${data.annee}_${(data.village || "COMMUNAUTE").replace(/[^a-zA-Z0-9]/g, "_")}.pdf`;
+      const filename = genererNomFichierPlanningRc({
+        semaineNum: data.semaineNum,
+        annee: data.annee,
+        arrondissement: data.arrondissement,
+        village: data.village,
+        rcName: data.rcName
+      });
       await telechargerPdf(pdfBytes, filename);
     } catch (err) {
       console.error("Erreur téléchargement PDF:", err);

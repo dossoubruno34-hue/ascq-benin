@@ -37,6 +37,8 @@ import {
   telechargerPdf, 
   imprimerPdf, 
   creerBlobPdfUrl,
+  genererNomFichierPlanningAscq,
+  genererNomFichierPlanningRc,
   AscqPlanningData,
   RcPlanningData,
   RcPlanningSlot
@@ -411,7 +413,13 @@ export default function PlanningAscqPage() {
   const telechargerPdfAscqDirect = async () => {
     try {
       const bytes = previewPdfBytes || (await generatePdfPlanningAscq(preparerDonneesAscqPdf()));
-      const nomFichier = `BJ_PLANNING_ASCQ_S${semaine}_${annee}_${arrondissement.toUpperCase()}`;
+      const nomFichier = genererNomFichierPlanningAscq({
+        semaine,
+        annee,
+        arrondissement,
+        commune,
+        ascqNom
+      });
       await telechargerPdf(bytes, nomFichier);
     } catch (e: any) {
       alert("Erreur téléchargement PDF : " + e.message);
@@ -422,7 +430,13 @@ export default function PlanningAscqPage() {
   const imprimerPdfAscqDirect = async () => {
     try {
       const bytes = previewPdfBytes || (await generatePdfPlanningAscq(preparerDonneesAscqPdf()));
-      const nomFichier = `BJ_PLANNING_ASCQ_S${semaine}_${annee}_${arrondissement.toUpperCase()}`;
+      const nomFichier = genererNomFichierPlanningAscq({
+        semaine,
+        annee,
+        arrondissement,
+        commune,
+        ascqNom
+      });
       await imprimerPdf(bytes, nomFichier);
     } catch (e: any) {
       alert("Erreur impression PDF : " + e.message);
@@ -623,7 +637,13 @@ export default function PlanningAscqPage() {
     try {
       const dataPdf = mapperPlanningRcVersPdfData(p);
       const bytes = await generatePdfPlanningRc(dataPdf);
-      const nom = `BJ_PLANNING_RC_S${p.semaine_num}_${p.village_nom || "VILLAGE"}`;
+      const nom = genererNomFichierPlanningRc({
+        semaineNum: p.semaine_num || p.semaine || dataPdf.semaineNum,
+        annee: p.annee || dataPdf.annee,
+        arrondissement: p.arrondissement_nom || p.arrondissement || dataPdf.arrondissement,
+        village: p.village_nom || p.village || dataPdf.village,
+        rcName: p.rc_nom || p.relais_nom || p.nom_complet || dataPdf.rcName
+      });
       await telechargerPdf(bytes, nom);
     } catch (e: any) {
       alert("Erreur lors de la génération du PDF RC : " + e.message);
@@ -635,7 +655,13 @@ export default function PlanningAscqPage() {
     try {
       const dataPdf = mapperPlanningRcVersPdfData(p);
       const bytes = await generatePdfPlanningRc(dataPdf);
-      const nom = `BJ_PLANNING_RC_S${p.semaine_num}_${p.village_nom || "VILLAGE"}`;
+      const nom = genererNomFichierPlanningRc({
+        semaineNum: p.semaine_num || p.semaine || dataPdf.semaineNum,
+        annee: p.annee || dataPdf.annee,
+        arrondissement: p.arrondissement_nom || p.arrondissement || dataPdf.arrondissement,
+        village: p.village_nom || p.village || dataPdf.village,
+        rcName: p.rc_nom || p.relais_nom || p.nom_complet || dataPdf.rcName
+      });
       await imprimerPdf(bytes, nom);
     } catch (e: any) {
       alert("Erreur lors de l'impression du PDF RC : " + e.message);

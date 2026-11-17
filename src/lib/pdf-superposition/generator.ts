@@ -163,32 +163,78 @@ async function dessinerSignature(
   }
 }
 
+const LABELS_FICHES_OFFICIELLES: Record<string, string> = {
+  REG: "Registre Alertes",
+  ALR: "Notification Alerte",
+  DEC: "Notification Deces",
+  INV: "Investigation Evenement",
+  RAP: "Rapport Hebdo SIMR"
+};
+
 /**
- * Construit le nom de fichier officiel selon la convention :
- * BJ_[TYPE]_[SEMAINE ou DATE]_[VILLAGE].pdf
+ * Construit le nom de fichier officiel clair et immédiatement identifiable :
+ * Ex : "Registre Alertes S26 TOHOUES NADJO Victor.pdf"
+ *      "Rapport Hebdo SIMR S47 TOHOUES DOSSOU Bruno.pdf"
  */
 export function genererNomFichierOfficiel(
   typeFiche: string,
   data: Record<string, any>
 ): string {
-  const sanitize = (s: string) =>
-    (s || "SANS_NOM")
+  const sanitize = (s?: string | null) =>
+    (s || "")
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-zA-Z0-9_-]/g, "_")
-      .toUpperCase();
+      .replace(/[()[\]{}]/g, " ")
+      .replace(/[/\\:*?"<>|#%&^$!@;=~`+]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
 
-  const type = sanitize(typeFiche);
-  const dateOrSemaine = sanitize(
-    data.semaine_epidemio
-      ? `S${data.semaine_epidemio}`
-      : data.semaine_num
-      ? `S${data.semaine_num}`
-      : data.date_survenue || data.date || data.date_deces || data.date_notification || new Date().toISOString().split("T")[0]
+  const typeLabel = LABELS_FICHES_OFFICIELLES[typeFiche] || sanitize(typeFiche) || "Fiche";
+
+  // Période (Semaine épidémiologique ou Date)
+  const dateOrSemaine = data.semaine_epidemio
+    ? `S${data.semaine_epidemio}`
+    : data.semaine_num
+    ? `S${data.semaine_num}`
+    : data.date_survenue || data.date || data.date_deces || data.date_notification || new Date().toISOString().split("T")[0];
+
+  const cleanPeriode = sanitize(String(dateOrSemaine)).replace(/[/\\:]/g, "-");
+
+  // Lieu (Arrondissement en priorité, et Village si distinct)
+  const cleanArr = sanitize(data.arrondissement).toUpperCase();
+  const cleanVil = sanitize(data.village).toUpperCase();
+  const cleanCom = sanitize(data.commune).toUpperCase();
+
+  let lieu = cleanArr;
+  if (cleanArr && cleanVil && cleanVil !== cleanArr && !cleanVil.startsWith(cleanArr)) {
+    lieu = `${cleanArr} ${cleanVil}`;
+  } else if (!cleanArr && cleanVil) {
+    lieu = cleanVil;
+  } else if (!lieu && cleanCom) {
+    lieu = cleanCom;
+  }
+
+  // Nom de la personne (Relais, ASCQ, notificateur, investigateur)
+  const cleanNom = sanitize(
+    data.relais_nom ||
+    data.nom_relais ||
+    data.ascq_nom ||
+    data.nom_ascq ||
+    data.nom_complet ||
+    data.signature_nom ||
+    data.notificateur_nom ||
+    data.investigateur_nom ||
+    data.patient_nom ||
+    ""
   );
-  const village = sanitize(data.village || data.arrondissement || data.commune || "COMMUNAUTE");
 
-  return `BJ_${type}_${dateOrSemaine}_${village}.pdf`;
+  const parts = [typeLabel];
+  if (cleanPeriode) parts.push(cleanPeriode);
+  if (lieu) parts.push(lieu);
+  if (cleanNom) parts.push(cleanNom);
+
+  const baseName = parts.filter(Boolean).join(" ");
+  return `${baseName || typeLabel}.pdf`;
 }
 
 /**
@@ -231,7 +277,7 @@ export async function genererFichePdfSuperposee(
       blobUrl,
       warnings: [],
       nbPages: pdfDoc.getPageCount(),
-      nomFichier: `BJ_${typeFiche}_VIERGE_OFFICIEL.pdf`
+      nomFichier: `${LABELS_FICHES_OFFICIELLES[typeFiche] || typeFiche} VIERGE OFFICIEL.pdf`
     };
   }
 

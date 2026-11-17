@@ -3,6 +3,7 @@ import path from "path";
 import { PDFDocument } from "pdf-lib";
 import { generatePdfPlanningAscq } from "../src/lib/pdf-plannings/generatePdfPlanningAscq";
 import { generatePdfPlanningRc } from "../src/lib/pdf-plannings/generatePdfPlanningRc";
+import { genererNomFichierPlanningAscq, genererNomFichierPlanningRc } from "../src/lib/pdf-plannings/naming";
 import { AscqPlanningData, RcPlanningData } from "../src/lib/pdf-plannings/types";
 
 async function run() {
@@ -61,9 +62,18 @@ async function run() {
     throw new Error(`ERREUR : Le PDF ASCQ fait ${ascqPages} pages au lieu de 1 !`);
   }
 
-  const ascqPath = path.join(outDir, "BJ_PLANNING_ASCQ_S47_2026.pdf");
+  const ascqNomFichier = genererNomFichierPlanningAscq({
+    semaine: sampleAscq.semaine,
+    annee: sampleAscq.annee,
+    arrondissement: sampleAscq.arrondissement,
+    commune: sampleAscq.commune,
+    ascqNom: sampleAscq.ascqNom
+  });
+  const ascqPath = path.join(outDir, ascqNomFichier);
   fs.writeFileSync(ascqPath, ascqBytes);
-  console.log(`✓ PDF ASCQ enregistré : ${ascqPath}`);
+  // Copie de commodité BJ_PLANNING_ASCQ_S47_2026.pdf
+  fs.writeFileSync(path.join(outDir, "BJ_PLANNING_ASCQ_S47_2026.pdf"), ascqBytes);
+  console.log(`✓ PDF ASCQ enregistré sous le nom clair officiel : ${ascqNomFichier}`);
 
   // 2. PLANNING RC (Données identiques au modèle officiel transmis)
   const sampleRc: RcPlanningData = {
@@ -182,9 +192,41 @@ async function run() {
     throw new Error(`ERREUR : Le PDF RC fait ${rcPages} pages au lieu de 1 !`);
   }
 
-  const rcPath = path.join(outDir, "BJ_PLANNING_RC_S47_HONVIE.pdf");
+  const rcNomFichier = genererNomFichierPlanningRc({
+    semaineNum: sampleRc.semaineNum,
+    annee: sampleRc.annee,
+    arrondissement: sampleRc.arrondissement,
+    village: sampleRc.village,
+    rcName: sampleRc.rcName
+  });
+  const rcPath = path.join(outDir, rcNomFichier);
   fs.writeFileSync(rcPath, rcBytes);
-  console.log(`✓ PDF RC enregistré : ${rcPath}`);
+  // Copie de commodité BJ_PLANNING_RC_S47_HONVIE.pdf
+  fs.writeFileSync(path.join(outDir, "BJ_PLANNING_RC_S47_HONVIE.pdf"), rcBytes);
+  console.log(`✓ PDF RC enregistré sous le nom clair officiel : ${rcNomFichier}`);
+
+  // 3. ÉCHANTILLON SPÉCIFIQUE DEMANDÉ PAR L'UTILISATEUR (NADJO Victor, S26, TOHOUÈS)
+  const sampleNadjo: RcPlanningData = {
+    ...sampleRc,
+    semaineNum: 26,
+    annee: 2026,
+    dateDebutStr: "22/06/2026",
+    dateFinStr: "28/06/2026",
+    arrondissement: "Tohouès",
+    village: "Tohouès",
+    rcName: "NADJO Victor",
+    rcPhone: "01 97 00 00 01",
+    observations: "Planning d'activités communautaires de la semaine 26"
+  };
+  const nadjoBytes = await generatePdfPlanningRc(sampleNadjo);
+  const nadjoNomFichier = genererNomFichierPlanningRc({
+    semaineNum: 26,
+    arrondissement: "Tohouès",
+    village: "Tohouès",
+    rcName: "NADJO Victor"
+  });
+  fs.writeFileSync(path.join(outDir, nadjoNomFichier), nadjoBytes);
+  console.log(`✓ Exemple demandé par l'utilisateur généré avec succès : ${nadjoNomFichier}`);
 
   console.log("\n=======================================================");
   console.log("SUCCÈS TOTAL : Reproduction trait pour trait sur 1 page A4 !");
