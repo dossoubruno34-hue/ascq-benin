@@ -46,6 +46,7 @@ import { getCachedRcSpace, saveCachedRcSpace, saveCachedUserSession } from "@/li
 import FicheHebdoActivitesRcOfficielle from "@/components/FicheHebdoActivitesRcOfficielle";
 import BeninPhoneAction from "@/components/BeninPhoneAction";
 import SignatureCanvas from "@/components/SignatureCanvas";
+import BoutonVerifierMiseAJour from "@/components/BoutonVerifierMiseAJour";
 import { 
   generatePdfPlanningRc, 
   telechargerPdf, 
@@ -817,7 +818,8 @@ export default function EspaceRelaisPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <BoutonVerifierMiseAJour variant="header" />
             <NetworkStatusIndicator />
             <button
               onClick={handleLogout}
@@ -2159,6 +2161,9 @@ export default function EspaceRelaisPage() {
                 </form>
               )}
             </div>
+
+            {/* Carte Vérification Mises à jour */}
+            <BoutonVerifierMiseAJour variant="card" />
 
             {/* Déconnexion */}
             <div className="pt-2">

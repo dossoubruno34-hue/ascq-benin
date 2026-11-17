@@ -7,6 +7,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import NotificationsModal from "@/components/NotificationsModal";
 import NetworkStatusIndicator from "@/components/NetworkStatusIndicator";
+import BoutonVerifierMiseAJour from "@/components/BoutonVerifierMiseAJour";
 import { 
   Home, 
   Users, 
@@ -250,6 +251,7 @@ export default function AscqNav({ userProfile }: Props) {
 
           {/* Actions d'en-tête */}
           <div className="flex items-center gap-1.5 sm:gap-2">
+            <BoutonVerifierMiseAJour variant="header" />
             <NetworkStatusIndicator />
 
             {!isCadre && (

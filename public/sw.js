@@ -1,6 +1,6 @@
-// Service Worker officiel ASCQ BÉNIN (PWA) - Mode Hors-Ligne Renforcé V8
+// Service Worker officiel ASCQ BÉNIN (PWA) - Mode Hors-Ligne Renforcé V10
 // Garanti d'ouverture 100% hors-ligne en zones rurales blanches & Purge automatique des caches
-const CACHE_NAME = "ascq-benin-v9";
+const CACHE_NAME = "ascq-benin-v10";
 
 // Pages et ressources critiques à pré-mettre en cache
 const PRECACHE_ASSETS = [
@@ -69,6 +69,16 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
+// Message pour forcer l'activation immédiate du nouveau Service Worker
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
+  if (event.data && event.data.type === "CLEAR_CACHES") {
+    caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k))));
+  }
+});
+
 // 3. Gestion intelligente des requêtes (Stratégie hybride adaptée à Next.js et aux zones blanches)
 self.addEventListener("fetch", (event) => {
   // Ignorer les requêtes autres que GET
@@ -78,6 +88,11 @@ self.addEventListener("fetch", (event) => {
 
   // Ignorer les requêtes d'extensions de navigateur ou schémas non supportés
   if (!url.protocol.startsWith("http")) return;
+
+  // IMPORTANT : La vérification de version ne doit JAMAIS être servie depuis le cache
+  if (url.pathname === "/api/version" || url.pathname === "/version.json") {
+    return; // Passer directement au réseau
+  }
 
   // Supabase API ou Auth : laisser passer vers le réseau, la résilience est gérée dans l'application
   if (url.origin.includes("supabase.co")) {

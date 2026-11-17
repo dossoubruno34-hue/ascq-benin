@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
+import AppUpdateManager from "@/components/AppUpdateManager";
 import InstallAppBanner from "@/components/InstallAppBanner";
 import NotificationWatcher from "@/components/NotificationWatcher";
 
@@ -66,7 +66,7 @@ export default function RootLayout({
     <html lang="fr" className="scroll-smooth">
       <body className="min-h-screen bg-slate-50 text-slate-900 antialiased font-sans selection:bg-emerald-100 selection:text-emerald-900">
         <InstallAppBanner />
-        <ServiceWorkerRegister />
+        <AppUpdateManager />
         <NotificationWatcher />
         {children}
       </body>

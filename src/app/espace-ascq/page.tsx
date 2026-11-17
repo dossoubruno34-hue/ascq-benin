@@ -35,6 +35,7 @@ import {
 import { getCachedMonEspace, saveCachedMonEspace, saveCachedUserSession, getCachedUserSession } from "@/lib/offline-sync";
 import { estCadreNonAscq } from "@/lib/cadre-roles";
 import BeninPhoneAction from "@/components/BeninPhoneAction";
+import BoutonVerifierMiseAJour from "@/components/BoutonVerifierMiseAJour";
 
 export default function MonEspacePage() {
   const router = useRouter();
@@ -1074,6 +1075,9 @@ export default function MonEspacePage() {
           </Link>
 
         </div>
+
+        {/* 5. Version officielle & Vérification des Mises à jour */}
+        <BoutonVerifierMiseAJour variant="card" />
 
       </main>
     </div>

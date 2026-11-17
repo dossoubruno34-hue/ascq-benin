@@ -86,8 +86,8 @@ export default function InstallAppBanner() {
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-9 h-9 rounded-xl bg-white p-1 flex items-center justify-center shrink-0 shadow-inner">
               <Image
-                src="/logo-ascq.png"
-                alt="Logo ASCQ Bénin"
+                src="/logo-asc.png"
+                alt="Logo ASC Santé Communautaire Bénin"
                 width={28}
                 height={28}
                 className="object-contain"
@@ -96,7 +96,7 @@ export default function InstallAppBanner() {
             <div className="min-w-0 leading-tight">
               <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="font-extrabold text-xs sm:text-sm tracking-tight text-white truncate">
-                  Application Officielle ASCQ Bénin
+                  ASC Santé Communautaire du Bénin
                 </span>
                 <span className="hidden sm:inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-400 text-slate-900 uppercase">
                   PWA Mobile & PC

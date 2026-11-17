@@ -8,6 +8,7 @@ import { SocialPlatformsCard, FacebookIcon } from "@/components/SocialLinks";
 import CarteCouvertureBenin from "@/components/CarteCouvertureBenin";
 import HomeAuthButtons from "@/components/HomeAuthButtons";
 import DernieresPublicationsFacebook, { PublicationFacebook } from "@/components/DernieresPublicationsFacebook";
+import BoutonVerifierMiseAJour from "@/components/BoutonVerifierMiseAJour";
 
 export const dynamic = "force-dynamic";
 
@@ -218,6 +219,9 @@ export default async function HomePage() {
 
         {/* 9. Réseaux sociaux & Plateformes officielles */}
         <SocialPlatformsCard />
+
+        {/* 10. Point de vérification des Mises à jour */}
+        <BoutonVerifierMiseAJour variant="card" />
 
       </main>
     </div>
