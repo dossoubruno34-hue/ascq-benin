@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { MessageSquarePlus, Send, CheckCircle2, AlertCircle } from "lucide-react";
+import { estDepartementPilote, formaterLibelleDepartementOption } from "@/lib/pilot-config";
 
 interface FormulaireProps {
   departements: Array<{ id: string; nom: string }>;
@@ -21,6 +22,16 @@ export default function FormulaireSuggestions({ departements }: FormulaireProps)
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+
+  // Auto-sélection du département pilote (Zou)
+  useEffect(() => {
+    if (departements && departements.length > 0 && !selectedDep) {
+      const zouDep = departements.find(d => estDepartementPilote(d.nom));
+      if (zouDep) {
+        setSelectedDep(zouDep.id);
+      }
+    }
+  }, [departements, selectedDep]);
 
   useEffect(() => {
     if (!selectedDep) {
@@ -174,20 +185,31 @@ export default function FormulaireSuggestions({ departements }: FormulaireProps)
           {/* Localisation */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Département concerné
+              <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                <span>Département concerné</span>
+                <span className="text-[10px] bg-emerald-100 text-[#005c30] font-bold px-1.5 py-0.2 rounded">Phase Pilote</span>
               </label>
               <select
                 value={selectedDep}
-                onChange={(e) => setSelectedDep(e.target.value)}
+                onChange={(e) => {
+                  const dep = departements.find(d => d.id === e.target.value);
+                  if (dep && !estDepartementPilote(dep.nom)) {
+                    alert("Pour la phase pilote, seul le département du ZOU est disponible.");
+                    return;
+                  }
+                  setSelectedDep(e.target.value);
+                }}
                 className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
               >
                 <option value="">Sélectionner un département</option>
-                {departements.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.nom}
-                  </option>
-                ))}
+                {departements.map((d) => {
+                  const opt = formaterLibelleDepartementOption(d.nom);
+                  return (
+                    <option key={d.id} value={d.id} disabled={opt.disabled}>
+                      {opt.libelle}
+                    </option>
+                  );
+                })}
               </select>
             </div>
 

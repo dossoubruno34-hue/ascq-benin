@@ -1236,7 +1236,7 @@ export default function RapportHebdoPnscPage() {
               annee: annee,
               date_debut_semaine: dates.debut,
               date_fin_semaine: dates.fin,
-              departement: currentUser?.departement || "OUEME",
+              departement: currentUser?.departement || "ZOU",
               zone_sanitaire: currentUser?.zone_sanitaire || currentUser?.commune || "",
               commune: currentUser?.commune || "",
               arrondissement: currentUser?.arrondissement || currentUser?.arrondissement_nom || "",

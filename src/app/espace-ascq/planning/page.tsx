@@ -43,6 +43,7 @@ import {
   RcPlanningData,
   RcPlanningSlot
 } from "@/lib/pdf-plannings";
+import { PILOTE_CONFIG, estDepartementPilote } from "@/lib/pilot-config";
 
 // Les 10 activités officielles validées CNLS-TP
 const ACTIVITES_OFFICIELLES_CNLSTP = [
@@ -913,24 +914,49 @@ export default function PlanningAscqPage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">Département *</label>
-                    <input
-                      type="text"
+                    <label className="block font-bold text-slate-700 mb-1 flex items-center justify-between">
+                      <span>Département *</span>
+                      <span className="text-[10px] bg-emerald-100 text-[#005c30] px-1.5 py-0.5 rounded font-extrabold">Phase Pilote</span>
+                    </label>
+                    <select
                       value={departement}
-                      onChange={(e) => setDepartement(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-800"
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (!estDepartementPilote(val)) {
+                          alert("Seul le département du ZOU est ouvert pour la phase pilote.");
+                          return;
+                        }
+                        setDepartement(val);
+                      }}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-[#005c30]"
                       required
-                    />
+                    >
+                      <option value="Zou">⭐ Zou (Département Pilote Actif)</option>
+                      <option value="Alibori" disabled>🔒 Alibori (Verrouillé - Phase pilote Zou)</option>
+                      <option value="Atacora" disabled>🔒 Atacora (Verrouillé - Phase pilote Zou)</option>
+                      <option value="Atlantique" disabled>🔒 Atlantique (Verrouillé - Phase pilote Zou)</option>
+                      <option value="Borgou" disabled>🔒 Borgou (Verrouillé - Phase pilote Zou)</option>
+                      <option value="Collines" disabled>🔒 Collines (Verrouillé - Phase pilote Zou)</option>
+                      <option value="Couffo" disabled>🔒 Couffo (Verrouillé - Phase pilote Zou)</option>
+                      <option value="Donga" disabled>🔒 Donga (Verrouillé - Phase pilote Zou)</option>
+                      <option value="Littoral" disabled>🔒 Littoral (Verrouillé - Phase pilote Zou)</option>
+                      <option value="Mono" disabled>🔒 Mono (Verrouillé - Phase pilote Zou)</option>
+                      <option value="Ouémé" disabled>🔒 Ouémé (Verrouillé - Phase pilote Zou)</option>
+                      <option value="Plateau" disabled>🔒 Plateau (Verrouillé - Phase pilote Zou)</option>
+                    </select>
                   </div>
                   <div>
                     <label className="block font-bold text-slate-700 mb-1">Commune *</label>
-                    <input
-                      type="text"
+                    <select
                       value={commune}
                       onChange={(e) => setCommune(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-800"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-[#005c30]"
                       required
-                    />
+                    >
+                      {PILOTE_CONFIG.communesZou.map(c => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
                   </div>
                   <div>
                     <label className="block font-bold text-slate-700 mb-1">Arrondissement *</label>
@@ -938,7 +964,8 @@ export default function PlanningAscqPage() {
                       type="text"
                       value={arrondissement}
                       onChange={(e) => setArrondissement(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-800"
+                      placeholder="Ex: Tohouès"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-[#005c30]"
                       required
                     />
                   </div>

@@ -1,6 +1,6 @@
 {
-  "version": "2.5.5",
-  "buildTimestamp": 1794938000000,
-  "buildDate": "17 Novembre 2026 - Intégration du Nouvel En-tête Officiel sur le Rapport Mensuel ASCQ",
-  "releaseNotes": "Application du nouvel en-tête officiel validé (Bannière CNLS-TP Présidence du Bénin, Logo ASC Santé Communautaire, localisation territoriale soulignée) sur le Rapport Mensuel d'Activité de l'ASCQ (RMA)."
+  "version": "2.5.6",
+  "buildTimestamp": 1794942000000,
+  "buildDate": "17 Novembre 2026 - Phase Pilote Officielle : Verrouillage réservé au Département du Zou",
+  "releaseNotes": "Verrouillage strict de tous les départements hors Zou pour la phase pilote : inscription, annuaire, suggestions et plannings réservés exclusivement au département du Zou."
 }

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { Search, Phone, MapPin, User, ShieldCheck } from "lucide-react";
+import { PILOTE_CONFIG, estDepartementPilote, formaterLibelleDepartementOption } from "@/lib/pilot-config";
 
 interface AnnuaireProps {
   departements: Array<{ id: string; nom: string }>;
@@ -18,6 +19,16 @@ export default function AnnuairePublic({ departements }: AnnuaireProps) {
   const [results, setResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+
+  // Auto-sélection du département pilote (Zou) au chargement
+  useEffect(() => {
+    if (departements && departements.length > 0 && !selectedDep) {
+      const zouDep = departements.find(d => estDepartementPilote(d.nom));
+      if (zouDep) {
+        setSelectedDep(zouDep.id);
+      }
+    }
+  }, [departements, selectedDep]);
 
   // Charger les communes lorsque le département change
   useEffect(() => {
@@ -101,23 +112,42 @@ export default function AnnuairePublic({ departements }: AnnuaireProps) {
         </p>
       </div>
 
+      {/* Badge Phase Pilote */}
+      <div className="max-w-3xl mx-auto mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center gap-2 text-xs text-emerald-950 font-medium">
+        <span className="text-base">📍</span>
+        <span>
+          <strong>Phase Pilote :</strong> L'annuaire est actuellement restreint aux agents du département du <strong>ZOU</strong>. Les autres départements sont verrouillés.
+        </span>
+      </div>
+
       {/* Formulaire de filtres en cascade */}
       <form onSubmit={handleSearch} className="max-w-3xl mx-auto grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div>
-          <label className="block text-xs font-semibold text-slate-700 mb-1">
-            Département
+          <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
+            <span>Département</span>
+            <span className="text-[10px] bg-emerald-100 text-[#005c30] font-bold px-1.5 py-0.2 rounded">Phase Pilote</span>
           </label>
           <select
             value={selectedDep}
-            onChange={(e) => setSelectedDep(e.target.value)}
-            className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 uppercase font-medium"
+            onChange={(e) => {
+              const dep = departements.find(d => d.id === e.target.value);
+              if (dep && !estDepartementPilote(dep.nom)) {
+                alert("Pour la phase pilote, seul le département du ZOU est consultable.");
+                return;
+              }
+              setSelectedDep(e.target.value);
+            }}
+            className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
           >
-            <option value="">Tous les départements</option>
-            {departements.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.nom}
-              </option>
-            ))}
+            <option value="">Sélectionnez un département</option>
+            {departements.map((d) => {
+              const opt = formaterLibelleDepartementOption(d.nom);
+              return (
+                <option key={d.id} value={d.id} disabled={opt.disabled}>
+                  {opt.libelle}
+                </option>
+              );
+            })}
           </select>
         </div>
 

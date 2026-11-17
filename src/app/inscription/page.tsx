@@ -21,6 +21,7 @@ import {
   MapPin,
   Building2
 } from "lucide-react";
+import { PILOTE_CONFIG, estDepartementPilote, formaterLibelleDepartementOption } from "@/lib/pilot-config";
 
 export default function InscriptionPage() {
   // 1. Profil & Poste en premier (Profil en tête)
@@ -88,7 +89,13 @@ export default function InscriptionPage() {
   useEffect(() => {
     async function loadDeps() {
       const { data } = await supabase.from("departements").select("id, nom").order("nom");
-      setDepartements(data || []);
+      const list = data || [];
+      setDepartements(list);
+      // Auto-sélectionner le département pilote (Zou)
+      const zouDep = list.find((d) => estDepartementPilote(d.nom));
+      if (zouDep) {
+        setSelectedDep(zouDep.id);
+      }
     }
     loadDeps();
   }, []);
@@ -238,6 +245,15 @@ export default function InscriptionPage() {
         setErrorMsg("Pour éviter tout piratage, votre mot de passe doit obligatoirement inclure au moins un caractère spécial (! @ # $ % ^ & * ( ) _ + - = . ? : { } | < >).");
         setLoading(false);
         return;
+      }
+
+      if (selectedDep) {
+        const depObj = departements.find(d => d.id === selectedDep);
+        if (depObj && !estDepartementPilote(depObj.nom)) {
+          setErrorMsg("Phase pilote active : Seul le département du ZOU est actuellement ouvert aux inscriptions. Les 11 autres départements sont verrouillés.");
+          setLoading(false);
+          return;
+        }
       }
 
       if (isTerrainAscq) {
@@ -619,27 +635,51 @@ export default function InscriptionPage() {
                   ✅ Aire géographique : <strong>Territoire National (Tout le Bénin)</strong>.
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {showDepartement && (
+                <div className="space-y-3">
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-start gap-2.5 text-xs text-emerald-950">
+                    <span className="text-base shrink-0 mt-0.5">📍</span>
                     <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">
-                        Département *
-                      </label>
-                      <select
-                        required
-                        value={selectedDep}
-                        onChange={(e) => setSelectedDep(e.target.value)}
-                        className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
-                      >
-                        <option value="">Sélectionnez un département</option>
-                        {departements.map((d) => (
-                          <option key={d.id} value={d.id}>
-                            {d.nom}
-                          </option>
-                        ))}
-                      </select>
+                      <p className="font-extrabold text-emerald-900">
+                        Phase Pilote Officielle — Département du ZOU uniquement
+                      </p>
+                      <p className="text-[11px] text-emerald-800 mt-0.5 leading-relaxed">
+                        Pour cette phase de déploiement pilote, les inscriptions sont exclusivement ouvertes pour les communes et arrondissements du <strong>ZOU</strong>. Les 11 autres départements sont temporairement verrouillés.
+                      </p>
                     </div>
-                  )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {showDepartement && (
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                          <span>Département *</span>
+                          <span className="text-[10px] bg-emerald-100 text-[#005c30] font-bold px-1.5 py-0.5 rounded">Phase Pilote</span>
+                        </label>
+                        <select
+                          required
+                          value={selectedDep}
+                          onChange={(e) => {
+                            const depChoisi = departements.find(d => d.id === e.target.value);
+                            if (depChoisi && !estDepartementPilote(depChoisi.nom)) {
+                              alert("Pour la phase pilote officielle, seul le département du ZOU est accessible.");
+                              return;
+                            }
+                            setSelectedDep(e.target.value);
+                          }}
+                          className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
+                        >
+                          <option value="">Sélectionnez un département</option>
+                          {departements.map((d) => {
+                            const opt = formaterLibelleDepartementOption(d.nom);
+                            return (
+                              <option key={d.id} value={d.id} disabled={opt.disabled}>
+                                {opt.libelle}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </div>
+                    )}
 
                   {showZoneSanitaire && (
                     <div>
@@ -777,7 +817,8 @@ export default function InscriptionPage() {
                     </div>
                   )}
                 </div>
-              )}
+              </div>
+            )}
             </div>
 
             {/* SECTION 3 : IDENTITÉ & ACCÈS DE SÉCURITÉ */}

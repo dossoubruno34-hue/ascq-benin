@@ -604,10 +604,10 @@ export default function EspaceRelaisPage() {
     });
 
     return {
-      departement: rcData?.departement_nom || rcData?.departement || "OUÉMÉ",
+      departement: rcData?.departement_nom || rcData?.departement || "ZOU",
       zoneSanitaire: `${rcData?.commune_nom || rcData?.commune || "Zone"} - Sanitaire`,
-      commune: rcData?.commune_nom || rcData?.commune || "ADJARRA",
-      arrondissement: rcData?.arrondissement_nom || rcData?.arrondissement || "HONVIÉ",
+      commune: rcData?.commune_nom || rcData?.commune || "OUINHI",
+      arrondissement: rcData?.arrondissement_nom || rcData?.arrondissement || "TOHOUÈS",
       village: rcData?.village_nom || "Village",
       grappe: rcData?.grappe || 1,
       rcName: `${rcData?.prenoms || ""} ${rcData?.nom || ""}`.trim() || "Relais Communautaire",

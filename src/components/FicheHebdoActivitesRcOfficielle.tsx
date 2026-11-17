@@ -233,7 +233,7 @@ export default function FicheHebdoActivitesRcOfficielle({ rcProfile, isAscqSuper
     return {
       id: ficheId || undefined,
       relaisId: rcProfile?.user_id || rcProfile?.id,
-      departement: rcProfile?.departement_nom || "Atlantique",
+      departement: rcProfile?.departement_nom || "Zou",
       zoneSanitaire: rcProfile?.zone_sanitaire_nom || "Zone Sanitaire",
       commune: rcProfile?.commune_nom || "Commune",
       arrondissement: rcProfile?.arrondissement_nom || "Arrondissement",
