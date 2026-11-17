@@ -33,8 +33,10 @@ import {
   Sparkles,
   HeartPulse,
   Activity,
-  Stethoscope
+  Stethoscope,
+  Printer
 } from "lucide-react";
+import ModalApercuFidelePdf from "@/components/ModalApercuFidelePdf";
 import { getCachedUserSession, getCachedMonEspace } from "@/lib/offline-sync";
 
 // Calcul de la semaine ISO actuelle (1-52)
@@ -73,6 +75,7 @@ export default function RapportHebdoPnscPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<{ text: string; error: boolean } | null>(null);
+  const [modalPdfOuvert, setModalPdfOuvert] = useState<boolean>(false);
 
   // Semaine & Année
   const anneeActuelle = new Date().getFullYear();
@@ -556,8 +559,18 @@ export default function RapportHebdoPnscPage() {
               </p>
             </div>
 
-            {/* Boutons d'export Excel direct */}
+            {/* Boutons d'export Excel et PDF Officiel direct */}
             <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setModalPdfOuvert(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 text-white font-extrabold text-xs shadow-sm active:scale-95 transition-all"
+                title="Générer, personnaliser les actions menées et imprimer la fiche officielle DDS (A4)"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span>PDF Officiel DDS (A4)</span>
+              </button>
+
               <button
                 onClick={handleExportIndividuel}
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-sm active:scale-95 transition-all"
@@ -1211,6 +1224,41 @@ export default function RapportHebdoPnscPage() {
             </table>
           </div>
         </section>
+
+        {/* MODAL APERÇU FIDÈLE PDF DDS (A4) AVEC SAISIE DES ACTIONS MENÉES */}
+        {modalPdfOuvert && (
+          <ModalApercuFidelePdf
+            isOpen={modalPdfOuvert}
+            onClose={() => setModalPdfOuvert(false)}
+            typeFiche="RAP"
+            donnees={{
+              semaine: semaine,
+              annee: annee,
+              date_debut_semaine: dates.debut,
+              date_fin_semaine: dates.fin,
+              departement: currentUser?.departement || "OUEME",
+              zone_sanitaire: currentUser?.zone_sanitaire || currentUser?.commune || "",
+              commune: currentUser?.commune || "",
+              arrondissement: currentUser?.arrondissement || currentUser?.arrondissement_nom || "",
+              village: currentUser?.village || currentUser?.village_nom || "",
+              alertes_detectees: statsTempsReel?.total_alertes ?? 0,
+              personnes_touchees: statsTempsReel?.personnes_touchees ?? 0,
+              personnes_decedees: statsTempsReel?.personnes_mortes_alertes ?? 0,
+              alertes_verifiees_48h: statsTempsReel?.alertes_verifiees_48h ?? (statsTempsReel?.total_alertes ?? 0),
+              alertes_averees: statsTempsReel?.alertes_averees ?? (statsTempsReel?.total_alertes ?? 0),
+              deces_maternels: statsTempsReel?.deces_maternels ?? 0,
+              deces_neonatals: statsTempsReel?.deces_neonatals ?? 0,
+              deces_infantiles: statsTempsReel?.deces_infantiles ?? 0,
+              deces_infanto_juveniles: statsTempsReel?.deces_infanto_juveniles ?? 0,
+              deces_plus_5_ans: statsTempsReel?.deces_plus_5_ans ?? 0,
+              actions_menees: activites || "",
+              difficultes: difficultes || "",
+              rapporteur_nom: currentUser ? `${currentUser.prenoms || currentUser.prenom || ""} ${currentUser.nom || ""}`.trim() : "",
+              signature_tactile: signatureTactile
+            }}
+            titre={`Rapport Hebdo DDS - S${semaine} - ${currentUser?.arrondissement || currentUser?.commune || "COMMUNAUTE"}`}
+          />
+        )}
 
       </main>
     </div>

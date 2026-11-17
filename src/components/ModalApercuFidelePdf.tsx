@@ -12,7 +12,8 @@ import {
   Loader2, 
   Maximize2,
   ExternalLink,
-  ShieldCheck
+  ShieldCheck,
+  Edit3
 } from "lucide-react";
 import { 
   genererFichePdfSuperposee, 
@@ -47,6 +48,10 @@ export default function ModalApercuFidelePdf({
   const [afficherRappelImpression, setAfficherRappelImpression] = useState<boolean>(false);
   const [telechargementReussi, setTelechargementReussi] = useState<boolean>(false);
   const [isMobile, setIsMobile] = useState<boolean>(false);
+  
+  // Renseignement direct des actions menées (Section 3 du Rapport Hebdomadaire)
+  const [actionsMeneesCustom, setActionsMeneesCustom] = useState<string>("");
+  const [afficherEditeurActions, setAfficherEditeurActions] = useState<boolean>(false);
 
   const iframePrintRef = useRef<HTMLIFrameElement | null>(null);
 
@@ -63,17 +68,32 @@ export default function ModalApercuFidelePdf({
     }
   }, []);
 
-  // Synchroniser l'état vierge à l'ouverture
+  // Synchroniser l'état initial et les actions menées à l'ouverture
   useEffect(() => {
     if (isOpen) {
       setIsVierge(isViergeInitial);
       setErreur(null);
       setTelechargementReussi(false);
       setAfficherRappelImpression(false);
-    }
-  }, [isOpen, isViergeInitial]);
 
-  // Générer le PDF côté navigateur à chaque changement de données ou de mode vierge
+      const initActions = 
+        donnees?.actions_menees || 
+        donnees?.actionsMenees || 
+        donnees?.actions || 
+        donnees?.rawData?.actions_menees || 
+        "";
+      setActionsMeneesCustom(initActions);
+
+      // Pour le rapport hebdo, si aucune action n'est encore renseignée, ouvrir directement l'éditeur
+      if (typeFiche === "RAP" && !initActions.trim()) {
+        setAfficherEditeurActions(true);
+      } else {
+        setAfficherEditeurActions(false);
+      }
+    }
+  }, [isOpen, isViergeInitial, donnees, typeFiche]);
+
+  // Générer le PDF côté navigateur à chaque changement de données, de mode vierge ou des actions menées
   useEffect(() => {
     if (!isOpen) return;
 
@@ -83,7 +103,13 @@ export default function ModalApercuFidelePdf({
 
     const generer = async () => {
       try {
-        const donneesNormalisees = adapterDonneesFicheVersPdf(typeFiche, donnees);
+        const donneesFusionnees = {
+          ...donnees,
+          actions_menees: actionsMeneesCustom !== undefined && actionsMeneesCustom !== ""
+            ? actionsMeneesCustom 
+            : (donnees?.actions_menees || donnees?.actionsMenees || donnees?.actions || "")
+        };
+        const donneesNormalisees = adapterDonneesFicheVersPdf(typeFiche, donneesFusionnees);
         const res = await genererFichePdfSuperposee(typeFiche, donneesNormalisees, { isVierge });
 
         if (!actif) return;
@@ -112,7 +138,7 @@ export default function ModalApercuFidelePdf({
     return () => {
       actif = false;
     };
-  }, [isOpen, typeFiche, donnees, isVierge, currentUser]);
+  }, [isOpen, typeFiche, donnees, isVierge, currentUser, actionsMeneesCustom]);
 
   if (!isOpen) return null;
 
@@ -302,6 +328,24 @@ export default function ModalApercuFidelePdf({
               <span>Plein écran</span>
             </button>
 
+            {/* Bouton pour renseigner ou modifier les actions menées sur le Rapport Hebdo */}
+            {typeFiche === "RAP" && !isVierge && (
+              <button
+                type="button"
+                onClick={() => setAfficherEditeurActions(!afficherEditeurActions)}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl font-bold text-xs transition-all ${
+                  afficherEditeurActions
+                    ? "bg-amber-400 text-slate-950 shadow"
+                    : "bg-white/20 hover:bg-white/30 text-white"
+                }`}
+                title="Renseigner ou modifier les actions menées sur les 28 lignes officielles"
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Actions menées</span>
+                <span className="sm:hidden">Actions</span>
+              </button>
+            )}
+
             {/* Bouton Télécharger (Ancre native compatible 100% Android) */}
             <a
               href={result?.blobUrl || "#"}
@@ -366,6 +410,88 @@ export default function ModalApercuFidelePdf({
             >
               Compris
             </button>
+          </div>
+        )}
+
+        {/* PANNEAU DE SAISIE / MODIFICATION DES ACTIONS MENÉES (RAPPORT HEBDO) */}
+        {typeFiche === "RAP" && !isVierge && afficherEditeurActions && (
+          <div className="bg-amber-50/95 border-b-2 border-amber-300 p-3 sm:p-4 text-xs shrink-0 animate-fade-in shadow-inner z-20">
+            <div className="flex items-center justify-between mb-1.5">
+              <div className="flex items-center gap-2">
+                <Edit3 className="w-4 h-4 text-amber-700" />
+                <span className="font-extrabold text-amber-950 text-xs sm:text-sm">
+                  Section 3 : Actions menées au cours de la semaine (posées sur les 28 lignes officielles DDS)
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAfficherEditeurActions(false)}
+                className="text-amber-900 hover:text-black font-extrabold text-xs px-2.5 py-1 rounded-lg bg-amber-200/60 hover:bg-amber-300 transition-colors"
+              >
+                Masquer l'éditeur ✕
+              </button>
+            </div>
+            <p className="text-[11px] text-amber-900 mb-2 leading-relaxed">
+              Saisissez ou modifiez vos activités ci-dessous. Le texte est découpé et positionné <strong>en temps réel</strong> sur les lignes pointillées du formulaire officiel.
+            </p>
+            <textarea
+              rows={4}
+              value={actionsMeneesCustom}
+              onChange={(e) => setActionsMeneesCustom(e.target.value)}
+              placeholder="Exemple :&#10;1. Réunion de coordination hebdomadaire tenue avec les Relais Communautaires.&#10;2. Visites à domicile réalisées dans 45 ménages ciblés pour le suivi épidémiologique.&#10;3. Dépistage actif par TDR chez 8 enfants fébriles : 3 cas positifs référés et traités.&#10;4. Sensibilisation collective sur l'hygiène de l'eau et l'assainissement de base..."
+              className="w-full p-2.5 rounded-xl border border-amber-300 bg-white text-slate-800 text-xs font-medium focus:ring-2 focus:ring-emerald-500 focus:border-[#005c30] leading-relaxed shadow-xs"
+            />
+            {/* Puces d'insertion rapide */}
+            <div className="flex flex-wrap items-center gap-1.5 mt-2">
+              <span className="text-[10px] font-bold text-amber-900">Suggestions rapides :</span>
+              <button
+                type="button"
+                onClick={() => {
+                  const ajout = "- Visites à domicile effectuées dans les ménages pour la surveillance active.";
+                  setActionsMeneesCustom(prev => prev ? `${prev}\n${ajout}` : ajout);
+                }}
+                className="px-2 py-1 rounded-lg bg-white border border-amber-300 text-[10px] font-bold text-slate-700 hover:bg-amber-100 transition-colors"
+              >
+                + Visites ménages
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const ajout = "- Dépistages et orientations des cas fébriles vers le centre de santé.";
+                  setActionsMeneesCustom(prev => prev ? `${prev}\n${ajout}` : ajout);
+                }}
+                className="px-2 py-1 rounded-lg bg-white border border-amber-300 text-[10px] font-bold text-slate-700 hover:bg-amber-100 transition-colors"
+              >
+                + Dépistages / Réf. CS
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const ajout = "- Réunion de coordination hebdomadaire et collecte des registres des Relais.";
+                  setActionsMeneesCustom(prev => prev ? `${prev}\n${ajout}` : ajout);
+                }}
+                className="px-2 py-1 rounded-lg bg-white border border-amber-300 text-[10px] font-bold text-slate-700 hover:bg-amber-100 transition-colors"
+              >
+                + Réunion Relais
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const ajout = "- Sensibilisation communautaire sur l'hygiène, le lavage des mains et l'assainissement.";
+                  setActionsMeneesCustom(prev => prev ? `${prev}\n${ajout}` : ajout);
+                }}
+                className="px-2 py-1 rounded-lg bg-white border border-amber-300 text-[10px] font-bold text-slate-700 hover:bg-amber-100 transition-colors"
+              >
+                + Sensibilisation
+              </button>
+              <button
+                type="button"
+                onClick={() => setActionsMeneesCustom("")}
+                className="ml-auto text-[10px] text-red-600 hover:text-red-800 font-bold underline"
+              >
+                Effacer tout
+              </button>
+            </div>
           </div>
         )}
 
@@ -436,6 +562,22 @@ export default function ModalApercuFidelePdf({
                 </div>
 
                 <div className="flex flex-col gap-2.5 pt-1">
+                  {/* Option de saisie / modification des actions menées sur le Rapport Hebdo */}
+                  {typeFiche === "RAP" && !isVierge && (
+                    <button
+                      type="button"
+                      onClick={() => setAfficherEditeurActions(!afficherEditeurActions)}
+                      className={`w-full py-2.5 px-4 rounded-2xl font-extrabold text-xs border active:scale-95 transition-all flex items-center justify-center gap-2 ${
+                        afficherEditeurActions
+                          ? "bg-amber-300 text-amber-950 border-amber-400"
+                          : "bg-amber-100 hover:bg-amber-200 text-amber-900 border-amber-300"
+                      }`}
+                    >
+                      <Edit3 className="w-4 h-4 text-amber-800" />
+                      <span>{afficherEditeurActions ? "Masquer la saisie des actions" : "✏️ Renseigner les actions menées"}</span>
+                    </button>
+                  )}
+
                   <button
                     type="button"
                     onClick={handleOuvrirPdf}

@@ -145,6 +145,30 @@ export default function NouveauRapportHebdoPage() {
         setDecesInfantiles(data.deces_infantiles || 0);
         setDecesInfantoJuveniles(data.deces_infanto_juveniles || 0);
         setDecesPlus5Ans(data.deces_plus_5_ans || 0);
+
+        // Proposition automatique des actions menées si le champ est encore vide
+        if (!actionsMenees.trim()) {
+          const alertesDetect = data.alertes_detectees || 0;
+          const persTouchees = data.personnes_touchees || 0;
+          const alerteVerif = data.alertes_verifiees_48h || 0;
+          const decesTotaux = (data.deces_maternels || 0) + (data.deces_neonatals || 0) + (data.deces_infantiles || 0) + (data.deces_plus_5_ans || 0);
+
+          const actionsProposees = [
+            `1. Surveillance active communautaire hebdomadaire assurée sur le village ${villageNom.trim()} pour la Semaine ${semaine}.`,
+            alertesDetect > 0
+              ? `2. Suivi et investigation de ${alertesDetect} alerte(s) sanitaire(s) déclarée(s) (${alerteVerif} vérifiée(s) sous 48h).`
+              : `2. Aucune alerte épidémiologique suspecte signalée au cours de la semaine.`,
+            persTouchees > 0
+              ? `3. Prise en charge, orientation et référence vers le Centre de Santé de ${persTouchees} patient(s).`
+              : `3. Poursuite des visites à domicile et dépistages actifs au niveau des ménages.`,
+            decesTotaux > 0
+              ? `4. Notification et consignation de ${decesTotaux} décès communautaire(s) pour autopsie verbale.`
+              : `4. Zéro décès communautaire à signaler pour la présente semaine.`,
+            `5. Réunion de coordination hebdomadaire tenue avec les Relais Communautaires et vérification des registres.`,
+            `6. Sensibilisation des familles sur l'hygiène de l'eau, le lavage des mains et la salubrité environnementale.`
+          ].join("\n");
+          setActionsMenees(actionsProposees);
+        }
       }
     } catch (err: any) {
       alert(err.message || "Erreur lors du calcul du pré-remplissage.");
@@ -591,6 +615,51 @@ export default function NouveauRapportHebdoPage() {
               onChange={(e) => setActionsMenees(e.target.value)}
               className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-[#005c30] leading-relaxed"
             />
+
+            {/* Suggestions d'actions rapides */}
+            <div className="flex flex-wrap items-center gap-1.5 pt-1">
+              <span className="text-[10px] font-bold text-slate-500">Ajouter rapidement :</span>
+              <button
+                type="button"
+                onClick={() => {
+                  const ajout = "- Visites à domicile effectuées dans les ménages pour la surveillance active.";
+                  setActionsMenees(prev => prev ? `${prev}\n${ajout}` : ajout);
+                }}
+                className="px-2 py-1 rounded-lg bg-slate-50 border border-slate-200 text-[10px] font-bold text-slate-700 hover:bg-slate-100 transition-colors"
+              >
+                + Visites ménages
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const ajout = "- Dépistages et orientations des cas fébriles vers le centre de santé.";
+                  setActionsMenees(prev => prev ? `${prev}\n${ajout}` : ajout);
+                }}
+                className="px-2 py-1 rounded-lg bg-slate-50 border border-slate-200 text-[10px] font-bold text-slate-700 hover:bg-slate-100 transition-colors"
+              >
+                + Dépistages / Réf. CS
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const ajout = "- Réunion de coordination hebdomadaire et collecte des registres des Relais.";
+                  setActionsMenees(prev => prev ? `${prev}\n${ajout}` : ajout);
+                }}
+                className="px-2 py-1 rounded-lg bg-slate-50 border border-slate-200 text-[10px] font-bold text-slate-700 hover:bg-slate-100 transition-colors"
+              >
+                + Réunion Relais
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const ajout = "- Sensibilisation communautaire sur l'hygiène de l'eau, le lavage des mains et l'assainissement.";
+                  setActionsMenees(prev => prev ? `${prev}\n${ajout}` : ajout);
+                }}
+                className="px-2 py-1 rounded-lg bg-slate-50 border border-slate-200 text-[10px] font-bold text-slate-700 hover:bg-slate-100 transition-colors"
+              >
+                + Sensibilisation
+              </button>
+            </div>
           </div>
 
           {/* 4. Difficultés rencontrées et besoins (Facultatif) */}
