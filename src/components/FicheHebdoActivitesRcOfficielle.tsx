@@ -13,10 +13,19 @@ import {
   MapPin, 
   User, 
   Check, 
-  RefreshCw,
-  Send,
-  AlertCircle
+  RefreshCw, 
+  Send, 
+  AlertCircle,
+  Download,
+  Eye
 } from "lucide-react";
+import { 
+  generatePdfPlanningRc, 
+  telechargerPdf, 
+  imprimerPdf, 
+  RcPlanningData,
+  RcPlanningSlot
+} from "@/lib/pdf-plannings";
 
 interface Props {
   rcProfile: any;
@@ -217,202 +226,127 @@ export default function FicheHebdoActivitesRcOfficielle({ rcProfile, isAscqSuper
     }
   };
 
-  const imprimerFicheOfficielle = () => {
-    const win = window.open("", "_blank");
-    if (!win) {
-      alert("Veuillez autoriser les fenêtres pop-up.");
-      return;
+  const [pdfGenerating, setPdfGenerating] = useState(false);
+
+  const preparerDonneesPdf = (): RcPlanningData => {
+    return {
+      id: ficheId || undefined,
+      relaisId: rcProfile?.user_id || rcProfile?.id,
+      departement: rcProfile?.departement_nom || "Atlantique",
+      zoneSanitaire: rcProfile?.zone_sanitaire_nom || "Zone Sanitaire",
+      commune: rcProfile?.commune_nom || "Commune",
+      arrondissement: rcProfile?.arrondissement_nom || "Arrondissement",
+      village: rcProfile?.village_nom || "Village",
+      grappe: rcProfile?.grappe || 1,
+      rcName: `${rcProfile?.nom || ""} ${rcProfile?.prenoms || ""}`.trim() || "Relais Communautaire",
+      rcPhone: rcProfile?.telephone || "",
+      semaineNum: Number(semaineNum) || 1,
+      annee: Number(annee) || new Date().getFullYear(),
+      dateDebutStr: dateSemaineDu,
+      dateFinStr: dateSemaineDu,
+      act_vad: [
+        {
+          date: dateSemaineDu,
+          heure: "08h00 - 12h00",
+          zone: vadZone || `Grappe ${rcProfile?.grappe || 1}`,
+          qte: `${vadRealisee} VAD (${vadMenagesVisites} ménages / tot: ${vadTotalMenages})`
+        }
+      ],
+      act_causerie: [
+        {
+          date: dateSemaineDu,
+          heure: "09h00 - 11h00",
+          zone: causerieZone || `Grappe ${rcProfile?.grappe || 1}`,
+          qte: `${causerieRealisee} causerie(s) • Thème: ${causerieTheme || "Sensibilisation"}`
+        }
+      ],
+      act_animale: [
+        {
+          date: dateSemaineDu,
+          heure: "14h00 - 16h00",
+          zone: santeAnimaleZone || `Grappe ${rcProfile?.grappe || 1}`,
+          qte: `${santeAnimaleSites} site(s) visité(s)`
+        }
+      ],
+      act_sociales: [
+        {
+          date: dateSemaineDu,
+          heure: "16h00 - 17h00",
+          zone: affairesSocialesZone || `Grappe ${rcProfile?.grappe || 1}`,
+          qte: `${affairesSocialesVisites} visite(s) sociale(s)`
+        }
+      ],
+      act_femmes: [
+        {
+          date: dateSemaineDu,
+          heure: "08h00 - 11h00",
+          zone: femmesZone || `Grappe ${rcProfile?.grappe || 1}`,
+          qte: `${femmesEnceintesNbre} femme(s) (CPN: ${femmesCpn}, VAT: ${femmesVat})`
+        }
+      ],
+      act_enfants: [
+        {
+          date: dateSemaineDu,
+          heure: "08h00 - 11h00",
+          zone: enfantsZone || `Grappe ${rcProfile?.grappe || 1}`,
+          qte: `${enfants059Nbre} enfant(s) (Vaccin: ${enfantsVaccin}, Nutrition: ${enfantsNutrition})`
+        }
+      ],
+      act_referees: [
+        {
+          date: dateSemaineDu,
+          heure: "En continu",
+          zone: refereesZone || "CS / GUPS / ASCQ",
+          qte: `${personnesReferees} personne(s) référée(s)`
+        }
+      ],
+      act_autres: autresActivites ? [
+        {
+          date: dateSemaineDu,
+          heure: "-",
+          zone: autresZone || "-",
+          qte: autresActivites
+        }
+      ] : [],
+      observations: [vadObs, causerieObs, salubriteObs, femmesObs, enfantsObs].filter(Boolean).join(" • ") || "Activités communautaires menées selon le planning validé.",
+      signatureRc: null,
+      dateSoumissionRc: dateSemaineDu,
+      luEtApprouveAscq: Boolean(luEtApprouveAscq),
+      ascqName: rcProfile?.ascq_nom || "ASCQ Superviseur",
+      ascqPhone: rcProfile?.ascq_telephone || "",
+      dateValidationAscq: luEtApprouveAscq ? new Date().toISOString() : null,
+      observationsAscq: observationsAscq || null,
+      statut: luEtApprouveAscq ? "VALIDE_ASCQ" : "SOUMIS"
+    };
+  };
+
+  const imprimerFicheOfficielle = async () => {
+    try {
+      setPdfGenerating(true);
+      const data = preparerDonneesPdf();
+      const pdfBytes = await generatePdfPlanningRc(data);
+      await imprimerPdf(pdfBytes);
+    } catch (err) {
+      console.error("Erreur génération PDF:", err);
+      alert("Impossible de générer le PDF officiel du planning.");
+    } finally {
+      setPdfGenerating(false);
     }
+  };
 
-    win.document.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Fiche Hebdomadaire d'Activités du Relais Communautaire - PNSC Bénin</title>
-          <style>
-            @page { size: A4 landscape; margin: 10mm; }
-            body { font-family: Arial, sans-serif; font-size: 11px; color: #000; margin: 0; padding: 10px; }
-            .header-table { width: 100%; border-collapse: collapse; margin-bottom: 5px; }
-            .header-table td { vertical-align: top; }
-            .rep { font-weight: 800; font-size: 11px; text-transform: uppercase; }
-            .min { font-size: 10px; text-transform: uppercase; }
-            .contact { font-size: 8.5px; text-align: right; color: #333; }
-            .flag { height: 4px; width: 100%; margin: 6px 0; background: linear-gradient(to right, #008751 33%, #FCD116 33%, #FCD116 66%, #E8112D 66%); }
-            .main-title { text-align: center; font-size: 13px; font-weight: 900; text-transform: uppercase; text-decoration: underline; margin: 6px 0 2px 0; }
-            .sub-title { text-align: center; font-size: 12px; font-weight: bold; margin-bottom: 8px; }
-            .cartouche { width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 10px; }
-            .cartouche td { padding: 3px 4px; }
-            .dots { border-bottom: 1px dotted #000; font-weight: bold; }
-            
-            table.grille { width: 100%; border-collapse: collapse; margin-top: 5px; font-size: 10px; }
-            table.grille th, table.grille td { border: 1px solid #000; padding: 4px; vertical-align: middle; }
-            table.grille th { background-color: #f2f2f2; text-align: center; font-weight: bold; }
-            .center { text-align: center; }
-            .bold { font-weight: bold; }
-            .footer-sign { width: 100%; margin-top: 25px; display: flex; justify-content: space-between; font-weight: bold; font-size: 11px; }
-            @media print {
-              .no-print { display: none; }
-            }
-          </style>
-        </head>
-        <body>
-          <div class="no-print" style="margin-bottom: 15px; text-align: right;">
-            <button onclick="window.print()" style="background:#005c30; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:bold; cursor:pointer;">
-              🖨️ Imprimer la fiche officielle
-            </button>
-          </div>
-
-          <div style="text-align: center; margin-bottom: 4px;">
-            <img src="/banniere-cnlstp.png" style="max-height: 48px; max-width: 100%; object-fit: contain; margin: 0 auto 3px auto; display: block;" alt="CNLS-TP" />
-          </div>
-
-          <table class="header-table">
-            <tr>
-              <td style="width: 20%; vertical-align: middle;">
-                <img src="/logo-asc-benin.jpg" style="max-height: 50px; display: block;" alt="ASC Bénin" />
-              </td>
-              <td style="width: 60%; text-align: center; vertical-align: middle;">
-                <div style="font-weight: 800; font-size: 11px; text-transform: uppercase; color: #1e293b;">RÉPUBLIQUE DU BÉNIN — MINISTÈRE DE LA SANTÉ</div>
-                <div style="font-size: 13px; font-weight: 900; color: #005c30; margin: 1px 0;">POLITIQUE NATIONALE DE SANTÉ COMMUNAUTAIRE</div>
-                <div style="font-size: 9.5px; font-weight: bold; color: #475569;">DISPOSITIF DE PROXIMITÉ : RELAIS COMMUNAUTAIRES (RC)</div>
-              </td>
-              <td class="contact" style="width: 20%; text-align: right; vertical-align: middle;">
-                01 BP 882 Cotonou<br/>
-                Tél : +229 21 33 21 78<br/>
-                sante.infos@gouv.bj
-              </td>
-            </tr>
-          </table>
-
-          <div class="flag"></div>
-
-          <div class="main-title">POLITIQUE NATIONALE DE SANTÉ COMMUNAUTAIRE</div>
-          <div class="sub-title">Fiche hebdomadaire d’activités du relais communautaire</div>
-
-          <table class="cartouche">
-            <tr>
-              <td>Département : <span class="dots">${rcProfile.departement_nom || "Atlantique"}</span></td>
-              <td>Zone sanitaire : <span class="dots">${rcProfile.zone_sanitaire_nom || "Zone"}</span></td>
-              <td>Commune : <span class="dots">${rcProfile.commune_nom || "Commune"}</span></td>
-              <td>Arrondissement : <span class="dots">${rcProfile.arrondissement_nom || "Arrondissement"}</span></td>
-              <td>Village : <span class="dots">${rcProfile.village_nom || "Village"}</span></td>
-            </tr>
-            <tr>
-              <td>Grappe : <span class="dots">${rcProfile.grappe || 1}</span></td>
-              <td colspan="2">NOM ET PRENOM(S) DU RC : <span class="dots">${rcProfile.nom} ${rcProfile.prenoms}</span></td>
-              <td>Tél : <span class="dots">${rcProfile.telephone || ""}</span></td>
-              <td>Semaine de : <span class="dots">${dateSemaineDu} (Sem. ${semaineNum})</span></td>
-            </tr>
-          </table>
-
-          <table class="grille">
-            <thead>
-              <tr>
-                <th rowspan="2" style="width: 7%;">Date</th>
-                <th rowspan="2" style="width: 6%;">Heure</th>
-                <th rowspan="2" style="width: 28%;">Activités</th>
-                <th rowspan="2" style="width: 17%;">Zone ciblée</th>
-                <th colspan="2" style="width: 20%;">QUANTITE</th>
-                <th rowspan="2" style="width: 22%;">Observations</th>
-              </tr>
-              <tr>
-                <th style="width: 10%;">PREVUE</th>
-                <th style="width: 10%;">REALISEE</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td class="center" rowspan="3">${dateSemaineDu}</td>
-                <td class="center" rowspan="3">08h-12h</td>
-                <td class="bold">Visites à domicile :<br/>• Nbre VAD<br/>• Nbre ménages visités<br/>• Total ménages en charge</td>
-                <td>${vadZone}</td>
-                <td class="center">${vadPrevue} VAD</td>
-                <td class="center">${vadRealisee} VAD<br/>${vadMenagesVisites} ménages<br/>Total: ${vadTotalMenages}</td>
-                <td>${vadObs}</td>
-              </tr>
-              <tr>
-                <td class="bold">Causeries/Sensibilisation :<br/>• Nbre : ${causerieRealisee}<br/>• Thème : ${causerieTheme}</td>
-                <td>${causerieZone}</td>
-                <td class="center">${causeriePrevue}</td>
-                <td class="center">${causerieRealisee}</td>
-                <td>${causerieObs}</td>
-              </tr>
-              <tr>
-                <td class="bold">Salubrité</td>
-                <td>${salubriteZone}</td>
-                <td class="center">${salubritePrevue}</td>
-                <td class="center">${salubriteRealisee}</td>
-                <td>${salubriteObs}</td>
-              </tr>
-              <tr>
-                <td class="center">${dateSemaineDu}</td>
-                <td class="center">14h-16h</td>
-                <td class="bold">Santé animale :<br/>• Nombre de site visité : ${santeAnimaleSites}</td>
-                <td>${santeAnimaleZone}</td>
-                <td class="center">-</td>
-                <td class="center">${santeAnimaleSites} site(s)</td>
-                <td>${santeAnimaleObs}</td>
-              </tr>
-              <tr>
-                <td class="center">${dateSemaineDu}</td>
-                <td class="center">16h-17h</td>
-                <td class="bold">Affaires sociales :<br/>• Nbre de visite : ${affairesSocialesVisites}</td>
-                <td>${affairesSocialesZone}</td>
-                <td class="center">-</td>
-                <td class="center">${affairesSocialesVisites} visite(s)</td>
-                <td>${affairesSocialesObs}</td>
-              </tr>
-              <tr>
-                <td class="center" rowspan="2">${dateSemaineDu}</td>
-                <td class="center" rowspan="2">08h-11h</td>
-                <td class="bold">Suivi des femmes enceintes :<br/>• Nbre de femmes enceintes : ${femmesEnceintesNbre}<br/>• Suivi pour CPN : ${femmesCpn}<br/>• Suivi pour VAT : ${femmesVat}</td>
-                <td>${femmesZone}</td>
-                <td class="center">-</td>
-                <td class="center">${femmesEnceintesNbre} femmes<br/>CPN: ${femmesCpn}<br/>VAT: ${femmesVat}</td>
-                <td>${femmesObs}</td>
-              </tr>
-              <tr>
-                <td class="bold">Suivi des enfants de 0 à 59 mois :<br/>• Nbre enfants 0 à 59 mois : ${enfants059Nbre}<br/>• Suivi pour vaccination : ${enfantsVaccin}<br/>• Suivi pour nutrition : ${enfantsNutrition}</td>
-                <td>${enfantsZone}</td>
-                <td class="center">-</td>
-                <td class="center">${enfants059Nbre} enfants<br/>Vaccin: ${enfantsVaccin}<br/>Nutr: ${enfantsNutrition}</td>
-                <td>${enfantsObs}</td>
-              </tr>
-              <tr>
-                <td class="center">${dateSemaineDu}</td>
-                <td class="center">En continu</td>
-                <td class="bold">Personnes référées :<br/>• Nombre référés : ${personnesReferees}</td>
-                <td>${refereesZone}</td>
-                <td class="center">-</td>
-                <td class="center">${personnesReferees} cas</td>
-                <td>${refereesObs}</td>
-              </tr>
-              <tr>
-                <td class="center">-</td>
-                <td class="center">-</td>
-                <td class="bold">Autres : ${autresActivites || "Néant"}</td>
-                <td>${autresZone || "-"}</td>
-                <td class="center">-</td>
-                <td class="center">-</td>
-                <td>${autresObs || "-"}</td>
-              </tr>
-            </tbody>
-          </table>
-
-          <div class="footer-sign">
-            <div>
-              Signature RC :<br/>
-              <span style="font-weight: normal; font-size: 10px;">Émargé électroniquement par ${rcProfile.nom} ${rcProfile.prenoms}</span>
-            </div>
-            <div style="text-align: right;">
-              Lu et approuvé par l’ASCQ :<br/>
-              <span style="font-weight: normal; font-size: 10px;">${luEtApprouveAscq ? "✅ Approuvé le " + (now.toLocaleDateString("fr-FR")) : "[ ] En attente d'approbation"}</span>
-            </div>
-          </div>
-        </body>
-      </html>
-    `);
-    win.document.close();
+  const telechargerFicheOfficielle = async () => {
+    try {
+      setPdfGenerating(true);
+      const data = preparerDonneesPdf();
+      const pdfBytes = await generatePdfPlanningRc(data);
+      const filename = `BJ_PLANNING_RC_S${data.semaineNum}_${data.annee}_${(data.village || "COMMUNAUTE").replace(/[^a-zA-Z0-9]/g, "_")}.pdf`;
+      await telechargerPdf(pdfBytes, filename);
+    } catch (err) {
+      console.error("Erreur téléchargement PDF:", err);
+      alert("Impossible de télécharger le PDF officiel du planning.");
+    } finally {
+      setPdfGenerating(false);
+    }
   };
 
   return (
@@ -435,14 +369,27 @@ export default function FicheHebdoActivitesRcOfficielle({ rcProfile, isAscqSuper
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={telechargerFicheOfficielle}
+            disabled={pdfGenerating}
+            className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold flex items-center gap-1.5 transition-all disabled:opacity-50"
+            title="Télécharger le PDF A4 Paysage officiel (1 page stricte)"
+          >
+            {pdfGenerating ? <RefreshCw className="w-4 h-4 animate-spin text-slate-600" /> : <Download className="w-4 h-4 text-slate-600" />}
+            <span>Télécharger PDF</span>
+          </button>
+
           <button
             type="button"
             onClick={imprimerFicheOfficielle}
-            className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold flex items-center gap-1.5 transition-all"
+            disabled={pdfGenerating}
+            className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold flex items-center gap-1.5 transition-all disabled:opacity-50"
+            title="Imprimer directement le PDF A4 Paysage"
           >
             <Printer className="w-4 h-4 text-slate-600" />
-            <span>Imprimer la fiche (PDF)</span>
+            <span>Imprimer</span>
           </button>
 
           <button

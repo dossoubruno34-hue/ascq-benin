@@ -4,19 +4,29 @@ import React, { useRef, useState, useEffect } from "react";
 import { Eraser, Check, PenLine } from "lucide-react";
 
 interface SignatureCanvasProps {
-  onSignatureChange: (signatureBase64: string | null) => void;
+  onSignatureChange?: (signatureBase64: string | null) => void;
+  onChange?: (signatureBase64: string | null) => void;
   defaultValue?: string | null;
+  initialData?: string | null;
   readOnly?: boolean;
 }
 
 export default function SignatureCanvas({
   onSignatureChange,
+  onChange,
   defaultValue,
+  initialData,
   readOnly = false,
 }: SignatureCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasDrawn, setHasDrawn] = useState(false);
+
+  const initialVal = defaultValue || initialData;
+  const notifyChange = (val: string | null) => {
+    if (onSignatureChange) onSignatureChange(val);
+    if (onChange) onChange(val);
+  };
 
   // Initialisation du canvas
   useEffect(() => {
@@ -38,15 +48,15 @@ export default function SignatureCanvas({
     ctx.lineJoin = "round";
 
     // Si une signature par défaut existe (ex: lecture seule)
-    if (defaultValue) {
+    if (initialVal) {
       const img = new Image();
       img.onload = () => {
         ctx.drawImage(img, 0, 0, rect.width, rect.height);
         setHasDrawn(true);
       };
-      img.src = defaultValue;
+      img.src = initialVal;
     }
-  }, [defaultValue]);
+  }, [initialVal]);
 
   const getCoordinates = (e: React.MouseEvent | React.TouchEvent) => {
     const canvas = canvasRef.current;
@@ -105,7 +115,7 @@ export default function SignatureCanvas({
     if (!canvas) return;
 
     const dataUrl = canvas.toDataURL("image/png");
-    onSignatureChange(dataUrl);
+    notifyChange(dataUrl);
   };
 
   const clearCanvas = () => {
@@ -117,7 +127,7 @@ export default function SignatureCanvas({
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     setHasDrawn(false);
-    onSignatureChange(null);
+    notifyChange(null);
   };
 
   return (

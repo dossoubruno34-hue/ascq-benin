@@ -38,11 +38,22 @@ import {
   Eye,
   Edit3,
   Save,
-  BookOpen
+  BookOpen,
+  Download,
+  X
 } from "lucide-react";
 import { getCachedRcSpace, saveCachedRcSpace, saveCachedUserSession } from "@/lib/offline-sync";
 import FicheHebdoActivitesRcOfficielle from "@/components/FicheHebdoActivitesRcOfficielle";
 import BeninPhoneAction from "@/components/BeninPhoneAction";
+import SignatureCanvas from "@/components/SignatureCanvas";
+import { 
+  generatePdfPlanningRc, 
+  telechargerPdf, 
+  imprimerPdf, 
+  creerBlobPdfUrl,
+  RcPlanningData,
+  RcPlanningSlot
+} from "@/lib/pdf-plannings";
 
 interface LignePlanningRC {
   id: string;
@@ -74,6 +85,33 @@ const ACTIVITES_TYPES_RC = [
   "Dépistage Paludisme / iCCM",
   "Autre activité communautaire"
 ];
+
+function getDatesSemaine(annee: number, semaine: number) {
+  const simple = new Date(annee, 0, 1 + (semaine - 1) * 7);
+  const dayOfWeek = simple.getDay();
+  const ISOweekStart = simple;
+  if (dayOfWeek <= 4)
+    ISOweekStart.setDate(simple.getDate() - simple.getDay() + 1);
+  else
+    ISOweekStart.setDate(simple.getDate() + 8 - simple.getDay());
+  
+  const ISOweekEnd = new Date(ISOweekStart);
+  ISOweekEnd.setDate(ISOweekStart.getDate() + 6);
+  
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const debutStr = `${ISOweekStart.getFullYear()}-${pad(ISOweekStart.getMonth() + 1)}-${pad(ISOweekStart.getDate())}`;
+  const finStr = `${ISOweekEnd.getFullYear()}-${pad(ISOweekEnd.getMonth() + 1)}-${pad(ISOweekEnd.getDate())}`;
+  const debutFr = `${pad(ISOweekStart.getDate())}/${pad(ISOweekStart.getMonth() + 1)}/${ISOweekStart.getFullYear()}`;
+  const finFr = `${pad(ISOweekEnd.getDate())}/${pad(ISOweekEnd.getMonth() + 1)}/${ISOweekEnd.getFullYear()}`;
+
+  return {
+    debut: debutStr,
+    fin: finStr,
+    debutFr,
+    finFr,
+    label: `Du ${debutFr} au ${finFr}`
+  };
+}
 
 function getSemaineActuelle() {
   const now = new Date();
@@ -189,6 +227,20 @@ export default function EspaceRelaisPage() {
 
   const [planningSaving, setPlanningSaving] = useState(false);
   const [planningMsg, setPlanningMsg] = useState<{ text: string; error: boolean } | null>(null);
+
+  // Validation officielle du planning RC par l'ASCQ & Générateur PDF Vectoriel
+  const [planningRowDb, setPlanningRowDb] = useState<any | null>(null);
+  const [planningEstValideAscq, setPlanningEstValideAscq] = useState<boolean>(false);
+  const [planningDateValidationAscq, setPlanningDateValidationAscq] = useState<string | null>(null);
+  const [planningValideParNom, setPlanningValideParNom] = useState<string | null>(null);
+  const [planningObservationsAscq, setPlanningObservationsAscq] = useState<string | null>(null);
+  const [planningSignatureRc, setPlanningSignatureRc] = useState<string | null>(null);
+
+  // Modal d'aperçu vectoriel du planning RC (1 page A4 Paysage)
+  const [modalApercuPlanningRc, setModalApercuPlanningRc] = useState(false);
+  const [planningRcPdfUrl, setPlanningRcPdfUrl] = useState<string | null>(null);
+  const [planningRcPdfBytes, setPlanningRcPdfBytes] = useState<Uint8Array | null>(null);
+  const [generatingRcPdf, setGeneratingRcPdf] = useState(false);
 
   // 2. Rapport Hebdo du RC (activité, nombre prévu, nombre fait, date, lieu, observation facultatif)
   const [lignesRapport, setLignesRapport] = useState<LigneRapportRC[]>([]);
@@ -357,9 +409,24 @@ export default function EspaceRelaisPage() {
         .maybeSingle();
 
       let currentPlanning: LignePlanningRC[] = [];
-      if (pData && Array.isArray(pData.lignes_planning) && pData.lignes_planning.length > 0) {
-        currentPlanning = pData.lignes_planning;
-        setLignesPlanning(pData.lignes_planning);
+      if (pData) {
+        setPlanningRowDb(pData);
+        setPlanningEstValideAscq(Boolean(pData.lu_et_approuve_ascq || pData.statut === "VALIDE_ASCQ"));
+        setPlanningDateValidationAscq(pData.date_validation_ascq || null);
+        setPlanningValideParNom(pData.valide_par_nom || null);
+        setPlanningObservationsAscq(pData.observations_ascq || null);
+        if (pData.signature_rc) setPlanningSignatureRc(pData.signature_rc);
+
+        if (Array.isArray(pData.lignes_planning) && pData.lignes_planning.length > 0) {
+          currentPlanning = pData.lignes_planning;
+          setLignesPlanning(pData.lignes_planning);
+        }
+      } else {
+        setPlanningRowDb(null);
+        setPlanningEstValideAscq(false);
+        setPlanningDateValidationAscq(null);
+        setPlanningValideParNom(null);
+        setPlanningObservationsAscq(null);
       }
 
       // 2. Charger rapport hebdo
@@ -451,11 +518,15 @@ export default function EspaceRelaisPage() {
             relais_id: validRelaisId,
             ascq_id: ascqId || null,
             village_nom: rcData?.village_nom || "Village",
+            grappe: rcData?.grappe || 1,
             annee: anneeChoisie,
             semaine_num: semaineChoisie,
+            date_debut_semaine: new Date().toISOString().split("T")[0],
             lignes_planning: lignesPlanning,
             total_prevu: total,
-            statut: "VALIDE",
+            statut: "SOUMIS",
+            signature_rc: planningSignatureRc || null,
+            date_soumission_rc: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           }, { onConflict: "relais_id,annee,semaine_num" });
 
@@ -469,7 +540,7 @@ export default function EspaceRelaisPage() {
         localStorage.setItem(`planning_rc_${anneeChoisie}_${semaineChoisie}`, JSON.stringify(lignesPlanning));
       } catch {}
 
-      setPlanningMsg({ text: "Planning hebdomadaire transmis avec succès à votre superviseur ASCQ !", error: false });
+      setPlanningMsg({ text: "Planning hebdomadaire transmis avec succès à votre superviseur ASCQ pour visa !", error: false });
       // Synchroniser le rapport s'il était vide
       if (lignesRapport.length === 0) {
         setLignesRapport(
@@ -488,6 +559,116 @@ export default function EspaceRelaisPage() {
       setPlanningMsg({ text: err.message || "Erreur lors de l'enregistrement du planning.", error: true });
     } finally {
       setPlanningSaving(false);
+    }
+  };
+
+  // Préparation des données du Relais pour génération du PDF Officiel (A4 Paysage 1 Page)
+  const preparerRcPlanningPdfData = (): RcPlanningData => {
+    const datesSem = getDatesSemaine(anneeChoisie, semaineChoisie);
+
+    const actVad: RcPlanningSlot[] = [];
+    const actCauserie: RcPlanningSlot[] = [];
+    const actAnimale: RcPlanningSlot[] = [];
+    const actSociales: RcPlanningSlot[] = [];
+    const actFemmes: RcPlanningSlot[] = [];
+    const actEnfants: RcPlanningSlot[] = [];
+    const actReferees: RcPlanningSlot[] = [];
+    const actAutres: RcPlanningSlot[] = [];
+
+    lignesPlanning.forEach((l) => {
+      const actNom = (l.activite || "").toLowerCase();
+      const slot: RcPlanningSlot = {
+        date: l.date || "Toute la semaine",
+        heure: "-",
+        zone: l.lieu || rcData?.village_nom || "Ménages",
+        qte: l.nombre_prevu || 1
+      };
+      if (actNom.includes("vad") || actNom.includes("visite")) {
+        actVad.push(slot);
+      } else if (actNom.includes("causerie") || actNom.includes("salubrité") || actNom.includes("sensibilisation")) {
+        actCauserie.push(slot);
+      } else if (actNom.includes("animale") || actNom.includes("one health")) {
+        actAnimale.push(slot);
+      } else if (actNom.includes("sociale") || actNom.includes("indigent")) {
+        actSociales.push(slot);
+      } else if (actNom.includes("femme") || actNom.includes("cpn") || actNom.includes("enceinte")) {
+        actFemmes.push(slot);
+      } else if (actNom.includes("enfant") || actNom.includes("0-59") || actNom.includes("vaccin")) {
+        actEnfants.push(slot);
+      } else if (actNom.includes("référ") || actNom.includes("refer")) {
+        actReferees.push(slot);
+      } else {
+        actAutres.push(slot);
+      }
+    });
+
+    return {
+      departement: rcData?.departement_nom || rcData?.departement || "OUÉMÉ",
+      zoneSanitaire: `${rcData?.commune_nom || rcData?.commune || "Zone"} - Sanitaire`,
+      commune: rcData?.commune_nom || rcData?.commune || "ADJARRA",
+      arrondissement: rcData?.arrondissement_nom || rcData?.arrondissement || "HONVIÉ",
+      village: rcData?.village_nom || "Village",
+      grappe: rcData?.grappe || 1,
+      rcName: `${rcData?.prenoms || ""} ${rcData?.nom || ""}`.trim() || "Relais Communautaire",
+      rcPhone: rcData?.telephone || "-",
+      semaineNum: semaineChoisie,
+      annee: anneeChoisie,
+      dateDebutStr: datesSem.debutFr,
+      dateFinStr: datesSem.finFr,
+      act_vad: actVad,
+      act_causerie: actCauserie,
+      act_animale: actAnimale,
+      act_sociales: actSociales,
+      act_femmes: actFemmes,
+      act_enfants: actEnfants,
+      act_referees: actReferees,
+      act_autres: actAutres,
+      observations: "Planning hebdomadaire d'activités transmis pour validation.",
+      signatureRc: planningSignatureRc || planningRowDb?.signature_rc || null,
+      dateSoumissionRc: planningRowDb?.created_at ? new Date(planningRowDb.created_at).toLocaleDateString("fr-FR") : new Date().toLocaleDateString("fr-FR"),
+      luEtApprouveAscq: planningEstValideAscq,
+      ascqName: planningValideParNom || rcData?.ascq_nom || "ASCQ Superviseur",
+      ascqPhone: rcData?.ascq_telephone || "",
+      dateValidationAscq: planningDateValidationAscq ? new Date(planningDateValidationAscq).toLocaleDateString("fr-FR") : null,
+      signatureAscq: planningRowDb?.signature_ascq || null,
+      observationsAscq: planningObservationsAscq,
+      statut: planningEstValideAscq ? "VALIDE_ASCQ" : (planningRowDb?.statut || "SOUMIS")
+    };
+  };
+
+  const genererEtOuvrirApercuRcPdf = async () => {
+    setGeneratingRcPdf(true);
+    try {
+      const dataPdf = preparerRcPlanningPdfData();
+      const bytes = await generatePdfPlanningRc(dataPdf);
+      setPlanningRcPdfBytes(bytes);
+      const url = creerBlobPdfUrl(bytes);
+      setPlanningRcPdfUrl(url);
+      setModalApercuPlanningRc(true);
+    } catch (e: any) {
+      alert("Erreur lors de la génération du PDF : " + (e.message || String(e)));
+    } finally {
+      setGeneratingRcPdf(false);
+    }
+  };
+
+  const telechargerMonPlanningRcPdf = async () => {
+    try {
+      const bytes = planningRcPdfBytes || (await generatePdfPlanningRc(preparerRcPlanningPdfData()));
+      const nom = `BJ_PLANNING_RC_S${semaineChoisie}_${(rcData?.village_nom || "VILLAGE").toUpperCase()}`;
+      await telechargerPdf(bytes, nom);
+    } catch (e: any) {
+      alert("Erreur lors du téléchargement : " + e.message);
+    }
+  };
+
+  const imprimerMonPlanningRcPdf = async () => {
+    try {
+      const bytes = planningRcPdfBytes || (await generatePdfPlanningRc(preparerRcPlanningPdfData()));
+      const nom = `BJ_PLANNING_RC_S${semaineChoisie}_${(rcData?.village_nom || "VILLAGE").toUpperCase()}`;
+      await imprimerPdf(bytes, nom);
+    } catch (e: any) {
+      alert("Erreur lors de l'impression : " + e.message);
     }
   };
 
@@ -1100,19 +1281,139 @@ export default function EspaceRelaisPage() {
             {/* SOUS-ONGLET 1 : PLANNING HEBDOMADAIRE DU RC                   */}
             {/* ============================================================= */}
             {sousOngletPlanning === "planning_hebdo" && (
-              <div className="space-y-3.5">
-                {/* Bandeau d'information */}
-                <div className="bg-emerald-50 rounded-2xl p-3.5 border border-emerald-200 text-xs text-emerald-950 flex items-start gap-2.5">
-                  <Sparkles className="w-4 h-4 text-[#005c30] shrink-0 mt-0.5" />
-                  <div>
-                    <p className="font-bold">
-                      Planning prévisionnel de la Semaine {semaineChoisie} ({anneeChoisie})
-                    </p>
-                    <p className="text-[11px] text-emerald-800 mt-0.5">
-                      Renseignez vos activités prévues avec leur quantité, la date ciblée et le lieu. Dès enregistrement, votre superviseur ASCQ y a accès instantanément.
-                    </p>
+              <div className="space-y-4">
+                {/* Bannière officielle CNLS-TP & Logo ASC Bénin */}
+                <div className="bg-white rounded-3xl p-4 border border-slate-200/90 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <div className="relative w-28 h-12 shrink-0">
+                    <Image 
+                      src="/logo-asc-benin.jpg" 
+                      alt="ASC Santé Communautaire Bénin" 
+                      fill 
+                      className="object-contain" 
+                      priority
+                    />
+                  </div>
+                  <div className="relative w-full max-w-md h-12 shrink-0">
+                    <Image 
+                      src="/banniere-cnlstp.png" 
+                      alt="CNLS-TP Présidence du Bénin" 
+                      fill 
+                      className="object-contain" 
+                      priority
+                    />
                   </div>
                 </div>
+
+                {/* CARTE STATUT DE VALIDATION DU PLANNING PAR L'ASCQ */}
+                {planningEstValideAscq ? (
+                  <div className="bg-emerald-50 rounded-3xl p-5 border-2 border-emerald-400 shadow-sm space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-[#005c30] text-white flex items-center justify-center shrink-0 shadow-sm">
+                          <CheckCircle2 className="w-6 h-6" />
+                        </div>
+                        <div>
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-200 text-[#005c30]">
+                            ✓ Planning Officiellement Validé & Signé par l'ASCQ
+                          </span>
+                          <h4 className="text-sm font-black text-slate-900 mt-1">
+                            Votre planning de la Semaine {semaineChoisie} ({anneeChoisie}) a été validé !
+                          </h4>
+                          <p className="text-xs text-emerald-800">
+                            Validé par : <strong>{planningValideParNom || rcData?.ascq_nom || "Votre superviseur ASCQ"}</strong>
+                            {planningDateValidationAscq && ` le ${new Date(planningDateValidationAscq).toLocaleDateString("fr-FR")}`}
+                          </p>
+                          {planningObservationsAscq && (
+                            <p className="text-[11px] text-slate-600 mt-1 italic">
+                              Recommandations de l'ASCQ : « {planningObservationsAscq} »
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <button
+                          type="button"
+                          onClick={genererEtOuvrirApercuRcPdf}
+                          disabled={generatingRcPdf}
+                          className="px-3.5 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 text-white font-black text-xs shadow-sm flex items-center gap-1.5 active:scale-95 transition-all"
+                        >
+                          {generatingRcPdf ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
+                          <span>Aperçu Fidèle A4</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={telechargerMonPlanningRcPdf}
+                          className="px-3.5 py-2 rounded-xl bg-[#005c30] hover:bg-[#004724] text-white font-black text-xs shadow-sm flex items-center gap-1.5 active:scale-95 transition-all"
+                        >
+                          <Download className="w-4 h-4" />
+                          <span>Télécharger PDF (1 page)</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={imprimerMonPlanningRcPdf}
+                          className="p-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white transition shadow-sm"
+                          title="Imprimer directement"
+                        >
+                          <Printer className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : lignesPlanning.length > 0 ? (
+                  <div className="bg-amber-50 rounded-3xl p-4 border border-amber-300 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                    <div className="flex items-start gap-3">
+                      <div className="w-9 h-9 rounded-2xl bg-amber-500 text-white flex items-center justify-center shrink-0">
+                        <Clock className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-200 text-amber-900">
+                          ⏳ En attente de signature & visa par votre ASCQ
+                        </span>
+                        <h4 className="font-black text-slate-900 mt-1">
+                          Planning transmis pour validation (Semaine {semaineChoisie})
+                        </h4>
+                        <p className="text-slate-600 text-[11px]">
+                          Votre superviseur ASCQ ({rcData?.ascq_nom || "de l'arrondissement"}) doit apposer sa signature tactile. Dès validation, le PDF officiel sera prêt au téléchargement.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={genererEtOuvrirApercuRcPdf}
+                        disabled={generatingRcPdf}
+                        className="px-3 py-1.5 rounded-xl bg-white border border-amber-300 hover:bg-amber-100 text-amber-900 font-bold text-xs flex items-center gap-1"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>Aperçu A4</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={telechargerMonPlanningRcPdf}
+                        className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center gap-1"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>PDF Provisoire</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-emerald-50 rounded-2xl p-3.5 border border-emerald-200 text-xs text-emerald-950 flex items-start gap-2.5">
+                    <Sparkles className="w-4 h-4 text-[#005c30] shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-bold">
+                        Planning prévisionnel de la Semaine {semaineChoisie} ({anneeChoisie})
+                      </p>
+                      <p className="text-[11px] text-emerald-800 mt-0.5">
+                        Renseignez vos activités prévues avec leur quantité, la date ciblée et le lieu. Dès enregistrement, votre superviseur ASCQ y a accès instantanément pour signature.
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 {/* Formulaire d'ajout d'activité dans le planning */}
                 <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm space-y-3">
@@ -1361,6 +1662,19 @@ export default function EspaceRelaisPage() {
                     </div>
                   )}
 
+                  {/* Signature tactile du Relais Communautaire */}
+                  <div className="pt-2 border-t border-slate-100 space-y-2">
+                    <label className="block text-xs font-bold text-slate-700">
+                      Signature manuscrite du Relais Communautaire (RC) :
+                    </label>
+                    <div className="bg-slate-50 p-2 rounded-2xl border border-slate-200 max-w-md">
+                      <SignatureCanvas
+                        onChange={(dataUrl) => setPlanningSignatureRc(dataUrl)}
+                        initialData={planningSignatureRc || undefined}
+                      />
+                    </div>
+                  </div>
+
                   {/* Bouton de sauvegarde du planning */}
                   <div className="pt-2 flex flex-col sm:flex-row gap-2">
                     <button
@@ -1377,7 +1691,7 @@ export default function EspaceRelaisPage() {
                       ) : (
                         <>
                           <Save className="w-4 h-4" />
-                          <span>💾 Enregistrer & Transmettre mon Planning à l'ASCQ</span>
+                          <span>💾 Enregistrer & Transmettre mon Planning signé à l'ASCQ</span>
                         </>
                       )}
                     </button>
@@ -1861,6 +2175,64 @@ export default function EspaceRelaisPage() {
         )}
 
       </main>
+
+      {/* ========================================================================= */}
+      {/* MODAL APERÇU FIDÈLE OFFICIEL DU PLANNING RC (PDF VECTORIEL 1 PAGE A4 PAYSAGE) */}
+      {/* ========================================================================= */}
+      {modalApercuPlanningRc && (
+        <div className="fixed inset-0 bg-slate-900/90 z-50 flex flex-col p-2 sm:p-4">
+          <div className="bg-slate-900 text-white p-3 rounded-2xl flex items-center justify-between gap-3 shadow-lg max-w-5xl w-full mx-auto mb-2">
+            <div className="flex items-center gap-2">
+              <span className="w-3 h-3 rounded-full bg-emerald-400"></span>
+              <span className="font-black text-xs sm:text-sm">
+                PDF Officiel RC (A4 Paysage 1 Page) — Semaine {semaineChoisie} ({anneeChoisie})
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={telechargerMonPlanningRcPdf}
+                className="px-3.5 py-1.5 bg-[#005c30] hover:bg-[#004724] text-white text-xs font-black rounded-xl shadow transition flex items-center gap-1.5 active:scale-95"
+              >
+                <Download className="w-4 h-4" />
+                <span>Télécharger (PDF)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={imprimerMonPlanningRcPdf}
+                className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black rounded-xl shadow transition flex items-center gap-1.5 active:scale-95"
+              >
+                <Printer className="w-4 h-4" />
+                <span>Imprimer</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setModalApercuPlanningRc(false)}
+                className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+
+          <div className="flex-1 max-w-5xl w-full mx-auto bg-slate-800 rounded-2xl overflow-hidden shadow-2xl flex flex-col">
+            {planningRcPdfUrl ? (
+              <iframe
+                src={planningRcPdfUrl}
+                className="w-full flex-1 border-none rounded-2xl bg-white"
+                title="Aperçu PDF officiel A4 Paysage Relais"
+              />
+            ) : (
+              <div className="flex-1 flex items-center justify-center text-white text-xs">
+                Génération du document en cours...
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
