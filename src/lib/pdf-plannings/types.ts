@@ -29,9 +29,11 @@ export interface AscqPlanningData {
 
 export interface RcPlanningSlot {
   date: string;       // JJ/MM/AAAA ou YYYY-MM-DD
-  heure?: string;     // Ex: "08h00 - 10h00"
-  zone: string;      // Ex: "Grappe 1 / Ménages cibles"
-  qte: number | string; // Ex: 5
+  heure?: string;     // Ex: "08:00" ou "08h00 - 10h00"
+  zone: string;      // Ex: "Centre du village"
+  qte: number | string; // Ex: 5 ou "Nbre VAD : 12\nNbre ménages visités : 10\nTotal ménages en charge : 85"
+  observation?: string; // Ex: "Priorité aux ménages avec nourrissons"
+  obs?: string;
 }
 
 export interface RcPlanningData {
@@ -49,15 +51,17 @@ export interface RcPlanningData {
   annee: number;
   dateDebutStr: string;
   dateFinStr: string;
-  // Les 8 activités officielles du Relais
+  // Les activités officielles du Relais
   act_vad?: RcPlanningSlot[];
   act_causerie?: RcPlanningSlot[];
+  act_salubrite?: RcPlanningSlot[];
   act_animale?: RcPlanningSlot[];
   act_sociales?: RcPlanningSlot[];
   act_femmes?: RcPlanningSlot[];
   act_enfants?: RcPlanningSlot[];
   act_referees?: RcPlanningSlot[];
   act_autres?: RcPlanningSlot[];
+  autreActiviteLabel?: string;
   observations?: string;
   signatureRc?: string | null;
   dateSoumissionRc?: string | null;

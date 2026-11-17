@@ -4,7 +4,7 @@ import {
   loadPlanningFonts, 
   loadPlanningImages, 
   embedDataUrlImage, 
-  drawVectorCheckmark, 
+  drawBlackCheckmark, 
   sanitizeWinAnsi,
   wrapText
 } from "./assets";
@@ -14,603 +14,576 @@ const ACTIVITES_OFFICIELLES_ASCQ = [
   "Sensibilisation / démonstration / salubrité",
   "Vaccination poste fixe/avancée",
   "Supervision RC et validation VAD",
-  "Prise en charge communautaire des cas (iCCM)",
+  "Prise en charge communautaire des cas",
   "Visites des sites prioritaires",
-  "Visites à domicile et dépistage actif",
-  "Campagne spécifique de santé publique",
+  "Visites à domicile et dépistage",
+  "Campagne",
   "Suivi groupé et orientation des RC",
-  "Formation continue des RC",
+  "Formation",
+  "Réunion de coordination mensuelle avec le CCLS-TP",
 ];
 
-const JOURS_COLS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
+const JOURS_ABREV_ASCQ = ["L", "M", "M", "J", "V", "S", "D"];
+const JOURS_FULL_KEYS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
+
+function formatDateFr(dStr?: string): string {
+  if (!dStr) return "";
+  if (dStr.includes("/")) return dStr;
+  const parts = dStr.split("-");
+  return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : dStr;
+}
 
 /**
  * Génère le PDF officiel du planning hebdomadaire de l'ASCQ
+ * REPRODUCTION TRAIT POUR TRAIT DU MODÈLE OFFICIEL VALIDÉ CNLS-TP / PRÉSIDENCE DU BÉNIN
  * FORMAT IMPOSÉ : A4 Paysage [841.89, 595.28] - STRICTEMENT SUR 1 PAGE
- * DESIGN ADMINISTRATIF OFFICIEL HAUT DE GAMME POUR LE MINISTÈRE DE LA SANTÉ & CNLS-TP
  */
 export async function generatePdfPlanningAscq(data: AscqPlanningData): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
-  const page = pdfDoc.addPage([841.89, 595.28]);
+  const page = pdfDoc.addPage([841.89, 595.28]); // A4 Paysage
+  const { width: pageWidth, height: pageHeight } = page.getSize();
 
   const { regular, bold } = await loadPlanningFonts(pdfDoc);
   const { bannerImg, logoImg } = await loadPlanningImages(pdfDoc);
   const signatureImg = await embedDataUrlImage(pdfDoc, data.signatureTactile);
 
-  // Palette officielle République du Bénin / Santé Publique
-  const cGreenPrimary = rgb(0 / 255, 92 / 255, 48 / 255);    // Vert institutionnel #005c30
-  const cFlagGreen = rgb(0 / 255, 135 / 255, 81 / 255);       // Vert drapeau #008751
-  const cFlagYellow = rgb(252 / 255, 209 / 255, 22 / 255);   // Jaune drapeau #FCD116
-  const cFlagRed = rgb(232 / 255, 17 / 255, 45 / 255);       // Rouge drapeau #E8112D
-  const cBlueNavy = rgb(0 / 255, 53 / 255, 115 / 255);       // Bleu foncé officiel #003573
-  const cSlateDark = rgb(15 / 255, 23 / 255, 42 / 255);       // #0f172a
-  const cSlateMuted = rgb(100 / 255, 116 / 255, 139 / 255);  // #64748b
-  const cBorderSoft = rgb(203 / 255, 213 / 255, 225 / 255);  // #cbd5e1
-  const cBgSoft = rgb(248 / 255, 250 / 255, 252 / 255);      // #f8fafc
-  const cBgAlt = rgb(241 / 255, 245 / 255, 249 / 255);       // #f1f5f9
+  // Palette officielle sobre et réglementaire
+  const cBlack = rgb(0, 0, 0);
+  const cNavyTitle = rgb(0 / 255, 53 / 255, 115 / 255); // #003573
+  const cHeaderBg = rgb(233 / 255, 239 / 255, 247 / 255); // #e9eff7
   const cWhite = rgb(1, 1, 1);
-  const cRedAlert = rgb(185 / 255, 28 / 255, 28 / 255);      // #b91c1c
-  const cRedBg = rgb(254 / 255, 242 / 255, 242 / 255);       // #fef2f2
+  const cGrayFooter = rgb(100 / 255, 116 / 255, 139 / 255); // #64748b
+  const cSlateText = rgb(30 / 255, 41 / 255, 59 / 255);
 
-  const marginX = 24;
-  const contentWidth = 841.89 - marginX * 2; // 793.89 pt
-  const pageCenterX = marginX + contentWidth / 2;
+  const marginX = 35;
+  const contentWidth = pageWidth - 2 * marginX; // 771.89 pt
 
   // =========================================================================
-  // 1. EN-TÊTE HARMONIEUX NON-DÉFORMÉ (LOGO ASC À GAUCHE + BANNIÈRE CNLS À DROITE)
+  // 1. EN-TÊTE SUPÉRIEUR (TRAIT POUR TRAIT)
+  // CNLS-TP À GAUCHE (armoiries + texte) | LOGO ASC SANTÉ COMM. DU BÉNIN À DROITE
   // =========================================================================
-  const headerTopY = 582;
-  const headerH = 46;
+  const headerTopY = pageHeight - 20;
 
-  // A. Logo officiel ASC Bénin (à gauche, ratio préservé)
-  const logoH = 46;
-  const logoW = 62;
-  if (logoImg) {
-    page.drawImage(logoImg, {
-      x: marginX + 2,
-      y: headerTopY - logoH,
-      width: logoW,
-      height: logoH,
-    });
-  }
-
-  // B. Bannière officielle CNLS-TP (à droite, ratio original préservé ~5.59 : 1)
-  const bannerH = 44;
-  const bannerW = 246;
-  const bannerX = marginX + contentWidth - bannerW - 2;
+  // Bannière CNLS-TP à gauche
   if (bannerImg) {
+    const bAsp = bannerImg.width / bannerImg.height;
+    const bH = 46;
+    const bW = bH * bAsp;
     page.drawImage(bannerImg, {
-      x: bannerX,
-      y: headerTopY - bannerH - 1,
-      width: bannerW,
-      height: bannerH,
-    });
-  } else {
-    page.drawRectangle({
-      x: bannerX,
-      y: headerTopY - bannerH - 1,
-      width: bannerW,
-      height: bannerH,
-      color: cBgAlt,
-      borderColor: cBorderSoft,
-      borderWidth: 1,
-    });
-    page.drawText("CNLS-TP / PRÉSIDENCE DU BÉNIN", {
-      x: bannerX + 15,
-      y: headerTopY - 26,
-      size: 9,
-      font: bold,
-      color: cBlueNavy,
+      x: marginX,
+      y: headerTopY - bH,
+      width: Math.min(bW, 260),
+      height: bH,
     });
   }
 
-  // C. Titres officiels centrés (entre les deux emblèmes)
-  const centerTitleX = marginX + logoW + (contentWidth - logoW - bannerW) / 2;
+  // Logo ASC Santé Communautaire à droite
+  if (logoImg) {
+    const lAsp = logoImg.width / logoImg.height;
+    const lH = 45;
+    const lW = lH * lAsp;
+    page.drawImage(logoImg, {
+      x: pageWidth - marginX - lW,
+      y: headerTopY - lH - 1,
+      width: lW,
+      height: lH,
+    });
+  }
 
-  const tLine1 = "RÉPUBLIQUE DU BÉNIN — MINISTÈRE DE LA SANTÉ";
-  const w1 = bold.widthOfTextAtSize(tLine1, 8.5);
-  page.drawText(tLine1, {
-    x: centerTitleX - w1 / 2,
-    y: headerTopY - 10,
-    size: 8.5,
+  // =========================================================================
+  // 2. TITRE & LOCALISATION AU CENTRE
+  // =========================================================================
+  // Ligne 1 : DÉPARTEMENT : ZOU — COMMUNE : OUINHI — ARRONDISSEMENT : TOHOUÈS
+  const deptStr = sanitizeWinAnsi(data.departement).toUpperCase() || "ZOU";
+  const comStr = sanitizeWinAnsi(data.commune).toUpperCase() || "OUINHI";
+  const arrStr = sanitizeWinAnsi(data.arrondissement).toUpperCase() || "TOHOUÈS";
+
+  const locLine = `DÉPARTEMENT : ${deptStr} — COMMUNE : ${comStr} — ARRONDISSEMENT : ${arrStr}`;
+  const locW = bold.widthOfTextAtSize(locLine, 10);
+  const locY = headerTopY - 58;
+
+  page.drawText(locLine, {
+    x: (pageWidth - locW) / 2,
+    y: locY,
+    size: 10,
     font: bold,
-    color: cBlueNavy,
+    color: cNavyTitle,
   });
 
-  const tLine2 = "POLITIQUE NATIONALE DE SANTÉ COMMUNAUTAIRE (PNSC)";
-  const w2 = bold.widthOfTextAtSize(tLine2, 9);
-  page.drawText(tLine2, {
-    x: centerTitleX - w2 / 2,
-    y: headerTopY - 22,
+  // Soulignements sous les noms d'entités géographiques
+  const p1 = "DÉPARTEMENT : ";
+  const p1W = bold.widthOfTextAtSize(p1, 10);
+  const dW = bold.widthOfTextAtSize(deptStr, 10);
+  const startX = (pageWidth - locW) / 2;
+  page.drawLine({
+    start: { x: startX + p1W, y: locY - 1.5 },
+    end: { x: startX + p1W + dW, y: locY - 1.5 },
+    thickness: 1,
+    color: cNavyTitle,
+  });
+
+  const p2 = `DÉPARTEMENT : ${deptStr} — COMMUNE : `;
+  const p2W = bold.widthOfTextAtSize(p2, 10);
+  const cW = bold.widthOfTextAtSize(comStr, 10);
+  page.drawLine({
+    start: { x: startX + p2W, y: locY - 1.5 },
+    end: { x: startX + p2W + cW, y: locY - 1.5 },
+    thickness: 1,
+    color: cNavyTitle,
+  });
+
+  const p3 = `DÉPARTEMENT : ${deptStr} — COMMUNE : ${comStr} — ARRONDISSEMENT : `;
+  const p3W = bold.widthOfTextAtSize(p3, 10);
+  const aW = bold.widthOfTextAtSize(arrStr, 10);
+  page.drawLine({
+    start: { x: startX + p3W, y: locY - 1.5 },
+    end: { x: startX + p3W + aW, y: locY - 1.5 },
+    thickness: 1,
+    color: cNavyTitle,
+  });
+
+  // Ligne 2 : PLANNING HEBDOMADAIRE DE LA SEMAINE N° XX (Souligné)
+  const semTitle = `PLANNING HEBDOMADAIRE DE LA SEMAINE N° ${data.semaine || 47}`;
+  const semW = bold.widthOfTextAtSize(semTitle, 13);
+  const semY = locY - 18;
+
+  page.drawText(semTitle, {
+    x: (pageWidth - semW) / 2,
+    y: semY,
+    size: 13,
+    font: bold,
+    color: cNavyTitle,
+  });
+
+  page.drawLine({
+    start: { x: (pageWidth - semW) / 2, y: semY - 2.5 },
+    end: { x: (pageWidth + semW) / 2, y: semY - 2.5 },
+    thickness: 1.2,
+    color: cNavyTitle,
+  });
+
+  // Ligne 3 : (du 16/11/2026 au 22/11/2026)
+  const dDeb = formatDateFr(data.dateDebut) || "16/11/2026";
+  const dFin = formatDateFr(data.dateFin) || "22/11/2026";
+  const dateSub = `(du ${dDeb} au ${dFin})`;
+  const dateSubW = regular.widthOfTextAtSize(dateSub, 9);
+  const dateSubY = semY - 14;
+
+  page.drawText(dateSub, {
+    x: (pageWidth - dateSubW) / 2,
+    y: dateSubY,
     size: 9,
-    font: bold,
-    color: cGreenPrimary,
-  });
-
-  const tLine3 = "PLANNING HEBDOMADAIRE D'ACTIVITÉS DES ASCQ";
-  const w3 = bold.widthOfTextAtSize(tLine3, 12);
-  page.drawText(tLine3, {
-    x: centerTitleX - w3 / 2,
-    y: headerTopY - 36,
-    size: 12,
-    font: bold,
-    color: cGreenPrimary,
-  });
-
-  const periodeTexte = sanitizeWinAnsi(
-    data.periodeLabel || `Semaine Épidémiologique N° ${data.semaine} — Du ${data.dateDebut} au ${data.dateFin}`
-  );
-  const w4 = regular.widthOfTextAtSize(periodeTexte, 8.5);
-  page.drawText(periodeTexte, {
-    x: centerTitleX - w4 / 2,
-    y: headerTopY - 47,
-    size: 8.5,
-    font: bold,
-    color: cSlateDark,
-  });
-
-  // D. Bande tricolore béninoise pleine largeur
-  const tricolorY = headerTopY - headerH - 8;
-  const colW = contentWidth / 3;
-  page.drawRectangle({ x: marginX, y: tricolorY, width: colW, height: 3, color: cFlagGreen });
-  page.drawRectangle({ x: marginX + colW, y: tricolorY, width: colW, height: 3, color: cFlagYellow });
-  page.drawRectangle({ x: marginX + colW * 2, y: tricolorY, width: colW, height: 3, color: cFlagRed });
-
-  // =========================================================================
-  // 2. SECTION 1 : CARTOUCHE D'IDENTIFICATION & LOCALISATION (2 LIGNES)
-  // =========================================================================
-  const cartoucheY = tricolorY - 40;
-  const cartoucheH = 36;
-  const cellW3 = contentWidth / 3;
-
-  // Cadre global du cartouche
-  page.drawRectangle({
-    x: marginX,
-    y: cartoucheY,
-    width: contentWidth,
-    height: cartoucheH,
-    color: cBgSoft,
-    borderColor: cBorderSoft,
-    borderWidth: 1,
-  });
-  // Ligne de séparation horizontale
-  page.drawLine({
-    start: { x: marginX, y: cartoucheY + cartoucheH / 2 },
-    end: { x: marginX + contentWidth, y: cartoucheY + cartoucheH / 2 },
-    thickness: 1,
-    color: cBorderSoft,
-  });
-  // Séparations verticales
-  page.drawLine({
-    start: { x: marginX + cellW3, y: cartoucheY },
-    end: { x: marginX + cellW3, y: cartoucheY + cartoucheH },
-    thickness: 1,
-    color: cBorderSoft,
-  });
-  page.drawLine({
-    start: { x: marginX + cellW3 * 2, y: cartoucheY },
-    end: { x: marginX + cellW3 * 2, y: cartoucheY + cartoucheH },
-    thickness: 1,
-    color: cBorderSoft,
-  });
-
-  // Ligne 1 : Département, Commune, Arrondissement
-  const r1Y = cartoucheY + cartoucheH / 2 + 5.5;
-  page.drawText("DÉPARTEMENT :", { x: marginX + 8, y: r1Y, size: 7.5, font: bold, color: cSlateMuted });
-  page.drawText(sanitizeWinAnsi(data.departement).toUpperCase() || "ZOU", { x: marginX + 85, y: r1Y, size: 8.5, font: bold, color: cSlateDark });
-
-  page.drawText("COMMUNE :", { x: marginX + cellW3 + 8, y: r1Y, size: 7.5, font: bold, color: cSlateMuted });
-  page.drawText(sanitizeWinAnsi(data.commune).toUpperCase() || "OUINHI", { x: marginX + cellW3 + 68, y: r1Y, size: 8.5, font: bold, color: cSlateDark });
-
-  page.drawText("ARRONDISSEMENT :", { x: marginX + cellW3 * 2 + 8, y: r1Y, size: 7.5, font: bold, color: cSlateMuted });
-  page.drawText(sanitizeWinAnsi(data.arrondissement).toUpperCase() || "TOHOUÈS", { x: marginX + cellW3 * 2 + 105, y: r1Y, size: 8.5, font: bold, color: cSlateDark });
-
-  // Ligne 2 : Nom ASCQ, Contact Téléphonique, Relais Communautaires
-  const r2Y = cartoucheY + 5.5;
-  page.drawText("NOM ET PRÉNOM(S) ASCQ :", { x: marginX + 8, y: r2Y, size: 7.5, font: bold, color: cSlateMuted });
-  page.drawText(sanitizeWinAnsi(data.ascqNom).toUpperCase() || "BRUNO DOSSOU", { x: marginX + 130, y: r2Y, size: 8.5, font: bold, color: cSlateDark });
-
-  page.drawText("CONTACT (TÉL) :", { x: marginX + cellW3 + 8, y: r2Y, size: 7.5, font: bold, color: cSlateMuted });
-  page.drawText(sanitizeWinAnsi(data.ascqPhone) || "-", { x: marginX + cellW3 + 88, y: r2Y, size: 8.5, font: bold, color: cSlateDark });
-
-  const rcResume = `${data.rcPlanifies} planifié(s) / ${data.rcAttendus} attendu(s)`;
-  page.drawText("RELAIS COMM. (RC) :", { x: marginX + cellW3 * 2 + 8, y: r2Y, size: 7.5, font: bold, color: cSlateMuted });
-  page.drawText(rcResume, { 
-    x: marginX + cellW3 * 2 + 105, 
-    y: r2Y, 
-    size: 8.5, 
-    font: bold, 
-    color: data.rcPlanifies !== data.rcAttendus ? cRedAlert : cGreenPrimary 
+    font: regular,
+    color: cSlateText,
   });
 
   // =========================================================================
-  // 3. TABLEAU DES 10+1 ACTIVITÉS PRINCIPALES (STYLE OFFICIEL AÉRÉ & LISIBLE)
+  // 3. TABLEAU DES ACTIVITÉS (TRAIT POUR TRAIT)
+  // EN-TÊTE À DEUX NIVEAUX SUR FOND #e9eff7, BORDURES NOIRES 1 PT
   // =========================================================================
-  const tblTopY = cartoucheY - 6;
-  const colW_No = 25;
+  const tblTopY = dateSubY - 12; // ~460 pt
+  const colW_No = 30;
   const colW_Act = 285;
-  const colW_Resp = 45;
-  const colW_Day = 31;
-  const colW_DaysTotal = colW_Day * 7; // 217 pt
-  const colW_Obs = contentWidth - (colW_No + colW_Act + colW_Resp + colW_DaysTotal); // 221.89 pt
+  const colW_Resp = 52;
+  const colW_Day = 26;
+  const colW_DaysTotal = colW_Day * 7; // 182 pt
+  const colW_Obs = contentWidth - (colW_No + colW_Act + colW_Resp + colW_DaysTotal); // 222.89 pt
 
-  const thH = 20;
-  const rowH = 22.5;
-  const nbRows = data.autreActiviteNom ? 11 : 10;
-  const tblH = thH + nbRows * rowH;
+  const thH1 = 17;
+  const thH2 = 17;
+  const thTotalH = thH1 + thH2; // 34 pt
+  const rowH = 22; // 11 lignes × 22 pt = 242 pt
+  const nbRows = 11;
+  const tblH = thTotalH + nbRows * rowH; // 276 pt
   const tblBottomY = tblTopY - tblH;
 
-  // Entête du tableau (Fond Vert Foncé Officiel #005c30, Texte Blanc)
+  // --- EN-TÊTE LIGNE 1 : Fond gris-bleu clair #e9eff7 ---
   page.drawRectangle({
     x: marginX,
-    y: tblTopY - thH,
+    y: tblTopY - thTotalH,
     width: contentWidth,
-    height: thH,
-    color: cGreenPrimary,
+    height: thTotalH,
+    color: cHeaderBg,
   });
 
-  // Textes des colonnes d'entête
-  page.drawText("N°", { x: marginX + 7, y: tblTopY - 14, size: 8, font: bold, color: cWhite });
-  page.drawText("ACTIVITÉS PRINCIPALES (CNLS-TP)", { x: marginX + colW_No + 10, y: tblTopY - 14, size: 8, font: bold, color: cWhite });
-  page.drawText("RESP.", { x: marginX + colW_No + colW_Act + 8, y: tblTopY - 14, size: 8, font: bold, color: cWhite });
-
-  JOURS_COLS.forEach((j, idx) => {
-    const jX = marginX + colW_No + colW_Act + colW_Resp + idx * colW_Day;
-    const jTextW = bold.widthOfTextAtSize(j, 7.5);
-    page.drawText(j, { x: jX + (colW_Day - jTextW) / 2, y: tblTopY - 14, size: 7.5, font: bold, color: cWhite });
+  // Cellule N° (sur 2 niveaux)
+  const noW = bold.widthOfTextAtSize("N°", 8.5);
+  page.drawText("N°", {
+    x: marginX + (colW_No - noW) / 2,
+    y: tblTopY - (thTotalH / 2) - 3,
+    size: 8.5,
+    font: bold,
+    color: cBlack,
   });
 
-  page.drawText("OBSERVATIONS & CIBLES SPÉCIFIQUES", { 
-    x: marginX + colW_No + colW_Act + colW_Resp + colW_DaysTotal + 10, 
-    y: tblTopY - 14, 
-    size: 8, 
-    font: bold, 
-    color: cWhite 
+  // Cellule ACTIVITÉS (sur 2 niveaux)
+  const actHeaderW = bold.widthOfTextAtSize("ACTIVITÉS", 8.5);
+  page.drawText("ACTIVITÉS", {
+    x: marginX + colW_No + (colW_Act - actHeaderW) / 2,
+    y: tblTopY - (thTotalH / 2) - 3,
+    size: 8.5,
+    font: bold,
+    color: cBlack,
   });
 
-  // Lignes du tableau
-  const activitiesList = [...ACTIVITES_OFFICIELLES_ASCQ];
-  if (data.autreActiviteNom) {
-    activitiesList.push(data.autreActiviteNom);
-  }
+  // Cellule RESP. (sur 2 niveaux)
+  const respHeaderW = bold.widthOfTextAtSize("RESP.", 8.5);
+  page.drawText("RESP.", {
+    x: marginX + colW_No + colW_Act + (colW_Resp - respHeaderW) / 2,
+    y: tblTopY - (thTotalH / 2) - 3,
+    size: 8.5,
+    font: bold,
+    color: cBlack,
+  });
 
-  // Largeur du sous-tableau gauche (hors colonne observations fusionnée)
-  const leftTableW = contentWidth - colW_Obs;
-  const obsX = marginX + leftTableW;
+  // Cellule PÉRIODES (Niveau 1, chapeautant les 7 jours)
+  const perHeaderW = bold.widthOfTextAtSize("PÉRIODES", 8.5);
+  const perStartX = marginX + colW_No + colW_Act + colW_Resp;
+  page.drawText("PÉRIODES", {
+    x: perStartX + (colW_DaysTotal - perHeaderW) / 2,
+    y: tblTopY - 12,
+    size: 8.5,
+    font: bold,
+    color: cBlack,
+  });
 
-  activitiesList.forEach((actName, idx) => {
-    const rY = tblTopY - thH - (idx + 1) * rowH;
-    const isAlt = idx % 2 === 1;
+  // Ligne horizontale sous "PÉRIODES" séparant le niveau 1 du niveau 2
+  page.drawLine({
+    start: { x: perStartX, y: tblTopY - thH1 },
+    end: { x: perStartX + colW_DaysTotal, y: tblTopY - thH1 },
+    thickness: 1,
+    color: cBlack,
+  });
 
-    // Fond alterné pour les colonnes de gauche uniquement
-    page.drawRectangle({
-      x: marginX,
-      y: rY,
-      width: leftTableW,
-      height: rowH,
-      color: isAlt ? cBgSoft : cWhite,
+  // Niveau 2 : les 7 jours L, M, M, J, V, S, D
+  JOURS_ABREV_ASCQ.forEach((jAbrev, idx) => {
+    const jX = perStartX + idx * colW_Day;
+    const jW = bold.widthOfTextAtSize(jAbrev, 8.5);
+    page.drawText(jAbrev, {
+      x: jX + (colW_Day - jW) / 2,
+      y: tblTopY - thH1 - 12,
+      size: 8.5,
+      font: bold,
+      color: cBlack,
     });
+
+    // Séparateur vertical entre les sous-colonnes de jours
+    if (idx > 0) {
+      page.drawLine({
+        start: { x: jX, y: tblTopY - thTotalH },
+        end: { x: jX, y: tblTopY - thH1 },
+        thickness: 1,
+        color: cBlack,
+      });
+    }
+  });
+
+  // Cellule OBSERVATIONS (sur 2 niveaux)
+  const obsHeaderW = bold.widthOfTextAtSize("OBSERVATIONS", 8.5);
+  const obsStartX = marginX + colW_No + colW_Act + colW_Resp + colW_DaysTotal;
+  page.drawText("OBSERVATIONS", {
+    x: obsStartX + (colW_Obs - obsHeaderW) / 2,
+    y: tblTopY - (thTotalH / 2) - 3,
+    size: 8.5,
+    font: bold,
+    color: cBlack,
+  });
+
+  // Ligne horizontale séparant l'en-tête du corps du tableau
+  page.drawLine({
+    start: { x: marginX, y: tblTopY - thTotalH },
+    end: { x: marginX + contentWidth, y: tblTopY - thTotalH },
+    thickness: 1,
+    color: cBlack,
+  });
+
+  // =========================================================================
+  // 4. LIGNES D'ACTIVITÉS (11 LIGNES, FOND BLANC, COCHES NOIRES ÉPURÉES)
+  // =========================================================================
+  const leftTableW = contentWidth - colW_Obs;
+
+  ACTIVITES_OFFICIELLES_ASCQ.forEach((defaultActName, idx) => {
+    const rY = tblTopY - thTotalH - (idx + 1) * rowH;
 
     // Numéro formaté "01", "02", etc.
     const numStr = String(idx + 1).padStart(2, "0");
-    page.drawText(numStr, { 
-      x: marginX + 6, 
-      y: rY + 7, 
-      size: 8, 
-      font: bold, 
-      color: cSlateMuted 
+    const numW = bold.widthOfTextAtSize(numStr, 8.5);
+    page.drawText(numStr, {
+      x: marginX + (colW_No - numW) / 2,
+      y: rY + 7,
+      size: 8.5,
+      font: bold,
+      color: cBlack,
     });
 
-    // Titre de l'activité
-    const cleanActName = sanitizeWinAnsi(actName);
-    page.drawText(cleanActName, { 
-      x: marginX + colW_No + 8, 
-      y: rY + 7, 
-      size: 8.2, 
-      font: bold, 
-      color: cSlateDark 
+    // Libellé de l'activité
+    let actLabel = defaultActName;
+    if (idx === 10 && data.autreActiviteNom) {
+      actLabel = data.autreActiviteNom;
+    }
+    page.drawText(sanitizeWinAnsi(actLabel), {
+      x: marginX + colW_No + 6,
+      y: rY + 7,
+      size: 8.2,
+      font: bold,
+      color: cBlack,
     });
 
-    // Responsable
-    page.drawText("ASCQ", { 
-      x: marginX + colW_No + colW_Act + 9, 
-      y: rY + 7, 
-      size: 7.5, 
-      font: bold, 
-      color: cGreenPrimary 
+    // Responsable ASCQ
+    const respW = bold.widthOfTextAtSize("ASCQ", 8);
+    page.drawText("ASCQ", {
+      x: marginX + colW_No + colW_Act + (colW_Resp - respW) / 2,
+      y: rY + 7,
+      size: 8,
+      font: bold,
+      color: cBlack,
     });
 
-    // Cases des Jours (LUN à DIM)
+    // Jours cochés
     const selectedDays = idx < 10 
-      ? (data.activitesJours[idx + 1] || []) 
+      ? (data.activitesJours[idx + 1] || [])
       : (data.autreActiviteJours || []);
 
-    JOURS_COLS.forEach((j, jIdx) => {
-      const cellCenterX = marginX + colW_No + colW_Act + colW_Resp + jIdx * colW_Day + colW_Day / 2;
+    JOURS_FULL_KEYS.forEach((fullKey, jIdx) => {
+      const cellCenterX = perStartX + jIdx * colW_Day + colW_Day / 2;
       const cellCenterY = rY + rowH / 2;
-      const isChecked = selectedDays.includes(j);
+      const isChecked = selectedDays.includes(fullKey);
 
       if (isChecked) {
-        // Coche vectorielle verte nette et impeccable
-        drawVectorCheckmark(page, cellCenterX, cellCenterY, 13);
+        // Coche noire officielle trait pour trait comme sur le modèle
+        drawBlackCheckmark(page, cellCenterX, cellCenterY, 8.5);
       } else {
         // Tiret discret centré
-        page.drawText("-", { 
-          x: cellCenterX - 2, 
-          y: cellCenterY - 3, 
-          size: 8, 
-          font: regular, 
-          color: rgb(203 / 255, 213 / 255, 225 / 255) 
+        page.drawText("-", {
+          x: cellCenterX - 2,
+          y: cellCenterY - 3,
+          size: 8.5,
+          font: regular,
+          color: rgb(0.2, 0.2, 0.2),
         });
       }
     });
 
-    // Ligne de séparation horizontale fine (ne coupe pas la colonne Observations)
+    // Ligne horizontale sous chaque ligne d'activité (s'arrête avant la colonne Observations)
     page.drawLine({
       start: { x: marginX, y: rY },
       end: { x: marginX + leftTableW, y: rY },
-      thickness: 0.75,
-      color: cBorderSoft,
+      thickness: 1,
+      color: cBlack,
     });
   });
 
-  // Colonne OBSERVATIONS FUSIONNÉE (style officiel rowspan sur toute la hauteur)
-  page.drawRectangle({
-    x: obsX,
-    y: tblBottomY,
-    width: colW_Obs,
-    height: nbRows * rowH,
-    color: cWhite,
-  });
+  // =========================================================================
+  // 5. COLONNE OBSERVATIONS FUSIONNÉE (ROWSPAN = 11)
+  // =========================================================================
+  const obsY = tblBottomY;
+  const obsH = nbRows * rowH;
 
-  const obsLines = wrapText(data.observations || "Néant / RAS", regular, 8.2, colW_Obs - 16);
-  let obsLineY = tblTopY - thH - 16;
-  const maxLines = Math.floor((nbRows * rowH - 24) / 12);
-  obsLines.slice(0, maxLines).forEach((line) => {
+  // Texte des observations
+  const obsText = sanitizeWinAnsi(data.observations || "Néant");
+  const obsLines = wrapText(obsText, regular, 8.5, colW_Obs - 16);
+
+  // Centrage vertical du bloc d'observations dans la cellule fusionnée
+  const totalTextH = obsLines.length * 13;
+  let curObsY = obsY + (obsH + totalTextH) / 2 - 10;
+
+  obsLines.forEach((line) => {
+    const lineW = regular.widthOfTextAtSize(line, 8.5);
     page.drawText(line, {
-      x: obsX + 8,
-      y: obsLineY,
-      size: 8,
+      x: obsStartX + (colW_Obs - lineW) / 2,
+      y: curObsY,
+      size: 8.5,
       font: regular,
-      color: data.observations ? cSlateDark : cSlateMuted,
+      color: cBlack,
     });
-    obsLineY -= 12;
+    curObsY -= 13;
   });
 
-  // Grille verticale du tableau
-  let currentBorderX = marginX;
-  const vertCols = [colW_No, colW_Act, colW_Resp, ...Array(7).fill(colW_Day), colW_Obs];
-  vertCols.forEach((w) => {
-    currentBorderX += w;
+  // =========================================================================
+  // 6. GRILLE VERTICALE COMPLÈTE DU TABLEAU (LIGNES NOIRES 1 PT)
+  // =========================================================================
+  const colSeparators = [
+    colW_No,
+    colW_Act,
+    colW_Resp,
+    ...Array(7).fill(colW_Day),
+    colW_Obs,
+  ];
+
+  let curX = marginX;
+  colSeparators.forEach((w, idx) => {
+    curX += w;
+    // Si c'est l'une des séparations internes de jours (idx de 3 à 8), elle part du bas du sous-en-tête
+    const isDayInnerSep = idx >= 3 && idx <= 8;
+    const startY = isDayInnerSep ? tblTopY - thTotalH : tblTopY;
+
     page.drawLine({
-      start: { x: currentBorderX, y: tblBottomY },
-      end: { x: currentBorderX, y: tblTopY },
-      thickness: 0.75,
-      color: cBorderSoft,
+      start: { x: curX, y: tblBottomY },
+      end: { x: curX, y: startY },
+      thickness: 1,
+      color: cBlack,
     });
   });
 
-  // Bordure extérieure complète du tableau
+  // Contour complet du tableau en noir 1 pt
   page.drawRectangle({
     x: marginX,
     y: tblBottomY,
     width: contentWidth,
     height: tblH,
-    borderColor: cBorderSoft,
-    borderWidth: 1.2,
-  });
-
-  // =========================================================================
-  // 4. PIED DE PAGE : DEUX BLOCS OFFICIELS ÉQUILIBRÉS & INSTITUTIONNELS
-  // =========================================================================
-  const bottomCardY = 20;
-  const bottomCardH = tblBottomY - bottomCardY - 8; // environ 170-175 pt
-  const leftCardW = 430;
-  const rightCardW = contentWidth - leftCardW - 12; // 351.89 pt
-  const rightCardX = marginX + leftCardW + 12;
-
-  // --- BLOC GAUCHE : STATUT & EFFECTIF DES RELAIS COMMUNAUTAIRES (RC) ---
-  page.drawRectangle({
-    x: marginX,
-    y: bottomCardY,
-    width: leftCardW,
-    height: bottomCardH,
-    color: cBgSoft,
-    borderColor: cBorderSoft,
+    borderColor: cBlack,
     borderWidth: 1,
   });
-  // Barre accent gauche verte
-  page.drawRectangle({
+
+  // =========================================================================
+  // 7. BAS DE PAGE (SOUS LE TABLEAU - TRAIT POUR TRAIT)
+  // GAUCHE : STATUT DES RC & MOTIF D'ÉCART | DROITE : VISA DE L'ASCQ
+  // =========================================================================
+  const underTblY = tblBottomY - 24;
+
+  // --- BLOC GAUCHE ---
+  // Ligne 1 : Relais Communautaires (RC) : XX planifié(s) sur YY attendu(s).
+  const rcPlan = data.rcPlanifies ?? 12;
+  const rcAtt = data.rcAttendus ?? 14;
+
+  const prefixRc = "Relais Communautaires (RC) : ";
+  const pRcW = bold.widthOfTextAtSize(prefixRc, 8.5);
+  page.drawText(prefixRc, {
     x: marginX,
-    y: bottomCardY,
-    width: 4,
-    height: bottomCardH,
-    color: cGreenPrimary,
-  });
-
-  let curLeftY = bottomCardY + bottomCardH - 16;
-  page.drawText("STATUT DES RELAIS COMMUNAUTAIRES (RC) DE L'ARRONDISSEMENT", {
-    x: marginX + 14,
-    y: curLeftY,
-    size: 9,
-    font: bold,
-    color: cBlueNavy,
-  });
-
-  curLeftY -= 18;
-  page.drawText(`- Nombre total de RC planifiés cette semaine : `, {
-    x: marginX + 14,
-    y: curLeftY,
-    size: 8.5,
-    font: regular,
-    color: cSlateDark,
-  });
-  page.drawText(`${data.rcPlanifies} RC`, {
-    x: marginX + 230,
-    y: curLeftY,
+    y: underTblY,
     size: 8.5,
     font: bold,
-    color: cGreenPrimary,
+    color: cBlack,
   });
 
-  curLeftY -= 15;
-  page.drawText(`- Nombre total de RC attendus selon la cartographie : `, {
-    x: marginX + 14,
-    y: curLeftY,
-    size: 8.5,
-    font: regular,
-    color: cSlateDark,
-  });
-  page.drawText(`${data.rcAttendus} RC`, {
-    x: marginX + 230,
-    y: curLeftY,
+  const valRc = `${rcPlan} planifié(s) sur ${rcAtt} attendu(s).`;
+  page.drawText(valRc, {
+    x: marginX + pRcW,
+    y: underTblY,
     size: 8.5,
     font: bold,
-    color: cSlateDark,
+    color: cBlack,
   });
 
-  // Encadré Motif d'écart si écart constaté
-  if (data.rcPlanifies !== data.rcAttendus) {
-    curLeftY -= 36;
-    page.drawRectangle({
-      x: marginX + 14,
-      y: curLeftY,
-      width: leftCardW - 28,
-      height: 30,
-      color: cRedBg,
-      borderColor: rgb(248 / 255, 113 / 255, 113 / 255),
-      borderWidth: 1,
-    });
-    page.drawText("MOTIF DE L'ÉCART D'EFFECTIF DES RC :", {
-      x: marginX + 22,
-      y: curLeftY + 18,
-      size: 7.5,
-      font: bold,
-      color: cRedAlert,
-    });
-    const motifStr = sanitizeWinAnsi(data.motifEcart || "Écart d'effectif signalé en attente de régularisation.");
-    page.drawText(motifStr, {
-      x: marginX + 22,
-      y: curLeftY + 6,
+  // Ligne 2 : Motif de l'écart (si présent ou si écart)
+  let motifY = underTblY - 16;
+  if (data.motifEcart || rcPlan !== rcAtt) {
+    const motifPrefix = "Motif de l'écart : ";
+    const mpW = bold.widthOfTextAtSize(motifPrefix, 8.5);
+    page.drawText(motifPrefix, {
+      x: marginX,
+      y: motifY,
       size: 8.5,
       font: bold,
-      color: cSlateDark,
+      color: cBlack,
     });
+
+    const motifText = sanitizeWinAnsi(data.motifEcart || "Deux relais communautaires indisponibles cette semaine (obsèques familiales et maladie) ; leurs villages seront couverts par le RC voisin.");
+    const motifLines = wrapText(motifText, regular, 8.5, contentWidth - mpW - 220);
+
+    motifLines.forEach((mLine, mIdx) => {
+      page.drawText(mLine, {
+        x: marginX + (mIdx === 0 ? mpW : 0),
+        y: motifY - mIdx * 12,
+        size: 8.5,
+        font: regular,
+        color: cBlack,
+      });
+    });
+
+    motifY -= motifLines.length * 12 + 4;
   }
 
-  // Mention légale de bas de bloc
-  page.drawText("Document officiel validé conformément aux normes de la Direction Départementale de la Santé.", {
-    x: marginX + 14,
-    y: bottomCardY + 10,
-    size: 6.8,
+  // Ligne 3 : Contact ASCQ : 01 XX XX XX XX
+  const phonePrefix = "Contact ASCQ : ";
+  const phW = bold.widthOfTextAtSize(phonePrefix, 8.5);
+  page.drawText(phonePrefix, {
+    x: marginX,
+    y: motifY,
+    size: 8.5,
+    font: bold,
+    color: cBlack,
+  });
+
+  const phoneVal = sanitizeWinAnsi(data.ascqPhone) || "01 97 00 00 00";
+  page.drawText(phoneVal, {
+    x: marginX + phW,
+    y: motifY,
+    size: 8.5,
     font: regular,
-    color: cSlateMuted,
+    color: cBlack,
   });
 
-  // --- BLOC DROIT : VALIDATION ET SIGNATURE MANUSCRITE DE L'ASCQ ---
-  page.drawRectangle({
-    x: rightCardX,
-    y: bottomCardY,
-    width: rightCardW,
-    height: bottomCardH,
-    color: cWhite,
-    borderColor: cBorderSoft,
-    borderWidth: 1,
-  });
-  // Barre accent gauche verte
-  page.drawRectangle({
-    x: rightCardX,
-    y: bottomCardY,
-    width: 4,
-    height: bottomCardH,
-    color: cGreenPrimary,
-  });
+  // --- BLOC DROIT : L'ASCQ + SIGNATURE + NOM SOULIGNÉ ---
+  const rightCenterX = pageWidth - marginX - 110;
 
-  let curRightY = bottomCardY + bottomCardH - 16;
-  page.drawText("VALIDATION ET SIGNATURE MANUSCRITE DE L'ASCQ", {
-    x: rightCardX + 14,
-    y: curRightY,
+  // "L'ASCQ"
+  const lascqStr = "L'ASCQ";
+  const lascqW = bold.widthOfTextAtSize(lascqStr, 9);
+  page.drawText(lascqStr, {
+    x: rightCenterX - lascqW / 2,
+    y: underTblY,
     size: 9,
     font: bold,
-    color: cBlueNavy,
+    color: cBlack,
   });
 
-  curRightY -= 15;
-  const dateStr = data.dateValidation || new Date().toLocaleDateString("fr-FR");
-  page.drawText(`Fait à ${sanitizeWinAnsi(data.arrondissement || "Arrondissement")}, le ${dateStr}`, {
-    x: rightCardX + 14,
-    y: curRightY,
-    size: 8,
-    font: regular,
-    color: cSlateMuted,
-  });
-
-  // Emplacement Signature tactile
-  const sigBoxY = bottomCardY + 45;
-  const sigBoxH = 50;
-  const sigBoxW = rightCardW - 28;
-
+  // Signature tactile
   if (signatureImg) {
     const sAsp = signatureImg.width / signatureImg.height;
-    let sW = sigBoxH * sAsp;
-    let sH = sigBoxH;
-    if (sW > sigBoxW) {
-      sW = sigBoxW;
+    let sW = 32 * sAsp;
+    let sH = 32;
+    if (sW > 90) {
+      sW = 90;
       sH = sW / sAsp;
     }
     page.drawImage(signatureImg, {
-      x: rightCardX + 14 + (sigBoxW - sW) / 2,
-      y: sigBoxY + (sigBoxH - sH) / 2,
+      x: rightCenterX - sW / 2,
+      y: underTblY - 38,
       width: sW,
       height: sH,
     });
-  } else {
-    page.drawRectangle({
-      x: rightCardX + 14,
-      y: sigBoxY,
-      width: sigBoxW,
-      height: sigBoxH,
-      color: cBgSoft,
-      borderColor: cBorderSoft,
-      borderWidth: 0.75,
-    });
-    page.drawText("[Signature tactile enregistrée numériquement]", {
-      x: rightCardX + 28,
-      y: sigBoxY + 22,
-      size: 8,
-      font: regular,
-      color: cSlateMuted,
-    });
   }
 
-  // Nom de l'ASCQ et Cachet officiel
-  const ascqSignerName = `L'ASCQ : ${sanitizeWinAnsi(data.ascqNom).toUpperCase() || "DÉCLARANT"}`;
-  page.drawText(ascqSignerName, {
-    x: rightCardX + 14,
-    y: bottomCardY + 24,
+  // Nom et prénom de l'ASCQ (souligné)
+  const nomAscq = sanitizeWinAnsi(data.ascqNom).toUpperCase() || "ADJOVI MARCELLIN";
+  const nomW = bold.widthOfTextAtSize(nomAscq, 9);
+  const nomY = underTblY - 52;
+
+  page.drawText(nomAscq, {
+    x: rightCenterX - nomW / 2,
+    y: nomY,
     size: 9,
     font: bold,
-    color: cGreenPrimary,
+    color: cBlack,
   });
 
-  // Cachet officiel de conformité dans l'angle droit
-  const stampW = 125;
-  const stampH = 34;
-  const stampX = rightCardX + rightCardW - stampW - 10;
-  const stampY = bottomCardY + 10;
-
-  page.drawRectangle({
-    x: stampX,
-    y: stampY,
-    width: stampW,
-    height: stampH,
-    color: rgb(240 / 255, 253 / 255, 244 / 255),
-    borderColor: cGreenPrimary,
-    borderWidth: 1.2,
+  page.drawLine({
+    start: { x: rightCenterX - nomW / 2, y: nomY - 1.5 },
+    end: { x: rightCenterX + nomW / 2, y: nomY - 1.5 },
+    thickness: 1,
+    color: cBlack,
   });
-  page.drawText("RÉPUBLIQUE DU BÉNIN", { x: stampX + 15, y: stampY + 23, size: 6.5, font: bold, color: cGreenPrimary });
-  page.drawText("PNSC / CNLS-TP", { x: stampX + 28, y: stampY + 13, size: 6.5, font: bold, color: cBlueNavy });
-  page.drawText("VALIDÉ OFFICIELLEMENT", { x: stampX + 12, y: stampY + 4, size: 6.5, font: bold, color: cGreenPrimary });
+
+  // =========================================================================
+  // 8. NOTE DE PIED DE PAGE CENTRÉE
+  // "SantéCom Bénin — fiche éditée le 17 novembre 2026"
+  // =========================================================================
+  const footerDateStr = new Date().toLocaleDateString("fr-FR", {
+    day: "numeric",
+    month: "long",
+    year: "numeric"
+  });
+  const footerText = `SantéCom Bénin — fiche éditée le ${footerDateStr}`;
+  const fW = regular.widthOfTextAtSize(footerText, 7.5);
+
+  page.drawText(footerText, {
+    x: (pageWidth - fW) / 2,
+    y: 18,
+    size: 7.5,
+    font: regular,
+    color: cGrayFooter,
+  });
 
   return await pdfDoc.save();
 }

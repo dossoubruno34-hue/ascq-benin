@@ -6,45 +6,45 @@ import { generatePdfPlanningRc } from "../src/lib/pdf-plannings/generatePdfPlann
 import { AscqPlanningData, RcPlanningData } from "../src/lib/pdf-plannings/types";
 
 async function run() {
-  console.log("=== TEST DE GÉNÉRATION DES PLANNINGS OFFICIELS A4 PAYSAGE 1 PAGE ===");
+  console.log("=== TEST DE GÉNÉRATION DES PLANNINGS OFFICIELS TRAIT POUR TRAIT ===");
 
   const outDir = path.resolve(process.cwd(), "public", "echantillons");
   if (!fs.existsSync(outDir)) {
     fs.mkdirSync(outDir, { recursive: true });
   }
 
-  // 1. PLANNING ASCQ
+  // 1. PLANNING ASCQ (Données identiques au modèle officiel transmis)
   const sampleAscq: AscqPlanningData = {
     departement: "Zou",
     commune: "Ouinhi",
     arrondissement: "Tohouès",
-    ascqNom: "DOSSOU Bruno",
-    ascqPhone: "0165031463",
+    ascqNom: "ADJOVI Marcellin",
+    ascqPhone: "01 97 00 00 00",
     semaine: 47,
     annee: 2026,
     dateDebut: "16/11/2026",
     dateFin: "22/11/2026",
-    periodeLabel: "Du 16/11/2026 au 22/11/2026",
-    rcPlanifies: 16,
-    rcAttendus: 15,
-    motifEcart: "Un RC malade",
+    rcPlanifies: 12,
+    rcAttendus: 14,
+    motifEcart: "Deux relais communautaires indisponibles cette semaine (obsèques familiales et maladie) ; leurs villages seront couverts par le RC voisin.",
     activitesJours: {
-      1: ["Lun"],
-      2: ["Mar"],
-      3: ["Mer"],
-      4: ["Mar"],
-      5: ["Mar"],
-      6: ["Mer"],
-      7: ["Jeu"],
-      8: ["Mer"],
-      9: ["Mar"],
-      10: ["Mar"]
+      1: ["Lun", "Mer"],
+      2: ["Mar", "Jeu"],
+      3: ["Mer", "Ven"],
+      4: ["Lun", "Jeu"],
+      5: ["Mar", "Mer"],
+      6: ["Jeu"],
+      7: ["Lun", "Mar", "Mer", "Jeu", "Ven"],
+      8: [],
+      9: ["Ven"],
+      10: ["Sam"],
+      11: ["Ven"]
     },
-    autreActiviteNom: "Réunion de coordination trimestrielle des leaders",
-    autreActiviteJours: ["Mer"],
-    observations: "RAS. Couverture épidémiologique communautaire stable.",
+    autreActiviteNom: "Réunion de coordination mensuelle avec le CCLS-TP",
+    autreActiviteJours: ["Ven"],
+    observations: "Semaine marquée par la poursuite des visites à domicile dans les villages éloignés. Rappel : transmettre le rapport hebdomadaire de surveillance le lundi avant 10 h.",
     statut: "VALIDE",
-    dateValidation: "16/11/2026 08:30"
+    dateValidation: "17/11/2026"
   };
 
   console.log("Génération du PDF Planning ASCQ...");
@@ -65,91 +65,106 @@ async function run() {
   fs.writeFileSync(ascqPath, ascqBytes);
   console.log(`✓ PDF ASCQ enregistré : ${ascqPath}`);
 
-  // 2. PLANNING RC
+  // 2. PLANNING RC (Données identiques au modèle officiel transmis)
   const sampleRc: RcPlanningData = {
     departement: "Zou",
-    zoneSanitaire: "Covè - Zagnanado - Ouinhi",
+    zoneSanitaire: "Covè-Zagnanado-Ouinhi",
     commune: "Ouinhi",
     arrondissement: "Tohouès",
-    village: "Honvié Centre",
-    grappe: 1,
-    rcName: "HOUNGBO Koffi Jean",
-    rcPhone: "0197451234",
+    village: "Tohouès (centre)",
+    grappe: "G12",
+    rcName: "HOUNKPATIN Rosine",
+    rcPhone: "01 96 00 00 00",
     semaineNum: 47,
     annee: 2026,
     dateDebutStr: "16/11/2026",
     dateFinStr: "22/11/2026",
     act_vad: [
       {
-        date: "16/11/2026",
-        heure: "08h00 - 12h00",
-        zone: "Grappe 1 - Ménages cibles",
-        qte: "5 VAD (5 ménages visités / 45 en charge)"
+        date: "17/11/2026",
+        heure: "08:00",
+        zone: "Centre du village",
+        qte: "Nbre VAD : 12\nNbre ménages visités : 10\nTotal ménages en charge : 85",
+        observation: "Priorité aux ménages avec\nnourrissons"
       }
     ],
     act_causerie: [
       {
-        date: "17/11/2026",
-        heure: "09h00 - 11h00",
-        zone: "Place publique du village",
-        qte: "1 causerie • Thème: MILD et lavage des mains"
+        date: "18/11/2026",
+        heure: "16:00",
+        zone: "Marché de Ouinhi",
+        qte: "Nbre : 1\nThème : Paludisme et usage de la MILD",
+        observation: "Avec le chef de village"
+      }
+    ],
+    act_salubrite: [
+      {
+        date: "20/11/2026",
+        heure: "08:00",
+        zone: "Centre du village",
+        qte: "1",
+        observation: "Assainissement du point\nd'eau"
       }
     ],
     act_animale: [
       {
-        date: "18/11/2026",
-        heure: "14h00 - 16h00",
-        zone: "Enclos communautaires",
-        qte: "2 sites inspectés (aucun animal suspect)"
+        date: "19/11/2026",
+        heure: "09:00",
+        zone: "Centre du village",
+        qte: "Nombre de site visité : 2"
       }
     ],
     act_sociales: [
       {
         date: "19/11/2026",
-        heure: "16h00 - 17h00",
-        zone: "Ménages indigents",
-        qte: "1 visite sociale (suivi orphelin vulnérable)"
+        heure: "11:00",
+        zone: "Centre du village",
+        qte: "Nbre de visite : 1",
+        observation: "Visite à une famille\nvulnérable"
       }
     ],
     act_femmes: [
       {
-        date: "20/11/2026",
-        heure: "08h00 - 11h00",
-        zone: "Grappe 1",
-        qte: "4 femmes suivies (CPN: 3, VAT: 2)"
+        date: "17/11/2026",
+        heure: "14:00",
+        zone: "Centre du village",
+        qte: "Nbre de femmes enceintes : 4\nSuivi pour CPN : 4\nSuivi pour VAT : 3",
+        observation: "Rappel des CPN manquées"
       }
     ],
     act_enfants: [
       {
-        date: "21/11/2026",
-        heure: "08h00 - 11h00",
-        zone: "Grappe 1",
-        qte: "18 enfants suivis (PEV: 16, Nutrition PB: 18)"
+        date: "18/11/2026",
+        heure: "09:00",
+        zone: "Centre du village",
+        qte: "Nbre enfants 0 à 59 mois : 15\nSuivi pour vaccination : 6\nSuivi pour nutrition : 5",
+        observation: "Dépistage de la\nmalnutrition"
       }
     ],
     act_referees: [
       {
-        date: "22/11/2026",
-        heure: "En continu",
-        zone: "Centre de Santé & ASCQ",
-        qte: "2 cas référés (1 fièvre persistante, 1 PB rouge)"
+        date: "21/11/2026",
+        heure: "10:00",
+        zone: "Centre du village",
+        qte: "2",
+        observation: "Vers le centre de santé"
       }
     ],
     act_autres: [
       {
-        date: "17/11/2026",
-        heure: "07h00 - 08h30",
-        zone: "Points d'eau du village",
-        qte: "Salubrité publique et désherbage abords forage"
+        date: "21/11/2026",
+        heure: "16:00",
+        zone: "Centre du village",
+        qte: "1"
       }
     ],
-    observations: "Forte participation de la population aux causeries et vad.",
-    dateSoumissionRc: "16/11/2026",
+    autreActiviteLabel: "Autres : Réunion avec le chef de village",
+    observations: "Planning hebdomadaire",
+    dateSoumissionRc: "17/11/2026",
     luEtApprouveAscq: true,
-    ascqName: "DOSSOU Bruno",
-    ascqPhone: "0165031463",
-    dateValidationAscq: "16/11/2026 14:15",
-    observationsAscq: "Planning hebdomadaire conforme aux priorités de la zone sanitaire.",
+    ascqName: "ADJOVI Marcellin",
+    ascqPhone: "01 97 00 00 00",
+    dateValidationAscq: "17/11/2026",
     statut: "VALIDE_ASCQ"
   };
 
@@ -172,8 +187,7 @@ async function run() {
   console.log(`✓ PDF RC enregistré : ${rcPath}`);
 
   console.log("\n=======================================================");
-  console.log("SUCCÈS TOTAL : Les deux plannings sont 100% vectoriels,");
-  console.log("sur EXACTEMENT 1 PAGE A4 PAYSAGE SANS AUCUN DÉBORDEMENT.");
+  console.log("SUCCÈS TOTAL : Reproduction trait pour trait sur 1 page A4 !");
   console.log("=======================================================");
 }
 

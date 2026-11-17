@@ -1,6 +1,6 @@
 {
-  "version": "2.5.1",
-  "buildTimestamp": 1794916900000,
-  "buildDate": "17 Novembre 2026 - Édition Finale Plannings",
-  "releaseNotes": "Mise en page administrative officielle A4 Paysage des Plannings ASCQ et RC sur 1 page stricte, 0 ligature corrompue, bannière CNLS-TP préservée, observations fusionnées et synchronisation immédiate."
+  "version": "2.5.2",
+  "buildTimestamp": 1794918500000,
+  "buildDate": "17 Novembre 2026 - Édition Officielle Trait Pour Trait",
+  "releaseNotes": "Reproduction rigoureuse trait pour trait des modèles validés officiels des plannings ASCQ et RC en A4 Paysage sur 1 page stricte."
 }

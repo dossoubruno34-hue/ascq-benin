@@ -150,6 +150,31 @@ export function drawVectorCheckmark(
 }
 
 /**
+ * Dessine une coche noire épurée trait pour trait comme sur le modèle officiel (sans fond de boîte)
+ */
+export function drawBlackCheckmark(
+  page: PDFPage,
+  centerX: number,
+  centerY: number,
+  size: number = 8.5
+) {
+  // Trait gauche
+  page.drawLine({
+    start: { x: centerX - size * 0.35, y: centerY },
+    end: { x: centerX - size * 0.05, y: centerY - size * 0.3 },
+    thickness: 1.5,
+    color: rgb(0, 0, 0),
+  });
+  // Trait droit
+  page.drawLine({
+    start: { x: centerX - size * 0.05, y: centerY - size * 0.3 },
+    end: { x: centerX + size * 0.45, y: centerY + size * 0.4 },
+    thickness: 1.5,
+    color: rgb(0, 0, 0),
+  });
+}
+
+/**
  * Nettoie une chaîne pour WinAnsi (remplace les caractères hors-WinAnsi par leur équivalent)
  */
 export function sanitizeWinAnsi(str?: string | null): string {
