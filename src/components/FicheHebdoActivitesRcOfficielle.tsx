@@ -262,17 +262,24 @@ export default function FicheHebdoActivitesRcOfficielle({ rcProfile, isAscqSuper
             </button>
           </div>
 
+          <div style="text-align: center; margin-bottom: 4px;">
+            <img src="/banniere-cnlstp.png" style="max-height: 48px; max-width: 100%; object-fit: contain; margin: 0 auto 3px auto; display: block;" alt="CNLS-TP" />
+          </div>
+
           <table class="header-table">
             <tr>
-              <td style="width: 50%;">
-                <div class="min">MINISTÈRE DE LA SANTÉ</div>
-                <div class="rep">RÉPUBLIQUE DU BÉNIN</div>
+              <td style="width: 20%; vertical-align: middle;">
+                <img src="/logo-asc-benin.jpg" style="max-height: 50px; display: block;" alt="ASC Bénin" />
               </td>
-              <td class="contact" style="width: 50%;">
-                Adresse postale : 01 BP 882<br/>
-                Téléphone : +229 21 33 21 78 / 21 33 21 63<br/>
-                Adresse mail : sante.infos@gouv.bj<br/>
-                Site web : www.sante.gouv.bj
+              <td style="width: 60%; text-align: center; vertical-align: middle;">
+                <div style="font-weight: 800; font-size: 11px; text-transform: uppercase; color: #1e293b;">RÉPUBLIQUE DU BÉNIN — MINISTÈRE DE LA SANTÉ</div>
+                <div style="font-size: 13px; font-weight: 900; color: #005c30; margin: 1px 0;">POLITIQUE NATIONALE DE SANTÉ COMMUNAUTAIRE</div>
+                <div style="font-size: 9.5px; font-weight: bold; color: #475569;">DISPOSITIF DE PROXIMITÉ : RELAIS COMMUNAUTAIRES (RC)</div>
+              </td>
+              <td class="contact" style="width: 20%; text-align: right; vertical-align: middle;">
+                01 BP 882 Cotonou<br/>
+                Tél : +229 21 33 21 78<br/>
+                sante.infos@gouv.bj
               </td>
             </tr>
           </table>
