@@ -6,7 +6,10 @@ import beninMapData from "@/data/benin-communes-map.json";
 
 export interface CouvertureItem {
   commune_id: string;
+  commune_nom?: string;
   nombre_ascq: number;
+  nombre_rc?: number;
+  total_agents?: number;
 }
 
 interface Props {
@@ -14,12 +17,18 @@ interface Props {
   simulation100?: boolean;
 }
 
+const ZOU_DEPT_ID = "e205cacd-e3f8-44b3-bc94-e354fa676b4e";
+
 export default function CarteCouvertureBenin({ couverture = [], simulation100 = false }: Props) {
   const [selectedCommune, setSelectedCommune] = useState<{
     id: string;
     nom: string;
     nomAffiche: string;
     count: number;
+    nbAscq: number;
+    nbRc: number;
+    total: number;
+    isZou: boolean;
     center: [number, number];
   } | null>(null);
 
@@ -51,32 +60,63 @@ export default function CarteCouvertureBenin({ couverture = [], simulation100 = 
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isFullscreen]);
 
-  // Dictionnaire de couverture { [commune_id]: nombre_ascq }
+  // Dictionnaire de couverture { [key: id | nom]: { count, nbAscq, nbRc, total } }
   const countsMap = useMemo(() => {
-    const map = new Map<string, number>();
+    const map = new Map<string, { count: number; nbAscq: number; nbRc: number; total: number }>();
     if (isTest100) {
-      // Simulation 100% : toutes les communes ont au moins 1 ASCQ
       beninMapData.communes.forEach((c) => {
-        map.set(c.id, 1);
+        const item = { count: 1, nbAscq: 1, nbRc: 0, total: 1 };
+        map.set(c.id, item);
+        map.set(c.nom.toUpperCase().trim(), item);
       });
       return map;
     }
     couverture.forEach((item) => {
+      const totalAgents = Number(item.total_agents) || (Number(item.nombre_ascq) || 0) + (Number(item.nombre_rc) || 0);
+      const data = {
+        count: totalAgents > 0 ? totalAgents : Number(item.nombre_ascq) || 0,
+        nbAscq: Number(item.nombre_ascq) || 0,
+        nbRc: Number(item.nombre_rc) || 0,
+        total: totalAgents,
+      };
       if (item.commune_id) {
-        map.set(item.commune_id, item.nombre_ascq || 0);
+        map.set(item.commune_id, data);
+      }
+      if (item.commune_nom) {
+        map.set(item.commune_nom.toUpperCase().trim(), data);
       }
     });
     return map;
   }, [couverture, isTest100]);
 
-  // Calcul des statistiques
+  // Helper de récupération des données d'une commune
+  const getCommuneData = (c: { id: string; nom: string }) => {
+    return countsMap.get(c.id) || countsMap.get(c.nom.toUpperCase().trim()) || { count: 0, nbAscq: 0, nbRc: 0, total: 0 };
+  };
+
+  // Calcul des statistiques nationales
   const totalCommunes = beninMapData.totalCommunes || 77;
   const nbCouvertes = useMemo(() => {
     let count = 0;
     beninMapData.communes.forEach((c) => {
-      if ((countsMap.get(c.id) || 0) > 0) count++;
+      if (getCommuneData(c).count > 0) count++;
     });
     return count;
+  }, [countsMap]);
+
+  // Calcul des statistiques Phase Pilote (Zou)
+  const zouStats = useMemo(() => {
+    const zouCommunes = beninMapData.communes.filter((c) => c.departement_id === ZOU_DEPT_ID);
+    let covered = 0;
+    zouCommunes.forEach((c) => {
+      if (getCommuneData(c).count > 0) covered++;
+    });
+    const total = zouCommunes.length || 9;
+    return {
+      total,
+      covered,
+      pct: Math.round((covered / total) * 100),
+    };
   }, [countsMap]);
 
   const pourcentage = Math.round((nbCouvertes / totalCommunes) * 100);
@@ -87,12 +127,16 @@ export default function CarteCouvertureBenin({ couverture = [], simulation100 = 
   }
 
   const handleCommuneClick = (c: (typeof beninMapData.communes)[0]) => {
-    const count = countsMap.get(c.id) || 0;
+    const data = getCommuneData(c);
     setSelectedCommune({
       id: c.id,
       nom: c.nom,
       nomAffiche: c.nomAffiche,
-      count,
+      count: data.count,
+      nbAscq: data.nbAscq,
+      nbRc: data.nbRc,
+      total: data.total,
+      isZou: c.departement_id === ZOU_DEPT_ID,
       center: c.center as [number, number],
     });
   };
@@ -105,17 +149,26 @@ export default function CarteCouvertureBenin({ couverture = [], simulation100 = 
       >
         {/* En-tête de la carte */}
         <div className="flex items-start justify-between gap-2">
-          <div className="space-y-0.5">
+          <div className="space-y-1">
             <div className="flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-[#0e7f47] animate-pulse motion-reduce:animate-none" />
               <h2 className="text-sm sm:text-base font-extrabold text-slate-900 tracking-tight">
-                Notre couverture nationale
+                Notre couverture territoriale
               </h2>
             </div>
-            <p className="text-xs text-slate-600 font-medium">
-              <span className="font-extrabold text-[#0e7f47]">{nbCouvertes}</span> / {totalCommunes} communes couvertes
-              <span className="text-slate-400 font-normal ml-1.5">({pourcentage}%)</span>
-            </p>
+            
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <p className="text-xs text-slate-600 font-medium">
+                <span className="font-extrabold text-[#0e7f47]">{nbCouvertes}</span> / {totalCommunes} communes couvertes
+                <span className="text-slate-400 font-normal ml-1">({pourcentage}%)</span>
+              </p>
+              
+              {zouStats.covered > 0 && (
+                <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                  📍 Phase Zou : {zouStats.covered}/{zouStats.total} ({zouStats.pct}%)
+                </span>
+              )}
+            </div>
           </div>
 
           <button
@@ -134,7 +187,7 @@ export default function CarteCouvertureBenin({ couverture = [], simulation100 = 
         <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden shadow-inner">
           <div
             className="h-full bg-gradient-to-r from-[#008751] via-[#0e7f47] to-[#10b981] transition-all duration-700 ease-out"
-            style={{ width: `${Math.max(2, pourcentage)}%` }}
+            style={{ width: `${Math.max(4, pourcentage)}%` }}
             role="progressbar"
             aria-valuenow={pourcentage}
             aria-valuemin={0}
@@ -152,8 +205,8 @@ export default function CarteCouvertureBenin({ couverture = [], simulation100 = 
           >
             <g id="communes-benin" stroke="#ffffff" strokeWidth="0.8" strokeLinejoin="round">
               {beninMapData.communes.map((c) => {
-                const count = countsMap.get(c.id) || 0;
-                const isCovered = count > 0;
+                const data = getCommuneData(c);
+                const isCovered = data.count > 0;
                 const isSelected = selectedCommune?.id === c.id;
 
                 return (
@@ -165,7 +218,7 @@ export default function CarteCouvertureBenin({ couverture = [], simulation100 = 
                     onMouseEnter={() => handleCommuneClick(c)}
                     tabIndex={0}
                     role="button"
-                    aria-label={`${c.nomAffiche}: ${isCovered ? `${count} ASCQ présent(s)` : "Pas encore couverte"}`}
+                    aria-label={`${c.nomAffiche}: ${isCovered ? `${data.count} agent(s) inscrit(s)` : "Pas encore couverte"}`}
                     className={`cursor-pointer transition-colors duration-200 focus:outline-hidden ${
                       isCovered
                         ? "fill-[#0e7f47] hover:fill-[#0b6d3c] active:fill-[#095730]"
@@ -195,13 +248,19 @@ export default function CarteCouvertureBenin({ couverture = [], simulation100 = 
                 <MapPin className="w-4 h-4 text-[#0e7f47]" />
               </div>
               <div className="truncate">
-                <p className="font-extrabold text-slate-900 leading-tight truncate text-xs sm:text-sm">
-                  {selectedCommune.nomAffiche}
+                <p className="font-extrabold text-slate-900 leading-tight truncate text-xs sm:text-sm flex items-center gap-1.5">
+                  <span>{selectedCommune.nomAffiche}</span>
+                  {selectedCommune.isZou && (
+                    <span className="text-[9px] font-black text-emerald-800 bg-emerald-100 px-1.5 py-0.2 rounded">ZOU</span>
+                  )}
                 </p>
                 <p className="text-[11px] text-slate-600 font-medium">
                   {selectedCommune.count > 0 ? (
                     <span className="text-[#0e7f47] font-bold">
-                      ✓ {selectedCommune.count} ASCQ présent{selectedCommune.count > 1 ? "s" : ""}
+                      ✓ Couverte • {selectedCommune.nbAscq > 0 ? `${selectedCommune.nbAscq} ASCQ` : ""}
+                      {selectedCommune.nbAscq > 0 && selectedCommune.nbRc > 0 ? " + " : ""}
+                      {selectedCommune.nbRc > 0 ? `${selectedCommune.nbRc} RC` : ""}
+                      {selectedCommune.total > 1 ? ` (${selectedCommune.total} inscrits)` : ""}
                     </span>
                   ) : (
                     <span className="text-slate-500">Pas encore couverte par un ASCQ</span>
@@ -257,10 +316,10 @@ export default function CarteCouvertureBenin({ couverture = [], simulation100 = 
               <div>
                 <h3 className="font-extrabold text-slate-900 text-base sm:text-lg flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-[#0e7f47]" />
-                  <span>Couverture Nationale des ASCQ au Bénin</span>
+                  <span>Couverture Territoriale des ASCQ / RC au Bénin</span>
                 </h3>
                 <p className="text-xs text-slate-600 font-medium">
-                  {nbCouvertes} sur {totalCommunes} communes couvertes ({pourcentage}%)
+                  {nbCouvertes} sur {totalCommunes} communes couvertes ({pourcentage}%) • Phase Zou : {zouStats.covered}/{zouStats.total} ({zouStats.pct}%)
                 </p>
               </div>
 
@@ -305,8 +364,8 @@ export default function CarteCouvertureBenin({ couverture = [], simulation100 = 
                 >
                   <g id="communes-benin-large" stroke="#ffffff" strokeWidth="1" strokeLinejoin="round">
                     {beninMapData.communes.map((c) => {
-                      const count = countsMap.get(c.id) || 0;
-                      const isCovered = count > 0;
+                      const data = getCommuneData(c);
+                      const isCovered = data.count > 0;
                       const isSelected = selectedCommune?.id === c.id;
                       const isQueried = searchQuery.trim().length > 1 &&
                         (c.nom.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -336,17 +395,25 @@ export default function CarteCouvertureBenin({ couverture = [], simulation100 = 
                 {/* Infobulle détaillée dans la modal */}
                 {selectedCommune && (
                   <div className="absolute top-3 right-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-lg text-xs space-y-1 min-w-[180px] animate-fade-in">
-                    <p className="font-extrabold text-slate-900 text-sm">
-                      {selectedCommune.nomAffiche}
+                    <p className="font-extrabold text-slate-900 text-sm flex items-center gap-1.5">
+                      <span>{selectedCommune.nomAffiche}</span>
+                      {selectedCommune.isZou && (
+                        <span className="text-[9px] font-black text-emerald-800 bg-emerald-100 px-1.5 py-0.2 rounded">ZOU</span>
+                      )}
                     </p>
                     <p className="text-[11px] font-semibold">
                       {selectedCommune.count > 0 ? (
                         <span className="text-[#0e7f47] flex items-center gap-1">
                           <CheckCircle2 className="w-3.5 h-3.5" />
-                          <span>{selectedCommune.count} ASCQ validé{selectedCommune.count > 1 ? "s" : ""}</span>
+                          <span>
+                            {selectedCommune.nbAscq > 0 ? `${selectedCommune.nbAscq} ASCQ` : ""}
+                            {selectedCommune.nbAscq > 0 && selectedCommune.nbRc > 0 ? " + " : ""}
+                            {selectedCommune.nbRc > 0 ? `${selectedCommune.nbRc} RC` : ""}
+                            {selectedCommune.total > 1 ? ` (${selectedCommune.total} inscrits)` : ""}
+                          </span>
                         </span>
                       ) : (
-                        <span className="text-slate-400">Aucun ASCQ validé</span>
+                        <span className="text-slate-400">Aucun agent inscrit</span>
                       )}
                     </p>
                   </div>
@@ -362,7 +429,7 @@ export default function CarteCouvertureBenin({ couverture = [], simulation100 = 
                 >
                   <Sparkles className="w-3.5 h-3.5 text-amber-600" />
                   <span>
-                    {isTest100 ? "Revenir aux données réelles (4 ASCQ)" : "Simuler Bénin 100% couvert (Démo)"}
+                    {isTest100 ? "Revenir aux données réelles" : "Simuler Bénin 100% couvert (Démo)"}
                   </span>
                 </button>
 

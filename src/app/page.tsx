@@ -24,14 +24,31 @@ export default async function HomePage() {
   let nbPersonnes = "0";
   let conseils: any[] = [];
   let publicationsFacebook: PublicationFacebook[] = [];
-  let couvertureData: Array<{ commune_id: string; nombre_ascq: number }> = [];
+  let couvertureData: Array<{
+    commune_id: string;
+    commune_nom?: string;
+    nombre_ascq: number;
+    nombre_rc?: number;
+    total_agents?: number;
+  }> = [];
 
   try {
-    const [depsRes, ascqCountRes, profilsRes, rcCountRes, rmaRes, conseilsRes, fbRes, couvertureRpcRes] = await Promise.all([
+    const [
+      depsRes,
+      ascqCountRes,
+      rcUsersRes,
+      rcTableRes,
+      usersCommunesRes,
+      rmaRes,
+      conseilsRes,
+      fbRes,
+      couvertureRpcRes,
+    ] = await Promise.all([
       supabase.from("departements").select("id, nom").order("nom"),
       supabase.from("utilisateurs").select("*", { count: "exact", head: true }).eq("poste", "ASCQ").eq("statut_compte", "VALIDE"),
-      supabase.from("ascq_profils").select("nombre_rc"),
+      supabase.from("utilisateurs").select("*", { count: "exact", head: true }).eq("poste", "RC"),
       supabase.from("relais_communautaires").select("*", { count: "exact", head: true }),
+      supabase.from("utilisateurs").select("commune_id, poste, statut_compte").not("commune_id", "is", null),
       supabase.from("rapports_mensuels_ascq").select("menages_visites, personnes_touchees_total"),
       supabase.from("conseils_sante").select("*").eq("est_publie", true).order("created_at", { ascending: false }),
       supabase.from("publications_facebook").select("id_facebook, message, permalink_url, created_time, fetched_at").order("created_time", { ascending: false }).limit(3),
@@ -40,8 +57,10 @@ export default async function HomePage() {
 
     departements = depsRes.data || [];
     nbAscq = ascqCountRes.count ?? 0;
-    const sumRcProfils = (profilsRes.data || []).reduce((acc: number, p: any) => acc + (Number(p.nombre_rc) || 0), 0);
-    nbRc = Math.max(sumRcProfils, rcCountRes.count ?? 0);
+    
+    // Nombre réel de RC inscrits (utilisateurs avec poste = RC ou table relais_communautaires)
+    nbRc = Math.max(rcUsersRes.count ?? 0, rcTableRes.count ?? 0);
+
     const sumMenages = (rmaRes.data || []).reduce((acc: number, r: any) => acc + (Number(r.menages_visites) || 0), 0);
     const sumPersonnes = (rmaRes.data || []).reduce((acc: number, r: any) => acc + (Number(r.personnes_touchees_total) || 0), 0);
     nbMenages = sumMenages;
@@ -49,10 +68,29 @@ export default async function HomePage() {
     conseils = conseilsRes.data || [];
     publicationsFacebook = (fbRes?.data as PublicationFacebook[]) || [];
 
-    if (!couvertureRpcRes.error && Array.isArray(couvertureRpcRes.data)) {
+    // Priorité 1 : RPC si disponible
+    if (!couvertureRpcRes.error && Array.isArray(couvertureRpcRes.data) && couvertureRpcRes.data.length > 0) {
       couvertureData = couvertureRpcRes.data.map((c: any) => ({
         commune_id: c.commune_id,
-        nombre_ascq: Number(c.nombre_ascq) || 0
+        nombre_ascq: Number(c.nombre_ascq) || 0,
+      }));
+    } else {
+      // Priorité 2 : Agréger directement depuis les utilisateurs réels en base
+      const communeMap = new Map<string, { total: number; ascq: number; rc: number }>();
+      (usersCommunesRes.data || []).forEach((u: any) => {
+        if (!u.commune_id) return;
+        const cur = communeMap.get(u.commune_id) || { total: 0, ascq: 0, rc: 0 };
+        cur.total += 1;
+        if (u.poste === "ASCQ") cur.ascq += 1;
+        if (u.poste === "RC") cur.rc += 1;
+        communeMap.set(u.commune_id, cur);
+      });
+
+      couvertureData = Array.from(communeMap.entries()).map(([commune_id, c]) => ({
+        commune_id,
+        nombre_ascq: c.ascq,
+        nombre_rc: c.rc,
+        total_agents: c.total,
       }));
     }
   } catch (err) {
@@ -200,13 +238,7 @@ export default async function HomePage() {
               {nbRc}
             </p>
             <p className="text-[11px] sm:text-xs text-slate-500 font-medium leading-tight">
-              Relais communautaires (Zou)
-            </p>
-          </div>
-              {nbRc}
-            </p>
-            <p className="text-[11px] sm:text-xs text-slate-500 font-medium leading-tight">
-              Relais communautaires opérationnels
+              Relais communautaires inscrits
             </p>
           </div>
 

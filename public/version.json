@@ -1,6 +1,6 @@
 {
-  "version": "2.5.7",
-  "buildTimestamp": 1794945000000,
-  "buildDate": "17 Novembre 2026 - Actualisation Continue Accueil, Network-First PWA & En-tête Officiel CNLS-TP",
-  "releaseNotes": "Refonte de l'accueil public avec l'en-tête officiel CNLS-TP et le badge Phase Pilote Zou, désactivation du cache HTML figé, vérification immédiate des mises à jour au démarrage et stratégie PWA Network-First."
+  "version": "2.5.8",
+  "buildTimestamp": 1794946500000,
+  "buildDate": "17 Novembre 2026 - Synchronisation Réelle Effectif RC & Progression Couverture Communale",
+  "releaseNotes": "Correction du calcul des statistiques d'accueil : décompte réel des Relais Communautaires (RC) inscrits, agrégation dynamique directe de la couverture territoriale des 77 communes (Ouinhi, Cové, Za-Kpota) et intégration de l'indicateur de progression de la Phase Pilote du Zou."
 }

@@ -1,6 +1,6 @@
-// Service Worker officiel ASCQ BÉNIN (PWA) - Mode Hors-Ligne Renforcé V17
+// Service Worker officiel ASCQ BÉNIN (PWA) - Mode Hors-Ligne Renforcé V18
 // Garanti d'ouverture 100% hors-ligne en zones rurales blanches & Purge automatique des caches
-const CACHE_NAME = "ascq-benin-v17";
+const CACHE_NAME = "ascq-benin-v18";
 
 // Pages et ressources critiques à pré-mettre en cache (la racine "/" est exclue pour toujours servir la version fraîche en ligne)
 const PRECACHE_ASSETS = [
