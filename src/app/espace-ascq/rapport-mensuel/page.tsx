@@ -762,9 +762,24 @@ export default function RapportMensuelPage() {
     setRecommandations(recommandations.filter((_, i) => i !== index));
   };
 
-  // Impression officielle
+  // Impression officielle avec nom de fichier standardisé
   const handleImprimer = () => {
+    const oldTitle = typeof document !== "undefined" ? document.title : "";
+    const cleanLieu = (currentUser?.arrondissement_nom || currentUser?.commune_nom || "TOHOUES")
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9]/g, "_").toUpperCase();
+    const cleanNom = currentUser 
+      ? `${currentUser.prenoms || ""} ${currentUser.nom || ""}`.trim() 
+      : "ASCQ";
+    const cleanMois = MOIS_NOMS[mois - 1].toUpperCase();
+    if (typeof document !== "undefined") {
+      document.title = `Rapport Mensuel ASCQ ${cleanMois} ${annee} ${cleanLieu} ${cleanNom}`;
+    }
     window.print();
+    if (typeof document !== "undefined") {
+      setTimeout(() => {
+        document.title = oldTitle;
+      }, 1000);
+    }
   };
 
   if (loading) {
@@ -803,21 +818,48 @@ export default function RapportMensuelPage() {
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm">
+          {/* BANNIÈRE OFFICIELLE CNLS-TP & ASC SANTÉ COMMUNAUTAIRE DU BÉNIN */}
+          <div className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-200/90 shadow-sm">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="relative w-full max-w-md sm:max-w-lg h-14 shrink-0">
+                <Image 
+                  src="/banniere-cnlstp.png" 
+                  alt="CNLS-TP Présidence de la République du Bénin" 
+                  fill 
+                  className="object-contain object-left" 
+                  priority
+                />
+              </div>
+              <div className="relative w-32 h-14 shrink-0">
+                <Image 
+                  src="/logo-asc-benin.jpg" 
+                  alt="ASC Santé Communautaire Bénin" 
+                  fill 
+                  className="object-contain object-right" 
+                  priority
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-5 rounded-3xl border border-slate-200/90 shadow-sm">
             <div>
               <div className="flex items-center gap-2">
-                <span className="p-2 rounded-xl bg-emerald-100 text-[#005c30]">
-                  <FileText className="w-5 h-5" />
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-[#005c30]">
+                  Modèle Officiel Validé • CNLS-TP
                 </span>
-                <div>
-                  <h1 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">
-                    Rapport Mensuel d'Activité (RMA)
-                  </h1>
-                  <p className="text-xs text-slate-500 font-medium">
-                    Suivi mensuel des relais, ménages, soins iCCM et surveillance One Health
-                  </p>
-                </div>
+                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                  statut === "VALIDE" ? "bg-emerald-500 text-white" : "bg-amber-100 text-amber-800"
+                }`}>
+                  {statut === "VALIDE" ? "RMA Validé" : "Brouillon"}
+                </span>
               </div>
+              <h1 className="text-xl sm:text-2xl font-black text-slate-900 mt-1">
+                RAPPORT MENSUEL D'ACTIVITÉ DES ASCQ
+              </h1>
+              <p className="text-xs text-slate-500 font-medium">
+                Agents de santé communautaire qualifiés • Suivi mensuel des relais, ménages, soins iCCM et surveillance One Health
+              </p>
             </div>
 
             {/* Sélecteur de période (Mois / Année) */}
@@ -1775,44 +1817,57 @@ export default function RapportMensuelPage() {
               modeVue === "formulaire" ? "hidden print:block" : "block"
             }`}
           >
-            {/* EN-TÊTE RÉPUBLIQUE DU BÉNIN */}
-            <div className="border-b-2 border-slate-900 pb-4 mb-4 text-center">
-              <div className="flex items-center justify-between gap-4 mb-2">
-                <div className="w-16 h-16 relative shrink-0">
+            {/* NOUVEL EN-TÊTE OFFICIEL CNLS-TP & ASC SANTÉ COMMUNAUTAIRE DU BÉNIN */}
+            <div className="border-b-2 border-slate-900 pb-4 mb-4">
+              {/* LIGNE DES LOGOS OFFICIELS */}
+              <div className="flex items-center justify-between gap-4 mb-3">
+                {/* BANNIÈRE CNLS-TP (Armoiries, CNLS-TP, Présidence du Bénin, Barre tricolore) */}
+                <div className="relative w-64 sm:w-80 h-14 print:w-72 print:h-14 shrink-0">
                   <Image
-                    src="/logo-ascq.png"
-                    alt="Logo ASCQ"
-                    width={64}
-                    height={64}
-                    className="object-contain"
+                    src="/banniere-cnlstp.png"
+                    alt="CNLS-TP Présidence de la République du Bénin"
+                    fill
+                    className="object-contain object-left"
+                    priority
                   />
                 </div>
-                <div className="text-center leading-tight">
-                  <p className="font-black text-xs uppercase tracking-widest text-slate-800">
-                    RÉPUBLIQUE DU BÉNIN
-                  </p>
-                  <p className="text-[10px] italic text-slate-600">Fraternité - Justice - Travail</p>
-                  <p className="font-bold text-xs uppercase text-slate-900 mt-0.5">
-                    MINISTÈRE DE LA SANTÉ
-                  </p>
-                  <p className="text-[11px] font-medium text-slate-700">
-                    Direction Départementale de la Santé : {currentUser?.departement_nom || "Bénin"}
-                  </p>
-                </div>
-                <div className="w-16 text-right shrink-0">
-                  <span className="text-[10px] font-bold px-2 py-1 bg-slate-100 rounded border border-slate-300">
-                    {statut === "VALIDE" ? "OFFICIEL" : "BROUILLON"}
-                  </span>
+
+                {/* LOGO ASC SANTÉ COMMUNAUTAIRE DU BÉNIN */}
+                <div className="relative w-28 sm:w-36 h-14 print:w-32 print:h-14 shrink-0">
+                  <Image
+                    src="/logo-asc-benin.jpg"
+                    alt="ASC Santé Communautaire du Bénin"
+                    fill
+                    className="object-contain object-right"
+                    priority
+                  />
                 </div>
               </div>
 
-              <div className="mt-3">
-                <h1 className="text-base sm:text-lg font-black uppercase tracking-tight text-[#005c30]">
-                  RAPPORT MENSUEL D'ACTIVITÉ DE L'ASCQ (RMA)
-                </h1>
-                <p className="text-xs font-bold text-slate-700">
-                  Période : {MOIS_NOMS[mois - 1].toUpperCase()} {annee} • N° {numeroRapport || "RMA-EN-COURS"}
+              {/* LOCALISATION TERRITORIALE OFFICIELLE EN BLEU NUIT SOULIGNÉ */}
+              <div className="text-center my-2">
+                <p className="text-xs sm:text-sm font-black text-[#002d62] uppercase tracking-wide inline-block border-b-2 border-[#002d62] pb-0.5">
+                  DÉPARTEMENT : {currentUser?.departement_nom || currentUser?.departements?.nom || "ZOU"} — COMMUNE : {currentUser?.commune_nom || currentUser?.communes?.nom || "OUINHI"} — ARRONDISSEMENT : {currentUser?.arrondissement_nom || currentUser?.arrondissements?.nom || "TOHOUÈS"}
                 </p>
+              </div>
+
+              {/* TITRE ET SOUS-TITRE DU RAPPORT */}
+              <div className="text-center mt-1">
+                <h1 className="text-base sm:text-xl font-black uppercase tracking-tight text-[#005c30]">
+                  RAPPORT MENSUEL D'ACTIVITÉ DES ASCQ (RMA)
+                </h1>
+                <p className="text-[11px] sm:text-xs font-bold text-slate-700 mt-0.5">
+                  Agents de santé communautaire qualifiés • Mois de : <span className="uppercase text-[#005c30]">{MOIS_NOMS[mois - 1]} {annee}</span> • N° {numeroRapport || `RMA-${annee}-${String(mois).padStart(2, "0")}`}
+                </p>
+                <div className="flex items-center justify-center gap-2 mt-1.5 print:hidden">
+                  <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${
+                    statut === "VALIDE" 
+                      ? "bg-emerald-100 text-[#005c30] border-emerald-300" 
+                      : "bg-amber-100 text-amber-800 border-amber-300"
+                  }`}>
+                    {statut === "VALIDE" ? "Document Officiel Validé" : "Brouillon en cours de consolidation"}
+                  </span>
+                </div>
               </div>
             </div>
 
