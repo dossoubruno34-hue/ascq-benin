@@ -1,6 +1,6 @@
 {
-  "version": "2.5.0",
-  "buildTimestamp": 1794902400000,
-  "buildDate": "17 Novembre 2026",
-  "releaseNotes": "Plannings officiels A4 Paysage (ASCQ & RC) sur 1 page stricte, validation en temps réel, téléchargement et impression universels."
+  "version": "2.5.1",
+  "buildTimestamp": 1794916900000,
+  "buildDate": "17 Novembre 2026 - Édition Finale Plannings",
+  "releaseNotes": "Mise en page administrative officielle A4 Paysage des Plannings ASCQ et RC sur 1 page stricte, 0 ligature corrompue, bannière CNLS-TP préservée, observations fusionnées et synchronisation immédiate."
 }

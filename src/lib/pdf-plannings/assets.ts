@@ -1,5 +1,4 @@
-import { PDFDocument, PDFFont, PDFImage, StandardFonts } from "pdf-lib";
-import fontkit from "@pdf-lib/fontkit";
+import { PDFDocument, PDFFont, PDFImage, StandardFonts, PDFPage, rgb } from "pdf-lib";
 
 // Cache mémoire pour optimiser les performances
 const memoryCache: Record<string, Uint8Array> = {};
@@ -63,22 +62,14 @@ export interface PlanningFonts {
   bold: PDFFont;
 }
 
+/**
+ * Charge les polices administratives standards sans bogue de ligature Unicode
+ * (Garantit que "ti", "tt", etc. ne sont JAMAIS corrompus en caractères bizarres)
+ */
 export async function loadPlanningFonts(pdfDoc: PDFDocument): Promise<PlanningFonts> {
-  try {
-    pdfDoc.registerFontkit(fontkit);
-    const [regBytes, boldBytes] = await Promise.all([
-      fetchBytes("/fonts/Carlito-Regular.ttf"),
-      fetchBytes("/fonts/Carlito-Bold.ttf"),
-    ]);
-    const regular = await pdfDoc.embedFont(regBytes, { subset: false });
-    const bold = await pdfDoc.embedFont(boldBytes, { subset: false });
-    return { regular, bold };
-  } catch (err) {
-    console.warn("[pdf-plannings] Repli vers Helvetica standard :", err);
-    const regular = await pdfDoc.embedFont(StandardFonts.Helvetica);
-    const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-    return { regular, bold };
-  }
+  const regular = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  return { regular, bold };
 }
 
 export interface PlanningImages {
@@ -120,3 +111,96 @@ export async function embedDataUrlImage(pdfDoc: PDFDocument, dataUrl?: string | 
     return null;
   }
 }
+
+/**
+ * Dessine une coche officielle vectorielle verte (remplace le caractère Unicode non supporté)
+ */
+export function drawVectorCheckmark(
+  page: PDFPage,
+  centerX: number,
+  centerY: number,
+  boxSize: number = 13
+) {
+  // 1. Fond carré vert clair
+  page.drawRectangle({
+    x: centerX - boxSize / 2,
+    y: centerY - boxSize / 2,
+    width: boxSize,
+    height: boxSize,
+    color: rgb(220 / 255, 252 / 255, 231 / 255), // emerald-100
+    borderColor: rgb(0 / 255, 92 / 255, 48 / 255), // #005c30
+    borderWidth: 1.2,
+  });
+
+  // 2. Trait de gauche de la coche ✔
+  page.drawLine({
+    start: { x: centerX - boxSize * 0.28, y: centerY },
+    end: { x: centerX - boxSize * 0.05, y: centerY - boxSize * 0.25 },
+    thickness: 1.8,
+    color: rgb(0 / 255, 92 / 255, 48 / 255),
+  });
+
+  // 3. Trait de droite de la coche ✔
+  page.drawLine({
+    start: { x: centerX - boxSize * 0.05, y: centerY - boxSize * 0.25 },
+    end: { x: centerX + boxSize * 0.32, y: centerY + boxSize * 0.28 },
+    thickness: 1.8,
+    color: rgb(0 / 255, 92 / 255, 48 / 255),
+  });
+}
+
+/**
+ * Nettoie une chaîne pour WinAnsi (remplace les caractères hors-WinAnsi par leur équivalent)
+ */
+export function sanitizeWinAnsi(str?: string | null): string {
+  if (!str) return "";
+  return str
+    .replace(/[•●]/g, "-")
+    .replace(/[✔✓]/g, "V")
+    .replace(/[“”]/g, '"')
+    .replace(/[’‘]/g, "'")
+    .replace(/[–—]/g, "-")
+    .replace(/…/g, "...")
+    .trim();
+}
+
+/**
+ * Découpe un texte en lignes ne dépassant pas maxWidth pour une police et une taille données
+ */
+export function wrapText(text: string, font: PDFFont, fontSize: number, maxWidth: number): string[] {
+  const clean = sanitizeWinAnsi(text);
+  if (!clean) return [];
+  const words = clean.split(/\s+/);
+  const lines: string[] = [];
+  let currentLine = "";
+
+  for (const word of words) {
+    const testLine = currentLine ? `${currentLine} ${word}` : word;
+    const width = font.widthOfTextAtSize(testLine, fontSize);
+    if (width <= maxWidth) {
+      currentLine = testLine;
+    } else {
+      if (currentLine) lines.push(currentLine);
+      currentLine = word;
+    }
+  }
+  if (currentLine) lines.push(currentLine);
+  return lines;
+}
+
+/**
+ * Tronque élégamment une chaîne avec points de suspension si elle dépasse maxWidth
+ */
+export function fitText(text: string, font: PDFFont, fontSize: number, maxWidth: number): string {
+  const clean = sanitizeWinAnsi(text);
+  if (!clean) return "";
+  if (font.widthOfTextAtSize(clean, fontSize) <= maxWidth) {
+    return clean;
+  }
+  let truncated = clean;
+  while (truncated.length > 2 && font.widthOfTextAtSize(truncated + "...", fontSize) > maxWidth) {
+    truncated = truncated.slice(0, -1);
+  }
+  return truncated + "...";
+}
+
