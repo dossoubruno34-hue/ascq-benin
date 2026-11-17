@@ -1,6 +1,6 @@
 {
-  "version": "2.5.2",
-  "buildTimestamp": 1794918500000,
-  "buildDate": "17 Novembre 2026 - Édition Officielle Trait Pour Trait",
-  "releaseNotes": "Reproduction rigoureuse trait pour trait des modèles validés officiels des plannings ASCQ et RC en A4 Paysage sur 1 page stricte."
+  "version": "2.5.3",
+  "buildTimestamp": 1794921000000,
+  "buildDate": "17 Novembre 2026 - Rééquilibrage Tableau ASCQ & Mise en page Optimisée",
+  "releaseNotes": "Agrandissement vertical du tableau ASCQ, réduction de la largeur de la colonne observations, aération des activités et repoussement des signatures en bas de page sur 1 page A4 paysage stricte."
 }

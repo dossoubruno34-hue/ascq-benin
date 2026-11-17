@@ -37,6 +37,7 @@ function formatDateFr(dStr?: string): string {
  * Génère le PDF officiel du planning hebdomadaire de l'ASCQ
  * REPRODUCTION TRAIT POUR TRAIT DU MODÈLE OFFICIEL VALIDÉ CNLS-TP / PRÉSIDENCE DU BÉNIN
  * FORMAT IMPOSÉ : A4 Paysage [841.89, 595.28] - STRICTEMENT SUR 1 PAGE
+ * MISE EN PAGE OPTIMISÉE : Tableau agrandi, colonne observations ajustée, signatures repoussées au bas
  */
 export async function generatePdfPlanningAscq(data: AscqPlanningData): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
@@ -59,20 +60,20 @@ export async function generatePdfPlanningAscq(data: AscqPlanningData): Promise<U
   const contentWidth = pageWidth - 2 * marginX; // 771.89 pt
 
   // =========================================================================
-  // 1. EN-TÊTE SUPÉRIEUR (TRAIT POUR TRAIT)
-  // CNLS-TP À GAUCHE (armoiries + texte) | LOGO ASC SANTÉ COMM. DU BÉNIN À DROITE
+  // 1. EN-TÊTE SUPÉRIEUR
+  // CNLS-TP À GAUCHE | LOGO ASC SANTÉ COMM. DU BÉNIN À DROITE
   // =========================================================================
-  const headerTopY = pageHeight - 20;
+  const headerTopY = pageHeight - 16;
 
   // Bannière CNLS-TP à gauche
   if (bannerImg) {
     const bAsp = bannerImg.width / bannerImg.height;
-    const bH = 46;
+    const bH = 44;
     const bW = bH * bAsp;
     page.drawImage(bannerImg, {
       x: marginX,
       y: headerTopY - bH,
-      width: Math.min(bW, 260),
+      width: Math.min(bW, 255),
       height: bH,
     });
   }
@@ -80,11 +81,11 @@ export async function generatePdfPlanningAscq(data: AscqPlanningData): Promise<U
   // Logo ASC Santé Communautaire à droite
   if (logoImg) {
     const lAsp = logoImg.width / logoImg.height;
-    const lH = 45;
+    const lH = 44;
     const lW = lH * lAsp;
     page.drawImage(logoImg, {
       x: pageWidth - marginX - lW,
-      y: headerTopY - lH - 1,
+      y: headerTopY - lH,
       width: lW,
       height: lH,
     });
@@ -100,7 +101,7 @@ export async function generatePdfPlanningAscq(data: AscqPlanningData): Promise<U
 
   const locLine = `DÉPARTEMENT : ${deptStr} — COMMUNE : ${comStr} — ARRONDISSEMENT : ${arrStr}`;
   const locW = bold.widthOfTextAtSize(locLine, 10);
-  const locY = headerTopY - 58;
+  const locY = headerTopY - 54;
 
   page.drawText(locLine, {
     x: (pageWidth - locW) / 2,
@@ -145,7 +146,7 @@ export async function generatePdfPlanningAscq(data: AscqPlanningData): Promise<U
   // Ligne 2 : PLANNING HEBDOMADAIRE DE LA SEMAINE N° XX (Souligné)
   const semTitle = `PLANNING HEBDOMADAIRE DE LA SEMAINE N° ${data.semaine || 47}`;
   const semW = bold.widthOfTextAtSize(semTitle, 13);
-  const semY = locY - 18;
+  const semY = locY - 16;
 
   page.drawText(semTitle, {
     x: (pageWidth - semW) / 2,
@@ -167,7 +168,7 @@ export async function generatePdfPlanningAscq(data: AscqPlanningData): Promise<U
   const dFin = formatDateFr(data.dateFin) || "22/11/2026";
   const dateSub = `(du ${dDeb} au ${dFin})`;
   const dateSubW = regular.widthOfTextAtSize(dateSub, 9);
-  const dateSubY = semY - 14;
+  const dateSubY = semY - 13;
 
   page.drawText(dateSub, {
     x: (pageWidth - dateSubW) / 2,
@@ -178,24 +179,25 @@ export async function generatePdfPlanningAscq(data: AscqPlanningData): Promise<U
   });
 
   // =========================================================================
-  // 3. TABLEAU DES ACTIVITÉS (TRAIT POUR TRAIT)
-  // EN-TÊTE À DEUX NIVEAUX SUR FOND #e9eff7, BORDURES NOIRES 1 PT
+  // 3. TABLEAU DES ACTIVITÉS AGRANDI ET AÉRÉ
+  // Colonne Observations réduite, colonnes jours et activités élargies
   // =========================================================================
-  const tblTopY = dateSubY - 12; // ~460 pt
-  const colW_No = 30;
-  const colW_Act = 285;
-  const colW_Resp = 52;
-  const colW_Day = 26;
-  const colW_DaysTotal = colW_Day * 7; // 182 pt
-  const colW_Obs = contentWidth - (colW_No + colW_Act + colW_Resp + colW_DaysTotal); // 222.89 pt
+  const tblTopY = dateSubY - 10; // ~473 pt
 
-  const thH1 = 17;
-  const thH2 = 17;
-  const thTotalH = thH1 + thH2; // 34 pt
-  const rowH = 22; // 11 lignes × 22 pt = 242 pt
+  const colW_No = 32;
+  const colW_Act = 315; // Élargi de 285 à 315 pt pour plus de confort
+  const colW_Resp = 54;
+  const colW_Day = 30;  // Élargi de 26 à 30 pt pour des cases aérées
+  const colW_DaysTotal = colW_Day * 7; // 210 pt
+  const colW_Obs = contentWidth - (colW_No + colW_Act + colW_Resp + colW_DaysTotal); // 160.89 pt (réduit pour rééquilibrer)
+
+  const thH1 = 20;
+  const thH2 = 20;
+  const thTotalH = thH1 + thH2; // 40 pt
+  const rowH = 30.5; // Hauteur de ligne agrandie de 22 pt à 30.5 pt (+39% d'espace vertical !)
   const nbRows = 11;
-  const tblH = thTotalH + nbRows * rowH; // 276 pt
-  const tblBottomY = tblTopY - tblH;
+  const tblH = thTotalH + nbRows * rowH; // 40 + 335.5 = 375.5 pt
+  const tblBottomY = tblTopY - tblH; // ~97.5 pt
 
   // --- EN-TÊTE LIGNE 1 : Fond gris-bleu clair #e9eff7 ---
   page.drawRectangle({
@@ -241,7 +243,7 @@ export async function generatePdfPlanningAscq(data: AscqPlanningData): Promise<U
   const perStartX = marginX + colW_No + colW_Act + colW_Resp;
   page.drawText("PÉRIODES", {
     x: perStartX + (colW_DaysTotal - perHeaderW) / 2,
-    y: tblTopY - 12,
+    y: tblTopY - 14,
     size: 8.5,
     font: bold,
     color: cBlack,
@@ -261,7 +263,7 @@ export async function generatePdfPlanningAscq(data: AscqPlanningData): Promise<U
     const jW = bold.widthOfTextAtSize(jAbrev, 8.5);
     page.drawText(jAbrev, {
       x: jX + (colW_Day - jW) / 2,
-      y: tblTopY - thH1 - 12,
+      y: tblTopY - thH1 - 14,
       size: 8.5,
       font: bold,
       color: cBlack,
@@ -298,7 +300,7 @@ export async function generatePdfPlanningAscq(data: AscqPlanningData): Promise<U
   });
 
   // =========================================================================
-  // 4. LIGNES D'ACTIVITÉS (11 LIGNES, FOND BLANC, COCHES NOIRES ÉPURÉES)
+  // 4. LIGNES D'ACTIVITÉS (11 LIGNES, FOND BLANC, HAUTEUR 30.5 PT)
   // =========================================================================
   const leftTableW = contentWidth - colW_Obs;
 
@@ -310,7 +312,7 @@ export async function generatePdfPlanningAscq(data: AscqPlanningData): Promise<U
     const numW = bold.widthOfTextAtSize(numStr, 8.5);
     page.drawText(numStr, {
       x: marginX + (colW_No - numW) / 2,
-      y: rY + 7,
+      y: rY + (rowH - 8.5) / 2,
       size: 8.5,
       font: bold,
       color: cBlack,
@@ -322,19 +324,19 @@ export async function generatePdfPlanningAscq(data: AscqPlanningData): Promise<U
       actLabel = data.autreActiviteNom;
     }
     page.drawText(sanitizeWinAnsi(actLabel), {
-      x: marginX + colW_No + 6,
-      y: rY + 7,
-      size: 8.2,
+      x: marginX + colW_No + 8,
+      y: rY + (rowH - 8.5) / 2,
+      size: 8.5,
       font: bold,
       color: cBlack,
     });
 
     // Responsable ASCQ
-    const respW = bold.widthOfTextAtSize("ASCQ", 8);
+    const respW = bold.widthOfTextAtSize("ASCQ", 8.5);
     page.drawText("ASCQ", {
       x: marginX + colW_No + colW_Act + (colW_Resp - respW) / 2,
-      y: rY + 7,
-      size: 8,
+      y: rY + (rowH - 8.5) / 2,
+      size: 8.5,
       font: bold,
       color: cBlack,
     });
@@ -351,7 +353,7 @@ export async function generatePdfPlanningAscq(data: AscqPlanningData): Promise<U
 
       if (isChecked) {
         // Coche noire officielle trait pour trait comme sur le modèle
-        drawBlackCheckmark(page, cellCenterX, cellCenterY, 8.5);
+        drawBlackCheckmark(page, cellCenterX, cellCenterY, 9);
       } else {
         // Tiret discret centré
         page.drawText("-", {
@@ -374,25 +376,25 @@ export async function generatePdfPlanningAscq(data: AscqPlanningData): Promise<U
   });
 
   // =========================================================================
-  // 5. COLONNE OBSERVATIONS FUSIONNÉE (ROWSPAN = 11)
+  // 5. COLONNE OBSERVATIONS FUSIONNÉE (ROWSPAN = 11, LARGEUR RÉAJUSTÉE)
   // =========================================================================
   const obsY = tblBottomY;
   const obsH = nbRows * rowH;
 
   // Texte des observations
   const obsText = sanitizeWinAnsi(data.observations || "Néant");
-  const obsLines = wrapText(obsText, regular, 8.5, colW_Obs - 16);
+  const obsLines = wrapText(obsText, regular, 8.2, colW_Obs - 16);
 
-  // Centrage vertical du bloc d'observations dans la cellule fusionnée
+  // Centrage vertical harmonieux du bloc d'observations dans la cellule fusionnée
   const totalTextH = obsLines.length * 13;
   let curObsY = obsY + (obsH + totalTextH) / 2 - 10;
 
   obsLines.forEach((line) => {
-    const lineW = regular.widthOfTextAtSize(line, 8.5);
+    const lineW = regular.widthOfTextAtSize(line, 8.2);
     page.drawText(line, {
       x: obsStartX + (colW_Obs - lineW) / 2,
       y: curObsY,
-      size: 8.5,
+      size: 8.2,
       font: regular,
       color: cBlack,
     });
@@ -436,10 +438,10 @@ export async function generatePdfPlanningAscq(data: AscqPlanningData): Promise<U
   });
 
   // =========================================================================
-  // 7. BAS DE PAGE (SOUS LE TABLEAU - TRAIT POUR TRAIT)
+  // 7. BAS DE PAGE COMPLÈTEMENT REPOUSSÉ EN BAS
   // GAUCHE : STATUT DES RC & MOTIF D'ÉCART | DROITE : VISA DE L'ASCQ
   // =========================================================================
-  const underTblY = tblBottomY - 24;
+  const underTblY = 78; // Poussé complètement en bas (à 78 pt au-dessus du bas de page)
 
   // --- BLOC GAUCHE ---
   // Ligne 1 : Relais Communautaires (RC) : XX planifié(s) sur YY attendu(s).
@@ -465,8 +467,8 @@ export async function generatePdfPlanningAscq(data: AscqPlanningData): Promise<U
     color: cBlack,
   });
 
-  // Ligne 2 : Motif de l'écart (si présent ou si écart)
-  let motifY = underTblY - 16;
+  // Ligne 2 : Motif de l'écart
+  let motifY = underTblY - 14;
   if (data.motifEcart || rcPlan !== rcAtt) {
     const motifPrefix = "Motif de l'écart : ";
     const mpW = bold.widthOfTextAtSize(motifPrefix, 8.5);
@@ -484,14 +486,14 @@ export async function generatePdfPlanningAscq(data: AscqPlanningData): Promise<U
     motifLines.forEach((mLine, mIdx) => {
       page.drawText(mLine, {
         x: marginX + (mIdx === 0 ? mpW : 0),
-        y: motifY - mIdx * 12,
+        y: motifY - mIdx * 11,
         size: 8.5,
         font: regular,
         color: cBlack,
       });
     });
 
-    motifY -= motifLines.length * 12 + 4;
+    motifY -= motifLines.length * 11 + 3;
   }
 
   // Ligne 3 : Contact ASCQ : 01 XX XX XX XX
@@ -531,15 +533,15 @@ export async function generatePdfPlanningAscq(data: AscqPlanningData): Promise<U
   // Signature tactile
   if (signatureImg) {
     const sAsp = signatureImg.width / signatureImg.height;
-    let sW = 32 * sAsp;
-    let sH = 32;
+    let sW = 28 * sAsp;
+    let sH = 28;
     if (sW > 90) {
       sW = 90;
       sH = sW / sAsp;
     }
     page.drawImage(signatureImg, {
       x: rightCenterX - sW / 2,
-      y: underTblY - 38,
+      y: underTblY - 34,
       width: sW,
       height: sH,
     });
@@ -548,7 +550,7 @@ export async function generatePdfPlanningAscq(data: AscqPlanningData): Promise<U
   // Nom et prénom de l'ASCQ (souligné)
   const nomAscq = sanitizeWinAnsi(data.ascqNom).toUpperCase() || "ADJOVI MARCELLIN";
   const nomW = bold.widthOfTextAtSize(nomAscq, 9);
-  const nomY = underTblY - 52;
+  const nomY = underTblY - 46;
 
   page.drawText(nomAscq, {
     x: rightCenterX - nomW / 2,
@@ -579,7 +581,7 @@ export async function generatePdfPlanningAscq(data: AscqPlanningData): Promise<U
 
   page.drawText(footerText, {
     x: (pageWidth - fW) / 2,
-    y: 18,
+    y: 14,
     size: 7.5,
     font: regular,
     color: cGrayFooter,
