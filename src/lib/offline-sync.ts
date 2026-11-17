@@ -312,15 +312,215 @@ export function getOfflineList<T = any>(type: "ALERTE" | "REGISTRE" | "DECES" | 
 export function getOfflineQueueCount(): number {
   if (typeof window === "undefined") return 0;
   try {
-    const alertes = JSON.parse(localStorage.getItem(STORAGE_KEYS.ALERTES_QUEUE) || "[]").filter((x: any) => !x.synced).length;
-    const registres = JSON.parse(localStorage.getItem(STORAGE_KEYS.REGISTRES_QUEUE) || "[]").filter((x: any) => !x.synced).length;
-    const deces = JSON.parse(localStorage.getItem(STORAGE_KEYS.DECES_QUEUE) || "[]").filter((x: any) => !x.synced).length;
-    const refs = JSON.parse(localStorage.getItem(STORAGE_KEYS.REFERENCES_QUEUE) || "[]").filter((x: any) => !x.synced).length;
-    const consults = JSON.parse(localStorage.getItem(STORAGE_KEYS.CONSULTATIONS_QUEUE) || "[]").filter((x: any) => !x.synced).length;
-    return alertes + registres + deces + refs + consults;
+    const countFor = (key: string) => {
+      try {
+        const raw = localStorage.getItem(key);
+        if (!raw) return 0;
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return 0;
+        return parsed.filter((x: any) => x && !x.synced).length;
+      } catch {
+        return 0;
+      }
+    };
+    return (
+      countFor(STORAGE_KEYS.ALERTES_QUEUE) +
+      countFor(STORAGE_KEYS.REGISTRES_QUEUE) +
+      countFor(STORAGE_KEYS.DECES_QUEUE) +
+      countFor(STORAGE_KEYS.REFERENCES_QUEUE) +
+      countFor(STORAGE_KEYS.CONSULTATIONS_QUEUE) +
+      countFor(STORAGE_KEYS.PLANNING_QUEUE)
+    );
   } catch {
     return 0;
   }
+}
+
+// 7b. Purge complète de toutes les files d'attente hors-ligne (nettoyage manuel ou forcé)
+export function viderToutesLesFilesAttenteLocales(): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem(STORAGE_KEYS.ALERTES_QUEUE);
+    localStorage.removeItem(STORAGE_KEYS.REGISTRES_QUEUE);
+    localStorage.removeItem(STORAGE_KEYS.DECES_QUEUE);
+    localStorage.removeItem(STORAGE_KEYS.REFERENCES_QUEUE);
+    localStorage.removeItem(STORAGE_KEYS.CONSULTATIONS_QUEUE);
+    localStorage.removeItem(STORAGE_KEYS.PLANNING_QUEUE);
+    window.dispatchEvent(new CustomEvent("ascq_queue_updated"));
+  } catch (e) {
+    console.warn("Échec purge files d'attente locales:", e);
+  }
+}
+
+// 7c. Synchronisation réelle des files d'attente locales vers Supabase
+export async function synchroniserToutesLesFilesAttente(): Promise<{
+  success: boolean;
+  nbSynchronises: number;
+  erreurs: string[];
+}> {
+  if (typeof window === "undefined") return { success: true, nbSynchronises: 0, erreurs: [] };
+  if (!navigator.onLine) return { success: false, nbSynchronises: 0, erreurs: ["Appareil hors-ligne"] };
+
+  let nbSynchronises = 0;
+  const erreurs: string[] = [];
+
+  // 1. Décès en attente
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.DECES_QUEUE);
+    if (raw) {
+      const items: OfflineItem[] = JSON.parse(raw);
+      const remaining: OfflineItem[] = [];
+      for (const item of items) {
+        if (item.synced) continue;
+        try {
+          if (item.data) {
+            const { error } = await supabase.from("deces_communautaires").insert({
+              ...item.data,
+              updated_at: new Date().toISOString()
+            });
+            if (!error || error.code === "23505") {
+              nbSynchronises++;
+            } else {
+              remaining.push(item);
+              erreurs.push(`Décès ${item.id}: ${error.message}`);
+            }
+          }
+        } catch (e: any) {
+          remaining.push(item);
+          erreurs.push(e.message || "Erreur de synchro décès");
+        }
+      }
+      localStorage.setItem(STORAGE_KEYS.DECES_QUEUE, JSON.stringify(remaining));
+    }
+  } catch (err: any) {
+    console.warn("Erreur synchro file décès:", err);
+  }
+
+  // 2. Alertes en attente
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.ALERTES_QUEUE);
+    if (raw) {
+      const items: OfflineItem[] = JSON.parse(raw);
+      const remaining: OfflineItem[] = [];
+      for (const item of items) {
+        if (item.synced) continue;
+        try {
+          if (item.data) {
+            const { error } = await supabase.from("alertes_communautaires").insert({
+              ...item.data,
+              updated_at: new Date().toISOString()
+            });
+            if (!error || error.code === "23505") {
+              nbSynchronises++;
+            } else {
+              remaining.push(item);
+              erreurs.push(`Alerte ${item.id}: ${error.message}`);
+            }
+          }
+        } catch (e: any) {
+          remaining.push(item);
+          erreurs.push(e.message || "Erreur de synchro alerte");
+        }
+      }
+      localStorage.setItem(STORAGE_KEYS.ALERTES_QUEUE, JSON.stringify(remaining));
+    }
+  } catch (err: any) {
+    console.warn("Erreur synchro file alertes:", err);
+  }
+
+  // 3. Registres en attente
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.REGISTRES_QUEUE);
+    if (raw) {
+      const items: OfflineItem[] = JSON.parse(raw);
+      const remaining: OfflineItem[] = [];
+      for (const item of items) {
+        if (item.synced) continue;
+        try {
+          if (item.data) {
+            const { error } = await supabase.from("registre_alertes_rumeurs").insert({
+              ...item.data,
+              updated_at: new Date().toISOString()
+            });
+            if (!error || error.code === "23505") {
+              nbSynchronises++;
+            } else {
+              remaining.push(item);
+              erreurs.push(`Registre ${item.id}: ${error.message}`);
+            }
+          }
+        } catch (e: any) {
+          remaining.push(item);
+          erreurs.push(e.message || "Erreur de synchro registre");
+        }
+      }
+      localStorage.setItem(STORAGE_KEYS.REGISTRES_QUEUE, JSON.stringify(remaining));
+    }
+  } catch (err: any) {
+    console.warn("Erreur synchro file registre:", err);
+  }
+
+  // 4. Références en attente
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.REFERENCES_QUEUE);
+    if (raw) {
+      const items: OfflineItem[] = JSON.parse(raw);
+      const remaining: OfflineItem[] = [];
+      for (const item of items) {
+        if (item.synced) continue;
+        try {
+          if (item.data) {
+            const { error } = await supabase.from("references_urgences").insert({
+              ...item.data,
+              updated_at: new Date().toISOString()
+            });
+            if (!error || error.code === "23505") {
+              nbSynchronises++;
+            } else {
+              remaining.push(item);
+              erreurs.push(`Référence ${item.id}: ${error.message}`);
+            }
+          }
+        } catch (e: any) {
+          remaining.push(item);
+          erreurs.push(e.message || "Erreur de synchro référence");
+        }
+      }
+      localStorage.setItem(STORAGE_KEYS.REFERENCES_QUEUE, JSON.stringify(remaining));
+    }
+  } catch (err: any) {
+    console.warn("Erreur synchro file références:", err);
+  }
+
+  // 5. Nettoyage des items marqués 'synced: true' pour ne pas encombrer le stockage local
+  try {
+    const cleanQueue = (key: string) => {
+      const r = localStorage.getItem(key);
+      if (!r) return;
+      try {
+        const arr = JSON.parse(r);
+        if (Array.isArray(arr)) {
+          const unsynced = arr.filter((x: any) => x && !x.synced);
+          localStorage.setItem(key, JSON.stringify(unsynced));
+        }
+      } catch {}
+    };
+    cleanQueue(STORAGE_KEYS.ALERTES_QUEUE);
+    cleanQueue(STORAGE_KEYS.REGISTRES_QUEUE);
+    cleanQueue(STORAGE_KEYS.DECES_QUEUE);
+    cleanQueue(STORAGE_KEYS.REFERENCES_QUEUE);
+    cleanQueue(STORAGE_KEYS.CONSULTATIONS_QUEUE);
+    cleanQueue(STORAGE_KEYS.PLANNING_QUEUE);
+  } catch {}
+
+  // Déclencher l'événement d'actualisation globale du compteur
+  window.dispatchEvent(new CustomEvent("ascq_queue_updated"));
+
+  return {
+    success: erreurs.length === 0,
+    nbSynchronises,
+    erreurs
+  };
 }
 
 // 8. Sauvegarde automatique des brouillons de rapports et inventaires

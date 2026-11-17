@@ -1226,6 +1226,59 @@ export default function MesFichesPage() {
               </div>
             </div>
 
+            {/* BANDEAU ACTION DU SUPERVISEUR ASCQ EN TÊTE DE MODALE */}
+            {!modeVierge && ficheConsultation && ["NOTIFIE", "EN_ATTENTE", ""].includes(ficheConsultation.statut || "") && (
+              <div className="bg-amber-50 border-b-2 border-amber-300 p-3 sm:px-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sticky top-0 z-20 shadow-xs print:hidden">
+                <div className="flex items-center gap-2.5 text-xs text-amber-950">
+                  <div className="p-1.5 rounded-xl bg-amber-500 text-white animate-pulse shrink-0">
+                    <AlertTriangle className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="font-extrabold block text-slate-900">
+                      {ficheConsultation.type === "DEC" ? "Déclaration de Décès à Viser" : "Déclaration Terrain en Attente de Visa"}
+                    </span>
+                    <span className="text-[11px] text-amber-900">
+                      En tant que Superviseur ASCQ, validez cette fiche pour lever le délai d'alerte réglementaire de 48h.
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+                  <button
+                    type="button"
+                    disabled={validationEnCours}
+                    onClick={() => handleValiderOuInvaliderNotification("VALIDER")}
+                    className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl font-black text-xs text-white bg-[#005c30] hover:bg-[#004724] shadow-sm transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>{validationEnCours ? "Validation..." : "✅ Valider & Viser officiellement"}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={validationEnCours}
+                    onClick={() => handleValiderOuInvaliderNotification("INVALIDER")}
+                    className="px-3 py-2 rounded-xl font-bold text-xs text-red-700 bg-white border border-red-200 hover:bg-red-50 transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                    <span>Rejeter</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {!modeVierge && ficheConsultation && ficheConsultation.statut === "VALIDE" && (
+              <div className="bg-emerald-50 border-b border-emerald-200 p-2.5 sm:px-6 flex items-center justify-between gap-2 text-xs text-emerald-900 font-bold print:hidden">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>Cette fiche est officiellement visée et validée par le Superviseur ASCQ. Alerte 48h levée.</span>
+                </div>
+                <span className="text-[10px] uppercase font-black px-2.5 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-300">
+                  Statut : Validé ✓
+                </span>
+              </div>
+            )}
+
             {/* Contenu officiel de la fiche — Typiquement la version officielle conforme DDS */}
             <div className="p-3 sm:p-6 print:p-0 text-slate-900 bg-white overflow-x-auto">
               {ficheConsultation.type === "DEC" && (

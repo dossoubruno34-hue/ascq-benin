@@ -367,6 +367,7 @@ export default function EspaceRelaisPage() {
 
       setRcData(normalizedData);
       saveCachedRcSpace(normalizedData);
+      setIsOffline(false);
 
       // Si le code temporaire n'a pas encore été changé, forcer la redirection
       if (data && data.code_temporaire_utilise === false) {

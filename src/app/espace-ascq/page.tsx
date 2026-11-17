@@ -30,9 +30,18 @@ import {
   HeartPulse,
   Calendar,
   BarChart3,
-  ChevronRight
+  ChevronRight,
+  X
 } from "lucide-react";
-import { getCachedMonEspace, saveCachedMonEspace, saveCachedUserSession, getCachedUserSession } from "@/lib/offline-sync";
+import { 
+  getCachedMonEspace, 
+  saveCachedMonEspace, 
+  saveCachedUserSession, 
+  getCachedUserSession,
+  synchroniserToutesLesFilesAttente,
+  viderToutesLesFilesAttenteLocales,
+  STORAGE_KEYS
+} from "@/lib/offline-sync";
 import { estCadreNonAscq } from "@/lib/cadre-roles";
 import BeninPhoneAction from "@/components/BeninPhoneAction";
 import BoutonVerifierMiseAJour from "@/components/BoutonVerifierMiseAJour";
@@ -67,18 +76,145 @@ export default function MonEspacePage() {
     relais: 0
   });
 
+  const [listeDecesEnAttente, setListeDecesEnAttente] = useState<any[]>([]);
+  const [showModalDeces, setShowModalDeces] = useState(false);
+  const [acquittementEnCours, setAcquittementEnCours] = useState(false);
+
   const handleSynchroniserEspace = async () => {
     setIsSyncing(true);
     try {
+      // 1. Synchroniser réellement toutes les files d'attente locales vers Supabase
+      if (typeof navigator !== "undefined" && navigator.onLine) {
+        await synchroniserToutesLesFilesAttente();
+      }
+
+      // 2. Recharger les données du profil et de l'espace
       await loadEspaceData();
+
+      // 3. Forcer la levée du mode hors-ligne si la connexion réseau est rétablie
+      if (typeof navigator !== "undefined" && navigator.onLine) {
+        setIsOfflineMode(false);
+      }
+
       const heureStr = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
       setDerniereSynchro(heureStr);
-      setSaveMsg({ text: `Espace synchronisé avec succès à ${heureStr} !`, error: false });
-      setTimeout(() => setSaveMsg(null), 3500);
+      setSaveMsg({ text: `Espace synchronisé avec succès à ${heureStr} ! (Serveur national connecté)`, error: false });
+      setTimeout(() => setSaveMsg(null), 4500);
     } catch (e: any) {
-      setSaveMsg({ text: "Erreur lors de la synchronisation.", error: true });
+      console.error("Erreur synchronisation espace:", e);
+      setSaveMsg({ text: "Erreur lors de la synchronisation avec le serveur.", error: true });
     } finally {
       setIsSyncing(false);
+    }
+  };
+
+  const handlePurgerDonneesLocales = () => {
+    if (confirm("Voulez-vous purger le cache local et forcer la reconnexion avec le serveur national ?")) {
+      viderToutesLesFilesAttenteLocales();
+      setIsOfflineMode(false);
+      loadEspaceData();
+      setSaveMsg({ text: "Mémoire locale purgée. Données reconnectées au serveur.", error: false });
+      setTimeout(() => setSaveMsg(null), 3500);
+    }
+  };
+
+  const handleAcquitterTousDeces = async () => {
+    if (!espaceData?.id) return;
+    if (!confirm(`Confirmez-vous le visa et l'acquittement officiel des ${relances48h.deces} déclaration(s) de décès consultée(s) ? L'alerte 48h sera immédiatement levée.`)) {
+      return;
+    }
+    setAcquittementEnCours(true);
+    try {
+      // 1. Mettre à jour en base de données Supabase
+      const { error } = await supabase
+        .from("deces_communautaires")
+        .update({
+          statut: "VALIDE",
+          ascq_superviseur_id: espaceData.id,
+          updated_at: new Date().toISOString()
+        })
+        .eq("ascq_superviseur_id", espaceData.id)
+        .in("statut", ["NOTIFIE", "EN_ATTENTE"]);
+
+      if (error && listeDecesEnAttente.length > 0) {
+        const ids = listeDecesEnAttente.map((d) => d.id);
+        await supabase
+          .from("deces_communautaires")
+          .update({
+            statut: "VALIDE",
+            ascq_superviseur_id: espaceData.id,
+            updated_at: new Date().toISOString()
+          })
+          .in("id", ids);
+      }
+
+      // 2. Nettoyer aussi la file locale hors-ligne si des décès s'y trouvaient
+      if (typeof window !== "undefined") {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEYS.DECES_QUEUE);
+          if (raw) {
+            const list = JSON.parse(raw);
+            const rest = list.filter((x: any) => x.type !== "DECES");
+            localStorage.setItem(STORAGE_KEYS.DECES_QUEUE, JSON.stringify(rest));
+            window.dispatchEvent(new CustomEvent("ascq_queue_updated"));
+          }
+        } catch {}
+      }
+
+      // 3. Mise à jour visuelle instantanée
+      const nbAncien = relances48h.deces;
+      setRelances48h(prev => ({
+        ...prev,
+        deces: 0,
+        total: Math.max(0, prev.total - nbAncien)
+      }));
+      setListeDecesEnAttente([]);
+      setShowModalDeces(false);
+
+      setSaveMsg({
+        text: `✓ ${nbAncien} déclaration(s) de décès visée(s) et validée(s) avec succès ! Alerte 48h levée.`,
+        error: false
+      });
+      setTimeout(() => setSaveMsg(null), 5000);
+    } catch (e: any) {
+      console.error("Erreur acquittement décès:", e);
+      alert("Erreur lors de l'acquittement : " + (e.message || "Veuillez réessayer."));
+    } finally {
+      setAcquittementEnCours(false);
+    }
+  };
+
+  const handleAcquitterUnDeces = async (decesId: string) => {
+    if (!espaceData?.id) return;
+    setAcquittementEnCours(true);
+    try {
+      const { error } = await supabase
+        .from("deces_communautaires")
+        .update({
+          statut: "VALIDE",
+          ascq_superviseur_id: espaceData.id,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", decesId);
+
+      if (error) throw error;
+
+      setListeDecesEnAttente(prev => prev.filter(d => d.id !== decesId));
+      setRelances48h(prev => ({
+        ...prev,
+        deces: Math.max(0, prev.deces - 1),
+        total: Math.max(0, prev.total - 1)
+      }));
+
+      setSaveMsg({
+        text: "✓ Décès visé et validé avec succès !",
+        error: false
+      });
+      setTimeout(() => setSaveMsg(null), 4000);
+    } catch (err: any) {
+      alert("Erreur lors du visa du décès: " + err.message);
+    } finally {
+      setAcquittementEnCours(false);
     }
   };
 
@@ -127,6 +263,7 @@ export default function MonEspacePage() {
           }
           setEspaceData(data);
           saveCachedMonEspace(data);
+          setIsOfflineMode(false);
           setTelephone(data.telephone || "");
           setSourceFinancement(data.source_financement || "LLF");
           setSourceFinancementAutre(data.source_financement_autre || "");
@@ -262,6 +399,25 @@ export default function MonEspacePage() {
         const nbRc = rcRetard.count || 0;
         setRelances48h({ total: nbAl + nbDec + nbRc, alertes: nbAl, deces: nbDec, relais: nbRc });
 
+        if (nbDec > 0) {
+          try {
+            const { data: decesList } = await supabase
+              .from("deces_communautaires")
+              .select(`
+                id, numero_deces, date_deces, type_deces_nom, lieu_deces_nom, created_at, statut,
+                deces_identite_privee (nom_defunt, prenoms_defunt)
+              `)
+              .eq("ascq_superviseur_id", prof.id)
+              .in("statut", ["NOTIFIE", "EN_ATTENTE"])
+              .lt("created_at", ilYADeuxJours);
+            setListeDecesEnAttente(decesList || []);
+          } catch {
+            setListeDecesEnAttente([]);
+          }
+        } else {
+          setListeDecesEnAttente([]);
+        }
+
         // Appel de la routine serveur
         try {
           await supabase.rpc("verifier_et_emettre_relances_48h");
@@ -273,6 +429,7 @@ export default function MonEspacePage() {
       setEspaceData(directData);
       saveCachedMonEspace(directData);
       saveCachedUserSession(user, prof);
+      setIsOfflineMode(false);
 
       setTelephone(prof.telephone || "");
       setSourceFinancement(ascqP.source_financement || "LLF");
@@ -502,16 +659,29 @@ export default function MonEspacePage() {
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={handleSynchroniserEspace}
-            disabled={isSyncing}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#005c30] text-white font-black text-xs hover:bg-[#004724] active:scale-95 transition-all shadow-xs disabled:opacity-50"
-            title="Cliquer pour synchroniser maintenant"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? "animate-spin" : ""}`} />
-            <span>Synchroniser</span>
-          </button>
+          <div className="flex items-center gap-1.5">
+            {isOfflineMode && (
+              <button
+                type="button"
+                onClick={handlePurgerDonneesLocales}
+                className="px-2.5 py-1.5 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 text-[11px] font-bold transition-all cursor-pointer"
+                title="Purger le cache local bloqué et recharger"
+              >
+                Purger cache
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={handleSynchroniserEspace}
+              disabled={isSyncing}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#005c30] text-white font-black text-xs hover:bg-[#004724] active:scale-95 transition-all shadow-xs disabled:opacity-50 cursor-pointer"
+              title="Cliquer pour synchroniser maintenant avec le serveur national"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? "animate-spin" : ""}`} />
+              <span>Synchroniser</span>
+            </button>
+          </div>
         </div>
 
         {/* ALERTE RELANCE 48H SANS VALIDATION */}
@@ -542,13 +712,14 @@ export default function MonEspacePage() {
                 </Link>
               )}
               {relances48h.deces > 0 && (
-                <Link
-                  href="/fiches"
-                  className="px-3 py-1.5 rounded-xl bg-white border border-red-200 hover:bg-red-100 flex items-center gap-1.5 transition-all shadow-xs"
+                <button
+                  type="button"
+                  onClick={() => setShowModalDeces(true)}
+                  className="px-3 py-1.5 rounded-xl bg-white border border-red-200 hover:bg-red-100 flex items-center gap-1.5 transition-all shadow-xs text-left cursor-pointer"
                 >
-                  <span>⚰️ {relances48h.deces} Décès</span>
+                  <span>⚰️ {relances48h.deces} Décès à viser</span>
                   <ChevronRight className="w-3.5 h-3.5 text-red-600" />
-                </Link>
+                </button>
               )}
               {relances48h.relais > 0 && (
                 <Link
@@ -560,6 +731,32 @@ export default function MonEspacePage() {
                 </Link>
               )}
             </div>
+
+            {relances48h.deces > 0 && (
+              <div className="pt-2.5 border-t border-red-200/80 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+                <p className="text-[11px] text-red-700 italic">
+                  Déjà investigué ou consulté sur le terrain ?
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowModalDeces(true)}
+                    className="px-3 py-1.5 rounded-xl bg-white border border-red-300 text-red-800 text-xs font-bold hover:bg-red-100 transition-all cursor-pointer"
+                  >
+                    Voir le détail ({relances48h.deces})
+                  </button>
+                  <button
+                    type="button"
+                    disabled={acquittementEnCours}
+                    onClick={handleAcquitterTousDeces}
+                    className="inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#005c30] hover:bg-[#004724] text-white text-xs font-black transition-all active:scale-95 shadow-sm disabled:opacity-50 cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>{acquittementEnCours ? "Acquittement..." : `✓ Valider & Acquitter (${relances48h.deces})`}</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -1080,6 +1277,92 @@ export default function MonEspacePage() {
         <BoutonVerifierMiseAJour variant="card" />
 
       </main>
+
+      {/* MODALE DÉTAILS DÉCÈS EN DÉPASSEMENT 48H */}
+      {showModalDeces && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-5 sm:p-6 shadow-2xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="p-2 rounded-xl bg-purple-100 text-purple-800 font-bold text-sm">⚰️</span>
+                <div>
+                  <h3 className="text-sm font-extrabold text-slate-900">Déclarations de décès en attente de visa</h3>
+                  <p className="text-[11px] text-slate-500">Dépassement du délai réglementaire de 48 heures</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowModalDeces(false)}
+                className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {listeDecesEnAttente.length === 0 ? (
+              <div className="p-4 bg-slate-50 rounded-2xl text-center text-xs text-slate-500 space-y-2">
+                <p>Les fiches de décès ont été consultées mais attendent leur acquittement officiel.</p>
+                <p className="text-[11px] text-slate-400">Cliquez sur le bouton ci-dessous pour lever l'alerte 48h immédiatement.</p>
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {listeDecesEnAttente.map((d) => {
+                  const privee = Array.isArray(d.deces_identite_privee) ? d.deces_identite_privee[0] : d.deces_identite_privee;
+                  const defuntNom = privee ? `${privee.nom_defunt || ''} ${privee.prenoms_defunt || ''}`.trim() : (d.numero_deces || "Défunt");
+                  return (
+                    <div key={d.id} className="p-3 bg-purple-50/60 rounded-2xl border border-purple-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                      <div className="space-y-0.5">
+                        <span className="font-mono text-[10px] font-black text-purple-700 bg-purple-100 px-2 py-0.5 rounded">
+                          {d.numero_deces || "DEC"}
+                        </span>
+                        <h4 className="font-bold text-xs text-slate-900">{defuntNom || "Défunt non nommé"}</h4>
+                        <p className="text-[10px] text-slate-500">
+                          {d.type_deces_nom || "Décès"} • Date : {d.date_deces ? new Date(d.date_deces).toLocaleDateString("fr-FR") : "-"}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <Link
+                          href="/fiches"
+                          className="px-2.5 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-700 text-xs font-bold hover:bg-slate-50"
+                        >
+                          Fiche A4
+                        </Link>
+                        <button
+                          type="button"
+                          disabled={acquittementEnCours}
+                          onClick={() => handleAcquitterUnDeces(d.id)}
+                          className="px-3 py-1.5 rounded-xl bg-[#005c30] text-white text-xs font-bold hover:bg-[#004724] active:scale-95 disabled:opacity-50 cursor-pointer"
+                        >
+                          ✓ Viser
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="pt-2 border-t border-slate-100 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowModalDeces(false)}
+                className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+              >
+                Fermer
+              </button>
+              <button
+                type="button"
+                disabled={acquittementEnCours}
+                onClick={handleAcquitterTousDeces}
+                className="px-4 py-2 rounded-xl bg-[#005c30] text-white text-xs font-black hover:bg-[#004724] active:scale-95 disabled:opacity-50 cursor-pointer"
+              >
+                {acquittementEnCours ? "Acquittement..." : "✓ Tout valider et lever l'alerte"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
