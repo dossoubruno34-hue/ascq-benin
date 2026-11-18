@@ -1,6 +1,8 @@
 "use client";
 
 import React from "react";
+import EnteteOfficiellePortrait from "./EnteteOfficiellePortrait";
+import PiedDePageOfficiel from "./PiedDePageOfficiel";
 
 interface Props {
   data?: {
@@ -125,50 +127,12 @@ export default function FicheOfficielleNotificationDeces({ data = {}, isVierge =
       {/* ========================================================================= */}
       {/* 1. EN-TÊTE PORTRAIT OFFICIEL VALIDÉ (Conforme arrêté et capture validée)   */}
       {/* ========================================================================= */}
-      <div className="flex items-center justify-between gap-3 mb-2 pb-2 border-b-2 border-slate-900">
-        {/* Bannière CNLS-TP à gauche */}
-        <div className="flex flex-col items-start max-w-[220px]">
-          <img
-            src="/banniere-cnlstp.png"
-            alt="CNLS-TP — Présidence de la République du Bénin"
-            className="h-12 w-auto object-contain"
-          />
-        </div>
-
-        {/* Autorités de tutelle au centre */}
-        <div className="text-center flex-1 px-1">
-          <div className="font-extrabold text-[12px] tracking-wider uppercase text-slate-900">
-            République du Bénin
-          </div>
-          <div className="font-bold text-[11px] text-slate-800 uppercase tracking-wide">
-            Ministère de la Santé
-          </div>
-          <div className="font-semibold text-[9.5px] text-slate-600 uppercase">
-            Présidence de la République — CNLS-TP
-          </div>
-        </div>
-
-        {/* Logo ASCQ à droite */}
-        <div className="flex flex-col items-end max-w-[90px]">
-          <img
-            src="/logo-ascq.png"
-            alt="ASC Santé Communautaire Bénin"
-            className="h-12 w-auto object-contain"
-          />
-        </div>
-      </div>
-
-      {/* Bandeau Territorial Validé : DÉPARTEMENT — COMMUNE — ARRONDISSEMENT */}
-      <div className="text-center my-2 py-1 px-2 bg-blue-50/60 border border-blue-200 rounded-md">
-        <span className="text-[11px] font-black tracking-wide text-[#002B7F] uppercase">
-          DÉPARTEMENT : <span className="underline">{d.departement || "ZOU"}</span> — COMMUNE : <span className="underline">{d.commune || "OUINHI"}</span> — ARRONDISSEMENT : <span className="underline">{d.arrondissement || "TOHOUÈS"}</span>
-        </span>
-      </div>
-
-      {/* Titre officiel du formulaire */}
-      <div className="text-center font-black text-sm tracking-wide mb-3 uppercase text-slate-900 py-1 bg-slate-100/90 rounded border border-slate-300">
-        BJ_FORMULAIRE DE NOTIFICATION DES DÉCÈS EN COMMUNAUTÉ
-      </div>
+      <EnteteOfficiellePortrait
+        departement={d.departement || "ZOU"}
+        commune={d.commune || "OUINHI"}
+        arrondissement={d.arrondissement || "TOHOUÈS"}
+        titreFormulaire="BJ_FORMULAIRE DE NOTIFICATION DES DÉCÈS EN COMMUNAUTÉ"
+      />
 
       {/* Ligne Année, Semaine, Mois, NPI, N° Décès */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs mb-3 bg-slate-50/90 p-2.5 rounded-xl border border-slate-200">
@@ -464,6 +428,9 @@ export default function FicheOfficielleNotificationDeces({ data = {}, isVierge =
           )}
         </div>
       </div>
+
+      {/* Pied de page officiel */}
+      <PiedDePageOfficiel className="mt-4" />
     </div>
   );
 }

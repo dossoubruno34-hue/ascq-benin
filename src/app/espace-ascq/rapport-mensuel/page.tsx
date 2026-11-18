@@ -830,16 +830,23 @@ export default function RapportMensuelPage() {
                   priority
                 />
               </div>
-              <div className="relative w-32 h-14 shrink-0">
-                <Image 
-                  src="/logo-asc-benin.jpg" 
-                  alt="ASC Santé Communautaire Bénin" 
-                  fill 
-                  className="object-contain object-right" 
-                  priority
-                />
+              <div className="flex items-center gap-3 text-right shrink-0">
+                <div className="flex flex-col text-xs font-bold text-slate-800 leading-tight">
+                  <span className="font-mono font-extrabold text-slate-900">0141285050/0196830551</span>
+                  <span className="text-[11px] text-slate-600 font-semibold lowercase">ascqbenin@gmail.com</span>
+                </div>
+                <div className="relative w-14 h-14 shrink-0">
+                  <Image 
+                    src="/logo-ascq.png" 
+                    alt="ASC Santé Communautaire Bénin" 
+                    fill 
+                    className="object-contain object-right" 
+                    priority
+                  />
+                </div>
               </div>
             </div>
+            <div className="h-[2px] bg-[#008751] w-full mt-3"></div>
           </div>
 
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-5 rounded-3xl border border-slate-200/90 shadow-sm">
@@ -1818,9 +1825,9 @@ export default function RapportMensuelPage() {
             }`}
           >
             {/* NOUVEL EN-TÊTE OFFICIEL CNLS-TP & ASC SANTÉ COMMUNAUTAIRE DU BÉNIN */}
-            <div className="border-b-2 border-slate-900 pb-4 mb-4">
+            <div className="pb-2 mb-4">
               {/* LIGNE DES LOGOS OFFICIELS */}
-              <div className="flex items-center justify-between gap-4 mb-3">
+              <div className="flex items-center justify-between gap-4 mb-2">
                 {/* BANNIÈRE CNLS-TP (Armoiries, CNLS-TP, Présidence du Bénin, Barre tricolore) */}
                 <div className="relative w-64 sm:w-80 h-14 print:w-72 print:h-14 shrink-0">
                   <Image
@@ -1832,17 +1839,30 @@ export default function RapportMensuelPage() {
                   />
                 </div>
 
-                {/* LOGO ASC SANTÉ COMMUNAUTAIRE DU BÉNIN */}
-                <div className="relative w-28 sm:w-36 h-14 print:w-32 print:h-14 shrink-0">
-                  <Image
-                    src="/logo-asc-benin.jpg"
-                    alt="ASC Santé Communautaire du Bénin"
-                    fill
-                    className="object-contain object-right"
-                    priority
-                  />
+                {/* CONTACTS + LOGO ASC SANTÉ COMMUNAUTAIRE DU BÉNIN */}
+                <div className="flex items-center gap-2 sm:gap-3 text-right shrink-0">
+                  <div className="flex flex-col text-[10.5px] sm:text-[12px] leading-tight font-bold text-slate-900">
+                    <span className="font-mono tracking-tight font-extrabold text-slate-950">
+                      0141285050/0196830551
+                    </span>
+                    <span className="text-[10px] sm:text-[11px] text-slate-800 font-semibold lowercase">
+                      ascqbenin@gmail.com
+                    </span>
+                  </div>
+                  <div className="relative w-12 sm:w-14 h-12 sm:h-14 shrink-0">
+                    <Image
+                      src="/logo-ascq.png"
+                      alt="ASC Santé Communautaire du Bénin"
+                      fill
+                      className="object-contain object-right"
+                      priority
+                    />
+                  </div>
                 </div>
               </div>
+
+              {/* LIGNE VERTE BÉNIN OFFICIELLE */}
+              <div className="h-[2px] bg-[#008751] w-full my-2"></div>
 
               {/* LOCALISATION TERRITORIALE OFFICIELLE EN BLEU NUIT SOULIGNÉ */}
               <div className="text-center my-2">
@@ -2112,6 +2132,13 @@ export default function RapportMensuelPage() {
                   </div>
                 )}
               </div>
+            </div>
+
+            {/* PIED DE PAGE OFFICIEL */}
+            <div className="w-full text-center pt-4 pb-2 mt-8 border-t border-slate-200 print:border-slate-300">
+              <span className="text-xs text-slate-600 font-semibold tracking-wide lowercase">
+                ascqbenin@gmail.com
+              </span>
             </div>
           </div>
         )}

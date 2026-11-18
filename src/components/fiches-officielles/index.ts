@@ -3,3 +3,5 @@ export { default as FicheOfficielleNotificationAlerte } from "./FicheOfficielleN
 export { default as FicheOfficielleNotificationDeces } from "./FicheOfficielleNotificationDeces";
 export { default as FicheOfficielleInvestigationEvenement } from "./FicheOfficielleInvestigationEvenement";
 export { default as FicheOfficielleRapportHebdoSurveillance } from "./FicheOfficielleRapportHebdoSurveillance";
+export { default as EnteteOfficiellePortrait } from "./EnteteOfficiellePortrait";
+export { default as PiedDePageOfficiel } from "./PiedDePageOfficiel";

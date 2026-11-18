@@ -1,6 +1,8 @@
 "use client";
 
 import React from "react";
+import EnteteOfficiellePortrait from "./EnteteOfficiellePortrait";
+import PiedDePageOfficiel from "./PiedDePageOfficiel";
 
 interface Props {
   data?: {
@@ -55,37 +57,13 @@ export default function FicheOfficielleInvestigationEvenement({ data = {}, isVie
 
   return (
     <div className="w-full max-w-[800px] mx-auto bg-white text-black p-4 sm:p-6 print:p-0 print:max-w-none text-xs leading-tight font-sans antialiased">
-      {/* En-tête officiel Ministère de la Santé Bénin */}
-      <div className="flex items-center justify-between mb-2">
-        {/* Armoiries / Logo Bénin */}
-        <div className="w-16 h-16 flex items-center justify-center shrink-0">
-          <svg viewBox="0 0 100 100" className="w-14 h-14" fill="none" stroke="currentColor">
-            <circle cx="50" cy="50" r="46" stroke="#008751" strokeWidth="3" />
-            <path d="M50 15 L50 85 M15 50 L85 50" stroke="#FCD116" strokeWidth="2" />
-            <text x="50" y="45" textAnchor="middle" fontSize="9" fontWeight="bold" fill="#008751">BÉNIN</text>
-            <text x="50" y="60" textAnchor="middle" fontSize="6.5" fill="#E8112D">JUSTICE • TRAVAIL</text>
-          </svg>
-        </div>
-
-        {/* Titre central & Drapeau */}
-        <div className="text-center flex-1 px-2">
-          <h2 className="font-bold text-xs uppercase tracking-wider">Ministère de la Santé</h2>
-          <h3 className="font-bold text-xs uppercase tracking-wider text-slate-800">République du Bénin</h3>
-          <div className="h-1 w-40 mx-auto mt-1 flex">
-            <span className="w-1/3 bg-[#008751]"></span>
-            <span className="w-1/3 bg-[#FCD116]"></span>
-            <span className="w-1/3 bg-[#E8112D]"></span>
-          </div>
-        </div>
-
-        {/* Coordonnées officielles à droite */}
-        <div className="text-[9.5px] leading-tight text-right font-mono text-slate-700">
-          <p>01 BP 882 - COTONOU</p>
-          <p>Tél. : +229 21 33 2178 / 21 33 21 63</p>
-          <p>Adresse mail : sante.info@gouv.bj</p>
-          <p>Site web : www.sante.gouv.bj</p>
-        </div>
-      </div>
+      {/* En-tête officiel portrait validé */}
+      <EnteteOfficiellePortrait
+        departement={d.departement || "ZOU"}
+        commune={d.commune || "OUINHI"}
+        arrondissement={d.arrondissement || "TOHOUÈS"}
+        afficherBandeauTerritorial={false}
+      />
 
       {/* Cadre de titre officiel arrondi avec version rouge */}
       <div className="border-2 border-black rounded-2xl p-2.5 text-center my-3 bg-white">
@@ -270,6 +248,9 @@ export default function FicheOfficielleInvestigationEvenement({ data = {}, isVie
           </p>
         </div>
       </div>
+
+      {/* Pied de page officiel */}
+      <PiedDePageOfficiel className="mt-8" />
     </div>
   );
 }

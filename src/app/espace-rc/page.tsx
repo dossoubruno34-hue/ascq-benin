@@ -1339,25 +1339,34 @@ export default function EspaceRelaisPage() {
             {sousOngletPlanning === "planning_hebdo" && (
               <div className="space-y-4">
                 {/* Bannière officielle CNLS-TP & Logo ASC Bénin */}
-                <div className="bg-white rounded-3xl p-4 border border-slate-200/90 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
-                  <div className="relative w-28 h-12 shrink-0">
-                    <Image 
-                      src="/logo-asc-benin.jpg" 
-                      alt="ASC Santé Communautaire Bénin" 
-                      fill 
-                      className="object-contain" 
-                      priority
-                    />
+                <div className="bg-white rounded-3xl p-4 border border-slate-200/90 shadow-sm">
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <div className="relative w-full max-w-md h-12 shrink-0">
+                      <Image 
+                        src="/banniere-cnlstp.png" 
+                        alt="CNLS-TP Présidence du Bénin" 
+                        fill 
+                        className="object-contain object-left" 
+                        priority
+                      />
+                    </div>
+                    <div className="flex items-center gap-2.5 text-right shrink-0">
+                      <div className="flex flex-col text-[11px] font-bold text-slate-800 leading-tight">
+                        <span className="font-mono font-extrabold text-slate-900">0141285050/0196830551</span>
+                        <span className="text-[10px] text-slate-600 font-semibold lowercase">ascqbenin@gmail.com</span>
+                      </div>
+                      <div className="relative w-12 h-12 shrink-0">
+                        <Image 
+                          src="/logo-ascq.png" 
+                          alt="ASC Santé Communautaire Bénin" 
+                          fill 
+                          className="object-contain object-right" 
+                          priority
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <div className="relative w-full max-w-md h-12 shrink-0">
-                    <Image 
-                      src="/banniere-cnlstp.png" 
-                      alt="CNLS-TP Présidence du Bénin" 
-                      fill 
-                      className="object-contain" 
-                      priority
-                    />
-                  </div>
+                  <div className="h-[2px] bg-[#008751] w-full mt-2.5"></div>
                 </div>
 
                 {/* CARTE STATUT DE VALIDATION DU PLANNING PAR L'ASCQ */}

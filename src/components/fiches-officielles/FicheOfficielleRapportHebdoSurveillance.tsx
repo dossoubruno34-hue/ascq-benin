@@ -1,6 +1,8 @@
 "use client";
 
 import React from "react";
+import EnteteOfficiellePortrait from "./EnteteOfficiellePortrait";
+import PiedDePageOfficiel from "./PiedDePageOfficiel";
 
 interface Props {
   data?: {
@@ -56,11 +58,13 @@ export default function FicheOfficielleRapportHebdoSurveillance({ data = {}, isV
 
   return (
     <div className="w-full max-w-[800px] mx-auto bg-white text-black p-4 sm:p-6 print:p-0 print:max-w-none text-xs leading-normal font-sans antialiased">
-      {/* En-tête supérieur */}
-      <div className="flex items-center justify-between font-bold text-xs mb-3">
-        <span>Ministère de la Santé</span>
-        <span>République du Bénin</span>
-      </div>
+      {/* En-tête officiel portrait validé */}
+      <EnteteOfficiellePortrait
+        departement={d.departement || "ZOU"}
+        commune={d.commune || "OUINHI"}
+        arrondissement={d.arrondissement || "TOHOUÈS"}
+        afficherBandeauTerritorial={false}
+      />
 
       {/* Titre officiel avec encadré à bordures festonnées / coins courbés */}
       <div className="relative border-2 border-black rounded-3xl p-3 text-center my-3 bg-white shadow-sm print:shadow-none">
@@ -204,6 +208,9 @@ export default function FicheOfficielleRapportHebdoSurveillance({ data = {}, isV
           </p>
         </div>
       </div>
+
+      {/* Pied de page officiel */}
+      <PiedDePageOfficiel className="mt-8" />
     </div>
   );
 }

@@ -891,25 +891,32 @@ export default function PlanningAscqPage() {
             {/* Bannière officielle CNLS-TP & Présidence du Bénin */}
             <div className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-200/90 shadow-sm">
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div className="relative w-32 h-16 shrink-0">
-                  <Image 
-                    src="/logo-asc-benin.jpg" 
-                    alt="ASC Santé Communautaire Bénin" 
-                    fill 
-                    className="object-contain" 
-                    priority
-                  />
-                </div>
                 <div className="relative w-full max-w-lg h-14 shrink-0">
                   <Image 
                     src="/banniere-cnlstp.png" 
                     alt="CNLS-TP Présidence du Bénin" 
                     fill 
-                    className="object-contain" 
+                    className="object-contain object-left" 
                     priority
                   />
                 </div>
+                <div className="flex items-center gap-3 text-right shrink-0">
+                  <div className="flex flex-col text-xs font-bold text-slate-800 leading-tight">
+                    <span className="font-mono font-extrabold text-slate-900">0141285050/0196830551</span>
+                    <span className="text-[11px] text-slate-600 font-semibold lowercase">ascqbenin@gmail.com</span>
+                  </div>
+                  <div className="relative w-14 h-14 shrink-0">
+                    <Image 
+                      src="/logo-ascq.png" 
+                      alt="ASC Santé Communautaire Bénin" 
+                      fill 
+                      className="object-contain object-right" 
+                      priority
+                    />
+                  </div>
+                </div>
               </div>
+              <div className="h-[2px] bg-[#008751] w-full mt-3"></div>
             </div>
 
             {/* Titre & Actions A4 Paysage */}
