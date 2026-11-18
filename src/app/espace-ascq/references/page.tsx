@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import AscqNav from "@/components/AscqNav";
+import EnteteOfficiellePortrait from "@/components/fiches-officielles/EnteteOfficiellePortrait";
+import PiedDePageOfficiel from "@/components/fiches-officielles/PiedDePageOfficiel";
 import {
   HeartPulse,
   Building2,
@@ -593,25 +595,18 @@ export default function GestionReferencesPage() {
             )}
 
             {/* CONTENU OFFICIEL IMPRIMABLE (FORMAT RÉPUBLIQUE DU BÉNIN AVEC VOLET RETOUR) */}
-            <div className="p-6 sm:p-8 space-y-6 text-slate-800 print:p-0">
+            <div className="p-6 sm:p-8 space-y-5 text-slate-800 print:p-0">
               
-              {/* En-tête officiel */}
-              <div className="border-b-2 border-slate-900 pb-3 text-center space-y-1">
-                <div className="flex items-center justify-center gap-2">
-                  <span className="w-8 h-1 bg-[#008751]"></span>
-                  <span className="w-8 h-1 bg-[#FCD116]"></span>
-                  <span className="w-8 h-1 bg-[#E8112D]"></span>
-                </div>
-                <h1 className="text-sm font-black uppercase tracking-wider text-slate-900">
-                  RÉPUBLIQUE DU BÉNIN
-                </h1>
-                <h2 className="text-xs font-bold uppercase text-slate-700">
-                  Ministère de la Santé • Ministère des Affaires Sociales et de la Microfinance
-                </h2>
-                <h3 className="text-xs font-bold text-[#005c30]">
-                  BULLETIN OFFICIEL DE RÉFÉRENCE COMMUNAUTAIRE (VOLET ALLER & RETOUR)
-                </h3>
-                <div className="inline-block mt-1 px-3 py-0.5 bg-slate-100 rounded-lg border border-slate-300">
+              {/* En-tête officiel portrait validé */}
+              <EnteteOfficiellePortrait
+                departement={currentUser?.departement_nom || "ZOU"}
+                commune={currentUser?.commune_nom || "OUINHI"}
+                arrondissement={currentUser?.arrondissement_nom || "TOHOUÈS"}
+                titreFormulaire="BULLETIN OFFICIEL DE RÉFÉRENCE COMMUNAUTAIRE (VOLET ALLER & RETOUR)"
+              />
+
+              <div className="text-center">
+                <div className="inline-block px-3 py-1 bg-slate-100 rounded-lg border border-slate-300">
                   <span className="text-xs font-extrabold text-slate-900">
                     N° {selectedRef.numero_reference} • Semaine {selectedRef.semaine_epidemio} ({selectedRef.annee})
                   </span>
@@ -780,6 +775,9 @@ export default function GestionReferencesPage() {
                   </div>
                 </div>
               </div>
+
+              {/* Pied de page officiel */}
+              <PiedDePageOfficiel className="mt-3" />
 
               {/* PANNEAU DE CONTRÔLE DE L'ASCQ (MASQUÉ À L'IMPRESSION) */}
               <div className="print:hidden pt-4 border-t border-slate-200 space-y-3">

@@ -1,8 +1,6 @@
 "use client";
 
 import React from "react";
-import EnteteOfficiellePortrait from "./EnteteOfficiellePortrait";
-import PiedDePageOfficiel from "./PiedDePageOfficiel";
 
 interface Props {
   data?: {
@@ -36,16 +34,8 @@ export default function FicheOfficielleRegistreAlertes({ data = {}, isVierge = f
 
   return (
     <div className="w-full max-w-[800px] mx-auto bg-white text-black p-4 sm:p-6 print:p-0 print:max-w-none text-[11px] leading-tight font-sans antialiased">
-      {/* En-tête officiel portrait validé */}
-      <EnteteOfficiellePortrait
-        departement="ZOU"
-        commune={d.commune || "OUINHI"}
-        arrondissement={d.arrondissement || "TOHOUÈS"}
-        afficherBandeauTerritorial={false}
-      />
-
-      {/* Titre officiel */}
-      <div className="text-center my-3">
+      {/* Titre officiel du Registre */}
+      <div className="text-center mb-4">
         <h1 className="text-base sm:text-lg font-bold tracking-tight">
           Registre des alertes et rumeurs communautaires
         </h1>
@@ -167,9 +157,6 @@ export default function FicheOfficielleRegistreAlertes({ data = {}, isVierge = f
           <strong>1=</strong> fièvre ou notion de fièvre. <strong>2=</strong> éruption cutanée. <strong>3=</strong> Diarrhée. <strong>4=</strong> raideur de la nuque. <strong>5=</strong>Paralysie Flasque Aigue (PFA). <strong>6=</strong>saignements inexpliqués. <strong>7=</strong> yeux jaunes. <strong>8=</strong> vomissements importants. <strong>9=</strong> douleurs abdominales. <strong>10=</strong> décès néonatal (0 – 28jrs). <strong>11 =</strong> Décès infantile (&lt;1 an ; inclure aussi les décès néonataux), <strong>12 =</strong> Décès infanto-juvénile (0-5ans). <strong>13 =</strong> décès maternel. <strong>14 =</strong> Décès ≥ 5 ans ans sauf décès maternel). <strong>15=</strong> autres (à préciser).
         </p>
       </div>
-
-      {/* Pied de page officiel */}
-      <PiedDePageOfficiel className="mt-4" />
     </div>
   );
 }

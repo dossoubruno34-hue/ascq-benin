@@ -1,8 +1,6 @@
 "use client";
 
 import React from "react";
-import EnteteOfficiellePortrait from "./EnteteOfficiellePortrait";
-import PiedDePageOfficiel from "./PiedDePageOfficiel";
 
 interface Props {
   data?: {
@@ -125,14 +123,16 @@ export default function FicheOfficielleNotificationDeces({ data = {}, isVierge =
     <div className="w-full max-w-[820px] mx-auto bg-white text-black p-4 sm:p-6 print:p-0 print:max-w-none text-[11px] leading-tight font-sans antialiased">
       
       {/* ========================================================================= */}
-      {/* 1. EN-TÊTE PORTRAIT OFFICIEL VALIDÉ (Conforme arrêté et capture validée)   */}
+      {/* 1. EN-TÊTE OFFICIEL DU MINISTÈRE DE LA SANTÉ (Formulaire original fourni) */}
       {/* ========================================================================= */}
-      <EnteteOfficiellePortrait
-        departement={d.departement || "ZOU"}
-        commune={d.commune || "OUINHI"}
-        arrondissement={d.arrondissement || "TOHOUÈS"}
-        titreFormulaire="BJ_FORMULAIRE DE NOTIFICATION DES DÉCÈS EN COMMUNAUTÉ"
-      />
+      <div className="flex items-center justify-between text-xs font-bold text-slate-900 pb-1">
+        <span>Ministère de la Santé</span>
+        <span>République du Bénin</span>
+      </div>
+      <div className="text-center font-bold text-xs sm:text-sm tracking-wide my-1.5 uppercase text-slate-900">
+        BJ_FORMULAIRE DE NOTIFICATION DES DÉCÈS EN COMMUNAUTÉ
+      </div>
+      <div className="border-b-2 border-black mb-3"></div>
 
       {/* Ligne Année, Semaine, Mois, NPI, N° Décès */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs mb-3 bg-slate-50/90 p-2.5 rounded-xl border border-slate-200">
@@ -428,9 +428,6 @@ export default function FicheOfficielleNotificationDeces({ data = {}, isVierge =
           )}
         </div>
       </div>
-
-      {/* Pied de page officiel */}
-      <PiedDePageOfficiel className="mt-4" />
     </div>
   );
 }
