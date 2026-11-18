@@ -1,6 +1,6 @@
 {
-  "version": "2.5.9",
-  "buildTimestamp": 1794951000000,
-  "buildDate": "17 Novembre 2026 - Acquittement Direct Décès 48h & Moteur de Synchronisation Locale",
-  "releaseNotes": "Acquittement direct et visa officiel des déclarations de décès (relances 48h) sur Mon Espace et Fiches, moteur de synchronisation en ligne des files d'attente locales et réinitialisation transparente du mode hors-ligne."
+  "version": "2.6.0",
+  "buildTimestamp": 1795034000000,
+  "buildDate": "18 Novembre 2026 - Validation Sécurisée Plannings RC, En-tête Portrait Validé & Centre de Notifications",
+  "releaseNotes": "Validation résiliente des plannings RC par l'ASCQ, saisie obligatoire Date & Heure par activité RC, en-tête portrait officiel validé avec casiers en gras bleu pour la fiche de décès, disparition automatique des notifications lues et assainissement UTF-8."
 }

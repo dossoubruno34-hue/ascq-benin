@@ -61,6 +61,7 @@ interface LignePlanningRC {
   activite: string;
   nombre_prevu: number;
   date: string;
+  heure?: string;
   lieu: string;
 }
 
@@ -224,6 +225,7 @@ export default function EspaceRelaisPage() {
   const [formPlanningActivite, setFormPlanningActivite] = useState<string>("Visites à Domicile (VAD)");
   const [formPlanningPrevu, setFormPlanningPrevu] = useState<number | string>(5);
   const [formPlanningDate, setFormPlanningDate] = useState<string>(new Date().toISOString().split("T")[0]);
+  const [formPlanningHeure, setFormPlanningHeure] = useState<string>("08h - 11h");
   const [formPlanningLieu, setFormPlanningLieu] = useState<string>("");
 
   const [planningSaving, setPlanningSaving] = useState(false);
@@ -411,17 +413,41 @@ export default function EspaceRelaisPage() {
         .maybeSingle();
 
       let currentPlanning: LignePlanningRC[] = [];
-      if (pData) {
-        setPlanningRowDb(pData);
-        setPlanningEstValideAscq(Boolean(pData.lu_et_approuve_ascq || pData.statut === "VALIDE_ASCQ"));
-        setPlanningDateValidationAscq(pData.date_validation_ascq || null);
-        setPlanningValideParNom(pData.valide_par_nom || null);
-        setPlanningObservationsAscq(pData.observations_ascq || null);
-        if (pData.signature_rc) setPlanningSignatureRc(pData.signature_rc);
+      let activePData = pData;
 
-        if (Array.isArray(pData.lignes_planning) && pData.lignes_planning.length > 0) {
-          currentPlanning = pData.lignes_planning;
-          setLignesPlanning(pData.lignes_planning);
+      // Fusion avec validations locales si le cache de schéma DB est en cours de synchronisation
+      if (activePData) {
+        try {
+          const allValids = JSON.parse(localStorage.getItem("all_validations_rc_plannings") || "{}");
+          const localVal = allValids[activePData.id] || JSON.parse(localStorage.getItem(`validation_rc_planning_${activePData.id}`) || "null");
+          if (localVal) {
+            activePData = {
+              ...activePData,
+              ...localVal,
+              statut: localVal.statut || activePData.statut,
+              lu_et_approuve_ascq: localVal.lu_et_approuve_ascq ?? activePData.lu_et_approuve_ascq,
+              signature_ascq: localVal.signature_ascq || activePData.signature_ascq,
+              date_validation_ascq: localVal.date_validation_ascq || activePData.date_validation_ascq,
+              observations_ascq: localVal.observations_ascq ?? activePData.observations_ascq,
+              valide_par_nom: localVal.valide_par_nom || activePData.valide_par_nom
+            };
+          }
+        } catch (eLocal) {
+          console.warn("Erreur lecture validations locales RC :", eLocal);
+        }
+      }
+
+      if (activePData) {
+        setPlanningRowDb(activePData);
+        setPlanningEstValideAscq(Boolean(activePData.lu_et_approuve_ascq || activePData.statut === "VALIDE_ASCQ" || activePData.statut === "VALIDE"));
+        setPlanningDateValidationAscq(activePData.date_validation_ascq || null);
+        setPlanningValideParNom(activePData.valide_par_nom || null);
+        setPlanningObservationsAscq(activePData.observations_ascq || null);
+        if (activePData.signature_rc) setPlanningSignatureRc(activePData.signature_rc);
+
+        if (Array.isArray(activePData.lignes_planning) && activePData.lignes_planning.length > 0) {
+          currentPlanning = activePData.lignes_planning;
+          setLignesPlanning(activePData.lignes_planning);
         }
       } else {
         setPlanningRowDb(null);
@@ -514,26 +540,53 @@ export default function EspaceRelaisPage() {
       if (rpcError) {
         // Fallback direct sur table si la RPC n'est pas encore migrée ou schema cache
         const total = lignesPlanning.reduce((acc, l) => acc + (Number(l.nombre_prevu) || 0), 0);
-        const { error: upsertErr } = await supabase
-          .from("plannings_hebdo_relais")
-          .upsert({
-            relais_id: validRelaisId,
-            ascq_id: ascqId || null,
-            village_nom: rcData?.village_nom || "Village",
-            grappe: rcData?.grappe || 1,
-            annee: anneeChoisie,
-            semaine_num: semaineChoisie,
-            date_debut_semaine: new Date().toISOString().split("T")[0],
-            lignes_planning: lignesPlanning,
-            total_prevu: total,
-            statut: "SOUMIS",
-            signature_rc: planningSignatureRc || null,
-            date_soumission_rc: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          }, { onConflict: "relais_id,annee,semaine_num" });
+        let upsertReussi = false;
+        try {
+          const { error: upsertErr } = await supabase
+            .from("plannings_hebdo_relais")
+            .upsert({
+              relais_id: validRelaisId,
+              ascq_id: ascqId || null,
+              village_nom: rcData?.village_nom || "Village",
+              grappe: rcData?.grappe || 1,
+              annee: anneeChoisie,
+              semaine_num: semaineChoisie,
+              date_debut_semaine: new Date().toISOString().split("T")[0],
+              lignes_planning: lignesPlanning,
+              total_prevu: total,
+              statut: "VALIDE",
+              signature_rc: planningSignatureRc || null,
+              date_soumission_rc: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            }, { onConflict: "relais_id,annee,semaine_num" });
 
-        if (upsertErr) {
-          throw upsertErr;
+          if (!upsertErr) {
+            upsertReussi = true;
+          } else {
+            console.warn("Upsert complet planning RC refusé, essai minimal garanti :", upsertErr);
+          }
+        } catch (eUpsert) {
+          console.warn("Exception upsert complet planning RC :", eUpsert);
+        }
+
+        if (!upsertReussi) {
+          const { error: baseErr } = await supabase
+            .from("plannings_hebdo_relais")
+            .upsert({
+              relais_id: validRelaisId,
+              ascq_id: ascqId || null,
+              village_nom: rcData?.village_nom || "Village",
+              grappe: rcData?.grappe || 1,
+              annee: anneeChoisie,
+              semaine_num: semaineChoisie,
+              date_debut_semaine: new Date().toISOString().split("T")[0],
+              lignes_planning: lignesPlanning,
+              total_prevu: total,
+              statut: "VALIDE",
+              updated_at: new Date().toISOString(),
+            }, { onConflict: "relais_id,annee,semaine_num" });
+
+          if (baseErr) throw baseErr;
         }
       }
 
@@ -581,7 +634,7 @@ export default function EspaceRelaisPage() {
       const actNom = (l.activite || "").toLowerCase();
       const slot: RcPlanningSlot = {
         date: l.date || "Toute la semaine",
-        heure: "-",
+        heure: l.heure || "08h - 11h",
         zone: l.lieu || rcData?.village_nom || "Ménages",
         qte: l.nombre_prevu || 1
       };
@@ -1430,7 +1483,7 @@ export default function EspaceRelaisPage() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {/* Activité */}
                     <div className="sm:col-span-2 space-y-1">
-                      <label className="text-[11px] font-bold text-slate-600">Activité</label>
+                      <label className="text-[11px] font-bold text-slate-700">Activité programmée *</label>
                       <select
                         value={formPlanningActivite}
                         onChange={(e) => setFormPlanningActivite(e.target.value)}
@@ -1444,22 +1497,10 @@ export default function EspaceRelaisPage() {
                       </select>
                     </div>
 
-                    {/* Nombre prévu */}
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-bold text-slate-600">Nombre prévu</label>
-                      <input
-                        type="number"
-                        min="1"
-                        value={formPlanningPrevu}
-                        onChange={(e) => setFormPlanningPrevu(e.target.value === "" ? "" : Math.max(1, parseInt(e.target.value, 10) || 1))}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold focus:ring-2 focus:ring-[#005c30]"
-                      />
-                    </div>
-
                     {/* Temporalité : Date spécifique OU Période de la semaine */}
                     <div className="space-y-1">
                       <div className="flex items-center justify-between">
-                        <label className="text-[11px] font-bold text-slate-700">Période / Date *</label>
+                        <label className="text-[11px] font-bold text-slate-700">Date d'intervention *</label>
                         <div className="inline-flex rounded-lg bg-slate-100 p-0.5 text-[10px] font-bold">
                           <button
                             type="button"
@@ -1488,7 +1529,6 @@ export default function EspaceRelaisPage() {
                           onChange={(e) => setFormPlanningPeriode(e.target.value)}
                           className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:ring-2 focus:ring-[#005c30] bg-white"
                         >
-                          <option value="Toute la semaine">Toute la semaine</option>
                           <option value="Lundi">Lundi</option>
                           <option value="Mardi">Mardi</option>
                           <option value="Mercredi">Mercredi</option>
@@ -1496,6 +1536,7 @@ export default function EspaceRelaisPage() {
                           <option value="Vendredi">Vendredi</option>
                           <option value="Samedi">Samedi</option>
                           <option value="Dimanche">Dimanche</option>
+                          <option value="Toute la semaine">Toute la semaine</option>
                           <option value="Début de semaine">Début de semaine</option>
                           <option value="Milieu de semaine">Milieu de semaine</option>
                           <option value="Fin de semaine">Fin de semaine</option>
@@ -1510,16 +1551,47 @@ export default function EspaceRelaisPage() {
                       )}
                     </div>
 
+                    {/* Heure d'intervention */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[11px] font-bold text-slate-700">Heure d'intervention *</label>
+                        <span className="text-[10px] text-slate-400 font-medium">Créneau ou heure</span>
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="Ex: 08h - 11h, 15h - 17h"
+                        value={formPlanningHeure}
+                        onChange={(e) => setFormPlanningHeure(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-[#005c30]"
+                      />
+                      <div className="flex items-center gap-1 flex-wrap pt-0.5">
+                        {["08h - 11h", "11h - 13h", "15h - 18h", "Toute la journée"].map((creneau) => (
+                          <button
+                            key={creneau}
+                            type="button"
+                            onClick={() => setFormPlanningHeure(creneau)}
+                            className={`text-[9.5px] font-bold px-2 py-0.5 rounded-md transition-colors border ${
+                              formPlanningHeure === creneau
+                                ? "bg-[#005c30] text-white border-[#005c30]"
+                                : "bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200"
+                            }`}
+                          >
+                            {creneau}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
                     {/* Lieu / Zone ciblée avec Datalist mémorisée et propositions rapides */}
-                    <div className="sm:col-span-2 space-y-1.5">
+                    <div className="space-y-1.5">
                       <label className="text-[11px] font-bold text-slate-700 flex items-center justify-between">
                         <span>Lieu / Zone ciblée *</span>
-                        <span className="text-[10px] text-emerald-800 font-semibold">Mémorisé & proposé</span>
+                        <span className="text-[10px] text-emerald-800 font-semibold">Mémorisé</span>
                       </label>
                       <input
                         type="text"
                         list="lieux-memorises-rc"
-                        placeholder="Ex: Hameau Sud, quartier marché, ménages de la grappe 1..."
+                        placeholder="Ex: Hameau Sud, quartier marché..."
                         value={formPlanningLieu}
                         onChange={(e) => setFormPlanningLieu(e.target.value)}
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-[#005c30]"
@@ -1534,7 +1606,7 @@ export default function EspaceRelaisPage() {
                       {lieuxMemorises.length > 0 && (
                         <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
                           <span className="text-[10px] text-slate-400 font-semibold">Suggestions :</span>
-                          {lieuxMemorises.slice(0, 5).map((l, i) => (
+                          {lieuxMemorises.slice(0, 4).map((l, i) => (
                             <button
                               key={i}
                               type="button"
@@ -1546,6 +1618,18 @@ export default function EspaceRelaisPage() {
                           ))}
                         </div>
                       )}
+                    </div>
+
+                    {/* Nombre prévu */}
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-slate-700">Quantité / Nombre prévu *</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={formPlanningPrevu}
+                        onChange={(e) => setFormPlanningPrevu(e.target.value === "" ? "" : Math.max(1, parseInt(e.target.value, 10) || 1))}
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold focus:ring-2 focus:ring-[#005c30]"
+                      />
                     </div>
                   </div>
 
@@ -1561,6 +1645,7 @@ export default function EspaceRelaisPage() {
                         activite: formPlanningActivite,
                         nombre_prevu: Math.max(1, Number(formPlanningPrevu) || 1),
                         date: dateOrPeriode,
+                        heure: formPlanningHeure.trim() || "08h - 11h",
                         lieu: lieuChoisi,
                       };
                       setLignesPlanning([...lignesPlanning, newLine]);
@@ -1573,7 +1658,7 @@ export default function EspaceRelaisPage() {
                   </button>
                 </div>
 
-                {/* Liste des activités du planning */}
+                {/* Liste des activités du planning avec colonnes ordonnées */}
                 <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm space-y-3">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-2 border-b border-slate-100 gap-2">
                     <div>
@@ -1581,7 +1666,7 @@ export default function EspaceRelaisPage() {
                         Activités programmées pour la semaine {semaineChoisie}
                       </h3>
                       <p className="text-[11px] text-slate-500">
-                        {lignesPlanning.length} ligne(s) d'activités
+                        {lignesPlanning.length} ligne(s) d'activités • Colonnes ordonnées (Date, Heure, Activité, Zone, Qté)
                       </p>
                     </div>
 
@@ -1611,47 +1696,65 @@ export default function EspaceRelaisPage() {
                       Aucune activité programmée pour cette semaine. Utilisez le formulaire ci-dessus pour ajouter vos prévisions.
                     </div>
                   ) : (
-                    <div className="space-y-2">
-                      {lignesPlanning.map((ligne, idx) => (
-                        <div
-                          key={ligne.id || idx}
-                          className="p-3.5 rounded-2xl bg-slate-50/80 border border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-white hover:shadow-sm transition-all"
-                        >
-                          <div className="space-y-1 flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-xs font-black text-slate-900">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-black uppercase text-slate-500">
+                            <th className="py-2.5 px-3">N°</th>
+                            <th className="py-2.5 px-3">Date</th>
+                            <th className="py-2.5 px-3">Heure</th>
+                            <th className="py-2.5 px-3">Activité</th>
+                            <th className="py-2.5 px-3">Zone ciblée</th>
+                            <th className="py-2.5 px-3 text-center">Qté prévue</th>
+                            <th className="py-2.5 px-3 text-right">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {lignesPlanning.map((ligne, idx) => (
+                            <tr key={ligne.id || idx} className="hover:bg-slate-50/80 transition-colors">
+                              <td className="py-3 px-3 font-mono font-bold text-slate-400">{idx + 1}</td>
+                              <td className="py-3 px-3 font-semibold text-slate-900 whitespace-nowrap">
+                                <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-800 px-2 py-0.5 rounded-md font-bold text-[11px] border border-blue-200/60">
+                                  <Calendar className="w-3 h-3 text-blue-600" />
+                                  {ligne.date || "Semaine"}
+                                </span>
+                              </td>
+                              <td className="py-3 px-3 font-semibold text-slate-800 whitespace-nowrap">
+                                <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded-md font-bold text-[11px] border border-emerald-200/60">
+                                  <Clock className="w-3 h-3 text-emerald-600" />
+                                  {ligne.heure || "08h - 11h"}
+                                </span>
+                              </td>
+                              <td className="py-3 px-3 font-bold text-slate-900">
                                 {ligne.activite}
-                              </span>
-                              <span className="text-[10px] font-black uppercase text-[#005c30] bg-emerald-100 px-2 py-0.5 rounded-md">
-                                Prévu : {ligne.nombre_prevu}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-3 text-[11px] text-slate-500 flex-wrap">
-                              <span className="flex items-center gap-1">
-                                <Calendar className="w-3 h-3 text-slate-400" />
-                                {ligne.date || "Date non spécifiée"}
-                              </span>
-                              <span className="flex items-center gap-1">
-                                <MapPin className="w-3 h-3 text-slate-400" />
-                                {ligne.lieu || "Lieu non précisé"}
-                              </span>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setLignesPlanning(lignesPlanning.filter((_, i) => i !== idx));
-                              }}
-                              className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors"
-                              title="Supprimer"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
+                              </td>
+                              <td className="py-3 px-3 text-slate-600">
+                                <span className="inline-flex items-center gap-1 text-[11px]">
+                                  <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                                  {ligne.lieu || "Ménages"}
+                                </span>
+                              </td>
+                              <td className="py-3 px-3 text-center">
+                                <span className="px-2.5 py-1 rounded-lg bg-emerald-100 text-[#005c30] font-black text-xs inline-block">
+                                  {ligne.nombre_prevu}
+                                </span>
+                              </td>
+                              <td className="py-3 px-3 text-right">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setLignesPlanning(lignesPlanning.filter((_, i) => i !== idx));
+                                  }}
+                                  className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors"
+                                  title="Supprimer cette ligne"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   )}
 

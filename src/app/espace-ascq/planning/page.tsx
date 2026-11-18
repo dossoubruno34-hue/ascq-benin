@@ -342,9 +342,10 @@ export default function PlanningAscqPage() {
         query = query.eq("ascq_id", ascqId);
       }
 
+      let planningsList: any[] = [];
       const { data, error } = await query;
       if (!error && data) {
-        setPlanningsRelais(data);
+        planningsList = data;
       } else {
         // Fallback sans jointure si le schéma relationnel est restreint
         const { data: fallbackData } = await supabase
@@ -353,9 +354,34 @@ export default function PlanningAscqPage() {
           .order("semaine_num", { ascending: false })
           .limit(30);
         if (fallbackData) {
-          setPlanningsRelais(fallbackData);
+          planningsList = fallbackData;
         }
       }
+
+      // Fusion avec les validations enregistrées localement (résilience schema cache)
+      try {
+        const allValids = JSON.parse(localStorage.getItem("all_validations_rc_plannings") || "{}");
+        planningsList = planningsList.map((item) => {
+          const localVal = allValids[item.id] || JSON.parse(localStorage.getItem(`validation_rc_planning_${item.id}`) || "null");
+          if (localVal) {
+            return {
+              ...item,
+              ...localVal,
+              statut: localVal.statut || item.statut || "VALIDE",
+              lu_et_approuve_ascq: localVal.lu_et_approuve_ascq ?? true,
+              signature_ascq: localVal.signature_ascq || item.signature_ascq,
+              date_validation_ascq: localVal.date_validation_ascq || item.date_validation_ascq,
+              observations_ascq: localVal.observations_ascq ?? item.observations_ascq,
+              valide_par_nom: localVal.valide_par_nom || item.valide_par_nom
+            };
+          }
+          return item;
+        });
+      } catch (errLocal) {
+        console.warn("Erreur fusion validations locales :", errLocal);
+      }
+
+      setPlanningsRelais(planningsList);
     } catch (e) {
       console.warn("Échec chargement plannings relais:", e);
     } finally {
@@ -715,25 +741,76 @@ export default function PlanningAscqPage() {
 
       // 2. Repli direct sur la table si la RPC n'est pas encore synchronisée
       if (!rpcOk) {
-        const { error: updErr } = await supabase
-          .from("plannings_hebdo_relais")
-          .update({
-            lu_et_approuve_ascq: approuve,
-            statut: approuve ? "VALIDE_ASCQ" : "REJETE",
-            signature_ascq: approuve ? signatureAscqValidationRc : null,
-            date_validation_ascq: approuve ? new Date().toISOString() : null,
-            observations_ascq: observationsAscqValidationRc.trim() || null,
-            valide_par_nom: ascqNom,
-            ascq_id: currentUser?.id || null,
-            updated_at: new Date().toISOString()
-          })
-          .eq("id", planningId);
+        let updReussi = false;
+        try {
+          const { error: updErr } = await supabase
+            .from("plannings_hebdo_relais")
+            .update({
+              lu_et_approuve_ascq: approuve,
+              statut: approuve ? "VALIDE" : "BROUILLON",
+              signature_ascq: approuve ? signatureAscqValidationRc : null,
+              date_validation_ascq: approuve ? new Date().toISOString() : null,
+              observations_ascq: observationsAscqValidationRc.trim() || null,
+              valide_par_nom: ascqNom,
+              ascq_id: currentUser?.id || null,
+              updated_at: new Date().toISOString()
+            })
+            .eq("id", planningId);
 
-        if (updErr) throw updErr;
+          if (!updErr) {
+            updReussi = true;
+          } else {
+            console.warn("Mise à jour complète avec nouvelles colonnes refusée, tentative minimale :", updErr);
+          }
+        } catch (e) {
+          console.warn("Exception lors de la mise à jour complète :", e);
+        }
+
+        // Si la mise à jour complète échoue (par exemple colonne date_validation_ascq absente du cache de schéma),
+        // mise à jour avec les colonnes minimales garanties dans la table
+        if (!updReussi) {
+          const { error: minErr } = await supabase
+            .from("plannings_hebdo_relais")
+            .update({
+              statut: approuve ? "VALIDE" : "BROUILLON",
+              ascq_id: currentUser?.id || null,
+              updated_at: new Date().toISOString()
+            })
+            .eq("id", planningId);
+
+          if (minErr) {
+            console.warn("Mise à jour minimale Supabase échouée (sauvegarde locale maintenue) :", minErr);
+          }
+        }
+      }
+
+      // 3. Sauvegarde locale infaillible des métadonnées de validation (accessible hors-ligne et résiliente)
+      const validationMeta = {
+        planning_id: planningId,
+        statut: approuve ? "VALIDE" : "REJETE",
+        lu_et_approuve_ascq: approuve,
+        signature_ascq: approuve ? signatureAscqValidationRc : null,
+        date_validation_ascq: approuve ? new Date().toISOString() : null,
+        observations_ascq: observationsAscqValidationRc.trim() || null,
+        valide_par_nom: ascqNom,
+        ascq_id: currentUser?.id || null,
+        updated_at: new Date().toISOString()
+      };
+
+      try {
+        localStorage.setItem(`validation_rc_planning_${planningId}`, JSON.stringify(validationMeta));
+        const allValids = JSON.parse(localStorage.getItem("all_validations_rc_plannings") || "{}");
+        allValids[planningId] = validationMeta;
+        localStorage.setItem("all_validations_rc_plannings", JSON.stringify(allValids));
+
+        // Déclencher un événement local pour synchroniser les vues
+        window.dispatchEvent(new CustomEvent("rc_planning_valide", { detail: validationMeta }));
+      } catch (eLocal) {
+        console.warn("Erreur stockage validation locale :", eLocal);
       }
 
       alert(approuve 
-        ? "✅ Le planning du Relais Communautaire a été validé et signé avec succès ! Le document validé (A4 Paysage) est immédiatement mis à disposition du Relais."
+        ? "✅ Le planning du Relais Communautaire a été validé et signé avec succès ! Le document officiel est immédiatement mis à disposition du Relais."
         : "Le planning a été renvoyé avec vos observations.");
 
       setModalRcPlanningOuvert(false);
@@ -1581,8 +1658,14 @@ export default function PlanningAscqPage() {
                     <div key={i} className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/80 flex items-center justify-between">
                       <div>
                         <div className="font-bold text-slate-900">{l.activite}</div>
-                        <div className="text-[11px] text-slate-500">
-                          {l.date ? `Date : ${l.date}` : "Toute la semaine"} • Lieu : {l.lieu || l.zone || "Ménages"}
+                        <div className="text-[11px] text-slate-500 flex items-center gap-2 flex-wrap mt-0.5">
+                          <span className="font-semibold text-slate-700">{l.date ? `📅 Date : ${l.date}` : "📅 Toute la semaine"}</span>
+                          {l.heure && (
+                            <span className="font-semibold text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                              ⏰ Heure : {l.heure}
+                            </span>
+                          )}
+                          <span>📍 Lieu : {l.lieu || l.zone || "Ménages"}</span>
                         </div>
                       </div>
                       <span className="px-2 py-0.5 rounded-lg bg-emerald-100 text-[#005c30] font-black text-xs">

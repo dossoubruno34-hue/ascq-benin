@@ -108,6 +108,15 @@ export default function MesFichesPage() {
       }
     }
 
+    let nomParent = (r.nom_parent || "").trim();
+    let telephoneParent = (r.telephone_parent || "").trim();
+
+    // Détection intelligente : si le nom du parent est en réalité un numéro de téléphone (ex: 0141424199)
+    if (!telephoneParent && nomParent && /^(\+?229\s?)?[0-9\s-]{8,15}$/.test(nomParent.replace(/\s+/g, ""))) {
+      telephoneParent = nomParent;
+      nomParent = "";
+    }
+
     return {
       annee: fc.annee || r.annee || new Date().getFullYear(),
       semaineEpidemio: fc.semaine || r.semaine_epidemio,
@@ -122,8 +131,8 @@ export default function MesFichesPage() {
       numeroGrappe: r.numero_grappe || r.grappe || "",
       adresse: r.adresse_domicile || r.adresse || "",
       nomPrenomsDefunt: r.defunt_nom_prenom || `${r.nom_defunt || ""} ${r.prenoms_defunt || ""}`.trim(),
-      nomParent: r.nom_parent || "",
-      telephoneParent: r.telephone_parent || "",
+      nomParent,
+      telephoneParent,
       dateNaissance: r.date_naissance || "",
       ageAnnees,
       ageMois,
@@ -145,6 +154,8 @@ export default function MesFichesPage() {
       notificateurTitre: r.notificateur_titre || fc.notificateurTitre || "ASCQ",
       notificateurStructure: r.notificateur_structure || `Arrondissement de ${fc.arrondissement || ""}`,
       notificateurTelephone: r.notificateur_telephone || fc.notificateurTel || "",
+      signatureNotificateur: r.signature_tactile || r.signature || fc.signature || null,
+      dateSignature: r.date_notification || (r.created_at ? r.created_at.split("T")[0] : fc.date),
     };
   };
 
