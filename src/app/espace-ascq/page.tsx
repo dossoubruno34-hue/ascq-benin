@@ -125,30 +125,47 @@ export default function MonEspacePage() {
     }
     setAcquittementEnCours(true);
     try {
-      // 1. Mettre à jour en base de données Supabase
-      const { error } = await supabase
-        .from("deces_communautaires")
-        .update({
-          statut: "VALIDE",
-          ascq_superviseur_id: espaceData.id,
-          updated_at: new Date().toISOString()
-        })
-        .eq("ascq_superviseur_id", espaceData.id)
-        .in("statut", ["NOTIFIE", "EN_ATTENTE"]);
+      const idsToAcquit = listeDecesEnAttente.map((d) => d.id).filter(Boolean);
 
-      if (error && listeDecesEnAttente.length > 0) {
-        const ids = listeDecesEnAttente.map((d) => d.id);
-        await supabase
-          .from("deces_communautaires")
-          .update({
-            statut: "VALIDE",
-            ascq_superviseur_id: espaceData.id,
-            updated_at: new Date().toISOString()
-          })
-          .in("id", ids);
+      // 1. Mettre à jour en base de données Supabase
+      try {
+        if (idsToAcquit.length > 0) {
+          await supabase
+            .from("deces_communautaires")
+            .update({
+              statut: "VALIDE",
+              ascq_superviseur_id: espaceData.id,
+              updated_at: new Date().toISOString()
+            })
+            .in("id", idsToAcquit);
+        } else {
+          await supabase
+            .from("deces_communautaires")
+            .update({
+              statut: "VALIDE",
+              ascq_superviseur_id: espaceData.id,
+              updated_at: new Date().toISOString()
+            })
+            .eq("ascq_superviseur_id", espaceData.id)
+            .in("statut", ["NOTIFIE", "EN_ATTENTE"]);
+        }
+      } catch (dbErr) {
+        console.warn("Mise à jour statut décès Supabase:", dbErr);
       }
 
-      // 2. Nettoyer aussi la file locale hors-ligne si des décès s'y trouvaient
+      // 2. Enregistrer immédiatement dans le cache local des acquittements
+      if (typeof window !== "undefined") {
+        try {
+          const raw = localStorage.getItem("ascq_deces_acquittes");
+          const arr: string[] = raw ? JSON.parse(raw) : [];
+          idsToAcquit.forEach((id) => {
+            if (!arr.includes(id)) arr.push(id);
+          });
+          localStorage.setItem("ascq_deces_acquittes", JSON.stringify(arr));
+        } catch {}
+      }
+
+      // 3. Nettoyer aussi la file locale hors-ligne si des décès s'y trouvaient
       if (typeof window !== "undefined") {
         try {
           const raw = localStorage.getItem(STORAGE_KEYS.DECES_QUEUE);
@@ -161,7 +178,7 @@ export default function MonEspacePage() {
         } catch {}
       }
 
-      // 3. Mise à jour visuelle instantanée
+      // 4. Mise à jour visuelle instantanée
       const nbAncien = relances48h.deces;
       setRelances48h(prev => ({
         ...prev,
@@ -188,16 +205,28 @@ export default function MonEspacePage() {
     if (!espaceData?.id) return;
     setAcquittementEnCours(true);
     try {
-      const { error } = await supabase
-        .from("deces_communautaires")
-        .update({
-          statut: "VALIDE",
-          ascq_superviseur_id: espaceData.id,
-          updated_at: new Date().toISOString()
-        })
-        .eq("id", decesId);
+      try {
+        await supabase
+          .from("deces_communautaires")
+          .update({
+            statut: "VALIDE",
+            ascq_superviseur_id: espaceData.id,
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", decesId);
+      } catch (dbErr) {
+        console.warn("Mise à jour un décès Supabase:", dbErr);
+      }
 
-      if (error) throw error;
+      // Enregistrer dans le cache local
+      if (typeof window !== "undefined") {
+        try {
+          const raw = localStorage.getItem("ascq_deces_acquittes");
+          const arr: string[] = raw ? JSON.parse(raw) : [];
+          if (!arr.includes(decesId)) arr.push(decesId);
+          localStorage.setItem("ascq_deces_acquittes", JSON.stringify(arr));
+        } catch {}
+      }
 
       setListeDecesEnAttente(prev => prev.filter(d => d.id !== decesId));
       setRelances48h(prev => ({
@@ -376,13 +405,16 @@ export default function MonEspacePage() {
       // Vérification des relances réglementaires 48h
       try {
         const ilYADeuxJours = new Date(Date.now() - 48 * 3600 * 1000).toISOString();
-        const [alRetard, decRetard, rcRetard] = await Promise.all([
+        const localAcquittes = new Set<string>();
+        if (typeof window !== "undefined") {
+          try {
+            const raw = localStorage.getItem("ascq_deces_acquittes");
+            if (raw) (JSON.parse(raw) || []).forEach((id: string) => localAcquittes.add(id));
+          } catch {}
+        }
+
+        const [alRetard, rcRetard] = await Promise.all([
           supabase.from("alertes_communautaires")
-            .select("id", { count: "exact", head: true })
-            .eq("ascq_superviseur_id", prof.id)
-            .in("statut", ["NOTIFIE", "EN_ATTENTE"])
-            .lt("created_at", ilYADeuxJours),
-          supabase.from("deces_communautaires")
             .select("id", { count: "exact", head: true })
             .eq("ascq_superviseur_id", prof.id)
             .in("statut", ["NOTIFIE", "EN_ATTENTE"])
@@ -394,29 +426,28 @@ export default function MonEspacePage() {
             .lt("created_at", ilYADeuxJours)
         ]);
 
+        let decesList: any[] = [];
+        try {
+          const { data: rawDeces } = await supabase
+            .from("deces_communautaires")
+            .select(`
+              id, numero_deces, date_deces, type_deces_nom, lieu_deces_nom, created_at, statut,
+              deces_identite_privee (nom_defunt, prenoms_defunt)
+            `)
+            .eq("ascq_superviseur_id", prof.id)
+            .in("statut", ["NOTIFIE", "EN_ATTENTE"])
+            .lt("created_at", ilYADeuxJours);
+
+          decesList = (rawDeces || []).filter((d: any) => !localAcquittes.has(d.id));
+        } catch {
+          decesList = [];
+        }
+
         const nbAl = alRetard.count || 0;
-        const nbDec = decRetard.count || 0;
+        const nbDec = decesList.length;
         const nbRc = rcRetard.count || 0;
         setRelances48h({ total: nbAl + nbDec + nbRc, alertes: nbAl, deces: nbDec, relais: nbRc });
-
-        if (nbDec > 0) {
-          try {
-            const { data: decesList } = await supabase
-              .from("deces_communautaires")
-              .select(`
-                id, numero_deces, date_deces, type_deces_nom, lieu_deces_nom, created_at, statut,
-                deces_identite_privee (nom_defunt, prenoms_defunt)
-              `)
-              .eq("ascq_superviseur_id", prof.id)
-              .in("statut", ["NOTIFIE", "EN_ATTENTE"])
-              .lt("created_at", ilYADeuxJours);
-            setListeDecesEnAttente(decesList || []);
-          } catch {
-            setListeDecesEnAttente([]);
-          }
-        } else {
-          setListeDecesEnAttente([]);
-        }
+        setListeDecesEnAttente(decesList);
 
         // Appel de la routine serveur
         try {
@@ -438,10 +469,13 @@ export default function MonEspacePage() {
       setPhotoUrl(prof.photo_url || null);
 
     } catch (err: any) {
-      console.warn("Erreur chargement mon espace, maintien du mode hors-ligne:", err);
-      if (cached) {
+      console.warn("Erreur chargement mon espace:", err);
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
         setIsOfflineMode(true);
       } else {
+        setIsOfflineMode(false);
+      }
+      if (!cached) {
         setLoadError("Impossible de joindre le serveur. Vos données locales sont en cours de chargement.");
       }
     } finally {

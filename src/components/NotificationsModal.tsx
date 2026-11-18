@@ -78,13 +78,38 @@ export default function NotificationsModal({ isOpen, onClose, onNotificationsUpd
   const [loading, setLoading] = useState(true);
   const [filtreActif, setFiltreActif] = useState<"non_lues" | "toutes">("non_lues");
 
+  const getLocalReadIds = (): Set<string> => {
+    if (typeof window === "undefined") return new Set();
+    try {
+      const raw = localStorage.getItem("ascq_notifications_lues");
+      return new Set(raw ? JSON.parse(raw) : []);
+    } catch {
+      return new Set();
+    }
+  };
+
+  const saveLocalReadIds = (ids: string[]) => {
+    if (typeof window === "undefined") return;
+    try {
+      const set = getLocalReadIds();
+      ids.forEach((id) => set.add(id));
+      localStorage.setItem("ascq_notifications_lues", JSON.stringify(Array.from(set)));
+    } catch {}
+  };
+
   const chargerNotifications = async () => {
     setLoading(true);
     try {
+      const localReadIds = getLocalReadIds();
+
       // 1. Appel RPC officielle
       const { data, error } = await supabase.rpc("obtenir_mes_notifications");
-      if (!error && data) {
-        setNotifications(data);
+      if (!error && Array.isArray(data)) {
+        const enriched = data.map((n: any) => ({
+          ...n,
+          lu: n.lu || localReadIds.has(n.id)
+        }));
+        setNotifications(enriched);
         return;
       }
 
@@ -99,7 +124,11 @@ export default function NotificationsModal({ isOpen, onClose, onNotificationsUpd
         .order("created_at", { ascending: false })
         .limit(30);
 
-      setNotifications(notifs || []);
+      const enriched = (notifs || []).map((n: any) => ({
+        ...n,
+        lu: n.lu || localReadIds.has(n.id)
+      }));
+      setNotifications(enriched);
     } catch (err) {
       console.error("Erreur chargement notifications:", err);
     } finally {
@@ -114,19 +143,24 @@ export default function NotificationsModal({ isOpen, onClose, onNotificationsUpd
   }, [isOpen]);
 
   const handleMarquerLue = async (id: string) => {
+    saveLocalReadIds([id]);
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, lu: true } : n))
+    );
     try {
       await supabase.rpc("marquer_notification_lue", { p_id: id });
     } catch (err) {
       // Fallback
       await supabase.from("notifications").update({ lu: true }).eq("id", id);
     }
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, lu: true } : n))
-    );
     if (onNotificationsUpdated) onNotificationsUpdated();
   };
 
   const handleMarquerToutesLues = async () => {
+    const ids = notifications.map((n) => n.id);
+    saveLocalReadIds(ids);
+    setNotifications((prev) => prev.map((n) => ({ ...n, lu: true })));
+
     try {
       const nonLues = notifications.filter((n) => !n.lu);
       await Promise.all(
@@ -135,7 +169,6 @@ export default function NotificationsModal({ isOpen, onClose, onNotificationsUpd
     } catch (err) {
       console.error("Erreur marquer toutes lues:", err);
     }
-    setNotifications((prev) => prev.map((n) => ({ ...n, lu: true })));
     if (onNotificationsUpdated) onNotificationsUpdated();
   };
 

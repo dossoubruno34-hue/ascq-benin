@@ -351,6 +351,16 @@ export default function MesFichesPage() {
             }
           }
           if (error) throw error;
+
+          // Sauvegarde locale de l'acquittement pour lever immédiatement l'alerte 48h
+          if (typeof window !== "undefined") {
+            try {
+              const raw = localStorage.getItem("ascq_deces_acquittes");
+              const arr: string[] = raw ? JSON.parse(raw) : [];
+              if (!arr.includes(ficheConsultation.id)) arr.push(ficheConsultation.id);
+              localStorage.setItem("ascq_deces_acquittes", JSON.stringify(arr));
+            } catch {}
+          }
         } else if (ficheConsultation.type === "ALR") {
           const { error } = await supabase
             .from("alertes_communautaires")
