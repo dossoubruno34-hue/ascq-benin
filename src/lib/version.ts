@@ -1,8 +1,8 @@
 /**
  * INFORMATIONS DE VERSION OFFICIELLE SANTÉCOM BÉNIN (PNSC / CNLS-TP)
  */
-export const APP_VERSION = "2.6.1";
-export const APP_BUILD_TIMESTAMP = 1795039000000;
-export const APP_BUILD_DATE = "18 Novembre 2026 - Audit Exhaustif & Prêt Production Sans Erreur (V2.6.1)";
+export const APP_VERSION = "2.6.2";
+export const APP_BUILD_TIMESTAMP = 1795300000000;
+export const APP_BUILD_DATE = "21 Novembre 2026 - Audit Complet & Certification Production (V2.6.2)";
 export const APP_RELEASE_NOTES = 
-  "Audit complet de tous les modules sans exception : affichage temps réel cartographie nationale et RC inscrits, persistance locale des notifications lues et acquittements de décès 48h, fiabilisation de l'état en ligne/hors-ligne, compilation 100% sans erreur (40/40 routes).";
+  "Audit exhaustif de l'ensemble des modules (40 routes) : conformité des en-têtes officiels Ministère vs CNLS-TP/ASCQ, verrouillage strict de la phase pilote Zou, validation résiliente des plannings RC, horodatage systématique Date & Heure, hub de notifications résilient, synchronisation hors-ligne optimisée.";

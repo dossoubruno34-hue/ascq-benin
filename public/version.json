@@ -1,6 +1,6 @@
 {
-  "version": "2.6.0",
-  "buildTimestamp": 1795034000000,
-  "buildDate": "18 Novembre 2026 - Validation Sécurisée Plannings RC, En-tête Portrait Validé & Centre de Notifications",
-  "releaseNotes": "Validation résiliente des plannings RC par l'ASCQ, saisie obligatoire Date & Heure par activité RC, en-tête portrait officiel validé avec casiers en gras bleu pour la fiche de décès, disparition automatique des notifications lues et assainissement UTF-8."
+  "version": "2.6.2",
+  "buildTimestamp": 1795300000000,
+  "buildDate": "21 Novembre 2026 - Audit Complet & Certification Production (V2.6.2)",
+  "releaseNotes": "Audit exhaustif de l'ensemble des modules (40 routes) : conformité des en-têtes officiels Ministère vs CNLS-TP/ASCQ, verrouillage strict de la phase pilote Zou, validation résiliente des plannings RC, horodatage systématique Date & Heure, hub de notifications résilient, synchronisation hors-ligne optimisée."
 }
