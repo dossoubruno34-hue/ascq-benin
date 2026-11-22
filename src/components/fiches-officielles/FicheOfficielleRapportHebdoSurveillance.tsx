@@ -24,6 +24,7 @@ interface Props {
     decesPlus5Ans?: number | string;
     actionsMenees?: string;
     signatureRapporteur?: string;
+    signatureTactile?: string | null;
   };
   isVierge?: boolean;
 }
@@ -43,16 +44,16 @@ export default function FicheOfficielleRapportHebdoSurveillance({ data = {}, isV
     }
     return (
       <span className="inline-flex items-center gap-0.5 font-mono text-xs">
-        <span className="border border-black px-1.5 py-0.5 min-w-[22px] text-center font-bold">{jj}</span> /{" "}
-        <span className="border border-black px-1.5 py-0.5 min-w-[22px] text-center font-bold">{mm}</span> /{" "}
-        <span className="border border-black px-1.5 py-0.5 min-w-[36px] text-center font-bold">{aaaa}</span>
+        <span className="border border-black px-1.5 py-0.5 min-w-[22px] text-center font-black text-[#0040CC]">{jj}</span> /{" "}
+        <span className="border border-black px-1.5 py-0.5 min-w-[22px] text-center font-black text-[#0040CC]">{mm}</span> /{" "}
+        <span className="border border-black px-1.5 py-0.5 min-w-[36px] text-center font-black text-[#0040CC]">{aaaa}</span>
       </span>
     );
   };
 
-  // 28 lignes pointillées officielles
-  const TOTAL_DOTTED_LINES = 22;
+  // Zone "Actions menées" resserrée pour laisser toute la place en bas à la signature et au nom/prénom de l'ASCQ
   const actionsList = d.actionsMenees ? d.actionsMenees.split("\n").filter(Boolean) : [];
+  const TOTAL_DOTTED_LINES = Math.max(10, Math.min(14, actionsList.length));
 
   return (
     <div className="w-full max-w-[800px] mx-auto bg-white text-black p-4 sm:p-6 print:p-0 print:max-w-none text-xs leading-normal font-sans antialiased">
@@ -174,17 +175,17 @@ export default function FicheOfficielleRapportHebdoSurveillance({ data = {}, isV
             <td className="p-1.5 text-center font-bold">{d.decesPlus5Ans ?? ""}</td>
           </tr>
 
-          {/* Actions menées */}
+          {/* Actions menées (zone resserrée) */}
           <tr className="bg-[#FCE4D6] border-b border-black text-left">
             <th colSpan={2} className="p-1.5 font-bold">Actions menées</th>
           </tr>
           <tr>
-            <td colSpan={2} className="p-2 space-y-1">
+            <td colSpan={2} className="p-2 space-y-0.5">
               {Array.from({ length: TOTAL_DOTTED_LINES }).map((_, idx) => (
-                <div key={idx} className="relative h-4 flex items-center">
+                <div key={idx} className="relative h-3.5 flex items-center">
                   <span className="w-full border-b border-dotted border-slate-700 block" />
                   {actionsList[idx] && (
-                    <span className="absolute left-0 top-0 bg-white pr-2 font-medium text-[11px]">
+                    <span className="absolute left-0 top-0 bg-white pr-2 font-bold text-[#0040CC] text-[10.5px] truncate max-w-full">
                       {actionsList[idx]}
                     </span>
                   )}
@@ -195,12 +196,21 @@ export default function FicheOfficielleRapportHebdoSurveillance({ data = {}, isV
         </tbody>
       </table>
 
-      {/* Signature en pied de page */}
-      <div className="mt-8 flex justify-end">
-        <div className="text-center min-w-[240px]">
-          <p className="font-bold text-xs mb-8">Nom et signature du rapporteur</p>
-          <p className="font-bold text-xs underline underline-offset-4">
-            {d.signatureRapporteur || "_________________________________"}
+      {/* Signature et Nom & Prénom de l'ASCQ en bas */}
+      <div className="mt-3 flex justify-end">
+        <div className="text-center min-w-[240px] flex flex-col items-center">
+          <p className="font-bold text-xs mb-1.5">Nom et signature du rapporteur</p>
+          {d.signatureTactile ? (
+            <img
+              src={d.signatureTactile}
+              alt="Signature de l'ASCQ rapporteur"
+              className="h-11 max-w-[160px] object-contain my-1"
+            />
+          ) : (
+            <div className="h-7" />
+          )}
+          <p className="font-black text-xs text-[#0040CC] underline underline-offset-4">
+            {(d.signatureRapporteur || "").replace(/^(ASCQ|RC)\s*:\s*/i, "") || "_________________________________"}
           </p>
         </div>
       </div>

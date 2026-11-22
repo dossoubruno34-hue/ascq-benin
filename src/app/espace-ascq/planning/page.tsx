@@ -146,7 +146,10 @@ export default function PlanningAscqPage() {
     10: ["Mar"]
   });
 
-  // 4. Autre activité optionnelle
+  // 4. Autres activités (Possibilité d'ajouter plusieurs autres activités)
+  const [autresActivites, setAutresActivites] = useState<Array<{ id: string; nom: string; jours: string[] }>>([
+    { id: "autre-1", nom: "Réunion de coordination mensuelle avec le CCLS-TP", jours: ["Mer"] }
+  ]);
   const [autreActiviteNom, setAutreActiviteNom] = useState<string>("");
   const [autreActiviteJours, setAutreActiviteJours] = useState<string[]>(["Mer"]);
 
@@ -185,6 +188,66 @@ export default function PlanningAscqPage() {
     setAutreActiviteJours(prev => 
       prev.includes(jour) ? prev.filter(j => j !== jour) : [...prev, jour]
     );
+  };
+
+  // Gestion multi-activités pour Section 4 (Autres activités)
+  const ajouterAutreActivite = () => {
+    setAutresActivites(prev => [
+      ...prev,
+      { id: `autre-${Date.now()}-${prev.length + 1}`, nom: "", jours: [] }
+    ]);
+  };
+
+  const modifierNomAutreActivite = (id: string, nom: string) => {
+    setAutresActivites(prev => prev.map(a => a.id === id ? { ...a, nom } : a));
+  };
+
+  const toggleJourAutreActivite = (id: string, jour: string) => {
+    setAutresActivites(prev => prev.map(a => {
+      if (a.id !== id) return a;
+      const exist = a.jours.includes(jour);
+      return {
+        ...a,
+        jours: exist ? a.jours.filter(j => j !== jour) : [...a.jours, jour]
+      };
+    }));
+  };
+
+  const supprimerAutreActivite = (id: string) => {
+    setAutresActivites(prev => prev.length <= 1 ? [{ id: "autre-1", nom: "", jours: [] }] : prev.filter(a => a.id !== id));
+  };
+
+  // Helper pour scanner tous les plannings locaux de l'ASCQ dans localStorage
+  const lireHistoriqueLocalAscq = (uid?: string): any[] => {
+    if (typeof window === "undefined") return [];
+    const items: any[] = [];
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k || !k.startsWith("planning_cnlstp_")) continue;
+        const raw = localStorage.getItem(k);
+        if (!raw) continue;
+        try {
+          const parsed = JSON.parse(raw);
+          if (parsed && parsed.semaine && parsed.annee) {
+            if (!uid || !parsed.ascq_id || parsed.ascq_id === uid) {
+              const dSem = getDatesSemaine(Number(parsed.annee), Number(parsed.semaine));
+              items.push({
+                id: parsed.id || k,
+                semaine: Number(parsed.semaine),
+                annee: Number(parsed.annee),
+                statut: parsed.statut || "BROUILLON",
+                date_debut: parsed.date_debut || dSem.debut,
+                date_fin: parsed.date_fin || dSem.fin,
+                created_at: parsed.updated_at || parsed.date_validation || new Date().toISOString(),
+                localData: parsed
+              });
+            }
+          }
+        } catch {}
+      }
+    } catch {}
+    return items;
   };
 
   // Chargement des données du profil et du planning existant
@@ -239,9 +302,17 @@ export default function PlanningAscqPage() {
       if (nomComplet) setAscqNom(nomComplet);
       if (activeProfile.telephone) setAscqPhone(activeProfile.telephone);
 
-      // Charger le planning sauvegardé pour cette semaine et année
+      // Charger le planning sauvegardé pour cette semaine et année (Supabase + fusion LocalStorage)
+      const uid = user?.id || activeProfile.id;
+      const localKey = `planning_cnlstp_${uid}_${annee}_${semaine}`;
+      const localRaw = typeof window !== "undefined" ? localStorage.getItem(localKey) : null;
+      let localParsed: any = null;
+      if (localRaw) {
+        try { localParsed = JSON.parse(localRaw); } catch {}
+      }
+
+      let dbFound = false;
       try {
-        const uid = user?.id || activeProfile.id;
         const { data: existant } = await supabase
           .from("plannings_ascq")
           .select("*, lignes_planning_ascq(*)")
@@ -251,59 +322,122 @@ export default function PlanningAscqPage() {
           .maybeSingle();
 
         if (existant) {
-          setStatutPlanning(existant.statut || "BROUILLON");
-          if (existant.signature_tactile) setSignatureTactile(existant.signature_tactile);
-          if (existant.observations) setObservations(existant.observations);
+          dbFound = true;
+          setStatutPlanning(existant.statut || localParsed?.statut || "BROUILLON");
+          if (existant.signature_tactile || localParsed?.signatureData) {
+            setSignatureTactile(existant.signature_tactile || localParsed?.signatureData);
+          }
+          if (existant.observations || localParsed?.observations) {
+            setObservations(existant.observations || localParsed?.observations);
+          }
           if (existant.rc_planifies !== undefined) setRcPlanifies(existant.rc_planifies);
+          else if (localParsed?.rcPlanifies !== undefined) setRcPlanifies(localParsed.rcPlanifies);
           if (existant.rc_attendus !== undefined) setRcAttendus(existant.rc_attendus);
-          if (existant.motif_ecart) setMotifEcart(existant.motif_ecart);
+          else if (localParsed?.rcAttendus !== undefined) setRcAttendus(localParsed.rcAttendus);
+          if (existant.motif_ecart || localParsed?.motifEcart) {
+            setMotifEcart(existant.motif_ecart || localParsed?.motifEcart);
+          }
 
           // Reconstitution des jours cochés à partir des lignes
           if (existant.lignes_planning_ascq && existant.lignes_planning_ascq.length > 0) {
             const nouvJours: Record<number, string[]> = {};
+            const autresDb: Array<{ id: string; nom: string; jours: string[] }> = [];
             existant.lignes_planning_ascq.forEach((l: any) => {
               const num = Number(l.ordre);
+              const parts = (l.periode || l.jour_semaine || "").split(",").map((s: string) => s.trim()).filter(Boolean);
               if (num >= 1 && num <= 10) {
-                const parts = (l.periode || l.jour_semaine || "").split(",").map((s: string) => s.trim()).filter(Boolean);
                 nouvJours[num] = parts;
-              } else if (num === 11) {
-                setAutreActiviteNom(l.activite || "");
-                setAutreActiviteJours((l.periode || l.jour_semaine || "").split(",").map((s: string) => s.trim()).filter(Boolean));
+              } else if (num >= 11) {
+                autresDb.push({
+                  id: `autre-db-${num}`,
+                  nom: l.activite || "",
+                  jours: parts
+                });
               }
             });
             setActivitesJours(prev => ({ ...prev, ...nouvJours }));
+            if (autresDb.length > 0) {
+              setAutresActivites(autresDb);
+              setAutreActiviteNom(autresDb[0].nom);
+              setAutreActiviteJours(autresDb[0].jours);
+            } else if (Array.isArray(localParsed?.autresActivites) && localParsed.autresActivites.length > 0) {
+              setAutresActivites(localParsed.autresActivites);
+            }
+          } else if (localParsed) {
+            if (localParsed.activitesJours) setActivitesJours(localParsed.activitesJours);
+            if (Array.isArray(localParsed.autresActivites) && localParsed.autresActivites.length > 0) {
+              setAutresActivites(localParsed.autresActivites);
+            }
           }
         }
-      } catch (errDb) {
-        // Fallback local storage
-        const localKey = `planning_cnlstp_${user?.id || activeProfile.id}_${annee}_${semaine}`;
-        const localData = localStorage.getItem(localKey);
-        if (localData) {
-          try {
-            const parsed = JSON.parse(localData);
-            setRcPlanifies(parsed.rcPlanifies || 16);
-            setRcAttendus(parsed.rcAttendus || 15);
-            setMotifEcart(parsed.motifEcart || "Un RC malade");
-            setObservations(parsed.observations || "RAS");
-            setActivitesJours(parsed.activitesJours || {});
-            setAutreActiviteNom(parsed.autreActiviteNom || "");
-            setAutreActiviteJours(parsed.autreActiviteJours || []);
-            setSignatureTactile(parsed.signatureData || null);
-            setStatutPlanning(parsed.statut || "BROUILLON");
-          } catch {}
+      } catch {}
+
+      if (!dbFound && localParsed) {
+        setRcPlanifies(localParsed.rc_planifies ?? localParsed.rcPlanifies ?? 16);
+        setRcAttendus(localParsed.rc_attendus ?? localParsed.rcAttendus ?? 15);
+        setMotifEcart(localParsed.motif_ecart ?? localParsed.motifEcart ?? "Un RC malade");
+        setObservations(localParsed.observations ?? "RAS");
+        if (localParsed.activitesJours) setActivitesJours(localParsed.activitesJours);
+        if (Array.isArray(localParsed.autresActivites) && localParsed.autresActivites.length > 0) {
+          setAutresActivites(localParsed.autresActivites);
+        } else if (localParsed.autreActiviteNom) {
+          setAutresActivites([{ id: "autre-1", nom: localParsed.autreActiviteNom, jours: localParsed.autreActiviteJours || [] }]);
         }
+        setSignatureTactile(localParsed.signature_tactile || localParsed.signatureData || null);
+        setStatutPlanning(localParsed.statut || "BROUILLON");
       }
 
-      // Historique
+      // Historique complet (Fusion Supabase + LocalStorage afin que l'historique ne soit jamais vide)
+      let dbHist: any[] = [];
       try {
-        const { data: hist } = await supabase
+        let hQuery = supabase
           .from("plannings_ascq")
-          .select("id, semaine, annee, statut, date_debut, date_fin, created_at")
+          .select("id, ascq_id, semaine, annee, statut, date_debut, date_fin, created_at")
           .order("annee", { ascending: false })
           .order("semaine", { ascending: false })
-          .limit(10);
-        if (hist) setHistoriquePlannings(hist);
+          .limit(30);
+        if (uid) {
+          hQuery = hQuery.eq("ascq_id", uid);
+        }
+        const { data: hist } = await hQuery;
+        if (hist && hist.length > 0) {
+          dbHist = hist;
+        } else {
+          const { data: histAll } = await supabase
+            .from("plannings_ascq")
+            .select("id, ascq_id, semaine, annee, statut, date_debut, date_fin, created_at")
+            .order("annee", { ascending: false })
+            .order("semaine", { ascending: false })
+            .limit(20);
+          if (histAll) dbHist = histAll;
+        }
       } catch {}
+
+      const localHist = lireHistoriqueLocalAscq(uid);
+      const mergedMap = new Map<string, any>();
+      dbHist.forEach((item) => {
+        const key = `${item.annee}-${item.semaine}`;
+        mergedMap.set(key, item);
+      });
+      localHist.forEach((item) => {
+        const key = `${item.annee}-${item.semaine}`;
+        const exist = mergedMap.get(key);
+        if (!exist) {
+          mergedMap.set(key, item);
+        } else {
+          mergedMap.set(key, {
+            ...exist,
+            statut: item.statut === "VALIDE" ? "VALIDE" : exist.statut,
+            localData: item.localData
+          });
+        }
+      });
+
+      const mergedHist = Array.from(mergedMap.values()).sort((a, b) => {
+        if (Number(b.annee) !== Number(a.annee)) return Number(b.annee) - Number(a.annee);
+        return Number(b.semaine) - Number(a.semaine);
+      });
+      setHistoriquePlannings(mergedHist);
 
       // Charger plannings des relais
       await chargerPlanningsDesRelais(activeProfile);
@@ -395,6 +529,7 @@ export default function PlanningAscqPage() {
 
   // Préparation des données complètes ASCQ pour le PDF
   const preparerDonneesAscqPdf = (): AscqPlanningData => {
+    const autresValides = autresActivites.filter(a => a.nom && a.nom.trim());
     return {
       departement,
       commune,
@@ -410,8 +545,9 @@ export default function PlanningAscqPage() {
       rcAttendus: Number(rcAttendus),
       motifEcart: aEcartRc ? motifEcart.trim() : null,
       activitesJours,
-      autreActiviteNom: autreActiviteNom.trim() || undefined,
-      autreActiviteJours,
+      autresActivites: autresValides,
+      autreActiviteNom: autresValides[0]?.nom || autreActiviteNom.trim() || undefined,
+      autreActiviteJours: autresValides[0]?.jours || autreActiviteJours,
       observations: observations.trim() || undefined,
       signatureTactile,
       dateValidation: statutPlanning === "VALIDE" ? new Date().toLocaleDateString("fr-FR") : null,
@@ -506,18 +642,54 @@ export default function PlanningAscqPage() {
         updated_at: new Date().toISOString(),
       };
 
-      // Sauvegarde dans la base Supabase si disponible
+      // Sauvegarde dans la base Supabase si disponible (avec repli sur colonnes minimales garanties)
       try {
-        const { data: saved } = await supabase
+        let savedId: string | null = null;
+        const { data: saved, error: upsertErr } = await supabase
           .from("plannings_ascq")
           .upsert(donneesPlanning, { onConflict: "ascq_id,annee,semaine" })
           .select("id")
-          .single();
+          .maybeSingle();
 
-        if (saved?.id) {
-          await supabase.from("lignes_planning_ascq").delete().eq("planning_id", saved.id);
+        if (!upsertErr && saved?.id) {
+          savedId = saved.id;
+        } else {
+          // Repli avec les colonnes de base si le cache de schéma ne contient pas encore rc_planifies/observations
+          const basePayload = {
+            ascq_id: ascqId,
+            semaine,
+            annee,
+            titre: `Planning Hebdo S${semaine} - ${commune} (${arrondissement})`,
+            statut: valider ? "VALIDE" : "BROUILLON",
+            date_debut: dates.debut,
+            date_fin: dates.fin,
+            updated_at: new Date().toISOString(),
+          };
+          const { data: existRow } = await supabase
+            .from("plannings_ascq")
+            .select("id")
+            .eq("ascq_id", ascqId)
+            .eq("annee", annee)
+            .eq("semaine", semaine)
+            .maybeSingle();
+
+          if (existRow?.id) {
+            await supabase.from("plannings_ascq").update(basePayload).eq("id", existRow.id);
+            savedId = existRow.id;
+          } else {
+            const { data: insertedRow } = await supabase
+              .from("plannings_ascq")
+              .insert(basePayload)
+              .select("id")
+              .maybeSingle();
+            if (insertedRow?.id) savedId = insertedRow.id;
+          }
+        }
+
+        if (savedId) {
+          await supabase.from("lignes_planning_ascq").delete().eq("planning_id", savedId);
           const lignes = ACTIVITES_OFFICIELLES_CNLSTP.map((act, idx) => ({
-            planning_id: saved.id,
+            planning_id: savedId,
             ordre: idx + 1,
             activite: act,
             periode: (activitesJours[idx + 1] || []).join(", "),
@@ -527,18 +699,19 @@ export default function PlanningAscqPage() {
             objectifs: "Exécution des interventions communautaires prioritaires"
           }));
 
-          if (autreActiviteNom.trim()) {
+          const autresValides = autresActivites.filter(a => a.nom && a.nom.trim());
+          autresValides.forEach((aut, aIdx) => {
             lignes.push({
-              planning_id: saved.id,
-              ordre: 11,
-              activite: autreActiviteNom.trim(),
-              periode: autreActiviteJours.join(", "),
-              jour_semaine: autreActiviteJours.join(", "),
+              planning_id: savedId,
+              ordre: 11 + aIdx,
+              activite: aut.nom.trim(),
+              periode: (aut.jours || []).join(", "),
+              jour_semaine: (aut.jours || []).join(", "),
               lieu: arrondissement,
               personnes_impliquees: "ASCQ",
               objectifs: "Activité communautaire complémentaire"
             });
-          }
+          });
 
           await supabase.from("lignes_planning_ascq").insert(lignes);
         }
@@ -546,15 +719,22 @@ export default function PlanningAscqPage() {
         console.warn("Enregistrement distant indisponible, sauvegarde locale active:", errDb);
       }
 
-      // Toujours persister dans localStorage pour fiabilité tout-terrain
+      // Toujours persister dans localStorage pour fiabilité tout-terrain et historique immédiat
       const localKey = `planning_cnlstp_${ascqId}_${annee}_${semaine}`;
       localStorage.setItem(localKey, JSON.stringify({
         ...donneesPlanning,
+        rcPlanifies: Number(rcPlanifies),
+        rcAttendus: Number(rcAttendus),
+        motifEcart: aEcartRc ? motifEcart.trim() : null,
         activitesJours,
-        autreActiviteNom,
-        autreActiviteJours,
+        autresActivites,
+        autreActiviteNom: autresActivites[0]?.nom || "",
+        autreActiviteJours: autresActivites[0]?.jours || [],
         signatureData: signatureTactile
       }));
+
+      // Mettre à jour immédiatement la liste d'historique en mémoire
+      await chargerDonnees();
 
       setStatutPlanning(valider ? "VALIDE" : "BROUILLON");
       setMessage({
@@ -1214,47 +1394,77 @@ export default function PlanningAscqPage() {
                 </div>
               </div>
 
-              {/* SECTION 4 – Autres activités (Optionnel) */}
-              <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/90 shadow-sm space-y-3">
-                <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
-                  <span className="w-6 h-6 rounded-full bg-emerald-100 text-[#005c30] text-xs font-black flex items-center justify-center">4</span>
-                  <h2 className="font-extrabold text-sm text-slate-900 uppercase tracking-wide">
-                    SECTION 4 — AUTRES ACTIVITÉS
-                  </h2>
+              {/* SECTION 4 – Autres activités (Possibilité d'en ajouter plusieurs) */}
+              <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/90 shadow-sm space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2 flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-full bg-emerald-100 text-[#005c30] text-xs font-black flex items-center justify-center">4</span>
+                    <h2 className="font-extrabold text-sm text-slate-900 uppercase tracking-wide">
+                      SECTION 4 — AUTRES ACTIVITÉS ({autresActivites.length})
+                    </h2>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={ajouterAutreActivite}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-[#005c30] border border-emerald-200 font-extrabold text-xs transition-all active:scale-95"
+                  >
+                    <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                    <span>Ajouter une autre activité</span>
+                  </button>
                 </div>
 
-                <div className="text-xs space-y-2">
-                  <label className="block font-bold text-slate-700">Nom de l'activité (Optionnel)</label>
-                  <input
-                    type="text"
-                    value={autreActiviteNom}
-                    onChange={(e) => setAutreActiviteNom(e.target.value)}
-                    placeholder="Ex: Réunion de coordination, campagne spécifique..."
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-medium text-slate-800"
-                  />
-
-                  <div className="pt-1">
-                    <span className="block font-bold text-slate-700 mb-1.5">Jours concernés :</span>
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      {JOURS_ABREV.map((j) => {
-                        const actif = autreActiviteJours.includes(j);
-                        return (
+                <div className="space-y-3">
+                  {autresActivites.map((aut, idx) => (
+                    <div key={aut.id} className="p-3.5 rounded-2xl bg-slate-50/90 border border-slate-200/80 space-y-2.5 text-xs">
+                      <div className="flex items-center justify-between gap-2">
+                        <label className="font-bold text-slate-700">
+                          Activité complémentaire n° {11 + idx}
+                        </label>
+                        {autresActivites.length > 1 && (
                           <button
-                            key={j}
                             type="button"
-                            onClick={() => toggleJourAutre(j)}
-                            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-                              actif
-                                ? "bg-[#005c30] text-white shadow-sm"
-                                : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
-                            }`}
+                            onClick={() => supprimerAutreActivite(aut.id)}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-red-600 hover:bg-red-50 font-bold text-[11px] transition-colors"
+                            title="Supprimer cette activité"
                           >
-                            {j}
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Retirer</span>
                           </button>
-                        );
-                      })}
+                        )}
+                      </div>
+
+                      <input
+                        type="text"
+                        value={aut.nom}
+                        onChange={(e) => modifierNomAutreActivite(aut.id, e.target.value)}
+                        placeholder="Ex: Réunion de coordination mensuelle avec le CCLS-TP, campagne spécifique..."
+                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-800 focus:ring-2 focus:ring-[#005c30]"
+                      />
+
+                      <div className="pt-0.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <span className="font-bold text-slate-700">Jours prévus :</span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {JOURS_ABREV.map((j) => {
+                            const actif = aut.jours.includes(j);
+                            return (
+                              <button
+                                key={j}
+                                type="button"
+                                onClick={() => toggleJourAutreActivite(aut.id, j)}
+                                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                                  actif
+                                    ? "bg-[#005c30] text-white shadow-sm scale-105"
+                                    : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
+                                }`}
+                              >
+                                {j}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  ))}
                 </div>
               </div>
 

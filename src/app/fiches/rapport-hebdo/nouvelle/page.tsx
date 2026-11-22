@@ -105,6 +105,8 @@ export default function NouveauRapportHebdoPage() {
 
             if (profil?.arrondissement_id) {
               setArrondissementId(profil.arrondissement_id);
+              const arrNom = (arrs || []).find((a: any) => a.id === profil.arrondissement_id)?.nom || "";
+              setVillageNom(profil.village_nom || profil.village || arrNom || "");
             }
           }
         }
@@ -117,64 +119,199 @@ export default function NouveauRapportHebdoPage() {
     init();
   }, [router]);
 
-  // Pré-remplissage automatique depuis la base Supabase
-  const handlePreRemplissage = async () => {
-    if (!villageNom.trim()) {
-      alert("Veuillez d'abord saisir le nom du village pour calculer les données de surveillance.");
-      return;
-    }
-    setPreLoading(true);
+  // Comptabilisation directe & automatique des notifications faites par les RC et validées par l'ASCQ
+  const calculerDonneesSurveillanceSemaine = async (silencieux: boolean = false) => {
+    if (!silencieux) setPreLoading(true);
     setErrorMessage(null);
     try {
-      const { data, error } = await supabase.rpc("generer_pre_remplissage_hebdo", {
-        p_annee: Number(annee) || new Date().getFullYear(),
-        p_semaine: Number(semaine) || 1,
-        p_village_nom: villageNom.trim(),
+      const anneeNum = Number(annee) || new Date().getFullYear();
+      const semNum = Number(semaine) || 1;
+      const d = calculerDatesSemaine(anneeNum, semNum);
+      const deb = d.dateDebut;
+      const fin = d.dateFin;
+      const ascqId = userProfile?.id;
+      const arrId = arrondissementId || userProfile?.arrondissement_id;
+      const comId = communeId || userProfile?.commune_id;
+
+      // 1. Récupérer la liste des RC supervisés par cet ASCQ
+      let rcIds: string[] = [];
+      if (ascqId) {
+        try {
+          const { data: rcs } = await supabase
+            .from("relais_communautaires")
+            .select("id, user_id")
+            .eq("ascq_id", ascqId);
+          if (rcs) {
+            rcIds = Array.from(new Set(rcs.flatMap((r: any) => [r.id, r.user_id]).filter(Boolean)));
+          }
+        } catch {}
+      }
+
+      // 2. Charger les alertes, le registre et les décès de la semaine
+      const [alrRes, regRes, decRes] = await Promise.all([
+        supabase.from("alertes_communautaires").select("*").eq("annee", anneeNum),
+        supabase.from("registre_alertes_rumeurs").select("*").eq("annee", anneeNum),
+        supabase.from("deces_communautaires").select("*").eq("annee", anneeNum),
+      ]);
+
+      const estDansSemaine = (dateStr?: string, itemSem?: number | string) => {
+        if (itemSem !== undefined && itemSem !== null && Number(itemSem) === semNum) return true;
+        if (!dateStr) return false;
+        const cleanD = dateStr.split("T")[0];
+        return cleanD >= deb && cleanD <= fin;
+      };
+
+      const appartientAuPerimetreAscq = (item: any) => {
+        if (!ascqId && !arrId) return true;
+        if (ascqId && (item.ascq_superviseur_id === ascqId || item.notificateur_id === ascqId || item.relais_id === ascqId)) return true;
+        if (rcIds.length > 0 && (rcIds.includes(item.notificateur_id) || rcIds.includes(item.declare_par_id) || rcIds.includes(item.relais_id))) return true;
+        if (arrId && item.arrondissement_id === arrId) return true;
+        if (!arrId && comId && item.commune_id === comId) return true;
+        return false;
+      };
+
+      // A. Alertes communautaires (notifiées par RC ou ASCQ, hors INVALIDE)
+      const alertesSemaine = (alrRes.data || []).filter((a: any) =>
+        a.statut !== "INVALIDE" &&
+        a.resultat_verification !== "NON_AVEREE" &&
+        estDansSemaine(a.date_notification || a.date_debut_maladie || a.created_at, a.semaine_epidemio) &&
+        appartientAuPerimetreAscq(a)
+      );
+
+      // B. Registre des alertes et rumeurs (incluant les lignes locales et validations locales)
+      let regAll: any[] = regRes.data || [];
+      if (typeof window !== "undefined") {
+        try {
+          const localRegs: any[] = JSON.parse(localStorage.getItem("ascq_registres_locaux") || "[]");
+          const existingIds = new Set(regAll.map((x: any) => x.id));
+          localRegs.forEach((lr) => {
+            if (lr?.id && !existingIds.has(lr.id)) regAll.push(lr);
+          });
+          const mapVal: Record<string, any> = JSON.parse(localStorage.getItem("ascq_registres_valides") || "{}");
+          regAll = regAll.map((r: any) => {
+            const v = mapVal[r.id];
+            return v ? { ...r, statut: v.statut_db || v.statut || r.statut, ascq_superviseur_id: v.ascq_superviseur_id || r.ascq_superviseur_id } : r;
+          });
+        } catch {}
+      }
+
+      const registresSemaine = regAll.filter((r: any) =>
+        r.statut !== "INVALIDE" &&
+        r.statut !== "CLASSEE_SANS_SUITE" &&
+        estDansSemaine(r.date_survenue || r.created_at, undefined) &&
+        appartientAuPerimetreAscq(r)
+      );
+
+      // Séparer dans le registre : les signaux d'alertes (codes 1..9 et 15) vs les décès (codes 10..14)
+      const regSignaux = registresSemaine.filter((r: any) => {
+        const c = Number(r.type_code) || 1;
+        return (c >= 1 && c <= 9) || c === 15;
+      });
+      const regDeces = registresSemaine.filter((r: any) => {
+        const c = Number(r.type_code) || 0;
+        return c >= 10 && c <= 14 && !r.deces_lie_id;
       });
 
-      if (error) throw error;
+      // C. Décès communautaires (notifiés par RC ou ASCQ, hors INVALIDE)
+      const decesSemaine = (decRes.data || []).filter((dc: any) =>
+        dc.statut !== "INVALIDE" &&
+        dc.statut !== "CLOTURE" &&
+        estDansSemaine(dc.date_deces || dc.date_notification || dc.created_at, dc.semaine_epidemio) &&
+        appartientAuPerimetreAscq(dc)
+      );
 
-      if (data) {
-        setAlertesDetectees(data.alertes_detectees || 0);
-        setPersonnesTouchees(data.personnes_touchees || 0);
-        setPersonnesDecedees(data.personnes_decedees || 0);
-        setAlertesVerifiees48h(data.alertes_verifiees_48h || 0);
-        setAlertesAverees(data.alertes_averees || 0);
-        setDecesMaternels(data.deces_maternels || 0);
-        setDecesNeonatals(data.deces_neonatals || 0);
-        setDecesInfantiles(data.deces_infantiles || 0);
-        setDecesInfantoJuveniles(data.deces_infanto_juveniles || 0);
-        setDecesPlus5Ans(data.deces_plus_5_ans || 0);
+      // Calcul des compteurs Alertes
+      const nbAlertes = alertesSemaine.length + regSignaux.length;
+      const nbTouches =
+        alertesSemaine.reduce((acc: number, a: any) => acc + (Number(a.nb_personnes_touchees) || 0), 0) +
+        regSignaux.reduce((acc: number, r: any) => acc + (Number(r.nb_personnes_touchees) || 0), 0);
+      const nbMortsAlertes =
+        alertesSemaine.reduce((acc: number, a: any) => acc + (Number(a.nb_personnes_mortes) || 0), 0) +
+        regSignaux.reduce((acc: number, r: any) => acc + (Number(r.nb_personnes_decedees) || 0), 0);
 
-        // Proposition automatique des actions menées si le champ est encore vide
-        if (!actionsMenees.trim()) {
-          const alertesDetect = data.alertes_detectees || 0;
-          const persTouchees = data.personnes_touchees || 0;
-          const alerteVerif = data.alertes_verifiees_48h || 0;
-          const decesTotaux = (data.deces_maternels || 0) + (data.deces_neonatals || 0) + (data.deces_infantiles || 0) + (data.deces_plus_5_ans || 0);
+      const nbVerifiees48h =
+        alertesSemaine.filter((a: any) =>
+          a.statut === "VALIDE" ||
+          a.resultat_verification === "AVEREE" ||
+          (a.delai_detection_notification_heures !== null && Number(a.delai_detection_notification_heures) <= 48)
+        ).length +
+        regSignaux.filter((r: any) => r.statut === "VALIDE" || r.statut === "TRANSFORMEE_ALERTE").length;
 
-          const actionsProposees = [
-            `1. Surveillance active communautaire hebdomadaire assurée sur le village ${villageNom.trim()} pour la Semaine ${semaine}.`,
-            alertesDetect > 0
-              ? `2. Suivi et investigation de ${alertesDetect} alerte(s) sanitaire(s) déclarée(s) (${alerteVerif} vérifiée(s) sous 48h).`
-              : `2. Aucune alerte épidémiologique suspecte signalée au cours de la semaine.`,
-            persTouchees > 0
-              ? `3. Prise en charge, orientation et référence vers le Centre de Santé de ${persTouchees} patient(s).`
-              : `3. Poursuite des visites à domicile et dépistages actifs au niveau des ménages.`,
-            decesTotaux > 0
-              ? `4. Notification et consignation de ${decesTotaux} décès communautaire(s) pour autopsie verbale.`
-              : `4. Zéro décès communautaire à signaler pour la présente semaine.`,
-            `5. Réunion de coordination hebdomadaire tenue avec les Relais Communautaires et vérification des registres.`,
-            `6. Sensibilisation des familles sur l'hygiène de l'eau, le lavage des mains et la salubrité environnementale.`
-          ].join("\n");
-          setActionsMenees(actionsProposees);
-        }
+      const nbAverees =
+        alertesSemaine.filter((a: any) => a.statut === "VALIDE" || a.resultat_verification === "AVEREE").length +
+        regSignaux.filter((r: any) => r.statut === "VALIDE" || r.statut === "TRANSFORMEE_ALERTE").length;
+
+      // Calcul des compteurs Décès (cumulatifs selon la règle officielle : néonatal <= infantile <= infanto-juvénile)
+      const nbDecMaternel =
+        decesSemaine.filter((dc: any) => Number(dc.type_deces_code) === 1).length +
+        regDeces.filter((r: any) => Number(r.type_code) === 13).length;
+
+      const nbDecNeonatal =
+        decesSemaine.filter((dc: any) => Number(dc.type_deces_code) === 2).length +
+        regDeces.filter((r: any) => Number(r.type_code) === 10).length;
+
+      const nbDecPostNeonatal =
+        decesSemaine.filter((dc: any) => Number(dc.type_deces_code) === 3).length +
+        regDeces.filter((r: any) => Number(r.type_code) === 11).length;
+
+      const nbDecEnfant1a5 =
+        decesSemaine.filter((dc: any) => Number(dc.type_deces_code) === 4).length +
+        regDeces.filter((r: any) => Number(r.type_code) === 12).length;
+
+      const nbDecInfantile = nbDecNeonatal + nbDecPostNeonatal;
+      const nbDecInfantoJuvenile = nbDecInfantile + nbDecEnfant1a5;
+
+      const nbDecPlus5 =
+        decesSemaine.filter((dc: any) => Number(dc.type_deces_code) === 5).length +
+        regDeces.filter((r: any) => Number(r.type_code) === 14).length;
+
+      setAlertesDetectees(nbAlertes);
+      setPersonnesTouchees(nbTouches);
+      setPersonnesDecedees(nbMortsAlertes);
+      setAlertesVerifiees48h(Math.max(nbVerifiees48h, nbAverees));
+      setAlertesAverees(nbAverees);
+      setDecesMaternels(nbDecMaternel);
+      setDecesNeonatals(nbDecNeonatal);
+      setDecesInfantiles(nbDecInfantile);
+      setDecesInfantoJuveniles(nbDecInfantoJuvenile);
+      setDecesPlus5Ans(nbDecPlus5);
+
+      if (!actionsMenees.trim() && (!silencieux || nbAlertes > 0 || decesSemaine.length > 0)) {
+        const decesTotaux = nbDecMaternel + nbDecInfantoJuvenile + nbDecPlus5;
+        const zoneLabel = villageNom.trim() || "l'arrondissement";
+        const actionsProposees = [
+          `1. Surveillance active communautaire hebdomadaire assurée sur ${zoneLabel} (Semaine ${semNum}).`,
+          nbAlertes > 0
+            ? `2. Validation et suivi de ${nbAlertes} notification(s) d'alerte/registre des Relais Communautaires (${Math.max(nbVerifiees48h, nbAverees)} vérifiée(s) sous 48h).`
+            : `2. Aucune alerte épidémiologique suspecte signalée au cours de la semaine.`,
+          nbTouches > 0
+            ? `3. Prise en charge, orientation et référence vers le Centre de Santé de ${nbTouches} personne(s) touchée(s).`
+            : `3. Poursuite des visites à domicile et dépistages actifs au niveau des ménages.`,
+          decesTotaux > 0
+            ? `4. Notification et validation de ${decesTotaux} décès communautaire(s) transmis par les RC pour autopsie verbale.`
+            : `4. Zéro décès communautaire à signaler pour la présente semaine.`,
+          `5. Supervision hebdomadaire des Relais Communautaires et contrôle des registres.`
+        ].join("\n");
+        setActionsMenees(actionsProposees);
       }
     } catch (err: any) {
-      alert(err.message || "Erreur lors du calcul du pré-remplissage.");
+      if (!silencieux) {
+        alert(err.message || "Erreur lors du calcul du pré-remplissage.");
+      }
     } finally {
-      setPreLoading(false);
+      if (!silencieux) setPreLoading(false);
     }
+  };
+
+  // Déclencher automatiquement le calcul dès le chargement du profil ou changement de semaine
+  useEffect(() => {
+    if (userProfile?.id) {
+      calculerDonneesSurveillanceSemaine(true);
+    }
+  }, [userProfile?.id, annee, semaine, arrondissementId]);
+
+  const handlePreRemplissage = async () => {
+    await calculerDonneesSurveillanceSemaine(false);
   };
 
   const isRapportZero = alertesDetectees === 0 && personnesTouchees === 0 && decesMaternels === 0 && decesNeonatals === 0 && decesInfantiles === 0 && decesInfantoJuveniles === 0 && decesPlus5Ans === 0;
@@ -337,8 +474,8 @@ export default function NouveauRapportHebdoPage() {
                 actions_menees: actionsMenees,
                 difficultes: difficultes,
                 signature_tactile: signatureTactile,
-                signature_rapporteur: userProfile?.nom_complet || "ASCQ",
-                signature_nom: userProfile?.nom_complet || "ASCQ"
+                signature_rapporteur: `${userProfile?.prenoms || ""} ${userProfile?.nom || ""}`.trim() || userProfile?.nom_complet || "",
+                signature_nom: `${userProfile?.prenoms || ""} ${userProfile?.nom || ""}`.trim() || userProfile?.nom_complet || ""
               }}
               currentUser={userProfile}
             />

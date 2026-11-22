@@ -25,6 +25,53 @@ function splitDate(dateStr?: string | null): { j: string; m: string; a: string }
   return { j: "", m: "", a: "" };
 }
 
+/**
+ * Extrait proprement le Nom & Prénom du notificateur et son Titre ("ASCQ" ou "RC")
+ */
+function extraireNomEtTitre(
+  rawNom?: string | null,
+  rawTitre?: string | null,
+  fallbackRole?: string | null
+): { nom: string; titre: string } {
+  let nom = String(rawNom || "").trim();
+  let titre = String(rawTitre || "").trim().toUpperCase();
+
+  // Si le nom contient un préfixe du type "ASCQ : Jean Dossou" ou "RC : Remy Gbede"
+  const prefixMatch = nom.match(/^(ASCQ|RC|RELAIS|RELAIS COMMUNAUTAIRE)\s*:\s*(.+)$/i);
+  if (prefixMatch) {
+    const prefixRole = prefixMatch[1].toUpperCase();
+    nom = prefixMatch[2].trim();
+    if (!titre) {
+      titre = prefixRole.startsWith("R") ? "RC" : "ASCQ";
+    }
+  }
+
+  // Si le nom vaut juste "ASCQ" ou "RC" ou "Relais Communautaire" (ancien fallback), on le vide ou cherche mieux
+  if (/^(ASCQ|RC|RELAIS COMMUNAUTAIRE|RAPPORTEUR ASCQ)$/i.test(nom)) {
+    if (!titre) {
+      titre = nom.toUpperCase().startsWith("R") ? "RC" : "ASCQ";
+    }
+    nom = "";
+  }
+
+  // Normalisation stricte du titre en "ASCQ" ou "RC"
+  const roleSource = (titre || String(fallbackRole || "")).toUpperCase();
+  let titreNormalise = "";
+  if (roleSource.includes("RC") || roleSource.includes("RELAIS")) {
+    titreNormalise = "RC";
+  } else if (
+    roleSource.includes("ASCQ") ||
+    roleSource.includes("ADMIN") ||
+    roleSource.includes("REPRESENTANT")
+  ) {
+    titreNormalise = "ASCQ";
+  } else if (titre) {
+    titreNormalise = titre;
+  }
+
+  return { nom, titre: titreNormalise };
+}
+
 export function adapterDonneesFicheVersPdf(type: string, raw: any): Record<string, any> {
   const d = raw || {};
   const r = d.rawData || d;
@@ -47,16 +94,22 @@ export function adapterDonneesFicheVersPdf(type: string, raw: any): Record<strin
         mesure_prise: item.mesure_prise || item.mesurePrise || ""
       }));
 
+      const regNotif = extraireNomEtTitre(
+        r.relais_nom_complet || r.notificateur_nom_complet || d.signature_nom || d.notificateur,
+        r.notificateur_titre || d.notificateurTitre,
+        "RC"
+      );
+
       return {
         zone_sanitaire: r.zone_sanitaire_nom || r.zone_sanitaire || "",
         commune: d.commune || r.commune || "",
         arrondissement: d.arrondissement || r.arrondissement || "",
-        centre_sante: r.centre_sante || "",
-        village: d.village || r.village || "",
+        centre_sante: r.centre_sante || r.centre_sante_nom || "",
+        village: d.village || r.village || r.village_nom || "",
         mois: r.mois ? String(r.mois) : d.date ? splitDate(d.date).m : "",
         annee: d.annee ? String(d.annee) : r.annee ? String(r.annee) : d.date ? splitDate(d.date).a : "",
         lignes: lignesNormalisees,
-        signature_nom: r.notificateur_nom_complet || d.notificateur || "",
+        signature_nom: regNotif.nom,
         signature_tactile: r.signature_tactile || d.signature_tactile || d.signature || null
       };
     }
@@ -89,9 +142,13 @@ export function adapterDonneesFicheVersPdf(type: string, raw: any): Record<strin
 
       const survDateStr = r.date_survenue ? `${r.date_survenue}${r.heure_survenue ? " " + r.heure_survenue : ""}` : "";
       const detDateStr = r.date_detection ? `${r.date_detection}${r.heure_detection ? " " + r.heure_detection : ""}` : "";
+      const alrNotif = extraireNomEtTitre(
+        r.notificateur_nom_complet || d.signature_nom || d.notificateur,
+        r.notificateur_titre || d.notificateurTitre
+      );
 
       return {
-        point_focal_nom: r.notificateur_nom_complet || d.notificateur || "",
+        point_focal_nom: alrNotif.nom,
         telephone: r.notificateur_telephone || d.notificateurTel || "",
         arrondissement: d.arrondissement || r.arrondissement || "",
         commune: d.commune || r.commune || "",
@@ -108,13 +165,13 @@ export function adapterDonneesFicheVersPdf(type: string, raw: any): Record<strin
         animaux_impliques: animTxt,
         evenement_en_cours: encoursTxt,
         mesures_prises: r.mesures_prises || r.actions_immediates || "",
-        signature_nom: r.notificateur_nom_complet || d.notificateur || "",
+        signature_nom: alrNotif.nom,
         signature_tactile: r.signature_tactile || d.signature_tactile || d.signature || null
       };
     }
 
     case "DEC": {
-      const defNom = r.defunt_nom_prenom || `${r.nom_defunt || ""} ${r.prenoms_defunt || ""}`.trim();
+      const defNom = r.defunt_nom_prenom || d.nom_prenoms_defunt || `${r.nom_defunt || ""} ${r.prenoms_defunt || ""}`.trim();
       const naissDate = splitDate(r.date_naissance || d.date_naissance);
       const decDate = splitDate(r.date_deces || d.date);
       const notDate = splitDate(r.date_notification || d.date);
@@ -127,6 +184,21 @@ export function adapterDonneesFicheVersPdf(type: string, raw: any): Record<strin
         faitLeStr = `Fait le ${r.date_notification}`;
       }
 
+      const decNotif = extraireNomEtTitre(
+        r.notificateur_nom_complet || r.notif_nom || d.notificateur_nom_complet || d.signature_nom || d.notificateur,
+        r.notificateur_titre || r.notif_titre || d.notificateurTitre || d.notificateur_titre
+      );
+
+      let ageAns = r.age_annees !== undefined && r.age_annees !== null ? String(r.age_annees) : "";
+      let ageMois = r.age_mois !== undefined && r.age_mois !== null ? String(r.age_mois) : "";
+      let ageJours = r.age_jours !== undefined && r.age_jours !== null ? String(r.age_jours) : "";
+      if (!ageAns && !ageMois && !ageJours && r.age_valeur !== undefined && r.age_valeur !== null) {
+        const u = String(r.age_unite || "ANS").toUpperCase();
+        if (u.startsWith("M")) ageMois = String(r.age_valeur);
+        else if (u.startsWith("J")) ageJours = String(r.age_valeur);
+        else ageAns = String(r.age_valeur);
+      }
+
       return {
         annee: d.annee ? String(d.annee) : r.annee ? String(r.annee) : "",
         semaine: d.semaine ? String(d.semaine) : r.semaine_epidemio ? String(r.semaine_epidemio) : "",
@@ -137,7 +209,7 @@ export function adapterDonneesFicheVersPdf(type: string, raw: any): Record<strin
         zone_sanitaire: r.zone_sanitaire_nom || r.zone_sanitaire || "",
         commune: d.commune || r.commune || "",
         arrondissement: d.arrondissement || r.arrondissement || "",
-        village: d.village || r.village || "",
+        village: d.village || r.village || r.village_nom || "",
         grappe: r.numero_grappe || r.numeroGrappe || r.grappe || d.numero_grappe || "",
         adresse: r.adresse_domicile || r.adresse || "",
         nom_defunt: defNom,
@@ -146,9 +218,9 @@ export function adapterDonneesFicheVersPdf(type: string, raw: any): Record<strin
         naiss_j: naissDate.j,
         naiss_m: naissDate.m,
         naiss_a: naissDate.a,
-        age_ans: r.age_annees !== undefined && r.age_annees !== null ? String(r.age_annees) : (r.age_valeur !== undefined && r.age_valeur !== null ? String(r.age_valeur) : ""),
-        age_mois: r.age_mois !== undefined && r.age_mois !== null ? String(r.age_mois) : "",
-        age_jours: r.age_jours !== undefined && r.age_jours !== null ? String(r.age_jours) : "",
+        age_ans: ageAns,
+        age_mois: ageMois,
+        age_jours: ageJours,
         sexe: (r.sexe || "").toUpperCase() === "M" ? "M" : (r.sexe || "").toUpperCase() === "F" ? "F" : "",
         longitude: r.gps_longitude !== undefined && r.gps_longitude !== null ? String(r.gps_longitude) : (r.longitude ? String(r.longitude) : ""),
         latitude: r.gps_latitude !== undefined && r.gps_latitude !== null ? String(r.gps_latitude) : (r.latitude ? String(r.latitude) : ""),
@@ -165,11 +237,12 @@ export function adapterDonneesFicheVersPdf(type: string, raw: any): Record<strin
         lieu: r.lieu_deces_code !== undefined && r.lieu_deces_code !== null ? String(r.lieu_deces_code) : "",
         circ: r.circonstance_code !== undefined && r.circonstance_code !== null ? String(r.circonstance_code) : (r.circonstances_code ? String(r.circonstances_code) : ""),
         cause: r.cause_probable_cim10 || r.cause_probable || r.type_deces_nom || "",
-        notif_nom: r.notificateur_nom_complet || d.notificateur || "",
-        notif_titre: r.notificateur_titre || d.notificateurTitre || "",
+        notif_nom: decNotif.nom,
+        notif_titre: decNotif.titre,
         notif_struct: r.notificateur_structure || (d.arrondissement ? `Arrondissement de ${d.arrondissement}` : ""),
         notif_tel: r.notificateur_telephone || d.notificateurTel || "",
         fait_le: faitLeStr,
+        signature_nom: decNotif.nom,
         signature_tactile: r.signature_tactile || d.signature_tactile || d.signature || null
       };
     }
@@ -177,6 +250,10 @@ export function adapterDonneesFicheVersPdf(type: string, raw: any): Record<strin
     case "INV": {
       const c = r.cas || {};
       const dec = r.deces || {};
+      const invNotif = extraireNomEtTitre(
+        r.investigateur_nom || d.signature_nom || d.notificateur,
+        "ASCQ"
+      );
       return {
         departement: d.departement || r.departement || "",
         zone_sanitaire: r.zone_sanitaire_nom || r.zone_sanitaire || "",
@@ -185,7 +262,7 @@ export function adapterDonneesFicheVersPdf(type: string, raw: any): Record<strin
         village: d.village || r.village || "",
         relais_nom: r.relais_nom_prenom || r.relais_nom || "",
         relais_tel: r.relais_telephone || "",
-        ascq_nom: r.investigateur_nom || d.notificateur || "",
+        ascq_nom: invNotif.nom,
         ascq_tel: r.investigateur_telephone || d.notificateurTel || "",
         gps: r.coordonnees_gps || (r.latitude && r.longitude ? `${r.latitude}, ${r.longitude}` : ""),
         evenement_avere: r.evenement_avere === true ? "OUI" : (r.evenement_avere === false ? "NON" : ""),
@@ -215,7 +292,8 @@ export function adapterDonneesFicheVersPdf(type: string, raw: any): Record<strin
         deces_plus_15a_m: r.deces_plus_15a_m !== undefined && r.deces_plus_15a_m !== null ? String(r.deces_plus_15a_m) : (dec.decesPlus15a_m !== undefined ? String(dec.decesPlus15a_m) : ""),
         deces_plus_15a_f: r.deces_plus_15a_f !== undefined && r.deces_plus_15a_f !== null ? String(r.deces_plus_15a_f) : (dec.decesPlus15a_f !== undefined ? String(dec.decesPlus15a_f) : ""),
         synthese_actions: r.synthese_actions || r.actions_menees || "",
-        signature_investigateurs: r.investigateur_nom || d.notificateur || "",
+        signature_investigateurs: invNotif.nom,
+        signature_nom: invNotif.nom,
         signature_tactile: r.signature_tactile || d.signature_tactile || d.signature || null
       };
     }
@@ -223,6 +301,10 @@ export function adapterDonneesFicheVersPdf(type: string, raw: any): Record<strin
     case "RAP": {
       const debDate = splitDate(r.date_debut_semaine || d.date_debut || d.date);
       const finDate = splitDate(r.date_fin_semaine || d.date_fin);
+      const rapNotif = extraireNomEtTitre(
+        r.rapporteur_nom || r.signature_rapporteur || r.signature_nom || d.signature_rapporteur || d.signature_nom || d.notificateur,
+        "ASCQ"
+      );
 
       return {
         departement: d.departement || r.departement || "",
@@ -247,7 +329,7 @@ export function adapterDonneesFicheVersPdf(type: string, raw: any): Record<strin
         deces_infanto_juveniles: r.deces_infanto_juveniles !== undefined && r.deces_infanto_juveniles !== null ? String(r.deces_infanto_juveniles) : "",
         deces_plus_5_ans: r.deces_plus_5_ans !== undefined && r.deces_plus_5_ans !== null ? String(r.deces_plus_5_ans) : "",
         actions_menees: r.actions_menees || r.actionsMenees || r.actions || d.actions_menees || "",
-        signature_nom: r.rapporteur_nom || d.notificateur || "",
+        signature_nom: rapNotif.nom,
         signature_tactile: r.signature_tactile || d.signature_tactile || d.signature || null
       };
     }

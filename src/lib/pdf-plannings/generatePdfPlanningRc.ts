@@ -462,9 +462,9 @@ export async function generatePdfPlanningRc(data: RcPlanningData): Promise<Uint8
   // 5. BAS DE PAGE (SOUS LE TABLEAU - TRAIT POUR TRAIT)
   // GAUCHE : Signature RC | DROITE : Lu et approuvé par l'ASCQ
   // =========================================================================
-  const footerSecY = tblBottomY - 26;
+  const footerSecY = tblBottomY - 22;
 
-  // Gauche : Signature RC
+  // Gauche : Signature RC + Nom et prénom du RC en bas
   page.drawText("Signature RC", {
     x: marginX + 40,
     y: footerSecY,
@@ -475,21 +475,31 @@ export async function generatePdfPlanningRc(data: RcPlanningData): Promise<Uint8
 
   if (sigRcImg) {
     const sAsp = sigRcImg.width / sigRcImg.height;
-    let sW = 32 * sAsp;
-    let sH = 32;
+    let sW = 28 * sAsp;
+    let sH = 28;
     if (sW > 90) {
       sW = 90;
       sH = sW / sAsp;
     }
     page.drawImage(sigRcImg, {
       x: marginX + 40,
-      y: footerSecY - 36,
+      y: footerSecY - 30,
       width: sW,
       height: sH,
     });
   }
 
-  // Droite : Lu et approuvé par l'ASCQ
+  if (fRcName) {
+    page.drawText(fRcName, {
+      x: marginX + 40,
+      y: footerSecY - 40,
+      size: 8.5,
+      font: bold,
+      color: cBleuBic,
+    });
+  }
+
+  // Droite : Lu et approuvé par l'ASCQ + Signature + Nom et prénom de l'ASCQ en bas
   const luStr = "Lu et approuvé par l'ASCQ";
   const luW = bold.widthOfTextAtSize(luStr, 9);
   const luX = pageWidth - marginX - 40 - luW;
@@ -504,17 +514,29 @@ export async function generatePdfPlanningRc(data: RcPlanningData): Promise<Uint8
 
   if (sigAscqImg) {
     const sAsp = sigAscqImg.width / sigAscqImg.height;
-    let sW = 32 * sAsp;
-    let sH = 32;
+    let sW = 28 * sAsp;
+    let sH = 28;
     if (sW > 90) {
       sW = 90;
       sH = sW / sAsp;
     }
     page.drawImage(sigAscqImg, {
       x: luX + (luW - sW) / 2,
-      y: footerSecY - 36,
+      y: footerSecY - 30,
       width: sW,
       height: sH,
+    });
+  }
+
+  const nomAscqVisa = sanitizeWinAnsi(data.ascqName || "");
+  if (nomAscqVisa && (sigAscqImg || data.luEtApprouveAscq)) {
+    const ascqW = bold.widthOfTextAtSize(nomAscqVisa, 8.5);
+    page.drawText(nomAscqVisa, {
+      x: luX + (luW - ascqW) / 2,
+      y: footerSecY - 40,
+      size: 8.5,
+      font: bold,
+      color: cBleuBic,
     });
   }
 

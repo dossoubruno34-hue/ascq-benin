@@ -155,7 +155,7 @@ function dessinerCroix(page: PDFPage, box: BoxCoords) {
 }
 
 /**
- * Dessine la signature
+ * Dessine la signature tactile ET systématiquement le Nom et Prénom de l'intéressé en bas
  */
 async function dessinerSignature(
   pdfDoc: PDFDocument,
@@ -165,7 +165,10 @@ async function dessinerSignature(
   nomSignataire: string,
   font: PDFFont
 ) {
-  let imageEmbedded = false;
+  const hasName = Boolean(nomSignataire && nomSignataire.trim());
+  const yNameBase = box.base !== undefined ? box.base : box.y0;
+  // Si un nom est présent, réserver les 11 pt inférieurs pour le nom et prénom en bas de la signature
+  const imgBottomY = hasName ? Math.min(box.y1 - 12, yNameBase + 10) : box.y0;
 
   if (signatureTactile && typeof signatureTactile === "string" && signatureTactile.trim().length > 50) {
     try {
@@ -185,11 +188,11 @@ async function dessinerSignature(
       }
 
       const img = isJpg ? await pdfDoc.embedJpg(bytes) : await pdfDoc.embedPng(bytes);
-      const wBox = box.x1 - box.x0;
-      const hBox = box.y1 - box.y0;
+      const wBox = Math.max(20, box.x1 - box.x0);
+      const hBox = Math.max(14, box.y1 - imgBottomY);
       const dims = img.scaleToFit(wBox, hBox);
       const drawX = box.x0 + Math.max(0, (wBox - dims.width) / 2);
-      const drawY = box.y0 + Math.max(0, (hBox - dims.height) / 2);
+      const drawY = imgBottomY + Math.max(0, (hBox - dims.height) / 2);
 
       page.drawImage(img, {
         x: drawX,
@@ -197,18 +200,21 @@ async function dessinerSignature(
         width: dims.width,
         height: dims.height
       });
-      imageEmbedded = true;
     } catch (err) {
       console.warn("Échec du décodage de la signature tactile :", err);
     }
   }
 
-  if (!imageEmbedded && nomSignataire) {
-    const yBase = box.base || (box.y0 + 4);
-    page.drawText(nomSignataire, {
-      x: box.x0 + MARGE_TEXTE,
-      y: yBase,
-      size: 8.5,
+  // RÈGLE GÉNÉRALE : À chaque fois qu'il y a signature, toujours mettre le nom et prénom de l'intéressé en bas
+  if (hasName) {
+    const cleanName = nomSignataire.trim();
+    const availW = Math.max(40, box.x1 - box.x0 - 4);
+    const { size, w } = ajusterTaillePolice(cleanName, font, 8.5, availW, 6.5);
+    const nameX = box.x0 + Math.max(0, (box.x1 - box.x0 - w) / 2);
+    page.drawText(cleanName, {
+      x: nameX,
+      y: yNameBase,
+      size,
       font,
       color: COULEUR_BLEU_MARINE
     });
@@ -343,13 +349,13 @@ export async function genererFichePdfSuperposee(
       }
     }
 
-    // 3. Signature
+    // 3. Signature placée directement SOUS "Signature du notificateur :" avec le Nom et Prénom en bas
     const nomNotif = cleanVal(donnees.notif_nom || donnees.signature_nom);
     if (donnees.signature_tactile || nomNotif) {
       await dessinerSignature(
         pdfDoc,
         page,
-        { x0: 420.0, x1: 560.0, y0: 30.0, y1: 65.0, base: 45.0 },
+        { x0: 28.0, x1: 215.0, y0: 14.0, y1: 58.0, base: 14.5 },
         donnees.signature_tactile,
         nomNotif,
         font
@@ -400,13 +406,13 @@ export async function genererFichePdfSuperposee(
       }
     }
 
-    // Signature
+    // Signature + Nom et Prénom en bas
     const nomPointFocal = cleanVal(donnees.point_focal_nom || donnees.signature_nom);
     if (donnees.signature_tactile || nomPointFocal) {
       await dessinerSignature(
         pdfDoc,
         page,
-        { x0: 430.0, x1: 530.0, y0: 100.0, y1: 150.0, base: 120.0 },
+        { x0: 405.0, x1: 555.0, y0: 95.0, y1: 145.0, base: 96.0 },
         donnees.signature_tactile,
         nomPointFocal,
         font
@@ -507,14 +513,14 @@ export async function genererFichePdfSuperposee(
       }
     }
 
-    // Signature sur la dernière page
+    // Signature sur la dernière page + Nom et Prénom en bas
     const dernierePage = pdfDoc.getPage(pdfDoc.getPageCount() - 1);
     const nomRelais = cleanVal(donnees.signature_nom);
     if (donnees.signature_tactile || nomRelais) {
       await dessinerSignature(
         pdfDoc,
         dernierePage,
-        { x0: 410.0, x1: 550.0, y0: 30.0, y1: 70.0, base: 45.0 },
+        { x0: 390.0, x1: 555.0, y0: 22.0, y1: 68.0, base: 23.0 },
         donnees.signature_tactile,
         nomRelais,
         font
@@ -585,13 +591,13 @@ export async function genererFichePdfSuperposee(
       }
     }
 
-    // Signature
-    const nomInvestigateurs = cleanVal(donnees.signature_investigateurs || donnees.signature_nom);
+    // Signature + Nom et Prénom en bas
+    const nomInvestigateurs = cleanVal(donnees.signature_investigateurs || donnees.signature_nom || donnees.ascq_nom);
     if (donnees.signature_tactile || nomInvestigateurs) {
       await dessinerSignature(
         pdfDoc,
         page,
-        { x0: 235.0, x1: 540.0, y0: 10.0, y1: 35.0, base: 20.0 },
+        { x0: 392.0, x1: 555.0, y0: 5.0, y1: 36.0, base: 5.5 },
         donnees.signature_tactile,
         nomInvestigateurs,
         font
@@ -673,13 +679,13 @@ export async function genererFichePdfSuperposee(
       }
     }
 
-    // 4. Signature
-    const nomRapporteur = cleanVal(donnees.signature_nom);
+    // 4. Signature de l'ASCQ + Nom et Prénom en bas sous "Nom et signature du rapporteur"
+    const nomRapporteur = cleanVal(donnees.signature_nom || donnees.signature_rapporteur || donnees.rapporteur_nom);
     if (donnees.signature_tactile || nomRapporteur) {
       await dessinerSignature(
         pdfDoc,
         page,
-        { x0: 200.0, x1: 550.0, y0: 50.0, y1: 75.0, base: 66.0 },
+        { x0: 380.0, x1: 565.0, y0: 14.0, y1: 56.0, base: 14.5 },
         donnees.signature_tactile,
         nomRapporteur,
         font

@@ -380,53 +380,82 @@ export default function FicheOfficielleNotificationDeces({ data = {}, isVierge =
       </div>
 
       <div className="text-xs space-y-2 p-2 bg-white">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex-1 min-w-[240px] flex items-center gap-1.5">
-            <span className="font-semibold text-slate-700">Nom & prénom :</span>
-            {renderValeur(d.notificateurNom, "min-w-[180px]")}
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="font-semibold text-slate-700">Titre :</span>
-            {renderValeur(d.notificateurTitre || "RC", "min-w-[80px]")}
-            <span className="text-[10px] text-slate-500">(Profil ciblé)</span>
-          </div>
-        </div>
+        {(() => {
+          let rawNom = String(d.notificateurNom || "").trim();
+          let rawTitre = String(d.notificateurTitre || "").trim().toUpperCase();
+          const pref = rawNom.match(/^(ASCQ|RC|RELAIS|RELAIS COMMUNAUTAIRE)\s*:\s*(.+)$/i);
+          if (pref) {
+            if (!rawTitre) rawTitre = pref[1].toUpperCase().startsWith("R") ? "RC" : "ASCQ";
+            rawNom = pref[2].trim();
+          }
+          if (/^(ASCQ|RC)$/i.test(rawNom)) {
+            if (!rawTitre) rawTitre = rawNom.toUpperCase();
+            rawNom = "";
+          }
+          const finalTitre = rawTitre.includes("RC") || rawTitre.includes("RELAIS")
+            ? "RC"
+            : rawTitre.includes("ASCQ") || rawTitre.includes("ADMIN") || rawTitre.includes("REPRESENTANT")
+            ? "ASCQ"
+            : rawTitre;
 
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex-1 min-w-[240px] flex items-center gap-1.5">
-            <span className="font-semibold text-slate-700">Structure :</span>
-            {renderValeur(d.notificateurStructure, "min-w-[180px]")}
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="font-semibold text-slate-700">Téléphone :</span>
-            {renderValeur(d.notificateurTelephone, "min-w-[130px]")}
-          </div>
-        </div>
+          return (
+            <>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex-1 min-w-[240px] flex items-center gap-1.5">
+                  <span className="font-semibold text-slate-700">Nom & prénom :</span>
+                  {renderValeur(rawNom, "min-w-[180px]")}
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-semibold text-slate-700">Titre :</span>
+                  {renderValeur(finalTitre, "min-w-[80px]")}
+                  <span className="text-[10px] text-slate-500">(Liste des profils ciblés)</span>
+                </div>
+              </div>
 
-        {/* Signature tactile officielle du notificateur */}
-        <div className="pt-2 flex items-center justify-between border-t border-slate-200 mt-2">
-          <div>
-            <span className="font-bold text-slate-800">Signature du notificateur :</span>
-            {d.dateSignature && (
-              <span className="text-[11px] text-slate-500 ml-2 font-mono">
-                Fait le {d.dateSignature}
-              </span>
-            )}
-          </div>
-          {d.signatureNotificateur ? (
-            <div className="border border-slate-300 rounded-lg p-1.5 bg-slate-50/50 shadow-2xs">
-              <img
-                src={d.signatureNotificateur}
-                alt="Signature manuscrite du notificateur"
-                className="h-12 max-w-[150px] object-contain"
-              />
-            </div>
-          ) : (
-            <div className="border-b border-dashed border-slate-400 w-36 h-8 flex items-end justify-center text-[10px] text-slate-400 pb-0.5">
-              (Signature)
-            </div>
-          )}
-        </div>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex-1 min-w-[240px] flex items-center gap-1.5">
+                  <span className="font-semibold text-slate-700">Structure :</span>
+                  {renderValeur(d.notificateurStructure, "min-w-[180px]")}
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-semibold text-slate-700">Téléphone :</span>
+                  {renderValeur(d.notificateurTelephone, "min-w-[130px]")}
+                </div>
+              </div>
+
+              {/* Signature tactile officielle placée directement SOUS "Signature du notificateur :" avec le Nom et Prénom en bas */}
+              <div className="pt-2 border-t border-slate-200 mt-2">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <span className="font-bold text-slate-800">Signature du notificateur :</span>
+                  {d.dateSignature && (
+                    <span className="text-[11px] text-[#002B7F] font-bold font-mono">
+                      Fait le {d.dateSignature}
+                    </span>
+                  )}
+                </div>
+
+                <div className="mt-1.5 inline-flex flex-col items-center min-w-[180px] p-1.5 border border-slate-200 rounded-lg bg-slate-50/40">
+                  {d.signatureNotificateur ? (
+                    <img
+                      src={d.signatureNotificateur}
+                      alt="Signature manuscrite du notificateur"
+                      className="h-11 max-w-[160px] object-contain"
+                    />
+                  ) : (
+                    <div className="border-b border-dashed border-slate-400 w-36 h-7 flex items-end justify-center text-[10px] text-slate-400 pb-0.5">
+                      (Signature)
+                    </div>
+                  )}
+                  {rawNom && (
+                    <span className="mt-1 font-black text-xs text-[#002B7F] underline underline-offset-2">
+                      {rawNom}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </>
+          );
+        })()}
       </div>
     </div>
   );

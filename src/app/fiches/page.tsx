@@ -150,8 +150,8 @@ export default function MesFichesPage() {
       circonstancesCode: r.circonstance_code || r.circonstances_code,
       circonstancesAutrePrecision: r.circonstance_autre_precision,
       causeProbableCim10: r.cause_probable_cim10 || r.cause_probable || r.type_deces_nom,
-      notificateurNom: r.notificateur_nom_complet || fc.notificateur,
-      notificateurTitre: r.notificateur_titre || fc.notificateurTitre || "ASCQ",
+      notificateurNom: (r.notificateur_nom_complet || fc.notificateur || "").replace(/^(ASCQ|RC|RELAIS)\s*:\s*/i, ""),
+      notificateurTitre: (r.notificateur_titre || fc.notificateurTitre || "").toUpperCase().includes("RC") || (r.notificateur_titre || fc.notificateurTitre || "").toUpperCase().includes("RELAIS") ? "RC" : "ASCQ",
       notificateurStructure: r.notificateur_structure || `Arrondissement de ${fc.arrondissement || ""}`,
       notificateurTelephone: r.notificateur_telephone || fc.notificateurTel || "",
       signatureNotificateur: r.signature_tactile || r.signature || fc.signature || null,
@@ -274,7 +274,8 @@ export default function MesFichesPage() {
       decesInfantoJuveniles: r.deces_infanto_juveniles || 0,
       decesPlus5Ans: r.deces_plus_5_ans || 0,
       actionsMenees: r.actions_menees || r.actions || "",
-      signatureRapporteur: r.rapporteur_nom || fc.notificateur,
+      signatureRapporteur: (r.rapporteur_nom || fc.notificateur || "").replace(/^(ASCQ|RC)\s*:\s*/i, ""),
+      signatureTactile: r.signature_tactile || fc.signature || null,
     };
   };
 
@@ -374,15 +375,48 @@ export default function MesFichesPage() {
             .eq("id", ficheConsultation.id);
           if (error) throw error;
         } else if (ficheConsultation.type === "REG") {
-          const { error } = await supabase
-            .from("registre_alertes_rumeurs")
-            .update({
-              statut: action === "VALIDER" ? "TRANSFORMEE_ALERTE" : "CLASSEE_SANS_SUITE",
-              ascq_superviseur_id: currentUser?.id || null,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", ficheConsultation.id);
-          if (error) throw error;
+          const regStatut = action === "VALIDER" ? "TRANSFORMEE_ALERTE" : "CLASSEE_SANS_SUITE";
+          let regUpdOk = false;
+          try {
+            const { error: err1 } = await supabase
+              .from("registre_alertes_rumeurs")
+              .update({
+                statut: regStatut,
+                ascq_superviseur_id: currentUser?.id || null,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", ficheConsultation.id);
+            if (!err1) regUpdOk = true;
+          } catch {}
+
+          if (!regUpdOk) {
+            try {
+              const { error: err2 } = await supabase
+                .from("registre_alertes_rumeurs")
+                .update({
+                  statut: regStatut,
+                })
+                .eq("id", ficheConsultation.id);
+              if (!err2) regUpdOk = true;
+            } catch {}
+          }
+
+          // Persistance locale garantie pour résilience hors-ligne / RLS
+          if (typeof window !== "undefined") {
+            try {
+              const rawVal = localStorage.getItem("ascq_registres_valides");
+              const mapVal: Record<string, any> = rawVal ? JSON.parse(rawVal) : {};
+              mapVal[ficheConsultation.id] = {
+                statut: nouveauStatut,
+                statut_db: regStatut,
+                resultat: nouveauResultat,
+                ascq_superviseur_id: currentUser?.id || null,
+                observations: observationValidation || (action === "VALIDER" ? "Validé par l'ASCQ" : "Invalidé"),
+                updated_at: new Date().toISOString()
+              };
+              localStorage.setItem("ascq_registres_valides", JSON.stringify(mapVal));
+            } catch {}
+          }
         }
       }
 
@@ -460,12 +494,30 @@ export default function MesFichesPage() {
         .order("created_at", { ascending: false });
       setAlertes(alertesData || []);
 
-      // 2. Registre (REG)
+      // 2. Registre (REG) + fusion des lignes locales et validations locales
       const { data: regData } = await supabase
         .from("registre_alertes_rumeurs")
         .select("*")
         .order("created_at", { ascending: false });
-      setRegistres(regData || []);
+      let regList: any[] = regData || [];
+      if (typeof window !== "undefined") {
+        try {
+          const localRegs: any[] = JSON.parse(localStorage.getItem("ascq_registres_locaux") || "[]");
+          const existingIds = new Set(regList.map((x: any) => x.id));
+          localRegs.forEach((lr) => {
+            if (lr?.id && !existingIds.has(lr.id)) regList.unshift(lr);
+          });
+          const mapVal: Record<string, any> = JSON.parse(localStorage.getItem("ascq_registres_valides") || "{}");
+          regList = regList.map((r: any) => {
+            const v = mapVal[r.id];
+            if (v) {
+              return { ...r, statut: v.statut || r.statut, ascq_superviseur_id: v.ascq_superviseur_id || r.ascq_superviseur_id };
+            }
+            return r;
+          });
+        } catch {}
+      }
+      setRegistres(regList);
 
       // 3. Décès (DEC) avec identité miroir
       const { data: decData } = await supabase

@@ -138,10 +138,150 @@ export default function RapportHebdoPnscPage() {
   const chargerStatsTempsReel = async (debut: string, fin: string, forcerEcriture: boolean = false) => {
     setLoadingStats(true);
     try {
-      const { data, error } = await supabase.rpc("obtenir_statistiques_temps_reel_rapport", {
+      const { data: rpcData } = await supabase.rpc("obtenir_statistiques_temps_reel_rapport", {
         p_date_debut: debut,
         p_date_fin: fin,
       });
+
+      // Comptabilisation directe des notifications faites par les RC et validées par l'ASCQ
+      const ascqId = currentUser?.id;
+      const arrId = currentUser?.arrondissement_id;
+      const comId = currentUser?.commune_id;
+      let rcIds: string[] = [];
+      if (ascqId) {
+        try {
+          const { data: rcs } = await supabase
+            .from("relais_communautaires")
+            .select("id, user_id")
+            .eq("ascq_id", ascqId);
+          if (rcs) {
+            rcIds = Array.from(new Set(rcs.flatMap((r: any) => [r.id, r.user_id]).filter(Boolean)));
+          }
+        } catch {}
+      }
+
+      const [alrRes, regRes, decRes] = await Promise.all([
+        supabase.from("alertes_communautaires").select("*").eq("annee", annee),
+        supabase.from("registre_alertes_rumeurs").select("*").eq("annee", annee),
+        supabase.from("deces_communautaires").select("*").eq("annee", annee),
+      ]);
+
+      const estDansSemaine = (dateStr?: string, itemSem?: number | string) => {
+        if (itemSem !== undefined && itemSem !== null && Number(itemSem) === Number(semaine)) return true;
+        if (!dateStr) return false;
+        const cleanD = dateStr.split("T")[0];
+        return cleanD >= debut && cleanD <= fin;
+      };
+
+      const appartientAuPerimetre = (item: any) => {
+        if (!ascqId && !arrId) return true;
+        if (ascqId && (item.ascq_superviseur_id === ascqId || item.notificateur_id === ascqId || item.relais_id === ascqId)) return true;
+        if (rcIds.length > 0 && (rcIds.includes(item.notificateur_id) || rcIds.includes(item.declare_par_id) || rcIds.includes(item.relais_id))) return true;
+        if (arrId && item.arrondissement_id === arrId) return true;
+        if (!arrId && comId && item.commune_id === comId) return true;
+        return false;
+      };
+
+      const alertesSemaine = (alrRes.data || []).filter((a: any) =>
+        a.statut !== "INVALIDE" &&
+        a.resultat_verification !== "NON_AVEREE" &&
+        estDansSemaine(a.date_notification || a.date_debut_maladie || a.created_at, a.semaine_epidemio) &&
+        appartientAuPerimetre(a)
+      );
+
+      let regAll: any[] = regRes.data || [];
+      if (typeof window !== "undefined") {
+        try {
+          const localRegs: any[] = JSON.parse(localStorage.getItem("ascq_registres_locaux") || "[]");
+          const existingIds = new Set(regAll.map((x: any) => x.id));
+          localRegs.forEach((lr) => {
+            if (lr?.id && !existingIds.has(lr.id)) regAll.push(lr);
+          });
+          const mapVal: Record<string, any> = JSON.parse(localStorage.getItem("ascq_registres_valides") || "{}");
+          regAll = regAll.map((r: any) => {
+            const v = mapVal[r.id];
+            return v ? { ...r, statut: v.statut_db || v.statut || r.statut, ascq_superviseur_id: v.ascq_superviseur_id || r.ascq_superviseur_id } : r;
+          });
+        } catch {}
+      }
+
+      const registresSemaine = regAll.filter((r: any) =>
+        r.statut !== "INVALIDE" &&
+        r.statut !== "CLASSEE_SANS_SUITE" &&
+        estDansSemaine(r.date_survenue || r.created_at, undefined) &&
+        appartientAuPerimetre(r)
+      );
+
+      const regSignaux = registresSemaine.filter((r: any) => {
+        const c = Number(r.type_code) || 1;
+        return (c >= 1 && c <= 9) || c === 15;
+      });
+      const regDeces = registresSemaine.filter((r: any) => {
+        const c = Number(r.type_code) || 0;
+        return c >= 10 && c <= 14 && !r.deces_lie_id;
+      });
+
+      const decesSemaine = (decRes.data || []).filter((dc: any) =>
+        dc.statut !== "INVALIDE" &&
+        dc.statut !== "CLOTURE" &&
+        estDansSemaine(dc.date_deces || dc.date_notification || dc.created_at, dc.semaine_epidemio) &&
+        appartientAuPerimetre(dc)
+      );
+
+      const nbAlertesDirect = alertesSemaine.length + regSignaux.length;
+      const nbTouchesDirect =
+        alertesSemaine.reduce((acc: number, a: any) => acc + (Number(a.nb_personnes_touchees) || 0), 0) +
+        regSignaux.reduce((acc: number, r: any) => acc + (Number(r.nb_personnes_touchees) || 0), 0);
+      const nbMortsAlertesDirect =
+        alertesSemaine.reduce((acc: number, a: any) => acc + (Number(a.nb_personnes_mortes) || 0), 0) +
+        regSignaux.reduce((acc: number, r: any) => acc + (Number(r.nb_personnes_decedees) || 0), 0);
+
+      const nbVerifiees48hDirect =
+        alertesSemaine.filter((a: any) =>
+          a.statut === "VALIDE" ||
+          a.resultat_verification === "AVEREE" ||
+          (a.delai_detection_notification_heures !== null && Number(a.delai_detection_notification_heures) <= 48)
+        ).length +
+        regSignaux.filter((r: any) => r.statut === "VALIDE" || r.statut === "TRANSFORMEE_ALERTE").length;
+
+      const nbAvereesDirect =
+        alertesSemaine.filter((a: any) => a.statut === "VALIDE" || a.resultat_verification === "AVEREE").length +
+        regSignaux.filter((r: any) => r.statut === "VALIDE" || r.statut === "TRANSFORMEE_ALERTE").length;
+
+      const nbDecMaternel =
+        decesSemaine.filter((dc: any) => Number(dc.type_deces_code) === 1).length +
+        regDeces.filter((r: any) => Number(r.type_code) === 13).length;
+      const nbDecNeonatal =
+        decesSemaine.filter((dc: any) => Number(dc.type_deces_code) === 2).length +
+        regDeces.filter((r: any) => Number(r.type_code) === 10).length;
+      const nbDecPostNeonatal =
+        decesSemaine.filter((dc: any) => Number(dc.type_deces_code) === 3).length +
+        regDeces.filter((r: any) => Number(r.type_code) === 11).length;
+      const nbDecEnfant1a5 =
+        decesSemaine.filter((dc: any) => Number(dc.type_deces_code) === 4).length +
+        regDeces.filter((r: any) => Number(r.type_code) === 12).length;
+      const nbDecInfantile = nbDecNeonatal + nbDecPostNeonatal;
+      const nbDecInfantoJuvenile = nbDecInfantile + nbDecEnfant1a5;
+      const nbDecPlus5 =
+        decesSemaine.filter((dc: any) => Number(dc.type_deces_code) === 5).length +
+        regDeces.filter((r: any) => Number(r.type_code) === 14).length;
+
+      const data = {
+        ...(rpcData || {}),
+        total_alertes: Math.max(Number(rpcData?.total_alertes || 0), nbAlertesDirect),
+        personnes_touchees: Math.max(Number(rpcData?.personnes_touchees || 0), nbTouchesDirect),
+        personnes_mortes_alertes: Math.max(Number(rpcData?.personnes_mortes_alertes || 0), nbMortsAlertesDirect),
+        alertes_verifiees_48h: Math.max(Number(rpcData?.alertes_verifiees_48h || 0), nbVerifiees48hDirect, nbAvereesDirect),
+        alertes_averees: Math.max(Number(rpcData?.alertes_averees || 0), nbAvereesDirect),
+        deces_maternels: Math.max(Number(rpcData?.deces_maternels || 0), nbDecMaternel),
+        deces_neonatals: Math.max(Number(rpcData?.deces_neonatals || 0), nbDecNeonatal),
+        deces_infantiles: Math.max(Number(rpcData?.deces_infantiles || 0), nbDecInfantile),
+        deces_infanto_juveniles: Math.max(Number(rpcData?.deces_infanto_juveniles || 0), nbDecInfantoJuvenile),
+        deces_plus_5_ans: Math.max(Number(rpcData?.deces_plus_5_ans || 0), nbDecPlus5),
+        total_deces_communautaires: Math.max(Number(rpcData?.total_deces_communautaires || 0), nbDecMaternel + nbDecInfantoJuvenile + nbDecPlus5),
+        total_registre: Math.max(Number(rpcData?.total_registre || 0), registresSemaine.length),
+      };
+      const error = null;
 
       // Récupérer également les données de consultations iCCM
       let consultText = "";

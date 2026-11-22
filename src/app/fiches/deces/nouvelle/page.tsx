@@ -323,10 +323,11 @@ export default function NouveauDecesPage() {
                 circonstance_code: circonstanceCode,
                 circonstance_autre_precision: circonstanceAutrePrecision,
                 cause_probable_cim10: causeProbableCim10,
-                notificateur: userProfile?.nom_complet || "ASCQ",
+                notificateur: `${userProfile?.prenoms || ""} ${userProfile?.nom || ""}`.trim() || userProfile?.nom_complet || "",
+                notificateurTitre: (userProfile?.poste === "RC" || userProfile?.role_technique === "RC") ? "RC" : "ASCQ",
                 notificateurTel: userProfile?.telephone || "",
                 signature_tactile: signatureTactile,
-                signature_nom: userProfile?.nom_complet || "ASCQ"
+                signature_nom: `${userProfile?.prenoms || ""} ${userProfile?.nom || ""}`.trim() || userProfile?.nom_complet || ""
               }}
               currentUser={userProfile}
             />

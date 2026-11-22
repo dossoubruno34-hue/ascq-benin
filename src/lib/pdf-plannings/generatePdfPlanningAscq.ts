@@ -192,13 +192,30 @@ export async function generatePdfPlanningAscq(data: AscqPlanningData): Promise<U
   const colW_DaysTotal = colW_Day * 7; // 210 pt
   const colW_Obs = contentWidth - (colW_No + colW_Act + colW_Resp + colW_DaysTotal); // 160.89 pt (réduit pour rééquilibrer)
 
+  // Construction dynamique des lignes : 10 activités standard + toutes les "Autres activités" ajoutées
+  const baseTen = ACTIVITES_OFFICIELLES_ASCQ.slice(0, 10).map((nom, i) => ({
+    nom,
+    jours: data.activitesJours[i + 1] || [],
+    isCustom: false
+  }));
+
+  const extraList = Array.isArray(data.autresActivites) && data.autresActivites.some(a => a && a.nom && a.nom.trim())
+    ? data.autresActivites
+        .filter(a => a && a.nom && a.nom.trim())
+        .map(a => ({ nom: a.nom.trim(), jours: a.jours || [], isCustom: true }))
+    : data.autreActiviteNom && data.autreActiviteNom.trim()
+    ? [{ nom: data.autreActiviteNom.trim(), jours: data.autreActiviteJours || [], isCustom: true }]
+    : [{ nom: ACTIVITES_OFFICIELLES_ASCQ[10], jours: data.autreActiviteJours || [], isCustom: false }];
+
+  const toutesLignesActivites = [...baseTen, ...extraList];
+
   const thH1 = 20;
   const thH2 = 20;
   const thTotalH = thH1 + thH2; // 40 pt
-  const rowH = 30.5; // Hauteur de ligne agrandie de 22 pt à 30.5 pt (+39% d'espace vertical !)
-  const nbRows = 11;
-  const tblH = thTotalH + nbRows * rowH; // 40 + 335.5 = 375.5 pt
-  const tblBottomY = tblTopY - tblH; // ~97.5 pt
+  const nbRows = toutesLignesActivites.length;
+  const rowH = Math.min(30.5, 335.5 / Math.max(11, nbRows));
+  const tblH = thTotalH + nbRows * rowH;
+  const tblBottomY = tblTopY - tblH;
 
   // --- EN-TÊTE LIGNE 1 : Fond gris-bleu clair #e9eff7 ---
   page.drawRectangle({
@@ -301,11 +318,11 @@ export async function generatePdfPlanningAscq(data: AscqPlanningData): Promise<U
   });
 
   // =========================================================================
-  // 4. LIGNES D'ACTIVITÉS (11 LIGNES, FOND BLANC, HAUTEUR 30.5 PT)
+  // 4. LIGNES D'ACTIVITÉS (10 ACTIVITÉS + MULTIPLES AUTRES ACTIVITÉS)
   // =========================================================================
   const leftTableW = contentWidth - colW_Obs;
 
-  ACTIVITES_OFFICIELLES_ASCQ.forEach((defaultActName, idx) => {
+  toutesLignesActivites.forEach((item, idx) => {
     const rY = tblTopY - thTotalH - (idx + 1) * rowH;
 
     // Numéro formaté "01", "02", etc.
@@ -319,17 +336,13 @@ export async function generatePdfPlanningAscq(data: AscqPlanningData): Promise<U
       color: cBlack,
     });
 
-    // Libellé de l'activité
-    let actLabel = defaultActName;
-    if (idx === 10 && data.autreActiviteNom) {
-      actLabel = data.autreActiviteNom;
-    }
-    page.drawText(sanitizeWinAnsi(actLabel), {
+    // Libellé de l'activité (Bleu Bic si autre activité ajoutée par l'ASCQ)
+    page.drawText(sanitizeWinAnsi(item.nom), {
       x: marginX + colW_No + 8,
       y: rY + (rowH - 8.5) / 2,
       size: 8.5,
       font: bold,
-      color: cBlack,
+      color: item.isCustom ? cBleuBic : cBlack,
     });
 
     // Responsable ASCQ
@@ -343,9 +356,7 @@ export async function generatePdfPlanningAscq(data: AscqPlanningData): Promise<U
     });
 
     // Jours cochés
-    const selectedDays = idx < 10 
-      ? (data.activitesJours[idx + 1] || [])
-      : (data.autreActiviteJours || []);
+    const selectedDays = item.jours || [];
 
     JOURS_FULL_KEYS.forEach((fullKey, jIdx) => {
       const cellCenterX = perStartX + jIdx * colW_Day + colW_Day / 2;

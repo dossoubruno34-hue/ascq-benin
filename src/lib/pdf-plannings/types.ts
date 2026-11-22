@@ -3,6 +3,12 @@
  * Conformes aux normes CNLS-TP & Ministère de la Santé du Bénin
  */
 
+export interface AutreActiviteAscq {
+  id?: string;
+  nom: string;
+  jours: string[];
+}
+
 export interface AscqPlanningData {
   id?: string;
   departement: string;
@@ -21,6 +27,7 @@ export interface AscqPlanningData {
   activitesJours: Record<number, string[]>; // 1..10 -> ["Lun", "Mer"]
   autreActiviteNom?: string;
   autreActiviteJours?: string[];
+  autresActivites?: AutreActiviteAscq[];
   observations?: string;
   signatureTactile?: string | null; // Data URL Base64 PNG
   dateValidation?: string | null;

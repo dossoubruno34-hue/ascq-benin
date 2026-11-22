@@ -468,7 +468,8 @@ export default function SuiviRelaisPage() {
         type_nom: item.type_nom,
         nb_personnes_touchees: item.nb_personnes_touchees || 0,
         nb_personnes_decedees: item.nb_personnes_decedees || 0,
-        actions_menees: item.actions_menees || "",
+        actions_menees: item.mesure_prise || item.actions_menees || "",
+        statut: item.statut || "ENREGISTREE",
       });
     } else if (type === "REFERENCE") {
       setEditValeurs({
@@ -501,16 +502,43 @@ export default function SuiviRelaisPage() {
           })
           .eq("id", item.id);
       } else if (type === "REGISTRE") {
-        await supabase
+        const { error: regErr } = await supabase
           .from("registre_alertes_rumeurs")
           .update({
             type_nom: editValeurs.type_nom,
             nb_personnes_touchees: Number(editValeurs.nb_personnes_touchees) || 0,
             nb_personnes_decedees: Number(editValeurs.nb_personnes_decedees) || 0,
-            actions_menees: editValeurs.actions_menees,
+            mesure_prise: editValeurs.actions_menees,
+            statut: "TRANSFORMEE_ALERTE",
+            ascq_superviseur_id: currentUser?.id || null,
             updated_at: new Date().toISOString(),
           })
           .eq("id", item.id);
+
+        if (regErr) {
+          await supabase
+            .from("registre_alertes_rumeurs")
+            .update({
+              type_nom: editValeurs.type_nom,
+              nb_personnes_touchees: Number(editValeurs.nb_personnes_touchees) || 0,
+              nb_personnes_decedees: Number(editValeurs.nb_personnes_decedees) || 0,
+              mesure_prise: editValeurs.actions_menees,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", item.id);
+        }
+
+        try {
+          const rawVal = localStorage.getItem("ascq_registres_valides");
+          const mapVal: Record<string, any> = rawVal ? JSON.parse(rawVal) : {};
+          mapVal[item.id] = {
+            statut: "VALIDE",
+            statut_db: "TRANSFORMEE_ALERTE",
+            ascq_superviseur_id: currentUser?.id || null,
+            updated_at: new Date().toISOString()
+          };
+          localStorage.setItem("ascq_registres_valides", JSON.stringify(mapVal));
+        } catch {}
       } else if (type === "REFERENCE") {
         await supabase
           .from("references_communautaires")
