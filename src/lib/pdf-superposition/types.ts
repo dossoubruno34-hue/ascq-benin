@@ -1,46 +1,49 @@
 export type FieldType =
   | "texte"
   | "nombre"
+  | "code"
+  | "date"
   | "date_jour"
   | "date_mois"
   | "date_annee"
   | "case_a_cocher"
   | "multiligne";
 
-export type FieldAlign = "left" | "center" | "right";
+export type FieldAlign = "l" | "c" | "r" | "left" | "center" | "right";
 export type FieldFontWeight = "regular" | "bold";
 
-export interface FieldDefinition {
+export interface SlotFieldDefinition {
   id: string;
-  page: number;
-  x: number;
-  y: number;
-  largeur: number;
-  hauteur: number;
-  police?: FieldFontWeight;
-  taille?: number;
-  alignement?: FieldAlign;
-  type: FieldType;
+  x0: number;
+  x1: number;
+  base: number;
+  align: "l" | "c" | "r" | "left" | "center" | "right";
+  type?: FieldType;
+  y0?: number;
+  y1?: number;
+  box?: { y0: number; y1: number };
   maxCaracteres?: number;
 }
 
-export interface TableColumnDefinition {
-  id: string;
-  x: number;
-  largeur: number;
-  alignement: FieldAlign;
-  police?: FieldFontWeight;
-  taille?: number;
-  type: FieldType;
-  maxCaracteres?: number;
+export interface BoxCoords {
+  x0: number;
+  x1: number;
+  y0: number;
+  y1: number;
 }
 
-export interface DottedLinesDefinition {
-  xDebut: number;
-  largeur: number;
-  hauteurLigne: number;
-  yBaselines: number[];
-  maxLignes: number;
+export interface TableColumnSlot {
+  id: string;
+  x0: number;
+  x1: number;
+  align: "l" | "c" | "r" | "left" | "center" | "right";
+  type?: FieldType;
+}
+
+export interface TableRowSlot {
+  y0: number;
+  y1: number;
+  base: number;
 }
 
 export interface FieldMap {
@@ -50,12 +53,23 @@ export interface FieldMap {
   format: "A4";
   pageLargeur: number;
   pageHauteur: number;
-  champs?: FieldDefinition[];
+  champs?: SlotFieldDefinition[];
+  casesACocher?: Record<string, BoxCoords>;
   lignesParPage?: number;
-  champsEnTete?: FieldDefinition[];
-  colonnesTableau?: TableColumnDefinition[];
-  yRangées?: number[];
-  lignesPointillees?: DottedLinesDefinition;
+  champsEnTete?: SlotFieldDefinition[];
+  colonnesTableau?: TableColumnSlot[];
+  lignes?: TableRowSlot[];
+  colonneValeurs?: { x0: number; x1: number; marge: number };
+  tableauxValeurs?: {
+    colValeur: { x0: number; x1: number; align: "l" | "c" | "r" };
+    lignes: (TableRowSlot & { id: string; type?: FieldType })[];
+  };
+  lignesPointillees?: {
+    x0: number;
+    x1: number;
+    yBaselines: number[];
+  };
+  signature?: SlotFieldDefinition;
 }
 
 export interface GenerationOptions {

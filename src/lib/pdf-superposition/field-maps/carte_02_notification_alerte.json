@@ -8,237 +8,167 @@
   "champs": [
     {
       "id": "point_focal_nom",
-      "page": 1,
-      "x": 290,
-      "y": 677.6,
-      "largeur": 235,
-      "hauteur": 12,
-      "police": "bold",
-      "taille": 9.5,
-      "alignement": "left",
-      "type": "texte",
-      "maxCaracteres": 50
+      "x0": 288,
+      "x1": 528,
+      "base": 678,
+      "align": "l",
+      "type": "texte"
     },
     {
       "id": "telephone",
-      "page": 1,
-      "x": 160,
-      "y": 658.8,
-      "largeur": 130,
-      "hauteur": 12,
-      "police": "regular",
-      "taille": 9.5,
-      "alignement": "left",
-      "type": "texte",
-      "maxCaracteres": 20
+      "x0": 156.9,
+      "x1": 294.7,
+      "base": 658.8,
+      "align": "c",
+      "type": "code"
     },
     {
       "id": "arrondissement",
-      "page": 1,
-      "x": 372,
-      "y": 658.8,
-      "largeur": 155,
-      "hauteur": 12,
-      "police": "regular",
-      "taille": 9.5,
-      "alignement": "left",
-      "type": "texte",
-      "maxCaracteres": 30
+      "x0": 369,
+      "x1": 488.2,
+      "base": 658.8,
+      "align": "l",
+      "type": "texte"
     },
     {
       "id": "commune",
-      "page": 1,
-      "x": 100,
-      "y": 632.4,
-      "largeur": 85,
-      "hauteur": 12,
-      "police": "regular",
-      "taille": 9.5,
-      "alignement": "left",
-      "type": "texte",
-      "maxCaracteres": 25
+      "x0": 98.2,
+      "x1": 182.6,
+      "base": 632.4,
+      "align": "l",
+      "type": "texte"
     },
     {
       "id": "zone_sanitaire",
-      "page": 1,
-      "x": 265,
-      "y": 632.4,
-      "largeur": 260,
-      "hauteur": 12,
-      "police": "regular",
-      "taille": 9.5,
-      "alignement": "left",
-      "type": "texte",
-      "maxCaracteres": 45
+      "x0": 260.5,
+      "x1": 524.4,
+      "base": 632.4,
+      "align": "l",
+      "type": "texte"
     },
     {
-      "id": "date_notification_jour",
-      "page": 1,
-      "x": 235,
-      "y": 601.4,
-      "largeur": 22,
-      "hauteur": 12,
-      "police": "bold",
-      "taille": 9.5,
-      "alignement": "center",
-      "type": "date_jour",
-      "maxCaracteres": 2
+      "id": "date_notification_j",
+      "x0": 223.7,
+      "x1": 258.4,
+      "base": 601.4,
+      "align": "c",
+      "type": "date"
     },
     {
-      "id": "date_notification_mois",
-      "page": 1,
-      "x": 270,
-      "y": 601.4,
-      "largeur": 22,
-      "hauteur": 12,
-      "police": "bold",
-      "taille": 9.5,
-      "alignement": "center",
-      "type": "date_mois",
-      "maxCaracteres": 2
+      "id": "date_notification_m",
+      "x0": 264,
+      "x1": 295,
+      "base": 601.4,
+      "align": "c",
+      "type": "date"
     },
     {
-      "id": "date_notification_annee",
-      "page": 1,
-      "x": 304,
-      "y": 601.4,
-      "largeur": 25,
-      "hauteur": 12,
-      "police": "bold",
-      "taille": 9.5,
-      "alignement": "center",
-      "type": "date_annee",
-      "maxCaracteres": 4
+      "id": "date_notification_a",
+      "x0": 300,
+      "x1": 331,
+      "base": 601.4,
+      "align": "c",
+      "type": "date"
     },
     {
       "id": "type_maladie",
-      "page": 1,
-      "x": 340,
-      "y": 577.3,
-      "largeur": 185,
-      "hauteur": 12,
-      "police": "bold",
-      "taille": 9.5,
-      "alignement": "left",
+      "x0": 46,
+      "x1": 528,
+      "base": 570,
+      "align": "l",
       "type": "texte",
-      "maxCaracteres": 45
+      "box": {
+        "y0": 567,
+        "y1": 594
+      }
     },
     {
-      "id": "date_survenue",
-      "page": 1,
-      "x": 200,
-      "y": 546.6,
-      "largeur": 325,
-      "hauteur": 12,
-      "police": "regular",
-      "taille": 9.5,
-      "alignement": "left",
+      "id": "date_heure_survenue",
+      "x0": 46,
+      "x1": 528,
+      "base": 536,
+      "align": "l",
       "type": "texte",
-      "maxCaracteres": 40
+      "box": {
+        "y0": 532,
+        "y1": 567
+      }
     },
     {
-      "id": "date_detection",
-      "page": 1,
-      "x": 325,
-      "y": 513.7,
-      "largeur": 200,
-      "hauteur": 12,
-      "police": "regular",
-      "taille": 9.5,
-      "alignement": "left",
+      "id": "date_heure_detection",
+      "x0": 46,
+      "x1": 528,
+      "base": 506,
+      "align": "l",
       "type": "texte",
-      "maxCaracteres": 35
+      "box": {
+        "y0": 502,
+        "y1": 532
+      }
     },
     {
       "id": "lieu_provenance",
-      "page": 1,
-      "x": 50,
-      "y": 468,
-      "largeur": 475,
-      "hauteur": 20,
-      "police": "regular",
-      "taille": 9,
-      "alignement": "left",
+      "x0": 46,
+      "x1": 528,
+      "base": 465,
+      "align": "l",
       "type": "multiligne",
-      "maxCaracteres": 120
+      "box": {
+        "y0": 448,
+        "y1": 502
+      }
     },
     {
       "id": "nb_personnes_touchees",
-      "page": 1,
-      "x": 245,
-      "y": 430.8,
-      "largeur": 280,
-      "hauteur": 12,
-      "police": "bold",
-      "taille": 9.5,
-      "alignement": "left",
-      "type": "nombre",
-      "maxCaracteres": 15
+      "x0": 240,
+      "x1": 528,
+      "base": 431,
+      "align": "l",
+      "type": "nombre"
     },
     {
       "id": "deces_presence_nb",
-      "page": 1,
-      "x": 230,
-      "y": 401.8,
-      "largeur": 295,
-      "hauteur": 12,
-      "police": "regular",
-      "taille": 9.5,
-      "alignement": "left",
-      "type": "texte",
-      "maxCaracteres": 25
+      "x0": 225,
+      "x1": 528,
+      "base": 402,
+      "align": "l",
+      "type": "texte"
     },
     {
       "id": "animaux_impliques",
-      "page": 1,
-      "x": 285,
-      "y": 368.5,
-      "largeur": 240,
-      "hauteur": 12,
-      "police": "regular",
-      "taille": 9.5,
-      "alignement": "left",
-      "type": "texte",
-      "maxCaracteres": 20
+      "x0": 280,
+      "x1": 528,
+      "base": 368,
+      "align": "l",
+      "type": "texte"
     },
     {
       "id": "evenement_en_cours",
-      "page": 1,
-      "x": 330,
-      "y": 335.1,
-      "largeur": 195,
-      "hauteur": 12,
-      "police": "regular",
-      "taille": 9.5,
-      "alignement": "left",
-      "type": "texte",
-      "maxCaracteres": 20
+      "x0": 330,
+      "x1": 528,
+      "base": 335,
+      "align": "l",
+      "type": "texte"
     },
     {
       "id": "mesures_prises",
-      "page": 1,
-      "x": 50,
-      "y": 285,
-      "largeur": 475,
-      "hauteur": 60,
-      "police": "regular",
-      "taille": 9,
-      "alignement": "left",
+      "x0": 46,
+      "x1": 528,
+      "base": 295,
+      "align": "l",
       "type": "multiligne",
-      "maxCaracteres": 300
+      "box": {
+        "y0": 258,
+        "y1": 324
+      }
     },
     {
       "id": "signature_nom",
-      "page": 1,
-      "x": 420,
-      "y": 180,
-      "largeur": 130,
-      "hauteur": 12,
-      "police": "bold",
-      "taille": 9.5,
-      "alignement": "center",
-      "type": "texte",
-      "maxCaracteres": 35
+      "x0": 400,
+      "x1": 528,
+      "base": 140,
+      "align": "l",
+      "type": "texte"
     }
   ]
 }

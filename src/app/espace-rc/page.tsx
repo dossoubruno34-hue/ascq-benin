@@ -1646,6 +1646,16 @@ export default function EspaceRelaisPage() {
                     type="button"
                     onClick={() => {
                       if (!formPlanningActivite) return;
+
+                      // RÈGLE OFFICIELLE N°7 : Refuser toute date hors de la semaine choisie
+                      if (temporaliteMode === "DATE" && formPlanningDate) {
+                        const datesSem = getDatesSemaine(anneeChoisie, semaineChoisie);
+                        if (formPlanningDate < datesSem.debut || formPlanningDate > datesSem.fin) {
+                          alert(`Date refusée : le ${formPlanningDate} n'appartient pas à la semaine ${semaineChoisie} (${datesSem.label}).\nRÈGLE OFFICIELLE : Toute date hors de la semaine choisie est strictement refusée.`);
+                          return;
+                        }
+                      }
+
                       const lieuChoisi = formPlanningLieu || rcData?.village_nom || "Village";
                       memoriserLieu(lieuChoisi);
                       const dateOrPeriode = temporaliteMode === "PERIODE" ? formPlanningPeriode : formPlanningDate;

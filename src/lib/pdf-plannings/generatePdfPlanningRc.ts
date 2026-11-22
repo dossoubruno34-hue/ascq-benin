@@ -85,8 +85,9 @@ export async function generatePdfPlanningRc(data: RcPlanningData): Promise<Uint8
   const sigRcImg = await embedDataUrlImage(pdfDoc, data.signatureRc);
   const sigAscqImg = await embedDataUrlImage(pdfDoc, data.signatureAscq);
 
-  // Palette officielle sobre et réglementaire
+  // Palette officielle sobre et réglementaire + Bleu Bic pour les données saisies
   const cBlack = rgb(0, 0, 0);
+  const cBleuBic = rgb(0.0, 0.25, 0.80); // Bleu Bic intense (#0040CC)
   const cHeaderBg = rgb(233 / 255, 239 / 255, 247 / 255); // #e9eff7
   const cWhite = rgb(1, 1, 1);
   const cGrayFooter = rgb(100 / 255, 116 / 255, 139 / 255); // #64748b
@@ -168,14 +169,14 @@ export async function generatePdfPlanningRc(data: RcPlanningData): Promise<Uint8
   const cartoucheY1 = t2Y - 18; // ~484 pt
   const cartoucheY2 = cartoucheY1 - 14; // ~470 pt
 
-  // Helper pour dessiner un champ "Libellé : Valeur" avec valeur soulignée
+  // Helper pour dessiner un champ "Libellé : Valeur" avec valeur en Bleu Bic et Gras
   const drawField = (label: string, value: string, x: number, y: number): number => {
     const cleanVal = sanitizeWinAnsi(value);
     page.drawText(label, { x, y, size: 8, font: bold, color: cBlack });
     const lblW = bold.widthOfTextAtSize(label, 8);
     const valX = x + lblW;
-    page.drawText(cleanVal, { x: valX, y, size: 8, font: regular, color: cBlack });
-    const valW = regular.widthOfTextAtSize(cleanVal, 8);
+    page.drawText(cleanVal, { x: valX, y, size: 8, font: bold, color: cBleuBic });
+    const valW = bold.widthOfTextAtSize(cleanVal, 8);
     // Soulignement discret de la valeur
     page.drawLine({
       start: { x: valX, y: y - 1.5 },
@@ -303,33 +304,33 @@ export async function generatePdfPlanningRc(data: RcPlanningData): Promise<Uint8
       color: cWhite,
     });
 
-    // 1. Colonne Date
+    // 1. Colonne Date (Bleu Bic + Gras)
     const dateText = slot?.date ? sanitizeWinAnsi(formatDateFr(slot.date)) : "";
     if (dateText) {
-      const dW = regular.widthOfTextAtSize(dateText, 8.2);
+      const dW = bold.widthOfTextAtSize(dateText, 8.2);
       page.drawText(dateText, {
         x: marginX + (colW_Date - dW) / 2,
         y: rY + h - 16,
         size: 8.2,
-        font: regular,
-        color: cBlack,
+        font: bold,
+        color: cBleuBic,
       });
     }
 
-    // 2. Colonne Heure
+    // 2. Colonne Heure (Bleu Bic + Gras)
     const heureText = slot?.heure ? sanitizeWinAnsi(slot.heure) : "";
     if (heureText) {
-      const hW = regular.widthOfTextAtSize(heureText, 8.2);
+      const hW = bold.widthOfTextAtSize(heureText, 8.2);
       page.drawText(heureText, {
         x: marginX + colW_Date + (colW_Heure - hW) / 2,
         y: rY + h - 16,
         size: 8.2,
-        font: regular,
-        color: cBlack,
+        font: bold,
+        color: cBleuBic,
       });
     }
 
-    // 3. Colonne Activités
+    // 3. Colonne Activités (Libellé imprimé officiel en noir)
     let actLabel = def.label;
     if (def.key === "autres" && data.autreActiviteLabel) {
       actLabel = data.autreActiviteLabel;
@@ -340,22 +341,22 @@ export async function generatePdfPlanningRc(data: RcPlanningData): Promise<Uint8
       y: rY + h - 16,
       size: 8.2,
       font: bold,
-      color: cBlack,
+      color: def.key === "autres" && data.autreActiviteLabel ? cBleuBic : cBlack,
     });
 
-    // 4. Colonne Zone ciblée
+    // 4. Colonne Zone ciblée (Bleu Bic + Gras)
     const zoneText = slot?.zone ? sanitizeWinAnsi(slot.zone) : "";
     if (zoneText) {
-      page.drawText(fitText(zoneText, regular, 8, colW_Zone - 12), {
+      page.drawText(fitText(zoneText, bold, 8, colW_Zone - 12), {
         x: marginX + colW_Date + colW_Heure + colW_Act + 8,
         y: rY + h - 16,
         size: 8,
-        font: regular,
-        color: cBlack,
+        font: bold,
+        color: cBleuBic,
       });
     }
 
-    // 5. Colonne Quantité prévue (supporte multi-lignes)
+    // 5. Colonne Quantité prévue (supporte multi-lignes, Bleu Bic + Gras)
     if (slot && slot.qte !== undefined && slot.qte !== null && String(slot.qte).trim() !== "") {
       const rawQte = String(slot.qte);
       const qteLines = rawQte.includes("\n") 
@@ -367,7 +368,6 @@ export async function generatePdfPlanningRc(data: RcPlanningData): Promise<Uint8
       let qteY = rY + h - 14;
       qteLines.slice(0, 3).forEach((line) => {
         const cleanL = sanitizeWinAnsi(line.trim());
-        // Détection de libellé "Clé : Valeur" pour gras
         if (cleanL.includes(" : ")) {
           const [k, v] = cleanL.split(" : ");
           const kStr = `${k} : `;
@@ -384,33 +384,33 @@ export async function generatePdfPlanningRc(data: RcPlanningData): Promise<Uint8
             y: qteY,
             size: 7.8,
             font: bold,
-            color: cBlack,
+            color: cBleuBic,
           });
         } else {
           page.drawText(cleanL, {
             x: marginX + colW_Date + colW_Heure + colW_Act + colW_Zone + 8,
             y: qteY,
             size: 8,
-            font: cleanL.length <= 3 ? bold : regular,
-            color: cBlack,
+            font: bold,
+            color: cBleuBic,
           });
         }
         qteY -= 11;
       });
     }
 
-    // 6. Colonne Observations
+    // 6. Colonne Observations (Bleu Bic + Gras)
     const obsText = slot?.observation || slot?.obs || (idx === 0 && data.observations ? data.observations : "");
     if (obsText) {
-      const obsLines = wrapText(obsText, regular, 7.8, colW_Obs - 14);
+      const obsLines = wrapText(obsText, bold, 7.8, colW_Obs - 14);
       let obsY = rY + h - 14;
       obsLines.slice(0, 3).forEach((line) => {
         page.drawText(line, {
           x: marginX + colW_Date + colW_Heure + colW_Act + colW_Zone + colW_Qte + 8,
           y: obsY,
           size: 7.8,
-          font: regular,
-          color: cBlack,
+          font: bold,
+          color: cBleuBic,
         });
         obsY -= 11;
       });

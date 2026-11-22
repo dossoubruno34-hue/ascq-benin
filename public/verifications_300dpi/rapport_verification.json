@@ -1,0 +1,26 @@
+{
+  "reductions": [],
+  "debordements": [],
+  "fiches": {
+    "03_deces": {
+      "pixelsEncreValeurs": 38786,
+      "conforme": true
+    },
+    "02_alerte": {
+      "pixelsEncreValeurs": 41741,
+      "conforme": true
+    },
+    "01_registre": {
+      "pixelsEncreValeurs": 27847,
+      "conforme": true
+    },
+    "04_investigation": {
+      "pixelsEncreValeurs": 70139,
+      "conforme": true
+    },
+    "05_rapport_hebdo": {
+      "pixelsEncreValeurs": 42966,
+      "conforme": true
+    }
+  }
+}

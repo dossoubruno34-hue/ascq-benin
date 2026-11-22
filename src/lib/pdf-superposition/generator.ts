@@ -1,9 +1,18 @@
 import { PDFDocument, rgb, PDFFont, PDFPage } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
-import { FieldMap, FieldDefinition, GenerationOptions, GenerationResult } from "./types";
+import { FieldMap, SlotFieldDefinition, GenerationOptions, GenerationResult, BoxCoords } from "./types";
 import { FIELD_MAPS } from "./field-maps";
 
-// Cache mémoire des octets de modèles et de polices pour éviter les re-téléchargements inutiles
+// Couleur Bleu Bic intense (#0040CC) et police Carlito-Bold pour une lecture ultra-facile des données saisies
+const COULEUR_BLEU_MARINE = rgb(0.0, 0.25, 0.80);
+const TAILLE_DEFAUT = 9.5;
+const TAILLE_MIN = 6.5;
+const DECALAGE_LIGNE_BASE = 1.6;
+const MARGE_TEXTE = 3.0;
+const MARGE_CROIX = 1.3;
+const EPAISSEUR_CROIX = 1.4;
+
+// Cache mémoire des octets
 const memoryCache: Record<string, Uint8Array> = {};
 
 async function fetchBytes(urlOrPath: string): Promise<Uint8Array> {
@@ -11,7 +20,6 @@ async function fetchBytes(urlOrPath: string): Promise<Uint8Array> {
     return memoryCache[urlOrPath];
   }
 
-  // Environnement Node.js (tests ou scripts locaux)
   if (typeof window === "undefined") {
     const fs = await import("fs");
     const path = await import("path");
@@ -25,7 +33,6 @@ async function fetchBytes(urlOrPath: string): Promise<Uint8Array> {
     return uint8;
   }
 
-  // Environnement Navigateur client (aucun envoi de données, fetch de ressource statique locale)
   const response = await fetch(urlOrPath);
   if (!response.ok) {
     throw new Error(`Impossible de charger la ressource ${urlOrPath} : statut ${response.status}`);
@@ -36,14 +43,34 @@ async function fetchBytes(urlOrPath: string): Promise<Uint8Array> {
   return uint8;
 }
 
-/**
- * Nettoie une valeur : renvoie chaîne vide si null/undefined/NaN/"undefined"/"null"
- */
 function cleanVal(v: any): string {
   if (v === undefined || v === null) return "";
   const s = String(v).trim();
   if (s === "undefined" || s === "null" || s === "NaN") return "";
   return s;
+}
+
+/**
+ * Ajuste la taille de police pour tenir dans availableWidth (min 6.5pt)
+ */
+function ajusterTaillePolice(
+  text: string,
+  font: PDFFont,
+  initialSize: number,
+  availWidth: number,
+  minSize: number = TAILLE_MIN
+): { size: number; w: number; overflow: boolean } {
+  let size = initialSize;
+  let w = font.widthOfTextAtSize(text, size);
+  while (w > availWidth && size > minSize) {
+    size -= 0.25;
+    w = font.widthOfTextAtSize(text, size);
+  }
+  return {
+    size,
+    w,
+    overflow: w > availWidth
+  };
 }
 
 /**
@@ -70,42 +97,73 @@ function wrapText(text: string, font: PDFFont, fontSize: number, maxWidth: numbe
 }
 
 /**
- * Calcule la taille de police adaptée pour ne jamais déborder d'une case (min 7pt)
+ * Dessine une valeur sur un emplacement mesuré (slot)
  */
-function fitFontSize(
-  text: string,
+function dessinerSlot(
+  page: PDFPage,
   font: PDFFont,
-  initialSize: number,
-  maxWidth: number,
-  minSize: number = 7
-): { size: number; overflow: boolean } {
-  let size = initialSize;
-  let textWidth = font.widthOfTextAtSize(text, size);
+  slot: { x0: number; x1: number; base: number; align: string; id?: string },
+  text: string,
+  warnings: string[]
+) {
+  if (!text) return;
+  const avail = slot.x1 - slot.x0 - MARGE_TEXTE;
+  const { size, w, overflow } = ajusterTaillePolice(text, font, TAILLE_DEFAUT, avail);
 
-  while (textWidth > maxWidth && size > minSize) {
-    size -= 0.5;
-    textWidth = font.widthOfTextAtSize(text, size);
+  if (overflow) {
+    warnings.push(`DÉBORDEMENT: champ "${slot.id || 'inconnu'}" ("${text}") dépasse ${avail.toFixed(1)}pt même à ${size}pt.`);
   }
 
-  return {
+  let x = slot.x0 + MARGE_TEXTE;
+  if (slot.align === "c" || slot.align === "center") {
+    x = slot.x0 + (slot.x1 - slot.x0 - w) / 2;
+  } else if (slot.align === "r" || slot.align === "right") {
+    x = slot.x1 - w - MARGE_TEXTE;
+  }
+
+  page.drawText(text, {
+    x,
+    y: slot.base + DECALAGE_LIGNE_BASE,
     size,
-    overflow: textWidth > maxWidth
-  };
+    font,
+    color: COULEUR_BLEU_MARINE
+  });
 }
 
 /**
- * Intègre la signature officielle du déclarant / notificateur :
- * 1. Si une signature tactile (image PNG/JPEG base64) est présente, elle est intégrée et centrée dans la case.
- * 2. Si aucune image n'est disponible, une signature électronique textuelle conforme est dessinée.
+ * Dessine une croix dans une case à cocher
+ */
+function dessinerCroix(page: PDFPage, box: BoxCoords) {
+  const m = MARGE_CROIX;
+  const x0 = box.x0 + m;
+  const x1 = box.x1 - m;
+  const y0 = box.y0 + m;
+  const y1 = box.y1 - m;
+
+  page.drawLine({
+    start: { x: x0, y: y0 },
+    end: { x: x1, y: y1 },
+    thickness: EPAISSEUR_CROIX,
+    color: COULEUR_BLEU_MARINE
+  });
+  page.drawLine({
+    start: { x: x0, y: y1 },
+    end: { x: x1, y: y0 },
+    thickness: EPAISSEUR_CROIX,
+    color: COULEUR_BLEU_MARINE
+  });
+}
+
+/**
+ * Dessine la signature
  */
 async function dessinerSignature(
   pdfDoc: PDFDocument,
   page: PDFPage,
-  box: { x: number; y: number; largeur: number; hauteur: number },
+  box: { x0: number; x1: number; y0: number; y1: number; base?: number },
   signatureTactile: string | null | undefined,
   nomSignataire: string,
-  fontRegular: PDFFont,
-  fontBold: PDFFont
+  font: PDFFont
 ) {
   let imageEmbedded = false;
 
@@ -127,9 +185,11 @@ async function dessinerSignature(
       }
 
       const img = isJpg ? await pdfDoc.embedJpg(bytes) : await pdfDoc.embedPng(bytes);
-      const dims = img.scaleToFit(box.largeur, box.hauteur);
-      const drawX = box.x + Math.max(0, (box.largeur - dims.width) / 2);
-      const drawY = box.y + Math.max(0, (box.hauteur - dims.height) / 2);
+      const wBox = box.x1 - box.x0;
+      const hBox = box.y1 - box.y0;
+      const dims = img.scaleToFit(wBox, hBox);
+      const drawX = box.x0 + Math.max(0, (wBox - dims.width) / 2);
+      const drawY = box.y0 + Math.max(0, (hBox - dims.height) / 2);
 
       page.drawImage(img, {
         x: drawX,
@@ -139,26 +199,18 @@ async function dessinerSignature(
       });
       imageEmbedded = true;
     } catch (err) {
-      console.warn("Échec du décodage de la signature tactile, repli sur signature textuelle:", err);
+      console.warn("Échec du décodage de la signature tactile :", err);
     }
   }
 
   if (!imageEmbedded && nomSignataire) {
-    const textTitre = "Signé électroniquement :";
-    const textNom = nomSignataire;
-    page.drawText(textTitre, {
-      x: box.x + 4,
-      y: box.y + box.hauteur - 12,
-      size: 7.5,
-      font: fontRegular,
-      color: rgb(0.2, 0.2, 0.2)
-    });
-    page.drawText(textNom, {
-      x: box.x + 4,
-      y: box.y + box.hauteur - 23,
+    const yBase = box.base || (box.y0 + 4);
+    page.drawText(nomSignataire, {
+      x: box.x0 + MARGE_TEXTE,
+      y: yBase,
       size: 8.5,
-      font: fontBold,
-      color: rgb(0, 0, 0)
+      font,
+      color: COULEUR_BLEU_MARINE
     });
   }
 }
@@ -171,11 +223,6 @@ const LABELS_FICHES_OFFICIELLES: Record<string, string> = {
   RAP: "Rapport Hebdo SIMR"
 };
 
-/**
- * Construit le nom de fichier officiel clair et immédiatement identifiable :
- * Ex : "Registre Alertes S26 TOHOUES NADJO Victor.pdf"
- *      "Rapport Hebdo SIMR S47 TOHOUES DOSSOU Bruno.pdf"
- */
 export function genererNomFichierOfficiel(
   typeFiche: string,
   data: Record<string, any>
@@ -191,16 +238,11 @@ export function genererNomFichierOfficiel(
 
   const typeLabel = LABELS_FICHES_OFFICIELLES[typeFiche] || sanitize(typeFiche) || "Fiche";
 
-  // Période (Semaine épidémiologique ou Date)
-  const dateOrSemaine = data.semaine_epidemio
-    ? `S${data.semaine_epidemio}`
-    : data.semaine_num
-    ? `S${data.semaine_num}`
+  const dateOrSemaine = data.semaine || data.semaine_epidemio || data.semaine_num
+    ? `S${data.semaine || data.semaine_epidemio || data.semaine_num}`
     : data.date_survenue || data.date || data.date_deces || data.date_notification || new Date().toISOString().split("T")[0];
 
   const cleanPeriode = sanitize(String(dateOrSemaine)).replace(/[/\\:]/g, "-");
-
-  // Lieu (Arrondissement en priorité, et Village si distinct)
   const cleanArr = sanitize(data.arrondissement).toUpperCase();
   const cleanVil = sanitize(data.village).toUpperCase();
   const cleanCom = sanitize(data.commune).toUpperCase();
@@ -214,17 +256,15 @@ export function genererNomFichierOfficiel(
     lieu = cleanCom;
   }
 
-  // Nom de la personne (Relais, ASCQ, notificateur, investigateur)
   const cleanNom = sanitize(
     data.relais_nom ||
     data.nom_relais ||
     data.ascq_nom ||
     data.nom_ascq ||
-    data.nom_complet ||
-    data.signature_nom ||
+    data.notif_nom ||
     data.notificateur_nom ||
-    data.investigateur_nom ||
-    data.patient_nom ||
+    data.point_focal_nom ||
+    data.nom_defunt ||
     ""
   );
 
@@ -233,8 +273,7 @@ export function genererNomFichierOfficiel(
   if (lieu) parts.push(lieu);
   if (cleanNom) parts.push(cleanNom);
 
-  const baseName = parts.filter(Boolean).join(" ");
-  return `${baseName || typeLabel}.pdf`;
+  return `${parts.filter(Boolean).join(" ") || typeLabel}.pdf`;
 }
 
 /**
@@ -258,13 +297,11 @@ export async function genererFichePdfSuperposee(
   const pdfDoc = await PDFDocument.load(templateBytes);
   pdfDoc.registerFontkit(fontkit);
 
-  // 2. Charger et intégrer la police Carlito (équivalent métrique libre de Calibri)
-  const fontRegularBytes = await fetchBytes("/fonts/Carlito-Regular.ttf");
+  // 2. Charger et intégrer la police Carlito-Bold (Gras) pour une lecture facile
   const fontBoldBytes = await fetchBytes("/fonts/Carlito-Bold.ttf");
-  const fontRegular = await pdfDoc.embedFont(fontRegularBytes);
-  const fontBold = await pdfDoc.embedFont(fontBoldBytes);
+  const font = await pdfDoc.embedFont(fontBoldBytes);
 
-  // Si modèle vierge demandé, retourner le PDF original non altéré
+  // Modèle vierge
   if (isVierge) {
     const pdfBytes = await pdfDoc.save();
     let blobUrl = "";
@@ -281,340 +318,371 @@ export async function genererFichePdfSuperposee(
     };
   }
 
-  // 3. Traitement selon le type de fiche
+  // =========================================================================
+  // TYPE DEC : Formulaire de notification des décès
+  // =========================================================================
+  if (typeFiche === "DEC") {
+    const page = pdfDoc.getPage(0);
+
+    // 1. Slots de texte
+    if (fieldMap.champs) {
+      for (const slot of fieldMap.champs) {
+        const val = cleanVal(donnees[slot.id]);
+        if (!val) continue;
+        dessinerSlot(page, font, slot, val, warnings);
+      }
+    }
+
+    // 2. Cases à cocher (Sexe M / F)
+    if (fieldMap.casesACocher) {
+      const sexe = cleanVal(donnees.sexe).toUpperCase();
+      if (sexe === "M" && fieldMap.casesACocher.sexe_M) {
+        dessinerCroix(page, fieldMap.casesACocher.sexe_M);
+      } else if (sexe === "F" && fieldMap.casesACocher.sexe_F) {
+        dessinerCroix(page, fieldMap.casesACocher.sexe_F);
+      }
+    }
+
+    // 3. Signature
+    const nomNotif = cleanVal(donnees.notif_nom || donnees.signature_nom);
+    if (donnees.signature_tactile || nomNotif) {
+      await dessinerSignature(
+        pdfDoc,
+        page,
+        { x0: 420.0, x1: 560.0, y0: 30.0, y1: 65.0, base: 45.0 },
+        donnees.signature_tactile,
+        nomNotif,
+        font
+      );
+    }
+  }
 
   // =========================================================================
-  // TYPE REG : Registre (pagination 11 lignes par page avec copie de page)
+  // TYPE ALR : Fiche de notification des alertes
   // =========================================================================
-  if (typeFiche === "REG") {
+  else if (typeFiche === "ALR") {
+    const page = pdfDoc.getPage(0);
+
+    if (fieldMap.champs) {
+      for (const slot of fieldMap.champs) {
+        const val = cleanVal(donnees[slot.id]);
+        if (!val) continue;
+
+        if (slot.type === "multiligne" && slot.box) {
+          const availWidth = slot.x1 - slot.x0 - 2 * MARGE_TEXTE;
+          let fontSize = TAILLE_DEFAUT;
+          let lignes = wrapText(val, font, fontSize, availWidth);
+          const maxLines = Math.max(1, Math.floor((slot.box.y1 - slot.box.y0 - 4) / 12));
+
+          while (lignes.length > maxLines && fontSize > TAILLE_MIN) {
+            fontSize -= 0.5;
+            lignes = wrapText(val, font, fontSize, availWidth);
+          }
+
+          if (lignes.length > maxLines) {
+            warnings.push(`DÉBORDEMENT: champ multiligne "${slot.id}" dépasse le nombre de lignes disponibles.`);
+          }
+
+          let curY = slot.base;
+          for (let i = 0; i < Math.min(lignes.length, maxLines); i++) {
+            page.drawText(lignes[i], {
+              x: slot.x0 + MARGE_TEXTE,
+              y: curY,
+              size: fontSize,
+              font,
+              color: COULEUR_BLEU_MARINE
+            });
+            curY -= (fontSize + 2.5);
+          }
+        } else {
+          dessinerSlot(page, font, slot, val, warnings);
+        }
+      }
+    }
+
+    // Signature
+    const nomPointFocal = cleanVal(donnees.point_focal_nom || donnees.signature_nom);
+    if (donnees.signature_tactile || nomPointFocal) {
+      await dessinerSignature(
+        pdfDoc,
+        page,
+        { x0: 430.0, x1: 530.0, y0: 100.0, y1: 150.0, base: 120.0 },
+        donnees.signature_tactile,
+        nomPointFocal,
+        font
+      );
+    }
+  }
+
+  // =========================================================================
+  // TYPE REG : Registre des alertes (tableaux 11 lignes par page)
+  // =========================================================================
+  else if (typeFiche === "REG") {
     const lignes = Array.isArray(donnees.lignes) ? donnees.lignes : [];
     const lignesParPage = fieldMap.lignesParPage || 11;
     const nbPagesNecessaires = Math.max(1, Math.ceil(lignes.length / lignesParPage));
 
-    // Cloner la page du modèle pour les pages suivantes
     for (let p = 1; p < nbPagesNecessaires; p++) {
       const [nouvellePage] = await pdfDoc.copyPages(pdfDoc, [0]);
       pdfDoc.addPage(nouvellePage);
     }
 
-    // Remplir chaque page
     for (let pageIdx = 0; pageIdx < nbPagesNecessaires; pageIdx++) {
       const page = pdfDoc.getPage(pageIdx);
 
-      // En-tête de la page
+      // En-tête
       if (fieldMap.champsEnTete) {
-        for (const champ of fieldMap.champsEnTete) {
-          const rawVal = donnees[champ.id];
-          const val = cleanVal(rawVal);
+        for (const slot of fieldMap.champsEnTete) {
+          const val = cleanVal(donnees[slot.id]);
           if (!val) continue;
-
-          const font = champ.police === "bold" ? fontBold : fontRegular;
-          const { size, overflow } = fitFontSize(val, font, champ.taille || 9, champ.largeur);
-          if (overflow) {
-            warnings.push(`Champ "${champ.id}" réduit à ${size}pt.`);
-          }
-
-          let drawX = champ.x;
-          if (champ.alignement === "center") {
-            const w = font.widthOfTextAtSize(val, size);
-            drawX = champ.x + Math.max(0, (champ.largeur - w) / 2);
-          }
-
-          page.drawText(val, {
-            x: drawX,
-            y: champ.y,
-            size,
-            font,
-            color: rgb(0, 0, 0)
-          });
+          dessinerSlot(page, font, slot, val, warnings);
         }
       }
 
-      // Lignes de tableau pour cette page
+      // Lignes de tableau
       const debutLignes = pageIdx * lignesParPage;
       const finLignes = Math.min(debutLignes + lignesParPage, lignes.length);
       const lignesCettePage = lignes.slice(debutLignes, finLignes);
-      const yRanges = fieldMap.yRangées || [];
+      const rowSlots = fieldMap.lignes || [];
 
       for (let rIdx = 0; rIdx < lignesCettePage.length; rIdx++) {
         const item = lignesCettePage[rIdx];
-        const yBase = yRanges[rIdx];
-        if (!yBase || !fieldMap.colonnesTableau) continue;
+        const rowDef = rowSlots[rIdx];
+        if (!rowDef || !fieldMap.colonnesTableau) continue;
 
         for (const col of fieldMap.colonnesTableau) {
           let val = cleanVal(item[col.id]);
-          // Numéro automatique si manquant
           if (col.id === "numero" && !val) {
             val = String(debutLignes + rIdx + 1);
           }
           if (!val) continue;
 
-          const font = col.police === "bold" ? fontBold : fontRegular;
-          const { size, overflow } = fitFontSize(val, font, col.taille || 8.5, col.largeur);
-          if (overflow) {
-            warnings.push(`Ligne ${debutLignes + rIdx + 1}, colonne "${col.id}" réduite à ${size}pt.`);
+          const availWidth = col.x1 - col.x0 - 2 * MARGE_TEXTE;
+          let fontSize = TAILLE_DEFAUT;
+          let textLines = wrapText(val, font, fontSize, availWidth);
+          const maxLinesInCell = Math.max(1, Math.floor((rowDef.y1 - rowDef.y0 - 4) / 11));
+
+          while (textLines.length > maxLinesInCell && fontSize > TAILLE_MIN) {
+            fontSize -= 0.5;
+            textLines = wrapText(val, font, fontSize, availWidth);
           }
 
-          let drawX = col.x;
-          if (col.alignement === "center") {
-            const w = font.widthOfTextAtSize(val, size);
-            drawX = col.x + Math.max(0, (col.largeur - w) / 2);
-          } else if (col.alignement === "right") {
-            const w = font.widthOfTextAtSize(val, size);
-            drawX = col.x + Math.max(0, col.largeur - w);
+          if (textLines.length > maxLinesInCell) {
+            warnings.push(`DÉBORDEMENT: Ligne ${debutLignes + rIdx + 1}, col "${col.id}" dépasse la cellule.`);
+          }
+
+          if (textLines.length <= 1) {
+            const singleW = font.widthOfTextAtSize(val, fontSize);
+            let x = col.x0 + MARGE_TEXTE;
+            if (col.align === "c" || col.align === "center") {
+              x = col.x0 + (col.x1 - col.x0 - singleW) / 2;
+            }
+            page.drawText(val, {
+              x,
+              y: rowDef.base,
+              size: fontSize,
+              font,
+              color: COULEUR_BLEU_MARINE
+            });
+          } else {
+            let curY = rowDef.y1 - 10;
+            for (let li = 0; li < Math.min(textLines.length, maxLinesInCell); li++) {
+              const lineTxt = textLines[li];
+              const lineW = font.widthOfTextAtSize(lineTxt, fontSize);
+              let x = col.x0 + MARGE_TEXTE;
+              if (col.align === "c" || col.align === "center") {
+                x = col.x0 + (col.x1 - col.x0 - lineW) / 2;
+              }
+              page.drawText(lineTxt, {
+                x,
+                y: curY,
+                size: fontSize,
+                font,
+                color: COULEUR_BLEU_MARINE
+              });
+              curY -= (fontSize + 1.5);
+            }
+          }
+        }
+      }
+    }
+
+    // Signature sur la dernière page
+    const dernierePage = pdfDoc.getPage(pdfDoc.getPageCount() - 1);
+    const nomRelais = cleanVal(donnees.signature_nom);
+    if (donnees.signature_tactile || nomRelais) {
+      await dessinerSignature(
+        pdfDoc,
+        dernierePage,
+        { x0: 410.0, x1: 550.0, y0: 30.0, y1: 70.0, base: 45.0 },
+        donnees.signature_tactile,
+        nomRelais,
+        font
+      );
+    }
+  }
+
+  // =========================================================================
+  // TYPE INV : Investigation des événements
+  // =========================================================================
+  else if (typeFiche === "INV") {
+    const page = pdfDoc.getPage(0);
+    const colVal = fieldMap.colonneValeurs || { x0: 232.3, x1: 551.0, marge: 3.0 };
+
+    if (fieldMap.champs) {
+      for (const champ of fieldMap.champs) {
+        const val = cleanVal(donnees[champ.id]);
+        if (!val) continue;
+
+        const x0 = colVal.x0;
+        const x1 = colVal.x1;
+        const availWidth = x1 - x0 - 2 * colVal.marge;
+
+        if (champ.type === "multiligne") {
+          let fontSize = TAILLE_DEFAUT;
+          let lignes = wrapText(val, font, fontSize, availWidth);
+          const maxLines = Math.max(1, Math.floor((champ.y1! - champ.y0! - 4) / 12));
+
+          while (lignes.length > maxLines && fontSize > TAILLE_MIN) {
+            fontSize -= 0.5;
+            lignes = wrapText(val, font, fontSize, availWidth);
+          }
+
+          if (lignes.length > maxLines) {
+            warnings.push(`DÉBORDEMENT: champ multiligne "${champ.id}" dépasse sa cellule.`);
+          }
+
+          let curY = champ.y1! - 11;
+          for (let li = 0; li < Math.min(lignes.length, maxLines); li++) {
+            page.drawText(lignes[li], {
+              x: x0 + colVal.marge,
+              y: curY,
+              size: fontSize,
+              font,
+              color: COULEUR_BLEU_MARINE
+            });
+            curY -= (fontSize + 2.0);
+          }
+        } else {
+          const { size, w, overflow } = ajusterTaillePolice(val, font, TAILLE_DEFAUT, availWidth);
+          if (overflow) {
+            warnings.push(`DÉBORDEMENT: champ "${champ.id}" ("${val}") dépasse la cellule à ${size}pt.`);
+          }
+
+          let x = x0 + colVal.marge;
+          if (champ.align === "c" || champ.align === "center") {
+            x = x0 + (x1 - x0 - w) / 2;
           }
 
           page.drawText(val, {
-            x: drawX,
-            y: yBase,
+            x,
+            y: champ.base,
             size,
             font,
-            color: rgb(0, 0, 0)
+            color: COULEUR_BLEU_MARINE
           });
         }
       }
     }
 
-    // Signature du notificateur Relais Communautaire sur la dernière page
-    const dernierePage = pdfDoc.getPage(pdfDoc.getPageCount() - 1);
-    const nomRelais = cleanVal(donnees.signature_nom || donnees.notificateur || donnees.notificateur_nom_complet);
-    await dessinerSignature(
-      pdfDoc,
-      dernierePage,
-      { x: 410, y: 35, largeur: 135, hauteur: 32 },
-      donnees.signature_tactile,
-      nomRelais,
-      fontRegular,
-      fontBold
-    );
+    // Signature
+    const nomInvestigateurs = cleanVal(donnees.signature_investigateurs || donnees.signature_nom);
+    if (donnees.signature_tactile || nomInvestigateurs) {
+      await dessinerSignature(
+        pdfDoc,
+        page,
+        { x0: 235.0, x1: 540.0, y0: 10.0, y1: 35.0, base: 20.0 },
+        donnees.signature_tactile,
+        nomInvestigateurs,
+        font
+      );
+    }
   }
 
   // =========================================================================
-  // TYPE RAP : Rapport Hebdomadaire (champs + tableaux + 28 lignes pointillées)
+  // TYPE RAP : Rapport hebdomadaire
   // =========================================================================
   else if (typeFiche === "RAP") {
     const page = pdfDoc.getPage(0);
 
-    // 1. Remplissage des champs simples
-    if (fieldMap.champs) {
-      for (const champ of fieldMap.champs) {
-        const rawVal = donnees[champ.id];
-        const val = cleanVal(rawVal);
+    // 1. En-tête
+    if (fieldMap.champsEnTete) {
+      for (const slot of fieldMap.champsEnTete) {
+        const val = cleanVal(donnees[slot.id]);
+        if (!val) continue;
+        dessinerSlot(page, font, slot, val, warnings);
+      }
+    }
+
+    // 2. Tableaux de valeurs (Alertes & Décès)
+    if (fieldMap.tableauxValeurs) {
+      const col = fieldMap.tableauxValeurs.colValeur;
+      const availWidth = col.x1 - col.x0 - 2 * MARGE_TEXTE;
+
+      for (const ligne of fieldMap.tableauxValeurs.lignes) {
+        const val = cleanVal(donnees[ligne.id]);
         if (!val) continue;
 
-        const font = champ.police === "bold" ? fontBold : fontRegular;
-        const { size, overflow } = fitFontSize(val, font, champ.taille || 9.5, champ.largeur);
+        const { size, w, overflow } = ajusterTaillePolice(val, font, TAILLE_DEFAUT, availWidth);
         if (overflow) {
-          warnings.push(`Champ "${champ.id}" réduit à ${size}pt.`);
+          warnings.push(`DÉBORDEMENT: rapport hebdo ligne "${ligne.id}" dépasse à ${size}pt.`);
         }
 
-        let drawX = champ.x;
-        if (champ.alignement === "center") {
-          const w = font.widthOfTextAtSize(val, size);
-          drawX = champ.x + Math.max(0, (champ.largeur - w) / 2);
+        let x = col.x0 + MARGE_TEXTE;
+        if (col.align === "c") {
+          x = col.x0 + (col.x1 - col.x0 - w) / 2;
         }
 
         page.drawText(val, {
-          x: drawX,
-          y: champ.y,
+          x,
+          y: ligne.base + DECALAGE_LIGNE_BASE,
           size,
           font,
-          color: rgb(0, 0, 0)
+          color: COULEUR_BLEU_MARINE
         });
       }
     }
 
-    // 2. Remplissage des actions menées sur les lignes pointillées
+    // 3. Actions menées (28 lignes pointillées)
     const actionsTexte = cleanVal(donnees.actions_menees);
     if (actionsTexte && fieldMap.lignesPointillees) {
       const cfg = fieldMap.lignesPointillees;
-      let fontSize = 9.5;
-      let lignes = wrapText(actionsTexte, fontRegular, fontSize, cfg.largeur);
+      const availWidth = cfg.x1 - cfg.x0 - 2 * MARGE_TEXTE;
+      let fontSize = TAILLE_DEFAUT;
+      let lignes = wrapText(actionsTexte, font, fontSize, availWidth);
+      const maxLignes = cfg.yBaselines.length;
 
-      // Si débordement au-delà de 28 lignes, réduire jusqu'à 7pt
-      while (lignes.length > cfg.maxLignes && fontSize > 7.0) {
+      while (lignes.length > maxLignes && fontSize > TAILLE_MIN) {
         fontSize -= 0.5;
-        lignes = wrapText(actionsTexte, fontRegular, fontSize, cfg.largeur);
+        lignes = wrapText(actionsTexte, font, fontSize, availWidth);
       }
 
-      if (lignes.length > cfg.maxLignes) {
-        warnings.push(`Le texte "Actions menées" dépasse les 28 lignes officielles (${lignes.length} lignes générées).`);
+      if (lignes.length > maxLignes) {
+        warnings.push(`DÉBORDEMENT: "Actions menées" dépasse les 28 lignes officielles (${lignes.length} lignes).`);
       }
 
-      const totalLignes = Math.min(lignes.length, cfg.maxLignes);
-      for (let i = 0; i < totalLignes; i++) {
-        const ligneTexte = lignes[i];
+      for (let i = 0; i < Math.min(lignes.length, maxLignes); i++) {
         const yBaseline = cfg.yBaselines[i];
-        if (yBaseline) {
-          // Poser le texte juste au-dessus du pointillé (+2pt)
-          page.drawText(ligneTexte, {
-            x: cfg.xDebut,
-            y: yBaseline + 2.0,
-            size: fontSize,
-            font: fontRegular,
-            color: rgb(0, 0, 0)
-          });
-        }
-      }
-    }
-
-    // Signature du rapporteur (ASCQ)
-    const nomRapporteur = cleanVal(donnees.signature_rapporteur || donnees.signature_nom || donnees.notificateur);
-    await dessinerSignature(
-      pdfDoc,
-      page,
-      { x: 380, y: 18, largeur: 160, hauteur: 28 },
-      donnees.signature_tactile,
-      nomRapporteur,
-      fontRegular,
-      fontBold
-    );
-  }
-
-  // =========================================================================
-  // TYPES ALR, DEC, INV : Fiches standards
-  // =========================================================================
-  else {
-    const page = pdfDoc.getPage(0);
-    if (fieldMap.champs) {
-      for (const champ of fieldMap.champs) {
-        // Extraction de la valeur
-        let rawVal = donnees[champ.id];
-
-        // Dérivation intelligente des dates (ex: date_deces -> date_deces_jour, mois, annee)
-        if (champ.type.startsWith("date_") && (rawVal === undefined || rawVal === null || rawVal === "")) {
-          const prefix = champ.id.replace(/_(jour|mois|annee)$/, "");
-          const sourceDate = cleanVal(donnees[prefix] || donnees[`${prefix}_date`]);
-          if (sourceDate) {
-            const parts = sourceDate.includes("-") ? sourceDate.split("-") : sourceDate.split("/");
-            if (parts.length === 3) {
-              if (champ.type === "date_jour") {
-                rawVal = parts[0].length === 4 ? parts[2] : parts[0];
-              } else if (champ.type === "date_mois") {
-                rawVal = parts[1];
-              } else if (champ.type === "date_annee") {
-                rawVal = parts[0].length === 4 ? parts[0] : parts[2];
-              }
-            }
-          }
-        }
-
-        // Cas particuliers : Cases à cocher
-        if (champ.type === "case_a_cocher") {
-          let coche = false;
-          if (champ.id === "sexe_m") {
-            coche = donnees.sexe === "M" || donnees.sexe_m === true;
-          } else if (champ.id === "sexe_f") {
-            coche = donnees.sexe === "F" || donnees.sexe_f === true;
-          } else {
-            coche = Boolean(rawVal);
-          }
-
-          if (coche) {
-            // Dessiner une croix 'X' centrée dans la case
-            const crossSize = 9;
-            const wX = fontBold.widthOfTextAtSize("X", crossSize);
-            const drawX = champ.x + Math.max(0, (champ.largeur - wX) / 2);
-            const drawY = champ.y + Math.max(0, (champ.hauteur - crossSize) / 2) + 1;
-
-            page.drawText("X", {
-              x: drawX,
-              y: drawY,
-              size: crossSize,
-              font: fontBold,
-              color: rgb(0, 0, 0)
-            });
-          }
-          continue;
-        }
-
-        const val = cleanVal(rawVal);
-        if (!val) continue;
-
-        const font = champ.police === "bold" ? fontBold : fontRegular;
-
-        // Cas multilinge
-        if (champ.type === "multiligne") {
-          const baseSize = champ.taille || 9;
-          const lignes = wrapText(val, font, baseSize, champ.largeur);
-          const lineHeight = baseSize + 2.5;
-          let currentY = champ.y + champ.hauteur - baseSize;
-
-          for (const ligne of lignes) {
-            if (currentY < champ.y) {
-              warnings.push(`Champ multiligne "${champ.id}" a débordé de sa boîte.`);
-              break;
-            }
-            page.drawText(ligne, {
-              x: champ.x,
-              y: currentY,
-              size: baseSize,
-              font,
-              color: rgb(0, 0, 0)
-            });
-            currentY -= lineHeight;
-          }
-          continue;
-        }
-
-        // Texte standard ou nombre
-        const { size, overflow } = fitFontSize(val, font, champ.taille || 9.5, champ.largeur);
-        if (overflow) {
-          warnings.push(`Champ "${champ.id}" réduit à ${size}pt.`);
-        }
-
-        let drawX = champ.x;
-        if (champ.alignement === "center") {
-          const w = font.widthOfTextAtSize(val, size);
-          drawX = champ.x + Math.max(0, (champ.largeur - w) / 2);
-        } else if (champ.alignement === "right") {
-          const w = font.widthOfTextAtSize(val, size);
-          drawX = champ.x + Math.max(0, champ.largeur - w);
-        }
-
-        page.drawText(val, {
-          x: drawX,
-          y: champ.y,
-          size,
+        page.drawText(lignes[i], {
+          x: cfg.x0 + MARGE_TEXTE,
+          y: yBaseline + DECALAGE_LIGNE_BASE,
+          size: fontSize,
           font,
-          color: rgb(0, 0, 0)
+          color: COULEUR_BLEU_MARINE
         });
       }
     }
 
-    // Signature officielle selon le type de fiche
-    if (typeFiche === "ALR") {
-      const nomPointFocal = cleanVal(donnees.signature_nom || donnees.notificateur || donnees.point_focal_nom);
+    // 4. Signature
+    const nomRapporteur = cleanVal(donnees.signature_nom);
+    if (donnees.signature_tactile || nomRapporteur) {
       await dessinerSignature(
         pdfDoc,
         page,
-        { x: 410, y: 195, largeur: 130, hauteur: 42 },
+        { x0: 200.0, x1: 550.0, y0: 50.0, y1: 75.0, base: 66.0 },
         donnees.signature_tactile,
-        nomPointFocal,
-        fontRegular,
-        fontBold
-      );
-    } else if (typeFiche === "DEC") {
-      const nomNotificateur = cleanVal(donnees.signature_nom || donnees.notificateur_nom || donnees.notificateur);
-      await dessinerSignature(
-        pdfDoc,
-        page,
-        { x: 395, y: 32, largeur: 145, hauteur: 38 },
-        donnees.signature_tactile,
-        nomNotificateur,
-        fontRegular,
-        fontBold
-      );
-    } else if (typeFiche === "INV") {
-      const nomInvestigateur = cleanVal(donnees.signature_investigateurs || donnees.signature_nom || donnees.investigateur_nom);
-      await dessinerSignature(
-        pdfDoc,
-        page,
-        { x: 360, y: 25, largeur: 155, hauteur: 35 },
-        donnees.signature_tactile,
-        nomInvestigateur,
-        fontRegular,
-        fontBold
+        nomRapporteur,
+        font
       );
     }
   }

@@ -48,8 +48,9 @@ export async function generatePdfPlanningAscq(data: AscqPlanningData): Promise<U
   const { bannerImg, logoImg } = await loadPlanningImages(pdfDoc);
   const signatureImg = await embedDataUrlImage(pdfDoc, data.signatureTactile);
 
-  // Palette officielle sobre et réglementaire
+  // Palette officielle sobre et réglementaire + Bleu Bic pour les données saisies
   const cBlack = rgb(0, 0, 0);
+  const cBleuBic = rgb(0.0, 0.25, 0.80); // Bleu Bic intense (#0040CC)
   const cNavyTitle = rgb(0 / 255, 53 / 255, 115 / 255); // #003573
   const cHeaderBg = rgb(233 / 255, 239 / 255, 247 / 255); // #e9eff7
   const cWhite = rgb(1, 1, 1);
@@ -381,22 +382,22 @@ export async function generatePdfPlanningAscq(data: AscqPlanningData): Promise<U
   const obsY = tblBottomY;
   const obsH = nbRows * rowH;
 
-  // Texte des observations
-  const obsText = sanitizeWinAnsi(data.observations || "Néant");
-  const obsLines = wrapText(obsText, regular, 8.2, colW_Obs - 16);
+  // Texte des observations (Bleu Bic + Gras, vide si non renseigné)
+  const obsText = sanitizeWinAnsi(data.observations || "");
+  const obsLines = obsText ? wrapText(obsText, bold, 8.2, colW_Obs - 16) : [];
 
   // Centrage vertical harmonieux du bloc d'observations dans la cellule fusionnée
   const totalTextH = obsLines.length * 13;
   let curObsY = obsY + (obsH + totalTextH) / 2 - 10;
 
   obsLines.forEach((line) => {
-    const lineW = regular.widthOfTextAtSize(line, 8.2);
+    const lineW = bold.widthOfTextAtSize(line, 8.2);
     page.drawText(line, {
       x: obsStartX + (colW_Obs - lineW) / 2,
       y: curObsY,
       size: 8.2,
-      font: regular,
-      color: cBlack,
+      font: bold,
+      color: cBleuBic,
     });
     curObsY -= 13;
   });
@@ -464,12 +465,12 @@ export async function generatePdfPlanningAscq(data: AscqPlanningData): Promise<U
     y: underTblY,
     size: 8.5,
     font: bold,
-    color: cBlack,
+    color: cBleuBic,
   });
 
   // Ligne 2 : Motif de l'écart
   let motifY = underTblY - 14;
-  if (data.motifEcart || rcPlan !== rcAtt) {
+  if (data.motifEcart) {
     const motifPrefix = "Motif de l'écart : ";
     const mpW = bold.widthOfTextAtSize(motifPrefix, 8.5);
     page.drawText(motifPrefix, {
@@ -480,16 +481,16 @@ export async function generatePdfPlanningAscq(data: AscqPlanningData): Promise<U
       color: cBlack,
     });
 
-    const motifText = sanitizeWinAnsi(data.motifEcart || "Deux relais communautaires indisponibles cette semaine (obsèques familiales et maladie) ; leurs villages seront couverts par le RC voisin.");
-    const motifLines = wrapText(motifText, regular, 8.5, contentWidth - mpW - 220);
+    const motifText = sanitizeWinAnsi(data.motifEcart);
+    const motifLines = wrapText(motifText, bold, 8.5, contentWidth - mpW - 220);
 
     motifLines.forEach((mLine, mIdx) => {
       page.drawText(mLine, {
         x: marginX + (mIdx === 0 ? mpW : 0),
         y: motifY - mIdx * 11,
         size: 8.5,
-        font: regular,
-        color: cBlack,
+        font: bold,
+        color: cBleuBic,
       });
     });
 
@@ -507,14 +508,16 @@ export async function generatePdfPlanningAscq(data: AscqPlanningData): Promise<U
     color: cBlack,
   });
 
-  const phoneVal = sanitizeWinAnsi(data.ascqPhone) || "01 97 00 00 00";
-  page.drawText(phoneVal, {
-    x: marginX + phW,
-    y: motifY,
-    size: 8.5,
-    font: regular,
-    color: cBlack,
-  });
+  const phoneVal = sanitizeWinAnsi(data.ascqPhone) || "";
+  if (phoneVal) {
+    page.drawText(phoneVal, {
+      x: marginX + phW,
+      y: motifY,
+      size: 8.5,
+      font: bold,
+      color: cBleuBic,
+    });
+  }
 
   // --- BLOC DROIT : L'ASCQ + SIGNATURE + NOM SOULIGNÉ ---
   const rightCenterX = pageWidth - marginX - 110;
@@ -548,24 +551,26 @@ export async function generatePdfPlanningAscq(data: AscqPlanningData): Promise<U
   }
 
   // Nom et prénom de l'ASCQ (souligné)
-  const nomAscq = sanitizeWinAnsi(data.ascqNom).toUpperCase() || "ADJOVI MARCELLIN";
-  const nomW = bold.widthOfTextAtSize(nomAscq, 9);
-  const nomY = underTblY - 46;
+  const nomAscq = sanitizeWinAnsi(data.ascqNom).toUpperCase();
+  if (nomAscq) {
+    const nomW = bold.widthOfTextAtSize(nomAscq, 9);
+    const nomY = underTblY - 46;
 
-  page.drawText(nomAscq, {
-    x: rightCenterX - nomW / 2,
-    y: nomY,
-    size: 9,
-    font: bold,
-    color: cBlack,
-  });
+    page.drawText(nomAscq, {
+      x: rightCenterX - nomW / 2,
+      y: nomY,
+      size: 9,
+      font: bold,
+      color: cBleuBic,
+    });
 
-  page.drawLine({
-    start: { x: rightCenterX - nomW / 2, y: nomY - 1.5 },
-    end: { x: rightCenterX + nomW / 2, y: nomY - 1.5 },
-    thickness: 1,
-    color: cBlack,
-  });
+    page.drawLine({
+      start: { x: rightCenterX - nomW / 2, y: nomY - 1.5 },
+      end: { x: rightCenterX + nomW / 2, y: nomY - 1.5 },
+      thickness: 1,
+      color: cBlack,
+    });
+  }
 
   // =========================================================================
   // 8. NOTE DE PIED DE PAGE CENTRÉE
