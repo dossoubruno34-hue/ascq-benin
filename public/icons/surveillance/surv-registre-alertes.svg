@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" fill="none">
+  <rect x="24" y="24" width="464" height="464" rx="96" fill="#F7F5EE" stroke="#112A3A" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  
+    <rect x="116" y="84" width="284" height="344" rx="28" fill="#FFFFFF" stroke="#112A3A" stroke-width="13"/>
+    <!-- Reliure terracotta à gauche -->
+    <path d="M116 112 C116 96 128 84 144 84 H184 V428 H144 C128 428 116 416 116 400 Z" fill="#D95B38" stroke="#112A3A" stroke-width="12"/>
+    <!-- Médaillon cloche / alerte bleu profond -->
+    <circle cx="288" cy="204" r="48" fill="#163A5F" stroke="#112A3A" stroke-width="11"/>
+    <path d="M288 176 C272 176 264 188 264 206 V220 H312 V206 C312 188 304 176 288 176 Z" fill="#E89B2D"/>
+    <!-- Lignes de registre -->
+    <line x1="224" y1="298" x2="356" y2="298" stroke="#112A3A" stroke-width="12" stroke-linecap="round"/>
+    <line x1="224" y1="342" x2="356" y2="342" stroke="#112A3A" stroke-width="12" stroke-linecap="round"/>
+    <line x1="224" y1="382" x2="316" y2="382" stroke="#0E8A94" stroke-width="12" stroke-linecap="round"/>
+  
+</svg>

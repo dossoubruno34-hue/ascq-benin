@@ -269,20 +269,22 @@ export default function ModalModuleSynchronisation({
         className="bg-white rounded-3xl max-w-lg w-full p-5 sm:p-6 border border-slate-200 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* En-tête du module Synchronisation */}
+        {/* En-tête du module Synchronisation (sync-module.svg) */}
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <div className="flex items-center gap-2.5">
-            <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 ${
-              enLigne ? "bg-emerald-100 text-[#005c30]" : "bg-amber-100 text-amber-800"
-            }`}>
-              <RefreshCw className={`w-5 h-5 ${enCours ? "animate-spin" : ""}`} />
-            </div>
+            <img
+              src="/icons/synchronisation/sync-module.svg"
+              alt="Synchronisation"
+              width={44}
+              height={44}
+              className={`w-11 h-11 rounded-2xl shrink-0 ${enCours ? "animate-spin" : ""}`}
+            />
             <div>
               <span className="text-[10px] font-black uppercase tracking-wider text-[#005c30] bg-emerald-50 px-2 py-0.5 rounded-full">
                 Module Synchronisation
               </span>
               <h2 className="text-base font-black text-slate-900">
-                Synchronisation & File d'Envoi
+                Synchronisation &amp; File d&apos;Envoi
               </h2>
             </div>
           </div>
@@ -297,16 +299,18 @@ export default function ModalModuleSynchronisation({
           </button>
         </div>
 
-        {/* État du réseau & Dernière synchronisation */}
+        {/* État du réseau (sync-etat-reseau.svg) & Dernière synchronisation */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
           <div className={`p-3 rounded-2xl border flex items-center gap-2.5 ${
             enLigne ? "bg-emerald-50/70 border-emerald-200 text-emerald-950" : "bg-amber-50 border-amber-200 text-amber-950"
           }`}>
-            {enLigne ? (
-              <Wifi className="w-5 h-5 text-emerald-600 shrink-0" />
-            ) : (
-              <WifiOff className="w-5 h-5 text-amber-600 shrink-0" />
-            )}
+            <img
+              src="/icons/synchronisation/sync-etat-reseau.svg"
+              alt="État réseau"
+              width={36}
+              height={36}
+              className="w-9 h-9 shrink-0"
+            />
             <div>
               <span className="text-[10px] font-bold uppercase opacity-75 block">État du réseau</span>
               <strong className="font-black text-xs">
@@ -316,7 +320,13 @@ export default function ModalModuleSynchronisation({
           </div>
 
           <div className="p-3 rounded-2xl border border-slate-200 bg-slate-50 flex items-center gap-2.5 text-slate-800">
-            <Clock className="w-5 h-5 text-[#005c30] shrink-0" />
+            <img
+              src="/icons/synchronisation/sync-purge-sensibles.svg"
+              alt="Purge éléments sensibles"
+              width={36}
+              height={36}
+              className="w-9 h-9 shrink-0"
+            />
             <div>
               <span className="text-[10px] font-bold uppercase text-slate-500 block">Dernière synchronisation</span>
               <strong className="font-black text-xs">
@@ -326,10 +336,19 @@ export default function ModalModuleSynchronisation({
           </div>
         </div>
 
-        {/* Nombre d'éléments en attente par type */}
+        {/* Nombre d'éléments en attente par type (sync-file-outbox.svg) */}
         <div className="space-y-2">
           <div className="flex items-center justify-between text-xs">
-            <span className="font-extrabold text-slate-800">Éléments en attente d'envoi (Outbox)</span>
+            <span className="font-extrabold text-slate-800 flex items-center gap-2">
+              <img
+                src="/icons/synchronisation/sync-file-outbox.svg"
+                alt="File outbox"
+                width={28}
+                height={28}
+                className="w-7 h-7 shrink-0"
+              />
+              <span>File outbox — Éléments en attente</span>
+            </span>
             <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-black ${
               compteurs.total === 0 ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-900"
             }`}>
@@ -396,23 +415,38 @@ export default function ModalModuleSynchronisation({
           </div>
         )}
 
-        {/* Bouton principal "Synchroniser maintenant" (cible tactile >= 48dp) */}
+        {/* Bouton principal "Synchroniser maintenant" (sync-maintenant.svg) */}
         <button
           type="button"
           disabled={enCours}
           onClick={lancerSynchronisation}
           className="w-full min-h-[48px] py-3 px-4 rounded-2xl bg-[#005c30] hover:bg-[#004724] text-white font-black text-xs sm:text-sm shadow-md active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-60"
         >
-          <RefreshCw className={`w-4 h-4 ${enCours ? "animate-spin" : ""}`} />
+          <img
+            src="/icons/synchronisation/sync-maintenant.svg"
+            alt="Synchroniser maintenant"
+            width={24}
+            height={24}
+            className="w-6 h-6 shrink-0"
+          />
           <span>{enCours ? "Synchronisation en cours..." : "Synchroniser maintenant"}</span>
         </button>
 
-        {/* Option Wi-Fi uniquement & Taille du cache */}
+        {/* Option Wi-Fi uniquement (sync-wifi-uniquement.svg) & Taille du cache (sync-taille-cache.svg) */}
         <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-3 text-xs">
           <label className="flex items-center justify-between gap-3 cursor-pointer min-h-[36px]">
-            <div>
-              <span className="font-extrabold text-slate-800 block">Synchroniser seulement en Wi-Fi</span>
-              <span className="text-[11px] text-slate-500">Économise votre forfait mobile lors des envois volumineux</span>
+            <div className="flex items-center gap-2.5">
+              <img
+                src="/icons/synchronisation/sync-wifi-uniquement.svg"
+                alt="Wi-Fi uniquement"
+                width={32}
+                height={32}
+                className="w-8 h-8 shrink-0"
+              />
+              <div>
+                <span className="font-extrabold text-slate-800 block">Synchroniser seulement en Wi-Fi</span>
+                <span className="text-[11px] text-slate-500">Économise votre forfait mobile lors des envois volumineux</span>
+              </div>
             </div>
             <input
               type="checkbox"
@@ -423,18 +457,31 @@ export default function ModalModuleSynchronisation({
           </label>
 
           <div className="pt-2 border-t border-slate-200/80 flex items-center justify-between text-slate-600">
-            <span className="flex items-center gap-1.5 font-semibold">
-              <HardDrive className="w-4 h-4 text-slate-500" />
+            <span className="flex items-center gap-2 font-semibold">
+              <img
+                src="/icons/synchronisation/sync-taille-cache.svg"
+                alt="Taille du cache"
+                width={28}
+                height={28}
+                className="w-7 h-7 shrink-0"
+              />
               <span>Taille du cache local chiffré :</span>
             </span>
             <strong className="font-mono font-black text-slate-900">{compteurs.tailleCacheKo} Ko</strong>
           </div>
         </div>
 
-        {/* Journal des erreurs en français clair */}
+        {/* Journal des erreurs en français clair (sync-journal-erreurs.svg) */}
         <div className="space-y-1.5">
-          <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 block">
-            Journal de synchronisation
+          <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+            <img
+              src="/icons/synchronisation/sync-journal-erreurs.svg"
+              alt="Journal d'erreurs"
+              width={22}
+              height={22}
+              className="w-5 h-5 shrink-0"
+            />
+            <span>Journal de synchronisation</span>
           </span>
           {compteurs.erreursJournal.length === 0 ? (
             <div className="p-3 rounded-2xl bg-emerald-50/50 border border-emerald-200/70 text-xs text-emerald-900 flex items-center gap-2">

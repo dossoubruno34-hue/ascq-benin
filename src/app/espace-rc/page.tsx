@@ -901,13 +901,15 @@ export default function EspaceRelaisPage() {
               title="Synchronisation"
               aria-label="Synchronisation"
             >
-              {rcPendingSync > 0 ? (
-                <RefreshCw className="w-4 h-4 text-[#FCD116]" />
-              ) : (
-                <CheckCircle2 className="w-4 h-4 text-emerald-300" />
-              )}
+              <img
+                src="/icons/synchronisation/sync-module.svg"
+                alt="Synchronisation"
+                width={26}
+                height={26}
+                className="w-6 h-6 object-contain"
+              />
               {rcPendingSync > 0 && (
-                <span className="absolute top-1.5 right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-amber-400 text-slate-950 text-[9px] font-black flex items-center justify-center">
+                <span className="absolute top-1.5 right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-[#E89B2D] text-slate-950 text-[9px] font-black flex items-center justify-center">
                   {rcPendingSync}
                 </span>
               )}
@@ -930,7 +932,13 @@ export default function EspaceRelaisPage() {
               title="Se déconnecter"
               aria-label="Déconnexion"
             >
-              <LogOut className="w-4 h-4" />
+              <img
+                src="/icons/deconnexion/auth-logout-module.svg"
+                alt="Déconnexion"
+                width={26}
+                height={26}
+                className="w-6 h-6 object-contain"
+              />
             </button>
           </div>
         </div>
@@ -981,23 +989,15 @@ export default function EspaceRelaisPage() {
                     : "bg-white border-slate-200/90 hover:border-emerald-300"
                 }`}
               >
-                {mod.waxIcon && (
-                  <div className="w-11 h-11 rounded-xl overflow-hidden shrink-0 border border-amber-300/70 bg-[#003573]">
-                    <picture>
-                      <source
-                        srcSet={`${mod.waxIcon.webp96} 1x, ${mod.waxIcon.webp192} 2x`}
-                        type="image/webp"
-                      />
-                      <img
-                        src={mod.waxIcon.png512}
-                        alt={mod.waxIcon.alt}
-                        width={44}
-                        height={44}
-                        className="w-full h-full object-cover"
-                      />
-                    </picture>
-                  </div>
-                )}
+                <div className="w-11 h-11 rounded-xl overflow-hidden shrink-0 bg-[#F7F5EE]">
+                  <img
+                    src={mod.iconPath}
+                    alt={mod.waxIcon?.alt || mod.libelle}
+                    width={44}
+                    height={44}
+                    className="w-full h-full object-contain"
+                  />
+                </div>
                 <span
                   className={`font-black text-xs leading-tight break-words ${
                     isSelected ? "text-[#005c30]" : "text-slate-800"

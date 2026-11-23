@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" fill="none">
+  <rect x="24" y="24" width="464" height="464" rx="96" fill="#F7F5EE" stroke="#112A3A" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  
+    <!-- Anneau bouclier protecteur vert -->
+    <circle cx="256" cy="256" r="168" fill="#FFFFFF" stroke="#112A3A" stroke-width="13"/>
+    <circle cx="256" cy="256" r="144" fill="none" stroke="#1D8F5A" stroke-width="14"/>
+    <!-- Mère -->
+    <circle cx="232" cy="184" r="36" fill="#D95B38" stroke="#112A3A" stroke-width="12"/>
+    <path d="M164 348 C164 274 196 242 238 242 C278 242 312 274 316 348 Z" fill="#1D8F5A" stroke="#112A3A" stroke-width="12" stroke-linejoin="round"/>
+    <!-- Nouveau-né dans les bras -->
+    <circle cx="294" cy="244" r="24" fill="#E89B2D" stroke="#112A3A" stroke-width="11"/>
+    <path d="M242 326 C242 288 268 274 300 278 C328 282 342 304 336 336 Z" fill="#0E8A94" stroke="#112A3A" stroke-width="11" stroke-linejoin="round"/>
+  
+</svg>

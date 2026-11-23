@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" fill="none">
+  <rect x="24" y="24" width="464" height="464" rx="96" fill="#F7F5EE" stroke="#112A3A" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  
+    <rect x="76" y="102" width="360" height="312" rx="32" fill="#FFFFFF" stroke="#112A3A" stroke-width="13"/>
+    <!-- Bandeau turquoise supérieur -->
+    <path d="M76 134 C76 116 90 102 108 102 H404 C422 102 436 116 436 134 V176 H76 Z" fill="#0E8A94" stroke="#112A3A" stroke-width="12"/>
+    <!-- 7 colonnes journalières -->
+    <rect x="110" y="276" width="26" height="96" rx="6" fill="#0E8A94" stroke="#112A3A" stroke-width="8"/>
+    <rect x="154" y="238" width="26" height="134" rx="6" fill="#1D8F5A" stroke="#112A3A" stroke-width="8"/>
+    <rect x="198" y="260" width="26" height="112" rx="6" fill="#E89B2D" stroke="#112A3A" stroke-width="8"/>
+    <rect x="242" y="216" width="26" height="156" rx="6" fill="#1D8F5A" stroke="#112A3A" stroke-width="8"/>
+    <rect x="286" y="248" width="26" height="124" rx="6" fill="#0E8A94" stroke="#112A3A" stroke-width="8"/>
+    <rect x="330" y="204" width="26" height="168" rx="6" fill="#D95B38" stroke="#112A3A" stroke-width="8"/>
+    <rect x="374" y="232" width="26" height="140" rx="6" fill="#1D8F5A" stroke="#112A3A" stroke-width="8"/>
+  
+</svg>

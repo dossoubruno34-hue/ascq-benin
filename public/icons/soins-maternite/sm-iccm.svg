@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" fill="none">
+  <rect x="24" y="24" width="464" height="464" rx="96" fill="#F7F5EE" stroke="#112A3A" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  
+    <!-- Agent ASCQ à gauche -->
+    <circle cx="176" cy="196" r="38" fill="#163A5F" stroke="#112A3A" stroke-width="12"/>
+    <path d="M106 382 C106 306 136 266 176 266 C216 266 246 306 246 382 Z" fill="#0E8A94" stroke="#112A3A" stroke-width="12" stroke-linejoin="round"/>
+    <!-- Croix blanche sur la blouse -->
+    <path d="M176 314 V346 M160 330 H192" stroke="#FFFFFF" stroke-width="11" stroke-linecap="round"/>
+    <!-- Enfant à droite -->
+    <circle cx="332" cy="242" r="30" fill="#D95B38" stroke="#112A3A" stroke-width="12"/>
+    <path d="M278 382 C278 326 300 298 332 298 C364 298 386 326 386 382 Z" fill="#E89B2D" stroke="#112A3A" stroke-width="12" stroke-linejoin="round"/>
+    <!-- Ligne de base -->
+    <line x1="88" y1="382" x2="412" y2="382" stroke="#112A3A" stroke-width="13" stroke-linecap="round"/>
+    <!-- Médaillon médical vert en haut à droite -->
+    <circle cx="388" cy="128" r="40" fill="#1D8F5A" stroke="#112A3A" stroke-width="11"/>
+    <path d="M388 108 V148 M368 128 H408" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round"/>
+  
+</svg>

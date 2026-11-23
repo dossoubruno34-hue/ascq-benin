@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" fill="none">
+  <rect x="24" y="24" width="464" height="464" rx="96" fill="#F7F5EE" stroke="#112A3A" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  
+    <rect x="96" y="84" width="320" height="344" rx="32" fill="#FFFFFF" stroke="#112A3A" stroke-width="13"/>
+    <path d="M96 116 C96 98 110 84 128 84 H384 C402 84 416 98 416 116 V158 H96 Z" fill="#D95B38" stroke="#112A3A" stroke-width="12"/>
+    <!-- Diagramme sectoriel -->
+    <circle cx="192" cy="264" r="52" fill="#0E8A94" stroke="#112A3A" stroke-width="11"/>
+    <path d="M192 264 L192 212 A52 52 0 0 1 244 264 Z" fill="#E89B2D" stroke="#112A3A" stroke-width="11" stroke-linejoin="round"/>
+    <!-- Lignes de tableau -->
+    <line x1="276" y1="236" x2="368" y2="236" stroke="#112A3A" stroke-width="12" stroke-linecap="round"/>
+    <line x1="276" y1="276" x2="368" y2="276" stroke="#112A3A" stroke-width="12" stroke-linecap="round"/>
+    <line x1="144" y1="358" x2="368" y2="358" stroke="#1D8F5A" stroke-width="12" stroke-linecap="round"/>
+  
+</svg>

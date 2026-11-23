@@ -189,7 +189,7 @@ export default function AscqNav({ userProfile }: Props) {
 
           {/* Droite : Synchronisation (épinglé) + Notifications + Déconnexion (épinglé) */}
           <div className="flex items-center gap-0.5 shrink-0">
-            {/* Module Synchronisation épinglé */}
+            {/* Module 7 : Synchronisation épinglé (sync-module.svg) */}
             <button
               type="button"
               onClick={() => {
@@ -204,20 +204,18 @@ export default function AscqNav({ userProfile }: Props) {
               }
               aria-label="Synchronisation"
             >
-              {isSyncingNow ? (
-                <RefreshCw className="w-4 h-4 text-[#FCD116] animate-spin" />
-              ) : hasSyncError ? (
-                <AlertTriangle className="w-4 h-4 text-rose-300" />
-              ) : pendingSyncCount > 0 ? (
-                <RefreshCw className="w-4 h-4 text-amber-300" />
-              ) : (
-                <CheckCircle2 className="w-4 h-4 text-emerald-300" />
-              )}
+              <img
+                src="/icons/synchronisation/sync-module.svg"
+                alt="Synchronisation"
+                width={26}
+                height={26}
+                className={`w-6 h-6 object-contain ${isSyncingNow ? "animate-spin" : ""}`}
+              />
 
               {pendingSyncCount > 0 && (
                 <span
-                  className={`absolute top-1.5 right-1.5 min-w-[16px] h-4 px-1 rounded-full text-white text-[9px] font-black flex items-center justify-center shadow ${
-                    hasSyncError ? "bg-[#E8112D]" : "bg-amber-500 text-slate-950"
+                  className={`absolute top-1 right-1 min-w-[16px] h-4 px-1 rounded-full text-white text-[9px] font-black flex items-center justify-center shadow ${
+                    hasSyncError ? "bg-[#D63838]" : "bg-[#E89B2D] text-slate-950"
                   }`}
                 >
                   {pendingSyncCount > 9 ? "9+" : pendingSyncCount}
@@ -235,13 +233,13 @@ export default function AscqNav({ userProfile }: Props) {
             >
               <Bell className="w-4 h-4" />
               {unreadCount > 0 && (
-                <span className="absolute top-1.5 right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-[#E8112D] text-white text-[9px] font-black flex items-center justify-center animate-pulse">
+                <span className="absolute top-1.5 right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-[#D63838] text-white text-[9px] font-black flex items-center justify-center animate-pulse">
                   {unreadCount > 9 ? "9+" : unreadCount}
                 </span>
               )}
             </button>
 
-            {/* Module Déconnexion épinglé */}
+            {/* Module 8 : Déconnexion épinglé (auth-logout-module.svg) */}
             <button
               type="button"
               onClick={() => {
@@ -252,7 +250,13 @@ export default function AscqNav({ userProfile }: Props) {
               title="Déconnexion"
               aria-label="Déconnexion"
             >
-              <LogOut className="w-4 h-4" />
+              <img
+                src="/icons/deconnexion/auth-logout-module.svg"
+                alt="Déconnexion"
+                width={26}
+                height={26}
+                className="w-6 h-6 object-contain"
+              />
             </button>
           </div>
         </div>

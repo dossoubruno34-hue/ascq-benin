@@ -1,8 +1,7 @@
 /**
- * REGISTRE CENTRAL DE NAVIGATION — SANTÉCOM BÉNIN (v3)
- * Source unique de vérité pour les 6 modules principaux, les 2 modules d'en-tête
- * (Synchronisation et Déconnexion), les modules RC, les sous-modules, les icônes Wax,
- * les pastilles de comptage et la visibilité stricte par rôle.
+ * REGISTRE CENTRAL DE NAVIGATION COMPLET — SANTÉCOM / ASCQ BÉNIN
+ * Intègre l'intégralité des 56 entrées (8 modules principaux suivis des 48 sous-modules)
+ * de la « Bibliothèque Iconographique Complète — ASCQ Bénin » (Modules 1 à 8).
  */
 
 export type RoleNavigation =
@@ -23,41 +22,132 @@ export type BadgeKey =
   | "perdus_de_vue"
   | "demandes_export";
 
+export interface NavigationRegistryItem {
+  id: string;
+  parentId: string | null;
+  label: string;
+  iconId: string;
+  iconPath: string;
+}
+
+/**
+ * Référentiel officiel des 56 pictogrammes vectoriels (Section 11 de la Bibliothèque Iconographique)
+ */
+export const NAVIGATION_REGISTRY: NavigationRegistryItem[] = [
+  // LES 8 MODULES PRINCIPAUX (parentId: null)
+  { id: 'soins-maternite', parentId: null, label: 'Soins & Maternité', iconId: 'sm-module', iconPath: '/icons/soins-maternite/sm-module.svg' },
+  { id: 'surveillance', parentId: null, label: 'Surveillance', iconId: 'surv-module', iconPath: '/icons/surveillance/surv-module.svg' },
+  { id: 'terrain-rc', parentId: null, label: 'Terrain & RC', iconId: 'trc-module', iconPath: '/icons/terrain-rc/trc-module.svg' },
+  { id: 'rapports-snis', parentId: null, label: 'Rapports SNIS', iconId: 'snis-module', iconPath: '/icons/rapports-snis/snis-module.svg' },
+  { id: 'gouvernance', parentId: null, label: 'Gouvernance', iconId: 'gov-module', iconPath: '/icons/gouvernance/gov-module.svg' },
+  { id: 'outils', parentId: null, label: 'Outils', iconId: 'out-module', iconPath: '/icons/outils/out-module.svg' },
+  { id: 'synchronisation', parentId: null, label: 'Synchronisation', iconId: 'sync-module', iconPath: '/icons/synchronisation/sync-module.svg' },
+  { id: 'deconnexion', parentId: null, label: 'Déconnexion', iconId: 'auth-logout-module', iconPath: '/icons/deconnexion/auth-logout-module.svg' },
+
+  // SOUS-MODULES — MODULE 1 : SOINS & MATERNITÉ (5)
+  { id: 'sm-vue-ensemble', parentId: 'soins-maternite', label: "Vue d'ensemble", iconId: 'sm-vue-ensemble', iconPath: '/icons/soins-maternite/sm-vue-ensemble.svg' },
+  { id: 'sm-iccm', parentId: 'soins-maternite', label: 'Prise en charge iCCM', iconId: 'sm-iccm', iconPath: '/icons/soins-maternite/sm-iccm.svg' },
+  { id: 'sm-maternite-1000j', parentId: 'soins-maternite', label: 'Maternité & 1000 Jours', iconId: 'sm-maternite-1000j', iconPath: '/icons/soins-maternite/sm-maternite-1000j.svg' },
+  { id: 'sm-perdus-de-vue', parentId: 'soins-maternite', label: 'Perdus de vue', iconId: 'sm-perdus-de-vue', iconPath: '/icons/soins-maternite/sm-perdus-de-vue.svg' },
+  { id: 'sm-references-cs-gups', parentId: 'soins-maternite', label: 'Références CS/GUPS', iconId: 'sm-references-cs-gups', iconPath: '/icons/soins-maternite/sm-references-cs-gups.svg' },
+
+  // SOUS-MODULES — MODULE 2 : SURVEILLANCE (9)
+  { id: 'surv-guide-simr', parentId: 'surveillance', label: 'Guide SIMR & Vaccins', iconId: 'surv-guide-simr', iconPath: '/icons/surveillance/surv-guide-simr.svg' },
+  { id: 'surv-fiches', parentId: 'surveillance', label: 'Fiches Surveillance', iconId: 'surv-fiches', iconPath: '/icons/surveillance/surv-fiches.svg' },
+  { id: 'surv-registre-alertes', parentId: 'surveillance', label: 'Registre des alertes', iconId: 'surv-registre-alertes', iconPath: '/icons/surveillance/surv-registre-alertes.svg' },
+  { id: 'surv-notifier-alerte', parentId: 'surveillance', label: 'Notifier une alerte', iconId: 'surv-notifier-alerte', iconPath: '/icons/surveillance/surv-notifier-alerte.svg' },
+  { id: 'surv-alertes-a-confirmer', parentId: 'surveillance', label: 'Alertes à confirmer', iconId: 'surv-alertes-a-confirmer', iconPath: '/icons/surveillance/surv-alertes-a-confirmer.svg' },
+  { id: 'surv-alertes-confirmees', parentId: 'surveillance', label: 'Alertes déjà confirmées', iconId: 'surv-alertes-confirmees', iconPath: '/icons/surveillance/surv-alertes-confirmees.svg' },
+  { id: 'surv-notification-deces', parentId: 'surveillance', label: 'Notification de décès', iconId: 'surv-notification-deces', iconPath: '/icons/surveillance/surv-notification-deces.svg' },
+  { id: 'surv-fiche-investigation', parentId: 'surveillance', label: "Fiche d'investigation", iconId: 'surv-fiche-investigation', iconPath: '/icons/surveillance/surv-fiche-investigation.svg' },
+  { id: 'surv-rapport-hebdo', parentId: 'surveillance', label: 'Rapport hebdomadaire', iconId: 'surv-rapport-hebdo', iconPath: '/icons/surveillance/surv-rapport-hebdo.svg' },
+
+  // SOUS-MODULES — MODULE 3 : TERRAIN & RC (5)
+  { id: 'trc-planning', parentId: 'terrain-rc', label: 'Planning', iconId: 'trc-planning', iconPath: '/icons/terrain-rc/trc-planning.svg' },
+  { id: 'trc-activites', parentId: 'terrain-rc', label: 'Activités', iconId: 'trc-activites', iconPath: '/icons/terrain-rc/trc-activites.svg' },
+  { id: 'trc-suivis-groupes', parentId: 'terrain-rc', label: 'Suivis groupés des RC', iconId: 'trc-suivis-groupes', iconPath: '/icons/terrain-rc/trc-suivis-groupes.svg' },
+  { id: 'trc-mes-relais', parentId: 'terrain-rc', label: 'Mes Relais', iconId: 'trc-mes-relais', iconPath: '/icons/terrain-rc/trc-mes-relais.svg' },
+  { id: 'trc-validations-inscription', parentId: 'terrain-rc', label: "Validations d'inscription", iconId: 'trc-validations-inscription', iconPath: '/icons/terrain-rc/trc-validations-inscription.svg' },
+
+  // SOUS-MODULES — MODULE 4 : RAPPORTS SNIS (4)
+  { id: 'snis-suivi-pnsc', parentId: 'rapports-snis', label: 'Suivi PNSC', iconId: 'snis-suivi-pnsc', iconPath: '/icons/rapports-snis/snis-suivi-pnsc.svg' },
+  { id: 'snis-rapport-mensuel', parentId: 'rapports-snis', label: 'Rapport mensuel', iconId: 'snis-rapport-mensuel', iconPath: '/icons/rapports-snis/snis-rapport-mensuel.svg' },
+  { id: 'snis-synthese-communale', parentId: 'rapports-snis', label: 'Synthèse communale', iconId: 'snis-synthese-communale', iconPath: '/icons/rapports-snis/snis-synthese-communale.svg' },
+  { id: 'snis-exports', parentId: 'rapports-snis', label: 'Exports', iconId: 'snis-exports', iconPath: '/icons/rapports-snis/snis-exports.svg' },
+
+  // SOUS-MODULES — MODULE 5 : GOUVERNANCE & ADMINISTRATION (7)
+  { id: 'gov-perimetre', parentId: 'gouvernance', label: 'Périmètre', iconId: 'gov-perimetre', iconPath: '/icons/gouvernance/gov-perimetre.svg' },
+  { id: 'gov-representants-nommes', parentId: 'gouvernance', label: 'Représentants nommés', iconId: 'gov-representants-nommes', iconPath: '/icons/gouvernance/gov-representants-nommes.svg' },
+  { id: 'gov-cadres-ressort', parentId: 'gouvernance', label: 'Cadres pour leur ressort', iconId: 'gov-cadres-ressort', iconPath: '/icons/gouvernance/gov-cadres-ressort.svg' },
+  { id: 'gov-administration', parentId: 'gouvernance', label: 'Administration', iconId: 'gov-administration', iconPath: '/icons/gouvernance/gov-administration.svg' },
+  { id: 'gov-comptes-validations', parentId: 'gouvernance', label: 'Comptes et validations', iconId: 'gov-comptes-validations', iconPath: '/icons/gouvernance/gov-comptes-validations.svg' },
+  { id: 'gov-journal-audit', parentId: 'gouvernance', label: "Journal d'audit", iconId: 'gov-journal-audit', iconPath: '/icons/gouvernance/gov-journal-audit.svg' },
+  { id: 'gov-demandes-export-ministere', parentId: 'gouvernance', label: "Demandes d'export du ministère", iconId: 'gov-demandes-export-ministere', iconPath: '/icons/gouvernance/gov-demandes-export-ministere.svg' },
+
+  // SOUS-MODULES — MODULE 6 : OUTILS & RESSOURCES (6)
+  { id: 'out-guide-utilisateur', parentId: 'outils', label: 'Guide utilisateur', iconId: 'out-guide-utilisateur', iconPath: '/icons/outils/out-guide-utilisateur.svg' },
+  { id: 'out-formation', parentId: 'outils', label: 'Formation', iconId: 'out-formation', iconPath: '/icons/outils/out-formation.svg' },
+  { id: 'out-bibliotheque', parentId: 'outils', label: 'Bibliothèque', iconId: 'out-bibliotheque', iconPath: '/icons/outils/out-bibliotheque.svg' },
+  { id: 'out-permutations', parentId: 'outils', label: 'Permutations', iconId: 'out-permutations', iconPath: '/icons/outils/out-permutations.svg' },
+  { id: 'out-requetes', parentId: 'outils', label: 'Requêtes', iconId: 'out-requetes', iconPath: '/icons/outils/out-requetes.svg' },
+  { id: 'out-presentation-conseils', parentId: 'outils', label: 'Présentation Conseils', iconId: 'out-presentation-conseils', iconPath: '/icons/outils/out-presentation-conseils.svg' },
+
+  // SOUS-MODULES — MODULE 7 : SYNCHRONISATION & HORS-LIGNE (7)
+  { id: 'sync-etat-reseau', parentId: 'synchronisation', label: 'État réseau', iconId: 'sync-etat-reseau', iconPath: '/icons/synchronisation/sync-etat-reseau.svg' },
+  { id: 'sync-file-outbox', parentId: 'synchronisation', label: 'File outbox', iconId: 'sync-file-outbox', iconPath: '/icons/synchronisation/sync-file-outbox.svg' },
+  { id: 'sync-maintenant', parentId: 'synchronisation', label: 'Synchroniser maintenant', iconId: 'sync-maintenant', iconPath: '/icons/synchronisation/sync-maintenant.svg' },
+  { id: 'sync-journal-erreurs', parentId: 'synchronisation', label: "Journal d'erreurs", iconId: 'sync-journal-erreurs', iconPath: '/icons/synchronisation/sync-journal-erreurs.svg' },
+  { id: 'sync-wifi-uniquement', parentId: 'synchronisation', label: 'Wi-Fi uniquement', iconId: 'sync-wifi-uniquement', iconPath: '/icons/synchronisation/sync-wifi-uniquement.svg' },
+  { id: 'sync-taille-cache', parentId: 'synchronisation', label: 'Taille du cache', iconId: 'sync-taille-cache', iconPath: '/icons/synchronisation/sync-taille-cache.svg' },
+  { id: 'sync-purge-sensibles', parentId: 'synchronisation', label: 'Purge des éléments sensibles synchronisés', iconId: 'sync-purge-sensibles', iconPath: '/icons/synchronisation/sync-purge-sensibles.svg' },
+
+  // SOUS-MODULES — MODULE 8 : DÉCONNEXION & SÉCURITÉ DE SESSION (5)
+  { id: 'auth-confirmation', parentId: 'deconnexion', label: 'Confirmation de déconnexion', iconId: 'auth-confirmation', iconPath: '/icons/deconnexion/auth-confirmation.svg' },
+  { id: 'auth-non-synchronises', parentId: 'deconnexion', label: 'Éléments non synchronisés', iconId: 'auth-non-synchronises', iconPath: '/icons/deconnexion/auth-non-synchronises.svg' },
+  { id: 'auth-appareil-partage', parentId: 'deconnexion', label: 'Appareil partagé', iconId: 'auth-appareil-partage', iconPath: '/icons/deconnexion/auth-appareil-partage.svg' },
+  { id: 'auth-purge-session', parentId: 'deconnexion', label: 'Purge de session et des caches', iconId: 'auth-purge-session', iconPath: '/icons/deconnexion/auth-purge-session.svg' },
+  { id: 'auth-auto-inactivite', parentId: 'deconnexion', label: 'Déconnexion automatique après inactivité', iconId: 'auth-auto-inactivite', iconPath: '/icons/deconnexion/auth-auto-inactivite.svg' },
+];
+
 export interface NavigationEntry {
   id: string;
   libelle: string;
-  icone: string; // Nom d'icône Lucide
+  icone: string;
+  iconId: string;
+  iconPath: string;
   waxIcon?: {
     png512: string;
     webp192: string;
     webp96: string;
     alt: string;
   };
-  parent: string | null; // null pour module racine, id du module parent pour sous-module
+  parent: string | null;
   route: string;
   roles: RoleNavigation[];
   ordre: number;
   badge?: BadgeKey;
   disponibleHorsLigne: boolean;
   statut: StatutModule;
-  estSaisie?: boolean; // Si true, masqué pour PF_CCLS_TP et MEMBRE_MINISTERE
-  estEpinglerEnTete?: boolean; // Synchronisation & Déconnexion épinglés à droite de l'en-tête
+  estSaisie?: boolean;
+  estEpinglerEnTete?: boolean;
   descriptionCourte?: string;
 }
 
 export const REGISTRE_NAVIGATION: NavigationEntry[] = [
   // =========================================================================
-  // LES 6 MODULES PRINCIPAUX (ORDRE ET NOMS CONSERVÉS TELS QUELS)
+  // LES 6 MODULES PRINCIPAUX (GRILLE D'ACCUEIL)
   // =========================================================================
   {
     id: "soins",
     libelle: "Soins & Maternité",
     icone: "Stethoscope",
+    iconId: "sm-module",
+    iconPath: "/icons/soins-maternite/sm-module.svg",
     waxIcon: {
-      png512: "/icons/wax/soins-512.png",
-      webp192: "/icons/wax/soins-192.webp",
-      webp96: "/icons/wax/soins-96.webp",
-      alt: "Illustration style wax Soins cliniques et Maternité"
+      png512: "/icons/soins-maternite/sm-module.svg",
+      webp192: "/icons/soins-maternite/sm-module.svg",
+      webp96: "/icons/soins-maternite/sm-module.svg",
+      alt: "Poste de santé communautaire à croix médicale verte, chemin d'accès ocre et frise supérieure turquoise"
     },
     parent: null,
     route: "/espace-ascq?module=soins",
@@ -72,11 +162,13 @@ export const REGISTRE_NAVIGATION: NavigationEntry[] = [
     id: "surveillance",
     libelle: "Surveillance",
     icone: "ShieldAlert",
+    iconId: "surv-module",
+    iconPath: "/icons/surveillance/surv-module.svg",
     waxIcon: {
-      png512: "/icons/wax/surveillance-512.png",
-      webp192: "/icons/wax/surveillance-192.webp",
-      webp96: "/icons/wax/surveillance-96.webp",
-      alt: "Illustration style wax Surveillance épidémiologique SIMR"
+      png512: "/icons/surveillance/surv-module.svg",
+      webp192: "/icons/surveillance/surv-module.svg",
+      webp96: "/icons/surveillance/surv-module.svg",
+      alt: "Radar épidémiologique bleu profond avec détection de foyers et croix centrale d'alerte sanitaire"
     },
     parent: null,
     route: "/espace-ascq?module=surveillance",
@@ -91,11 +183,13 @@ export const REGISTRE_NAVIGATION: NavigationEntry[] = [
     id: "terrain",
     libelle: "Terrain & RC",
     icone: "Users",
+    iconId: "trc-module",
+    iconPath: "/icons/terrain-rc/trc-module.svg",
     waxIcon: {
-      png512: "/icons/wax/terrain-512.png",
-      webp192: "/icons/wax/terrain-192.webp",
-      webp96: "/icons/wax/terrain-96.webp",
-      alt: "Illustration style wax Terrain et Relais Communautaires"
+      png512: "/icons/terrain-rc/trc-module.svg",
+      webp192: "/icons/terrain-rc/trc-module.svg",
+      webp96: "/icons/terrain-rc/trc-module.svg",
+      alt: "Relais communautaire en intervention sur sentier villageois bordé d'habitations locales"
     },
     parent: null,
     route: "/espace-ascq?module=terrain",
@@ -104,17 +198,19 @@ export const REGISTRE_NAVIGATION: NavigationEntry[] = [
     badge: "validations_en_attente",
     disponibleHorsLigne: true,
     statut: "actif",
-    descriptionCourte: "Plannings, Suivis groupés des RC, Campagnes & Validations"
+    descriptionCourte: "Plannings, Suivis groupés des RC, Mes Relais & Validations"
   },
   {
     id: "rapports",
     libelle: "Rapports SNIS",
     icone: "BarChart3",
+    iconId: "snis-module",
+    iconPath: "/icons/rapports-snis/snis-module.svg",
     waxIcon: {
-      png512: "/icons/wax/rapports-512.png",
-      webp192: "/icons/wax/rapports-192.webp",
-      webp96: "/icons/wax/rapports-96.webp",
-      alt: "Illustration style wax Rapports SNIS et Synthèse communale"
+      png512: "/icons/rapports-snis/snis-module.svg",
+      webp192: "/icons/rapports-snis/snis-module.svg",
+      webp96: "/icons/rapports-snis/snis-module.svg",
+      alt: "Tableau de bord statistique institutionnel combinant histogramme multicolore et courbe de progression"
     },
     parent: null,
     route: "/espace-ascq?module=rapports",
@@ -128,11 +224,13 @@ export const REGISTRE_NAVIGATION: NavigationEntry[] = [
     id: "gouvernance",
     libelle: "Gouvernance",
     icone: "Crown",
+    iconId: "gov-module",
+    iconPath: "/icons/gouvernance/gov-module.svg",
     waxIcon: {
-      png512: "/icons/wax/gouvernance-512.png",
-      webp192: "/icons/wax/gouvernance-192.webp",
-      webp96: "/icons/wax/gouvernance-96.webp",
-      alt: "Illustration style wax Gouvernance et Supervision territoriale"
+      png512: "/icons/gouvernance/gov-module.svg",
+      webp192: "/icons/gouvernance/gov-module.svg",
+      webp96: "/icons/gouvernance/gov-module.svg",
+      alt: "Édifice institutionnel à colonnade et fronton doré symbolisant l'autorité sanitaire nationale"
     },
     parent: null,
     route: "/espace-ascq?module=gouvernance",
@@ -147,11 +245,13 @@ export const REGISTRE_NAVIGATION: NavigationEntry[] = [
     id: "outils",
     libelle: "Outils",
     icone: "BookOpen",
+    iconId: "out-module",
+    iconPath: "/icons/outils/out-module.svg",
     waxIcon: {
-      png512: "/icons/wax/outils-512.png",
-      webp192: "/icons/wax/outils-192.webp",
-      webp96: "/icons/wax/outils-96.webp",
-      alt: "Illustration style wax Outils, Formation et Bibliothèque"
+      png512: "/icons/outils/out-module.svg",
+      webp192: "/icons/outils/out-module.svg",
+      webp96: "/icons/outils/out-module.svg",
+      alt: "Mallette opérationnelle de l'agent communautaire ornée d'une croix sanitaire verte"
     },
     parent: null,
     route: "/espace-ascq?module=outils",
@@ -159,16 +259,18 @@ export const REGISTRE_NAVIGATION: NavigationEntry[] = [
     ordre: 6,
     disponibleHorsLigne: true,
     statut: "actif",
-    descriptionCourte: "Formation, Guide Utilisateur, Bibliothèque, Permutations & Requêtes"
+    descriptionCourte: "Guide utilisateur, Formation, Bibliothèque, Permutations & Requêtes"
   },
 
   // =========================================================================
-  // LES 2 MODULES ÉPINGLÉS À DROITE DE L'EN-TÊTE (ICÔNES SEULES TOUJOURS VISIBLES)
+  // LES 2 MODULES ÉPINGLÉS À DROITE DE L'EN-TÊTE (MODULES 7 & 8)
   // =========================================================================
   {
     id: "synchronisation",
     libelle: "Synchronisation",
     icone: "RefreshCw",
+    iconId: "sync-module",
+    iconPath: "/icons/synchronisation/sync-module.svg",
     parent: null,
     route: "#synchronisation",
     roles: ["RC", "ASCQ", "REPRESENTANT_COMMUNAL", "PF_CCLS_TP", "MEMBRE_MINISTERE", "SUPER_ADMIN"],
@@ -182,6 +284,8 @@ export const REGISTRE_NAVIGATION: NavigationEntry[] = [
     id: "deconnexion",
     libelle: "Déconnexion",
     icone: "LogOut",
+    iconId: "auth-logout-module",
+    iconPath: "/icons/deconnexion/auth-logout-module.svg",
     parent: null,
     route: "#deconnexion",
     roles: ["RC", "ASCQ", "REPRESENTANT_COMMUNAL", "PF_CCLS_TP", "MEMBRE_MINISTERE", "SUPER_ADMIN"],
@@ -192,12 +296,14 @@ export const REGISTRE_NAVIGATION: NavigationEntry[] = [
   },
 
   // =========================================================================
-  // SOUS-MODULES DU MODULE 1 : SOINS & MATERNITÉ
+  // MODULE 1 : SOINS & MATERNITÉ (5 SOUS-ICÔNES)
   // =========================================================================
   {
-    id: "soins_vue_ensemble",
+    id: "sm-vue-ensemble",
     libelle: "Vue d'ensemble",
     icone: "LayoutDashboard",
+    iconId: "sm-vue-ensemble",
+    iconPath: "/icons/soins-maternite/sm-vue-ensemble.svg",
     parent: "soins",
     route: "/espace-ascq?module=soins&view=overview",
     roles: ["ASCQ", "REPRESENTANT_COMMUNAL", "SUPER_ADMIN"],
@@ -206,9 +312,11 @@ export const REGISTRE_NAVIGATION: NavigationEntry[] = [
     statut: "actif"
   },
   {
-    id: "soins_iccm",
+    id: "sm-iccm",
     libelle: "Prise en charge iCCM",
     icone: "Stethoscope",
+    iconId: "sm-iccm",
+    iconPath: "/icons/soins-maternite/sm-iccm.svg",
     parent: "soins",
     route: "/espace-ascq/consultations",
     roles: ["ASCQ", "REPRESENTANT_COMMUNAL", "SUPER_ADMIN"],
@@ -218,9 +326,11 @@ export const REGISTRE_NAVIGATION: NavigationEntry[] = [
     estSaisie: true
   },
   {
-    id: "soins_maternite",
+    id: "sm-maternite-1000j",
     libelle: "Maternité & 1000 Jours",
     icone: "Baby",
+    iconId: "sm-maternite-1000j",
+    iconPath: "/icons/soins-maternite/sm-maternite-1000j.svg",
     parent: "soins",
     route: "/espace-ascq/maternite-enfance",
     roles: ["ASCQ", "REPRESENTANT_COMMUNAL", "SUPER_ADMIN"],
@@ -230,48 +340,56 @@ export const REGISTRE_NAVIGATION: NavigationEntry[] = [
     estSaisie: true
   },
   {
-    id: "soins_references",
-    libelle: "Références CS/GUPS",
-    icone: "HeartPulse",
-    parent: "soins",
-    route: "/espace-ascq/references",
-    roles: ["ASCQ", "REPRESENTANT_COMMUNAL", "SUPER_ADMIN"],
-    ordre: 4,
-    disponibleHorsLigne: true,
-    statut: "actif",
-    estSaisie: true
-  },
-  {
-    id: "soins_perdus_de_vue",
+    id: "sm-perdus-de-vue",
     libelle: "Perdus de vue",
     icone: "UserX",
+    iconId: "sm-perdus-de-vue",
+    iconPath: "/icons/soins-maternite/sm-perdus-de-vue.svg",
     parent: "soins",
     route: "/espace-ascq/maternite-enfance?tab=perdus_de_vue",
     roles: ["ASCQ", "REPRESENTANT_COMMUNAL", "SUPER_ADMIN"],
-    ordre: 5,
+    ordre: 4,
     badge: "perdus_de_vue",
     disponibleHorsLigne: true,
     statut: "actif"
   },
+  {
+    id: "sm-references-cs-gups",
+    libelle: "Références CS/GUPS",
+    icone: "HeartPulse",
+    iconId: "sm-references-cs-gups",
+    iconPath: "/icons/soins-maternite/sm-references-cs-gups.svg",
+    parent: "soins",
+    route: "/espace-ascq/references",
+    roles: ["ASCQ", "REPRESENTANT_COMMUNAL", "SUPER_ADMIN"],
+    ordre: 5,
+    disponibleHorsLigne: true,
+    statut: "actif",
+    estSaisie: true
+  },
 
   // =========================================================================
-  // SOUS-MODULES DU MODULE 2 : SURVEILLANCE
+  // MODULE 2 : SURVEILLANCE ÉPIDÉMIOLOGIQUE (9 SOUS-ICÔNES)
   // =========================================================================
   {
-    id: "surveillance_vue_ensemble",
-    libelle: "Vue d'ensemble",
-    icone: "LayoutDashboard",
+    id: "surv-guide-simr",
+    libelle: "Guide SIMR & Vaccins",
+    icone: "BookOpen",
+    iconId: "surv-guide-simr",
+    iconPath: "/icons/surveillance/surv-guide-simr.svg",
     parent: "surveillance",
-    route: "/espace-ascq?module=surveillance&view=overview",
+    route: "/briefing",
     roles: ["ASCQ", "REPRESENTANT_COMMUNAL", "PF_CCLS_TP", "MEMBRE_MINISTERE", "SUPER_ADMIN"],
     ordre: 1,
     disponibleHorsLigne: true,
     statut: "actif"
   },
   {
-    id: "surveillance_fiches",
+    id: "surv-fiches",
     libelle: "Fiches Surveillance",
     icone: "Activity",
+    iconId: "surv-fiches",
+    iconPath: "/icons/surveillance/surv-fiches.svg",
     parent: "surveillance",
     route: "/fiches",
     roles: ["ASCQ", "REPRESENTANT_COMMUNAL", "PF_CCLS_TP", "MEMBRE_MINISTERE", "SUPER_ADMIN"],
@@ -281,9 +399,11 @@ export const REGISTRE_NAVIGATION: NavigationEntry[] = [
     statut: "actif"
   },
   {
-    id: "surveillance_registre",
+    id: "surv-registre-alertes",
     libelle: "Registre des alertes",
     icone: "ClipboardList",
+    iconId: "surv-registre-alertes",
+    iconPath: "/icons/surveillance/surv-registre-alertes.svg",
     parent: "surveillance",
     route: "/fiches?tab=registre",
     roles: ["ASCQ", "REPRESENTANT_COMMUNAL", "PF_CCLS_TP", "MEMBRE_MINISTERE", "SUPER_ADMIN"],
@@ -292,9 +412,11 @@ export const REGISTRE_NAVIGATION: NavigationEntry[] = [
     statut: "actif"
   },
   {
-    id: "surveillance_notifier_alerte",
+    id: "surv-notifier-alerte",
     libelle: "Notifier une alerte",
     icone: "BellPlus",
+    iconId: "surv-notifier-alerte",
+    iconPath: "/icons/surveillance/surv-notifier-alerte.svg",
     parent: "surveillance",
     route: "/fiches/alerte/nouvelle",
     roles: ["ASCQ", "REPRESENTANT_COMMUNAL", "SUPER_ADMIN"],
@@ -304,9 +426,11 @@ export const REGISTRE_NAVIGATION: NavigationEntry[] = [
     estSaisie: true
   },
   {
-    id: "surveillance_alertes_a_confirmer",
+    id: "surv-alertes-a-confirmer",
     libelle: "Alertes à confirmer",
     icone: "AlertTriangle",
+    iconId: "surv-alertes-a-confirmer",
+    iconPath: "/icons/surveillance/surv-alertes-a-confirmer.svg",
     parent: "surveillance",
     route: "/fiches?tab=a_confirmer",
     roles: ["ASCQ", "REPRESENTANT_COMMUNAL", "PF_CCLS_TP", "MEMBRE_MINISTERE", "SUPER_ADMIN"],
@@ -316,9 +440,11 @@ export const REGISTRE_NAVIGATION: NavigationEntry[] = [
     statut: "actif"
   },
   {
-    id: "surveillance_alertes_confirmees",
+    id: "surv-alertes-confirmees",
     libelle: "Alertes déjà confirmées",
     icone: "CheckCircle2",
+    iconId: "surv-alertes-confirmees",
+    iconPath: "/icons/surveillance/surv-alertes-confirmees.svg",
     parent: "surveillance",
     route: "/fiches?tab=confirmees",
     roles: ["ASCQ", "REPRESENTANT_COMMUNAL", "PF_CCLS_TP", "MEMBRE_MINISTERE", "SUPER_ADMIN"],
@@ -327,9 +453,11 @@ export const REGISTRE_NAVIGATION: NavigationEntry[] = [
     statut: "actif"
   },
   {
-    id: "surveillance_deces",
+    id: "surv-notification-deces",
     libelle: "Notification de décès",
     icone: "Skull",
+    iconId: "surv-notification-deces",
+    iconPath: "/icons/surveillance/surv-notification-deces.svg",
     parent: "surveillance",
     route: "/fiches/deces/nouvelle",
     roles: ["ASCQ", "REPRESENTANT_COMMUNAL", "SUPER_ADMIN"],
@@ -339,9 +467,11 @@ export const REGISTRE_NAVIGATION: NavigationEntry[] = [
     estSaisie: true
   },
   {
-    id: "surveillance_investigation",
+    id: "surv-fiche-investigation",
     libelle: "Fiche d'investigation",
     icone: "Search",
+    iconId: "surv-fiche-investigation",
+    iconPath: "/icons/surveillance/surv-fiche-investigation.svg",
     parent: "surveillance",
     route: "/fiches/investigation/nouvelle",
     roles: ["ASCQ", "REPRESENTANT_COMMUNAL", "SUPER_ADMIN"],
@@ -351,9 +481,11 @@ export const REGISTRE_NAVIGATION: NavigationEntry[] = [
     estSaisie: true
   },
   {
-    id: "surveillance_rapport_hebdo",
+    id: "surv-rapport-hebdo",
     libelle: "Rapport hebdomadaire",
     icone: "FileSpreadsheet",
+    iconId: "surv-rapport-hebdo",
+    iconPath: "/icons/surveillance/surv-rapport-hebdo.svg",
     parent: "surveillance",
     route: "/fiches/rapport-hebdo/nouvelle",
     roles: ["ASCQ", "REPRESENTANT_COMMUNAL", "SUPER_ADMIN"],
@@ -362,269 +494,257 @@ export const REGISTRE_NAVIGATION: NavigationEntry[] = [
     statut: "actif",
     estSaisie: true
   },
-  {
-    id: "surveillance_guide_simr",
-    libelle: "Guide SIMR & Vaccins",
-    icone: "BookOpen",
-    parent: "surveillance",
-    route: "/briefing",
-    roles: ["ASCQ", "REPRESENTANT_COMMUNAL", "PF_CCLS_TP", "MEMBRE_MINISTERE", "SUPER_ADMIN"],
-    ordre: 10,
-    disponibleHorsLigne: true,
-    statut: "actif"
-  },
 
   // =========================================================================
-  // SOUS-MODULES DU MODULE 3 : TERRAIN & RC
+  // MODULE 3 : TERRAIN & RC (5 SOUS-ICÔNES OFFICIELLES)
   // =========================================================================
   {
-    id: "terrain_vue_ensemble",
-    libelle: "Vue d'ensemble",
-    icone: "LayoutDashboard",
-    parent: "terrain",
-    route: "/espace-ascq?module=terrain&view=overview",
-    roles: ["ASCQ", "REPRESENTANT_COMMUNAL", "SUPER_ADMIN"],
-    ordre: 1,
-    disponibleHorsLigne: true,
-    statut: "actif"
-  },
-  {
-    id: "terrain_planning",
+    id: "trc-planning",
     libelle: "Planning",
     icone: "Calendar",
+    iconId: "trc-planning",
+    iconPath: "/icons/terrain-rc/trc-planning.svg",
     parent: "terrain",
     route: "/espace-ascq/planning",
     roles: ["ASCQ", "REPRESENTANT_COMMUNAL", "SUPER_ADMIN"],
-    ordre: 2,
+    ordre: 1,
     disponibleHorsLigne: true,
     statut: "actif",
     estSaisie: true
   },
   {
-    id: "terrain_activites",
+    id: "trc-activites",
     libelle: "Activités",
     icone: "CheckSquare",
+    iconId: "trc-activites",
+    iconPath: "/icons/terrain-rc/trc-activites.svg",
     parent: "terrain",
     route: "/espace-ascq/activites-menees",
     roles: ["ASCQ", "REPRESENTANT_COMMUNAL", "SUPER_ADMIN"],
-    ordre: 3,
+    ordre: 2,
     disponibleHorsLigne: true,
     statut: "actif",
     estSaisie: true
   },
   {
-    id: "terrain_suivis_groupes",
+    id: "trc-suivis-groupes",
     libelle: "Suivis groupés des RC",
     icone: "ClipboardCheck",
+    iconId: "trc-suivis-groupes",
+    iconPath: "/icons/terrain-rc/trc-suivis-groupes.svg",
     parent: "terrain",
     route: "/espace-ascq/suivi-relais",
     roles: ["ASCQ", "REPRESENTANT_COMMUNAL", "SUPER_ADMIN"],
-    ordre: 4,
+    ordre: 3,
     disponibleHorsLigne: true,
     statut: "actif",
     estSaisie: true
   },
   {
-    id: "terrain_mes_relais",
+    id: "trc-mes-relais",
     libelle: "Mes Relais",
     icone: "Users",
+    iconId: "trc-mes-relais",
+    iconPath: "/icons/terrain-rc/trc-mes-relais.svg",
     parent: "terrain",
     route: "/espace-ascq/relais",
     roles: ["ASCQ", "REPRESENTANT_COMMUNAL", "SUPER_ADMIN"],
-    ordre: 5,
+    ordre: 4,
     disponibleHorsLigne: true,
     statut: "actif"
   },
   {
-    id: "terrain_validations_inscription",
+    id: "trc-validations-inscription",
     libelle: "Validations d'inscription",
     icone: "UserCheck",
+    iconId: "trc-validations-inscription",
+    iconPath: "/icons/terrain-rc/trc-validations-inscription.svg",
     parent: "terrain",
     route: "/espace-ascq/relais?tab=validations",
     roles: ["ASCQ", "REPRESENTANT_COMMUNAL", "SUPER_ADMIN"],
-    ordre: 6,
+    ordre: 5,
     badge: "validations_en_attente",
     disponibleHorsLigne: false,
     statut: "actif"
   },
-  {
-    id: "terrain_menages_reassigner",
-    libelle: "Ménages à réassigner",
-    icone: "Home",
-    parent: "terrain",
-    route: "/espace-ascq/relais?tab=menages_reassigner",
-    roles: ["ASCQ", "REPRESENTANT_COMMUNAL", "SUPER_ADMIN"],
-    ordre: 7,
-    badge: "menages_a_reassigner",
-    disponibleHorsLigne: true,
-    statut: "actif"
-  },
-  {
-    id: "terrain_campagnes",
-    libelle: "Campagnes (MIILD, CPS, ONCHO)",
-    icone: "Flag",
-    parent: "terrain",
-    route: "/espace-ascq/activites-menees?tab=campagnes",
-    roles: ["ASCQ", "REPRESENTANT_COMMUNAL", "SUPER_ADMIN"],
-    ordre: 8,
-    disponibleHorsLigne: true,
-    statut: "actif",
-    estSaisie: true
-  },
 
   // =========================================================================
-  // SOUS-MODULES DU MODULE 4 : RAPPORTS SNIS
+  // MODULE 4 : RAPPORTS SNIS (4 SOUS-ICÔNES)
   // =========================================================================
   {
-    id: "rapports_vue_ensemble",
-    libelle: "Vue d'ensemble",
-    icone: "LayoutDashboard",
-    parent: "rapports",
-    route: "/espace-ascq?module=rapports&view=overview",
-    roles: ["ASCQ", "REPRESENTANT_COMMUNAL", "PF_CCLS_TP", "MEMBRE_MINISTERE", "SUPER_ADMIN"],
-    ordre: 1,
-    disponibleHorsLigne: true,
-    statut: "actif"
-  },
-  {
-    id: "rapports_suivi_pnsc",
+    id: "snis-suivi-pnsc",
     libelle: "Suivi PNSC",
     icone: "BarChart3",
+    iconId: "snis-suivi-pnsc",
+    iconPath: "/icons/rapports-snis/snis-suivi-pnsc.svg",
     parent: "rapports",
     route: "/espace-ascq/rapport-hebdo-pnsc",
     roles: ["ASCQ", "REPRESENTANT_COMMUNAL", "SUPER_ADMIN"],
+    ordre: 1,
+    disponibleHorsLigne: true,
+    statut: "actif",
+    estSaisie: true
+  },
+  {
+    id: "snis-rapport-mensuel",
+    libelle: "Rapport mensuel",
+    icone: "FileText",
+    iconId: "snis-rapport-mensuel",
+    iconPath: "/icons/rapports-snis/snis-rapport-mensuel.svg",
+    parent: "rapports",
+    route: "/espace-ascq/rapport-mensuel",
+    roles: ["ASCQ", "REPRESENTANT_COMMUNAL", "SUPER_ADMIN"],
     ordre: 2,
     disponibleHorsLigne: true,
     statut: "actif",
     estSaisie: true
   },
   {
-    id: "rapports_mensuel",
-    libelle: "Rapport mensuel",
-    icone: "FileText",
-    parent: "rapports",
-    route: "/espace-ascq/rapport-mensuel",
-    roles: ["ASCQ", "REPRESENTANT_COMMUNAL", "SUPER_ADMIN"],
-    ordre: 3,
-    disponibleHorsLigne: true,
-    statut: "actif",
-    estSaisie: true
-  },
-  {
-    id: "rapports_synthese_communale",
+    id: "snis-synthese-communale",
     libelle: "Synthèse communale",
     icone: "Building2",
+    iconId: "snis-synthese-communale",
+    iconPath: "/icons/rapports-snis/snis-synthese-communale.svg",
     parent: "rapports",
     route: "/espace-ascq/rapport-hebdo-pnsc?tab=synthese_communale",
     roles: ["REPRESENTANT_COMMUNAL", "PF_CCLS_TP", "MEMBRE_MINISTERE", "SUPER_ADMIN"],
-    ordre: 4,
+    ordre: 3,
     disponibleHorsLigne: false,
     statut: "actif"
   },
   {
-    id: "rapports_exports",
+    id: "snis-exports",
     libelle: "Exports",
     icone: "Download",
+    iconId: "snis-exports",
+    iconPath: "/icons/rapports-snis/snis-exports.svg",
     parent: "rapports",
     route: "/espace-ascq/rapport-mensuel?tab=exports",
     roles: ["ASCQ", "REPRESENTANT_COMMUNAL", "PF_CCLS_TP", "MEMBRE_MINISTERE", "SUPER_ADMIN"],
-    ordre: 5,
+    ordre: 4,
     disponibleHorsLigne: true,
     statut: "actif"
   },
 
   // =========================================================================
-  // SOUS-MODULES DU MODULE 5 : GOUVERNANCE
-  // BN : Seuls les administrateurs nommés voient Administration ;
-  //      Les représentants nommés voient seulement Périmètre qui les concerne.
+  // MODULE 5 : GOUVERNANCE & ADMINISTRATION (7 SOUS-ICÔNES)
   // =========================================================================
   {
-    id: "gouvernance_vue_ensemble",
-    libelle: "Vue d'ensemble",
-    icone: "LayoutDashboard",
+    id: "gov-perimetre",
+    libelle: "Périmètre",
+    icone: "Crown",
+    iconId: "gov-perimetre",
+    iconPath: "/icons/gouvernance/gov-perimetre.svg",
     parent: "gouvernance",
-    route: "/espace-ascq?module=gouvernance&view=overview",
+    route: "/perimetre",
     roles: ["REPRESENTANT_COMMUNAL", "PF_CCLS_TP", "MEMBRE_MINISTERE", "SUPER_ADMIN"],
     ordre: 1,
     disponibleHorsLigne: false,
     statut: "actif"
   },
   {
-    id: "gouvernance_perimetre",
-    libelle: "Périmètre",
-    icone: "Crown",
+    id: "gov-representants-nommes",
+    libelle: "Représentants nommés",
+    icone: "Award",
+    iconId: "gov-representants-nommes",
+    iconPath: "/icons/gouvernance/gov-representants-nommes.svg",
     parent: "gouvernance",
-    route: "/perimetre",
+    route: "/perimetre?tab=suivi_individuel",
     roles: ["REPRESENTANT_COMMUNAL", "PF_CCLS_TP", "MEMBRE_MINISTERE", "SUPER_ADMIN"],
     ordre: 2,
     disponibleHorsLigne: false,
     statut: "actif"
   },
   {
-    id: "gouvernance_administration",
-    libelle: "Administration",
-    icone: "ShieldCheck",
+    id: "gov-cadres-ressort",
+    libelle: "Cadres pour leur ressort",
+    icone: "Users",
+    iconId: "gov-cadres-ressort",
+    iconPath: "/icons/gouvernance/gov-cadres-ressort.svg",
     parent: "gouvernance",
-    route: "/admin",
-    roles: ["SUPER_ADMIN"],
+    route: "/perimetre?tab=fiches_territoire",
+    roles: ["REPRESENTANT_COMMUNAL", "PF_CCLS_TP", "MEMBRE_MINISTERE", "SUPER_ADMIN"],
     ordre: 3,
     disponibleHorsLigne: false,
     statut: "actif"
   },
   {
-    id: "gouvernance_comptes_validations",
-    libelle: "Comptes et validations",
-    icone: "UserCheck",
+    id: "gov-administration",
+    libelle: "Administration",
+    icone: "ShieldCheck",
+    iconId: "gov-administration",
+    iconPath: "/icons/gouvernance/gov-administration.svg",
     parent: "gouvernance",
-    route: "/admin/validation-comptes",
+    route: "/admin",
     roles: ["SUPER_ADMIN"],
     ordre: 4,
+    disponibleHorsLigne: false,
+    statut: "actif"
+  },
+  {
+    id: "gov-comptes-validations",
+    libelle: "Comptes et validations",
+    icone: "UserCheck",
+    iconId: "gov-comptes-validations",
+    iconPath: "/icons/gouvernance/gov-comptes-validations.svg",
+    parent: "gouvernance",
+    route: "/admin?tab=comptes_ascq",
+    roles: ["SUPER_ADMIN"],
+    ordre: 5,
     badge: "validations_en_attente",
     disponibleHorsLigne: false,
     statut: "actif"
   },
   {
-    id: "gouvernance_journal_audit",
+    id: "gov-journal-audit",
     libelle: "Journal d'audit",
     icone: "FileSearch",
+    iconId: "gov-journal-audit",
+    iconPath: "/icons/gouvernance/gov-journal-audit.svg",
     parent: "gouvernance",
-    route: "/admin?tab=journal_audit",
+    route: "/admin?tab=audit",
     roles: ["SUPER_ADMIN"],
-    ordre: 5,
+    ordre: 6,
     disponibleHorsLigne: false,
     statut: "actif"
   },
   {
-    id: "gouvernance_exports_ministere",
+    id: "gov-demandes-export-ministere",
     libelle: "Demandes d'export du ministère",
     icone: "FileSpreadsheet",
+    iconId: "gov-demandes-export-ministere",
+    iconPath: "/icons/gouvernance/gov-demandes-export-ministere.svg",
     parent: "gouvernance",
-    route: "/admin?tab=demandes_export",
+    route: "/admin?tab=exports",
     roles: ["SUPER_ADMIN"],
-    ordre: 6,
+    ordre: 7,
     badge: "demandes_export",
     disponibleHorsLigne: false,
     statut: "actif"
   },
 
   // =========================================================================
-  // SOUS-MODULES DU MODULE 6 : OUTILS
+  // MODULE 6 : OUTILS & RESSOURCES (6 SOUS-ICÔNES)
   // =========================================================================
   {
-    id: "outils_vue_ensemble",
-    libelle: "Vue d'ensemble",
-    icone: "LayoutDashboard",
+    id: "out-guide-utilisateur",
+    libelle: "Guide utilisateur",
+    icone: "BookOpen",
+    iconId: "out-guide-utilisateur",
+    iconPath: "/icons/outils/out-guide-utilisateur.svg",
     parent: "outils",
-    route: "/espace-ascq?module=outils&view=overview",
+    route: "/guide",
     roles: ["ASCQ", "REPRESENTANT_COMMUNAL", "PF_CCLS_TP", "MEMBRE_MINISTERE", "SUPER_ADMIN"],
     ordre: 1,
     disponibleHorsLigne: true,
     statut: "actif"
   },
   {
-    id: "outils_formation",
+    id: "out-formation",
     libelle: "Formation",
     icone: "GraduationCap",
+    iconId: "out-formation",
+    iconPath: "/icons/outils/out-formation.svg",
     parent: "outils",
     route: "/guide?tab=formation",
     roles: ["ASCQ", "REPRESENTANT_COMMUNAL", "PF_CCLS_TP", "MEMBRE_MINISTERE", "SUPER_ADMIN"],
@@ -633,33 +753,40 @@ export const REGISTRE_NAVIGATION: NavigationEntry[] = [
     statut: "actif"
   },
   {
-    id: "outils_guide",
-    libelle: "Guide Utilisateur",
-    icone: "BookOpen",
+    id: "out-bibliotheque",
+    libelle: "Bibliothèque",
+    icone: "Library",
+    iconId: "out-bibliotheque",
+    iconPath: "/icons/outils/out-bibliotheque.svg",
     parent: "outils",
-    route: "/guide",
+    route: "/espace-ascq/bibliotheque",
     roles: ["ASCQ", "REPRESENTANT_COMMUNAL", "PF_CCLS_TP", "MEMBRE_MINISTERE", "SUPER_ADMIN"],
     ordre: 3,
     disponibleHorsLigne: true,
     statut: "actif"
   },
   {
-    id: "outils_bibliotheque",
-    libelle: "Bibliothèque",
-    icone: "Library",
-    parent: "outils",
-    route: "/espace-ascq/bibliotheque",
-    roles: ["ASCQ", "REPRESENTANT_COMMUNAL", "PF_CCLS_TP", "MEMBRE_MINISTERE", "SUPER_ADMIN"],
-    ordre: 4,
-    disponibleHorsLigne: true,
-    statut: "actif"
-  },
-  {
-    id: "outils_permutations",
+    id: "out-permutations",
     libelle: "Permutations",
     icone: "ArrowLeftRight",
+    iconId: "out-permutations",
+    iconPath: "/icons/outils/out-permutations.svg",
     parent: "outils",
     route: "/espace-ascq/permutations",
+    roles: ["ASCQ", "REPRESENTANT_COMMUNAL", "SUPER_ADMIN"],
+    ordre: 4,
+    disponibleHorsLigne: false,
+    statut: "actif",
+    estSaisie: true
+  },
+  {
+    id: "out-requetes",
+    libelle: "Requêtes",
+    icone: "MessageSquareText",
+    iconId: "out-requetes",
+    iconPath: "/icons/outils/out-requetes.svg",
+    parent: "outils",
+    route: "/espace-ascq/requetes",
     roles: ["ASCQ", "REPRESENTANT_COMMUNAL", "SUPER_ADMIN"],
     ordre: 5,
     disponibleHorsLigne: false,
@@ -667,43 +794,35 @@ export const REGISTRE_NAVIGATION: NavigationEntry[] = [
     estSaisie: true
   },
   {
-    id: "outils_requetes",
-    libelle: "Requêtes",
-    icone: "MessageSquareText",
-    parent: "outils",
-    route: "/espace-ascq/requetes",
-    roles: ["ASCQ", "REPRESENTANT_COMMUNAL", "SUPER_ADMIN"],
-    ordre: 6,
-    disponibleHorsLigne: false,
-    statut: "actif",
-    estSaisie: true
-  },
-  {
-    id: "outils_presentation",
+    id: "out-presentation-conseils",
     libelle: "Présentation Conseils",
     icone: "Sparkles",
+    iconId: "out-presentation-conseils",
+    iconPath: "/icons/outils/out-presentation-conseils.svg",
     parent: "outils",
     route: "/presentation",
     roles: ["ASCQ", "REPRESENTANT_COMMUNAL", "PF_CCLS_TP", "MEMBRE_MINISTERE", "SUPER_ADMIN"],
-    ordre: 7,
+    ordre: 6,
     disponibleHorsLigne: true,
     statut: "actif"
   }
 ];
 
 // ===========================================================================
-// MODULES ILLUSTRÉS STYLE WAX POUR LES RELAIS COMMUNAUTAIRES (RC)
+// MODULES POUR LES RELAIS COMMUNAUTAIRES (RC) AVEC LES ICÔNES VECTORIELLES
 // ===========================================================================
 export const REGISTRE_MODULES_RC: NavigationEntry[] = [
   {
     id: "rc_fiches",
     libelle: "Fiches & Registre",
     icone: "FileText",
+    iconId: "surv-fiches",
+    iconPath: "/icons/surveillance/surv-fiches.svg",
     waxIcon: {
-      png512: "/icons/wax/rc_fiches-512.png",
-      webp192: "/icons/wax/rc_fiches-192.webp",
-      webp96: "/icons/wax/rc_fiches-96.webp",
-      alt: "Illustration style wax Fiches et Registre du Relais Communautaire"
+      png512: "/icons/surveillance/surv-fiches.svg",
+      webp192: "/icons/surveillance/surv-fiches.svg",
+      webp96: "/icons/surveillance/surv-fiches.svg",
+      alt: "Fiches et Registre du Relais Communautaire"
     },
     parent: null,
     route: "/espace-rc?tab=fiches",
@@ -716,11 +835,13 @@ export const REGISTRE_MODULES_RC: NavigationEntry[] = [
     id: "rc_planning",
     libelle: "Planning & VAD",
     icone: "Calendar",
+    iconId: "trc-planning",
+    iconPath: "/icons/terrain-rc/trc-planning.svg",
     waxIcon: {
-      png512: "/icons/wax/rc_planning-512.png",
-      webp192: "/icons/wax/rc_planning-192.webp",
-      webp96: "/icons/wax/rc_planning-96.webp",
-      alt: "Illustration style wax Planning hebdomadaire et Visites à domicile RC"
+      png512: "/icons/terrain-rc/trc-planning.svg",
+      webp192: "/icons/terrain-rc/trc-planning.svg",
+      webp96: "/icons/terrain-rc/trc-planning.svg",
+      alt: "Planning hebdomadaire et Visites à domicile RC"
     },
     parent: null,
     route: "/espace-rc?tab=planning",
@@ -733,11 +854,13 @@ export const REGISTRE_MODULES_RC: NavigationEntry[] = [
     id: "rc_alertes",
     libelle: "Alertes & Suivi",
     icone: "Bell",
+    iconId: "surv-notifier-alerte",
+    iconPath: "/icons/surveillance/surv-notifier-alerte.svg",
     waxIcon: {
-      png512: "/icons/wax/rc_alertes-512.png",
-      webp192: "/icons/wax/rc_alertes-192.webp",
-      webp96: "/icons/wax/rc_alertes-96.webp",
-      alt: "Illustration style wax Alertes sanitaires et Références du Relais"
+      png512: "/icons/surveillance/surv-notifier-alerte.svg",
+      webp192: "/icons/surveillance/surv-notifier-alerte.svg",
+      webp96: "/icons/surveillance/surv-notifier-alerte.svg",
+      alt: "Alertes sanitaires et Références du Relais"
     },
     parent: null,
     route: "/espace-rc?tab=notifications",
@@ -748,13 +871,15 @@ export const REGISTRE_MODULES_RC: NavigationEntry[] = [
   },
   {
     id: "rc_outils",
-    libelle: "Formation & Guides",
+    libelle: "Formation & Compte",
     icone: "BookOpen",
+    iconId: "out-formation",
+    iconPath: "/icons/outils/out-formation.svg",
     waxIcon: {
-      png512: "/icons/wax/rc_outils-512.png",
-      webp192: "/icons/wax/rc_outils-192.webp",
-      webp96: "/icons/wax/rc_outils-96.webp",
-      alt: "Illustration style wax Formation et Guide du Relais Communautaire"
+      png512: "/icons/outils/out-formation.svg",
+      webp192: "/icons/outils/out-formation.svg",
+      webp96: "/icons/outils/out-formation.svg",
+      alt: "Formation et Compte du Relais Communautaire"
     },
     parent: null,
     route: "/guide?profil=RC",
@@ -765,13 +890,6 @@ export const REGISTRE_MODULES_RC: NavigationEntry[] = [
   }
 ];
 
-/**
- * Résout tous les rôles applicables à un profil utilisateur connecté.
- * Garantit que :
- * - Seuls les administrateurs nommés obtiennent "SUPER_ADMIN" (module Administration).
- * - Les représentants communaux nommés obtiennent "REPRESENTANT_COMMUNAL" (sous-module Périmètre uniquement).
- * - Les PF CCLS-TP et Membres Ministère n'ont aucun sous-module de saisie.
- */
 export function resoudreRolesUtilisateur(userProfile?: any): RoleNavigation[] {
   if (!userProfile) return ["ASCQ"];
 
@@ -792,37 +910,31 @@ export function resoudreRolesUtilisateur(userProfile?: any): RoleNavigation[] {
 
   const out = new Set<RoleNavigation>();
 
-  // 1. Administrateur nommé uniquement
   if (rawRoles.some((r) => r === "SUPER_ADMIN" || r === "ADMINISTRATEUR")) {
     out.add("SUPER_ADMIN");
     out.add("REPRESENTANT_COMMUNAL");
     out.add("ASCQ");
   }
 
-  // 2. Membre Ministère
   if (rawRoles.some((r) => r.includes("MINISTERE") || r === "DDS" || r === "MCZS")) {
     out.add("MEMBRE_MINISTERE");
   }
 
-  // 3. Point Focal CCLS-TP
   if (rawRoles.some((r) => r.includes("PF_CCLS") || r.includes("CCLS"))) {
     out.add("PF_CCLS_TP");
   }
 
-  // 4. Représentant Communal nommé
   if (rawRoles.some((r) => r.includes("REPRESENTANT_COMMUNAL") || r === "REPRESENTANT")) {
     out.add("REPRESENTANT_COMMUNAL");
     out.add("ASCQ");
   }
 
-  // 5. Relais Communautaire (RC)
   if (rawRoles.some((r) => r === "RC" || r === "RELAIS" || r === "RELAIS_COMMUNAUTAIRE")) {
     if (out.size === 0) {
       out.add("RC");
     }
   }
 
-  // 6. ASCQ par défaut si aucun rôle cadre exclusif
   if (out.size === 0 || rawRoles.some((r) => r.includes("ASCQ"))) {
     if (!out.has("PF_CCLS_TP") && !out.has("MEMBRE_MINISTERE") && !out.has("RC")) {
       out.add("ASCQ");
@@ -832,10 +944,6 @@ export function resoudreRolesUtilisateur(userProfile?: any): RoleNavigation[] {
   return Array.from(out);
 }
 
-/**
- * Retourne le libellé court du rôle pour l'en-tête 56 dp
- * Ex: "Bruno DOSSOU, Super admin" ou "Simplice ZOUNGONOU, Représentant Com."
- */
 export function obtenirNomEtRoleCourt(userProfile?: any): { nomCourt: string; roleCourt: string } {
   if (!userProfile) {
     return { nomCourt: "Utilisateur", roleCourt: "ASCQ" };
@@ -855,9 +963,6 @@ export function obtenirNomEtRoleCourt(userProfile?: any): { nomCourt: string; ro
   return { nomCourt, roleCourt };
 }
 
-/**
- * Retourne les 6 modules principaux filtrés selon les droits du profil connecté
- */
 export function obtenirModulesPrincipauxAutorises(userProfile?: any): NavigationEntry[] {
   const userRoles = resoudreRolesUtilisateur(userProfile);
   const estUniquementObservateur =
@@ -869,19 +974,12 @@ export function obtenirModulesPrincipauxAutorises(userProfile?: any): Navigation
     if (entry.parent !== null || entry.estEpinglerEnTete || entry.statut === "masque") return false;
     const aLeRole = entry.roles.some((r) => userRoles.includes(r));
     if (!aLeRole) return false;
-    // Vérifier qu'au moins un sous-module est autorisé pour cet utilisateur
     const sousModules = obtenirSousModulesAutorises(entry.id, userProfile);
     if (estUniquementObservateur && sousModules.length === 0) return false;
     return true;
   }).sort((a, b) => a.ordre - b.ordre);
 }
 
-/**
- * Retourne les sous-modules autorisés d'un module parent
- * - Le PF CCLS-TP et le Ministère n'ont AUCUN sous-module de saisie (estSaisie = true).
- * - Seul SUPER_ADMIN voit Administration et ses sous-modules.
- * - Les Représentants Communaux voient uniquement Périmètre dans Gouvernance.
- */
 export function obtenirSousModulesAutorises(moduleId: string, userProfile?: any): NavigationEntry[] {
   const userRoles = resoudreRolesUtilisateur(userProfile);
   const interdireSaisie =
@@ -896,9 +994,6 @@ export function obtenirSousModulesAutorises(moduleId: string, userProfile?: any)
   }).sort((a, b) => a.ordre - b.ordre);
 }
 
-/**
- * Vérifie si l'utilisateur a le droit d'accéder à une route donnée
- */
 export function verifierAccesRoute(pathname: string, userProfile?: any): {
   autorise: boolean;
   motifRefus?: string;
@@ -906,7 +1001,6 @@ export function verifierAccesRoute(pathname: string, userProfile?: any): {
   if (!userProfile) return { autorise: true };
   const roles = resoudreRolesUtilisateur(userProfile);
 
-  // 1. Route /admin strictement réservée aux Administrateurs nommés (SUPER_ADMIN)
   if (pathname.startsWith("/admin")) {
     if (!roles.includes("SUPER_ADMIN")) {
       return {
@@ -916,7 +1010,6 @@ export function verifierAccesRoute(pathname: string, userProfile?: any): {
     }
   }
 
-  // 2. Route /perimetre réservée aux Représentants Communaux nommés, PF CCLS-TP, Ministère et Super Admin
   if (pathname.startsWith("/perimetre")) {
     const ok = roles.some((r) =>
       ["SUPER_ADMIN", "REPRESENTANT_COMMUNAL", "PF_CCLS_TP", "MEMBRE_MINISTERE"].includes(r)
@@ -929,7 +1022,6 @@ export function verifierAccesRoute(pathname: string, userProfile?: any): {
     }
   }
 
-  // 3. Routes de saisie interdites au PF CCLS-TP et au Ministère
   const estObservateurStrict =
     (roles.includes("PF_CCLS_TP") || roles.includes("MEMBRE_MINISTERE")) &&
     !roles.includes("SUPER_ADMIN") &&
@@ -959,9 +1051,6 @@ export function verifierAccesRoute(pathname: string, userProfile?: any): {
   return { autorise: true };
 }
 
-/**
- * Mémorise les 3 derniers sous-modules consultés ("Récents (3)")
- */
 const RECENTS_STORAGE_KEY = "santecom_nav_recents_v3";
 
 export function enregistrerNavigationRecente(entry: { id: string; libelle: string; route: string; parent?: string | null }) {
@@ -988,13 +1077,12 @@ export function obtenirNavigationsRecentes(): Array<{ id: string; libelle: strin
     if (Array.isArray(list) && list.length > 0) return list.slice(0, 3);
   } catch {}
   return [
-    { id: "surveillance_fiches", libelle: "Fiches Surveillance", route: "/fiches", parent: "surveillance" },
-    { id: "terrain_planning", libelle: "Planning", route: "/espace-ascq/planning", parent: "terrain" },
-    { id: "soins_iccm", libelle: "Prise en charge iCCM", route: "/espace-ascq/consultations", parent: "soins" }
+    { id: "surv-fiches", libelle: "Fiches Surveillance", route: "/fiches", parent: "surveillance" },
+    { id: "trc-planning", libelle: "Planning", route: "/espace-ascq/planning", parent: "terrain" },
+    { id: "sm-iccm", libelle: "Prise en charge iCCM", route: "/espace-ascq/consultations", parent: "soins" }
   ];
 }
 
-// Alias d'exports pour une utilisation fluide dans les pages et en-têtes
 export type ModuleId = "soins" | "surveillance" | "terrain" | "rapports" | "gouvernance" | "outils";
 export type ElementRecent = { id: string; libelle: string; route: string; parent?: string | null };
 

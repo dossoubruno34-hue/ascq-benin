@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" fill="none">
+  <rect x="24" y="24" width="464" height="464" rx="96" fill="#F7F5EE" stroke="#112A3A" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  
+    <circle cx="256" cy="256" r="168" fill="#FFFFFF" stroke="#112A3A" stroke-width="13"/>
+    <circle cx="256" cy="256" r="144" fill="none" stroke="#0E8A94" stroke-width="10"/>
+    <!-- RC Gauche -->
+    <circle cx="172" cy="236" r="26" fill="#E89B2D" stroke="#112A3A" stroke-width="11"/>
+    <path d="M126 336 C126 296 144 278 172 278 C200 278 218 296 218 336 Z" fill="#1D8F5A" stroke="#112A3A" stroke-width="11"/>
+    <!-- RC Droite -->
+    <circle cx="340" cy="236" r="26" fill="#D95B38" stroke="#112A3A" stroke-width="11"/>
+    <path d="M294 336 C294 296 312 278 340 278 C368 278 386 296 386 336 Z" fill="#E89B2D" stroke="#112A3A" stroke-width="11"/>
+    <!-- RC Central au premier plan -->
+    <circle cx="256" cy="212" r="32" fill="#163A5F" stroke="#112A3A" stroke-width="12"/>
+    <path d="M196 346 C196 292 220 266 256 266 C292 266 316 292 316 346 Z" fill="#0E8A94" stroke="#112A3A" stroke-width="12"/>
+  
+</svg>

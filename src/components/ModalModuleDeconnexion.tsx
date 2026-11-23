@@ -236,9 +236,13 @@ export default function ModalModuleDeconnexion({
       >
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <div className="flex items-center gap-2.5">
-            <div className="w-11 h-11 rounded-2xl bg-red-100 text-red-700 flex items-center justify-center shrink-0">
-              <LogOut className="w-5 h-5" />
-            </div>
+            <img
+              src="/icons/deconnexion/auth-confirmation.svg"
+              alt="Confirmation de déconnexion"
+              width={44}
+              height={44}
+              className="w-11 h-11 rounded-2xl shrink-0"
+            />
             <div>
               <span className="text-[10px] font-black uppercase tracking-wider text-red-700 bg-red-50 px-2 py-0.5 rounded-full">
                 Module Déconnexion
@@ -260,11 +264,17 @@ export default function ModalModuleDeconnexion({
           </button>
         </div>
 
-        {/* S'il reste des éléments non synchronisés : les 3 choix réglementaires */}
+        {/* S'il reste des éléments non synchronisés : les 3 choix réglementaires (auth-non-synchronises.svg) */}
         {nbEnAttente > 0 ? (
           <div className="space-y-3">
             <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-300 text-xs text-amber-950 flex items-start gap-2.5">
-              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <img
+                src="/icons/deconnexion/auth-non-synchronises.svg"
+                alt="Éléments non synchronisés"
+                width={32}
+                height={32}
+                className="w-8 h-8 shrink-0"
+              />
               <div>
                 <strong className="font-black block">
                   {nbEnAttente} élément(s) non synchronisé(s) en attente
@@ -367,25 +377,56 @@ export default function ModalModuleDeconnexion({
           </div>
         )}
 
-        {/* Option "Appareil partagé" */}
-        <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs">
+        {/* Option "Appareil partagé" (auth-appareil-partage.svg, auth-purge-session.svg, auth-auto-inactivite.svg) */}
+        <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-2.5">
           <label className="flex items-start justify-between gap-3 cursor-pointer">
-            <div>
-              <span className="font-extrabold text-slate-900 flex items-center gap-1.5">
-                <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0" />
-                <span>Option « Appareil partagé »</span>
-              </span>
-              <span className="text-[11px] text-slate-600 block mt-0.5">
-                Purge intégralement toutes les données locales et caches de cet appareil à la déconnexion.
-              </span>
+            <div className="flex items-center gap-2.5">
+              <img
+                src="/icons/deconnexion/auth-appareil-partage.svg"
+                alt="Appareil partagé"
+                width={32}
+                height={32}
+                className="w-8 h-8 shrink-0"
+              />
+              <div>
+                <span className="font-extrabold text-slate-900 block">
+                  Option « Appareil partagé »
+                </span>
+                <span className="text-[11px] text-slate-600 block mt-0.5">
+                  Purge intégralement toutes les données locales et caches de cet appareil à la déconnexion.
+                </span>
+              </div>
             </div>
             <input
               type="checkbox"
               checked={appareilPartage}
               onChange={(e) => toggleAppareilPartage(e.target.checked)}
-              className="w-5 h-5 mt-0.5 accent-[#005c30] rounded cursor-pointer shrink-0"
+              className="w-5 h-5 mt-1 accent-[#005c30] rounded cursor-pointer shrink-0"
             />
           </label>
+
+          <div className="pt-2 border-t border-slate-200/80 flex items-center justify-between gap-2 text-[11px] text-slate-500">
+            <span className="flex items-center gap-1.5">
+              <img
+                src="/icons/deconnexion/auth-purge-session.svg"
+                alt="Purge de session"
+                width={20}
+                height={20}
+                className="w-5 h-5 shrink-0"
+              />
+              <span>Purge session &amp; caches</span>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <img
+                src="/icons/deconnexion/auth-auto-inactivite.svg"
+                alt="Déconnexion automatique 30 min"
+                width={20}
+                height={20}
+                className="w-5 h-5 shrink-0"
+              />
+              <span>Verrouillage auto 30 min</span>
+            </span>
+          </div>
         </div>
 
         {erreur && (

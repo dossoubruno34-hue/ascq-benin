@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" fill="none">
+  <rect x="24" y="24" width="464" height="464" rx="96" fill="#163A5F" stroke="#112A3A" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  
+    <!-- Fronton doré ocre -->
+    <path d="M92 204 L256 104 L420 204 Z" fill="#E89B2D" stroke="#112A3A" stroke-width="13" stroke-linejoin="round"/>
+    <path d="M142 184 L256 122 L370 184 Z" fill="#D95B38" stroke="#112A3A" stroke-width="10" stroke-linejoin="round"/>
+    <rect x="102" y="204" width="308" height="24" rx="6" fill="#F7F5EE" stroke="#112A3A" stroke-width="11"/>
+    <!-- Colonnade (3 colonnes) -->
+    <rect x="134" y="228" width="40" height="146" fill="#F7F5EE" stroke="#112A3A" stroke-width="12"/>
+    <rect x="236" y="228" width="40" height="146" fill="#F7F5EE" stroke="#112A3A" stroke-width="12"/>
+    <rect x="338" y="228" width="40" height="146" fill="#F7F5EE" stroke="#112A3A" stroke-width="12"/>
+    <!-- Soubassement à degrés -->
+    <rect x="96" y="374" width="320" height="26" rx="6" fill="#F7F5EE" stroke="#112A3A" stroke-width="11"/>
+    <rect x="76" y="400" width="360" height="24" rx="6" fill="#E89B2D" stroke="#112A3A" stroke-width="11"/>
+  
+</svg>

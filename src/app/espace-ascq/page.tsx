@@ -411,10 +411,9 @@ function MonEspaceContent() {
 
   // Pastille par sous-module
   const obtenirBadgeSousModule = (subId: string): number => {
-    if (subId === "surveillance_a_confirmer" || subId === "surveillance_fiches") return compteurs.alertesAConfirmer;
-    if (subId === "terrain_validations" || subId === "terrain_relais") return compteurs.validationsEnAttente;
-    if (subId === "terrain_menages_reassigner") return compteurs.menagesAReassigner;
-    if (subId === "soins_perdus_de_vue") return compteurs.perdusDeVue;
+    if (subId === "surv-alertes-a-confirmer" || subId === "surv-fiches") return compteurs.alertesAConfirmer;
+    if (subId === "trc-validations-inscription" || subId === "trc-mes-relais") return compteurs.validationsEnAttente;
+    if (subId === "sm-perdus-de-vue") return compteurs.perdusDeVue;
     return 0;
   };
 
@@ -536,24 +535,16 @@ function MonEspaceContent() {
                       onClick={() => router.push(`/espace-ascq?module=${mod.id}`)}
                       className="group relative bg-white hover:bg-emerald-50/40 active:scale-[0.98] rounded-2xl p-2.5 border-2 border-slate-200/90 hover:border-[#008751] shadow-xs transition-all flex items-center gap-2.5 text-left min-h-[96px] cursor-pointer overflow-hidden"
                     >
-                      {/* Illustration Wax originale (< 25 Ko) */}
-                      {mod.waxIcon && (
-                        <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl overflow-hidden shrink-0 shadow-xs border border-amber-300/60 bg-[#003573]">
-                          <picture>
-                            <source
-                              srcSet={`${mod.waxIcon.webp96} 1x, ${mod.waxIcon.webp192} 2x`}
-                              type="image/webp"
-                            />
-                            <img
-                              src={mod.waxIcon.png512}
-                              alt={mod.waxIcon.alt}
-                              width={64}
-                              height={64}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                            />
-                          </picture>
-                        </div>
-                      )}
+                      {/* Pictogramme vectoriel officiel 512x512 (Bibliothèque Iconographique ASCQ Bénin) */}
+                      <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl overflow-hidden shrink-0 shadow-xs bg-[#F7F5EE]">
+                        <img
+                          src={mod.iconPath}
+                          alt={mod.waxIcon?.alt || mod.libelle}
+                          width={64}
+                          height={64}
+                          className="w-full h-full object-contain group-hover:scale-105 transition-transform"
+                        />
+                      </div>
 
                       {/* Libellé du module */}
                       <div className="min-w-0 flex-1">
@@ -620,18 +611,15 @@ function MonEspaceContent() {
                 >
                   <ArrowLeft className="w-5 h-5" />
                 </button>
-                {moduleActif.waxIcon && (
-                  <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 border border-amber-300 bg-[#003573]">
-                    <picture>
-                      <source srcSet={moduleActif.waxIcon.webp96} type="image/webp" />
-                      <img
-                        src={moduleActif.waxIcon.png512}
-                        alt={moduleActif.waxIcon.alt}
-                        className="w-full h-full object-cover"
-                      />
-                    </picture>
-                  </div>
-                )}
+                <div className="w-11 h-11 rounded-2xl overflow-hidden shrink-0 bg-[#F7F5EE]">
+                  <img
+                    src={moduleActif.iconPath}
+                    alt={moduleActif.libelle}
+                    width={44}
+                    height={44}
+                    className="w-full h-full object-contain"
+                  />
+                </div>
                 <div className="min-w-0">
                   <p className="text-[10px] font-black uppercase tracking-wider text-[#008751]">
                     Module SantéCom Bénin
@@ -712,11 +700,11 @@ function MonEspaceContent() {
               </div>
             </section>
 
-            {/* Grille de tuiles de 2 colonnes des sous-modules du module (zéro défilement horizontal) */}
+            {/* Grille de tuiles de 2 colonnes des sous-modules avec leurs sous-icônes SVG officielles */}
             <section aria-label={`Sous-modules de ${moduleActif.libelle}`}>
               <div className="grid grid-cols-2 gap-2.5">
                 {sousModulesActifs
-                  .filter((s) => s.id !== "soins_overview")
+                  .filter((s) => s.id !== "sm-vue-ensemble")
                   .map((sub) => {
                     const subBadge = obtenirBadgeSousModule(sub.id);
                     return (
@@ -731,25 +719,33 @@ function MonEspaceContent() {
                             parent: sub.parent,
                           })
                         }
-                        className="group relative bg-white hover:bg-emerald-50/50 active:scale-[0.98] rounded-2xl p-3.5 border-2 border-slate-200/90 hover:border-[#008751] shadow-xs transition-all flex flex-col justify-between min-h-[88px]"
+                        className="group relative bg-white hover:bg-emerald-50/50 active:scale-[0.98] rounded-2xl p-2.5 border-2 border-slate-200/90 hover:border-[#008751] shadow-xs transition-all flex items-center gap-2.5 min-h-[82px]"
                       >
-                        <div className="flex items-start justify-between gap-2">
-                          <span className="font-black text-xs sm:text-sm text-slate-900 leading-snug break-words">
-                            {sub.libelle}
-                          </span>
-                          {subBadge > 0 && (
-                            <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-[#E8112D] text-white font-black text-[10px] flex items-center justify-center shrink-0">
-                              {subBadge}
-                            </span>
-                          )}
+                        <div className="w-12 h-12 rounded-xl overflow-hidden shrink-0 bg-[#F7F5EE]">
+                          <img
+                            src={sub.iconPath}
+                            alt={sub.libelle}
+                            width={48}
+                            height={48}
+                            className="w-full h-full object-contain group-hover:scale-105 transition-transform"
+                          />
                         </div>
 
-                        <div className="flex items-center justify-between pt-2 mt-1 border-t border-slate-100">
-                          <span className="text-[10px] font-bold text-slate-500">
-                            {sub.disponibleHorsLigne ? "✓ Hors ligne" : "En ligne"}
+                        <div className="min-w-0 flex-1">
+                          <span className="font-black text-xs sm:text-sm text-slate-900 leading-snug block break-words">
+                            {sub.libelle}
                           </span>
-                          <ChevronRight className="w-4 h-4 text-[#008751] group-hover:translate-x-0.5 transition-transform" />
+                          <span className="text-[10px] font-bold text-slate-500 inline-flex items-center gap-0.5 mt-0.5">
+                            <span>{sub.disponibleHorsLigne ? "✓ Hors ligne" : "En ligne"}</span>
+                            <ChevronRight className="w-3 h-3 text-[#008751]" />
+                          </span>
                         </div>
+
+                        {subBadge > 0 && (
+                          <span className="absolute top-1.5 right-1.5 min-w-[20px] h-5 px-1.5 rounded-full bg-[#D63838] text-white font-black text-[10px] flex items-center justify-center shrink-0 shadow">
+                            {subBadge}
+                          </span>
+                        )}
                       </Link>
                     );
                   })}
