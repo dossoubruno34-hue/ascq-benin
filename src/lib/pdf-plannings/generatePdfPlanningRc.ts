@@ -234,11 +234,14 @@ export async function generatePdfPlanningRc(data: RcPlanningData): Promise<Uint8
   const rowHeights: number[] = ACTIVITES_RC_DEFS.map((def, idx) => {
     const slot = def.getSlot(data);
     if (!slot) return 33;
-    // Vérification du nombre de lignes de quantité
+    // Vérification du nombre de lignes de quantité, d'heure et de date
     const qteStr = String(slot.qte || "");
     const qteLines = qteStr.split(/[\n\r]+/);
-    if (qteLines.length >= 3) return 43;
-    if (qteLines.length === 2) return 37;
+    const heureLinesCount = slot.heure ? wrapText(sanitizeWinAnsi(slot.heure), bold, 7.6, colW_Heure - 6).length : 0;
+    const dateLinesCount = slot.date ? wrapText(sanitizeWinAnsi(formatDateFr(slot.date)), bold, 7.6, colW_Date - 6).length : 0;
+    const maxLines = Math.max(qteLines.length, heureLinesCount, dateLinesCount);
+    if (maxLines >= 3) return 43;
+    if (maxLines === 2) return 37;
     return 33;
   });
 
@@ -304,29 +307,41 @@ export async function generatePdfPlanningRc(data: RcPlanningData): Promise<Uint8
       color: cWhite,
     });
 
-    // 1. Colonne Date (Bleu Bic + Gras)
+    // 1. Colonne Date (Bleu Bic + Gras, retour à la ligne automatique si débordement)
     const dateText = slot?.date ? sanitizeWinAnsi(formatDateFr(slot.date)) : "";
     if (dateText) {
-      const dW = bold.widthOfTextAtSize(dateText, 8.2);
-      page.drawText(dateText, {
-        x: marginX + (colW_Date - dW) / 2,
-        y: rY + h - 16,
-        size: 8.2,
-        font: bold,
-        color: cBleuBic,
+      const dateSize = bold.widthOfTextAtSize(dateText, 8.2) <= colW_Date - 6 ? 8.2 : 7.4;
+      const dateLines = wrapText(dateText, bold, dateSize, colW_Date - 6).slice(0, 3);
+      let dY = dateLines.length === 1 ? rY + h - 16 : rY + h - 12;
+      dateLines.forEach((line) => {
+        const dW = bold.widthOfTextAtSize(line, dateSize);
+        page.drawText(line, {
+          x: marginX + Math.max(3, (colW_Date - dW) / 2),
+          y: dY,
+          size: dateSize,
+          font: bold,
+          color: cBleuBic,
+        });
+        dY -= 9.5;
       });
     }
 
-    // 2. Colonne Heure (Bleu Bic + Gras)
+    // 2. Colonne Heure (Bleu Bic + Gras, retour à la ligne automatique si "Toute la journée", etc.)
     const heureText = slot?.heure ? sanitizeWinAnsi(slot.heure) : "";
     if (heureText) {
-      const hW = bold.widthOfTextAtSize(heureText, 8.2);
-      page.drawText(heureText, {
-        x: marginX + colW_Date + (colW_Heure - hW) / 2,
-        y: rY + h - 16,
-        size: 8.2,
-        font: bold,
-        color: cBleuBic,
+      const heureSize = bold.widthOfTextAtSize(heureText, 8.2) <= colW_Heure - 6 ? 8.2 : 7.4;
+      const heureLines = wrapText(heureText, bold, heureSize, colW_Heure - 6).slice(0, 3);
+      let hY = heureLines.length === 1 ? rY + h - 16 : rY + h - 12;
+      heureLines.forEach((line) => {
+        const hW = bold.widthOfTextAtSize(line, heureSize);
+        page.drawText(line, {
+          x: marginX + colW_Date + Math.max(3, (colW_Heure - hW) / 2),
+          y: hY,
+          size: heureSize,
+          font: bold,
+          color: cBleuBic,
+        });
+        hY -= 9.5;
       });
     }
 
