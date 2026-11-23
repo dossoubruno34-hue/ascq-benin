@@ -51,9 +51,18 @@ export default function FicheOfficielleRapportHebdoSurveillance({ data = {}, isV
     );
   };
 
-  // Zone "Actions menées" resserrée pour laisser toute la place en bas à la signature et au nom/prénom de l'ASCQ
-  const actionsList = d.actionsMenees ? d.actionsMenees.split("\n").filter(Boolean) : [];
-  const TOTAL_DOTTED_LINES = Math.max(10, Math.min(14, actionsList.length));
+  // 10 lignes espacées : chaque action va à la ligne avec un espacement confortable
+  const actionsList = d.actionsMenees
+    ? d.actionsMenees
+        .replace(/\s+(?=\d+[\.\)]\s)/g, "\n")
+        .replace(/\s+-\s+/g, "\n- ")
+        .replace(/\.\s+(?=[A-ZÉÈÊÀÙÇ])/g, ".\n")
+        .split(/\r?\n+/)
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .slice(0, 10)
+    : [];
+  const TOTAL_DOTTED_LINES = 10;
 
   return (
     <div className="w-full max-w-[800px] mx-auto bg-white text-black p-4 sm:p-6 print:p-0 print:max-w-none text-xs leading-normal font-sans antialiased">
@@ -175,17 +184,17 @@ export default function FicheOfficielleRapportHebdoSurveillance({ data = {}, isV
             <td className="p-1.5 text-center font-bold">{d.decesPlus5Ans ?? ""}</td>
           </tr>
 
-          {/* Actions menées (zone resserrée) */}
+          {/* Actions menées (10 lignes espacées, 1 action par ligne) */}
           <tr className="bg-[#FCE4D6] border-b border-black text-left">
-            <th colSpan={2} className="p-1.5 font-bold">Actions menées</th>
+            <th colSpan={2} className="p-1.5 font-bold">Actions menées (10 lignes espacées — une action par ligne)</th>
           </tr>
           <tr>
-            <td colSpan={2} className="p-2 space-y-0.5">
+            <td colSpan={2} className="p-3 space-y-2.5">
               {Array.from({ length: TOTAL_DOTTED_LINES }).map((_, idx) => (
-                <div key={idx} className="relative h-3.5 flex items-center">
+                <div key={idx} className="relative h-5 flex items-end">
                   <span className="w-full border-b border-dotted border-slate-700 block" />
                   {actionsList[idx] && (
-                    <span className="absolute left-0 top-0 bg-white pr-2 font-bold text-[#0040CC] text-[10.5px] truncate max-w-full">
+                    <span className="absolute left-0 bottom-0.5 bg-white pr-2 font-bold text-[#0040CC] text-[11px] truncate max-w-full">
                       {actionsList[idx]}
                     </span>
                   )}

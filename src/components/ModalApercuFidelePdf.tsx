@@ -21,6 +21,7 @@ import {
   enregistrerAuditPdf,
   GenerationResult 
 } from "@/lib/pdf-superposition";
+import SelecteurAppLecturePdf from "@/components/SelecteurAppLecturePdf";
 
 interface ModalApercuFidelePdfProps {
   isOpen: boolean;
@@ -610,6 +611,16 @@ export default function ModalApercuFidelePdf({
                     <Printer className="w-4 h-4 text-slate-600" />
                     <span>Imprimer via le mobile</span>
                   </button>
+
+                  {/* Sélection directe des applications de lecture (PDF Reader, Google Drive, WhatsApp...) */}
+                  <div className="pt-1 text-left">
+                    <SelecteurAppLecturePdf
+                      blobUrl={result.blobUrl}
+                      pdfBytes={result.pdfBytes}
+                      nomFichier={result.nomFichier}
+                      titreDocument={getTitreFiche()}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -636,7 +647,17 @@ export default function ModalApercuFidelePdf({
           )}
         </div>
 
-        {/* PIED DE MODALE : MENTIONS LÉGALES & RAPIDITÉ */}
+        {/* PIED DE MODALE : SÉLECTION D'APPLICATIONS DE LECTURE (DRIVE, PDF READER, WHATSAPP) & MENTIONS */}
+        {result && (
+          <div className="px-4 pt-2 pb-1 bg-slate-50 border-t border-slate-200 shrink-0 hidden md:block">
+            <SelecteurAppLecturePdf
+              blobUrl={result.blobUrl}
+              pdfBytes={result.pdfBytes}
+              nomFichier={result.nomFichier}
+              titreDocument={getTitreFiche()}
+            />
+          </div>
+        )}
         <div className="px-4 py-2 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between text-[11px] text-slate-500 shrink-0">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
