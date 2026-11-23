@@ -10,7 +10,16 @@ export const metadata: Metadata = {
   title: "SantéCom Bénin — Proximité • Prévention • Solidarité",
   description: "Plateforme officielle SantéCom Bénin — Proximité • Prévention • Solidarité. Développée sous la supervision du Ministère de la Santé du Bénin.",
   applicationName: "SantéCom Bénin",
-  manifest: "/manifest.json",
+  manifest: "/manifest.json?v=3",
+  icons: {
+    icon: [
+      { url: "/icon-asc-192.png?v=3", sizes: "192x192", type: "image/png" },
+      { url: "/icon-asc-512.png?v=3", sizes: "512x512", type: "image/png" }
+    ],
+    apple: [
+      { url: "/apple-touch-icon.png?v=3", sizes: "180x180", type: "image/png" }
+    ]
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",

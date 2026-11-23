@@ -149,7 +149,7 @@ export default function AscqNav({ userProfile }: Props) {
                   />
                 ) : (
                   <Image
-                    src="/logo-ascq.png"
+                    src="/logo-asc.png"
                     alt="SantéCom Bénin"
                     width={28}
                     height={28}

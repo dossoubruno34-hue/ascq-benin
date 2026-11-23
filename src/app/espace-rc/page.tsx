@@ -873,7 +873,7 @@ export default function EspaceRelaisPage() {
           >
             <div className="w-8 h-8 rounded-full bg-white p-0.5 flex items-center justify-center shrink-0 shadow-sm overflow-hidden border-2 border-[#FCD116]">
               <Image
-                src="/logo-ascq.png"
+                src="/logo-asc.png"
                 alt="SantéCom Bénin"
                 width={28}
                 height={28}

@@ -208,7 +208,7 @@ export default function ModalMonProfil({
             {photoUrl ? (
               <img src={photoUrl} alt={nomComplet} className="w-full h-full object-cover" />
             ) : (
-              <Image src="/logo-ascq.png" alt="SantéCom Bénin" width={64} height={64} className="object-contain" />
+              <Image src="/logo-asc.png" alt="SantéCom Bénin" width={64} height={64} className="object-contain" />
             )}
           </div>
 
