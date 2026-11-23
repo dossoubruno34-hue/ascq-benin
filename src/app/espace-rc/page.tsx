@@ -47,6 +47,10 @@ import FicheHebdoActivitesRcOfficielle from "@/components/FicheHebdoActivitesRcO
 import BeninPhoneAction from "@/components/BeninPhoneAction";
 import SignatureCanvas from "@/components/SignatureCanvas";
 import BoutonVerifierMiseAJour from "@/components/BoutonVerifierMiseAJour";
+import SelecteurAppLecturePdf from "@/components/SelecteurAppLecturePdf";
+import ModalModuleSynchronisation, { obtenirCompteursOutbox } from "@/components/ModalModuleSynchronisation";
+import ModalModuleDeconnexion from "@/components/ModalModuleDeconnexion";
+import { MODULES_RC } from "@/lib/navigation-registry";
 import { 
   generatePdfPlanningRc, 
   telechargerPdf, 
@@ -130,6 +134,15 @@ export default function EspaceRelaisPage() {
   const [activeTab, setActiveTab] = useState<"fiches" | "planning" | "notifications" | "compte">("fiches");
   const [rcData, setRcData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [isSyncRcOpen, setIsSyncRcOpen] = useState(false);
+  const [isLogoutRcOpen, setIsLogoutRcOpen] = useState(false);
+  const [rcPendingSync, setRcPendingSync] = useState(0);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setRcPendingSync(obtenirCompteursOutbox().total);
+    }
+  }, [activeTab]);
 
   // Sous-onglets Planning / Rapport du RC
   const [sousOngletPlanning, setSousOngletPlanning] = useState<"planning_hebdo" | "rapport_hebdo" | "officielle">("planning_hebdo");
@@ -849,114 +862,152 @@ export default function EspaceRelaisPage() {
   return (
     <div className="min-h-screen bg-[#f4f7f5] text-slate-800 antialiased pb-20">
       
-      {/* 1. En-tête officiel du Relais Communautaire */}
-      <header className="bg-[#005c30] text-white sticky top-0 z-20 shadow-md">
-        <div className="max-w-md sm:max-w-lg mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-full bg-white p-1 flex items-center justify-center shrink-0 shadow-sm overflow-hidden">
+      {/* 1. En-tête compact fixe 56 dp du Relais Communautaire — SantéCom Bénin */}
+      <header className="bg-[#005c30] text-white sticky top-0 z-30 shadow-md h-14 flex flex-col justify-between print:hidden">
+        <div className="max-w-md sm:max-w-lg w-full mx-auto px-3 flex-1 flex items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={() => setActiveTab("compte")}
+            className="flex items-center gap-2 text-left min-w-0 py-1 pr-2 rounded-xl hover:bg-white/10 transition-colors"
+            title="Ouvrir mon profil Relais Communautaire"
+          >
+            <div className="w-8 h-8 rounded-full bg-white p-0.5 flex items-center justify-center shrink-0 shadow-sm overflow-hidden border-2 border-[#FCD116]">
               <Image
                 src="/logo-ascq.png"
-                alt="Logo ASCQ Bénin"
-                width={32}
-                height={32}
+                alt="SantéCom Bénin"
+                width={28}
+                height={28}
                 className="object-contain"
               />
             </div>
-            <div>
-              <h1 className="font-extrabold text-sm tracking-tight leading-tight">
-                Espace Relais Communautaire
+            <div className="min-w-0 leading-tight">
+              <h1 className="font-black text-xs sm:text-sm tracking-tight text-white truncate">
+                SantéCom Bénin
               </h1>
-              <p className="text-[11px] text-white/80">
-                {rcData ? `${rcData.prenoms} ${rcData.nom}` : "Relais Communautaire"}
+              <p className="text-[11px] text-emerald-100 font-bold truncate">
+                {rcData ? `${rcData.prenoms} ${rcData.nom}` : "Relais"}, <span className="text-[#FCD116]">RC</span>
               </p>
             </div>
-          </div>
+          </button>
 
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            <BoutonVerifierMiseAJour variant="header" />
-            <NetworkStatusIndicator />
+          <div className="flex items-center gap-1 shrink-0">
             <button
-              onClick={handleLogout}
-              className="p-2 rounded-xl text-white/80 hover:text-white hover:bg-white/10 transition-colors"
-              title="Se déconnecter"
+              type="button"
+              onClick={() => {
+                setRcPendingSync(obtenirCompteursOutbox().total);
+                setIsSyncRcOpen(true);
+              }}
+              className="w-11 h-11 rounded-xl flex items-center justify-center text-white/95 hover:text-white hover:bg-white/10 transition-colors relative"
+              title="Synchronisation"
+              aria-label="Synchronisation"
             >
-              <LogOut className="w-5 h-5" />
+              <img
+                src="/icons/synchronisation/sync-module.svg"
+                alt="Synchronisation"
+                width={26}
+                height={26}
+                className="w-6 h-6 object-contain"
+              />
+              {rcPendingSync > 0 && (
+                <span className="absolute top-1.5 right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-[#E89B2D] text-slate-950 text-[9px] font-black flex items-center justify-center">
+                  {rcPendingSync}
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("notifications")}
+              className="w-11 h-11 rounded-xl flex items-center justify-center text-white/95 hover:text-white hover:bg-white/10 transition-colors"
+              title="Mes alertes & notifications"
+              aria-label="Alertes"
+            >
+              <Bell className="w-4 h-4" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsLogoutRcOpen(true)}
+              className="w-11 h-11 rounded-xl flex items-center justify-center text-white/95 hover:text-white hover:bg-white/10 transition-colors"
+              title="Se déconnecter"
+              aria-label="Déconnexion"
+            >
+              <img
+                src="/icons/deconnexion/auth-logout-module.svg"
+                alt="Déconnexion"
+                width={26}
+                height={26}
+                className="w-6 h-6 object-contain"
+              />
             </button>
           </div>
         </div>
 
         {/* Bandeau tricolore béninois */}
-        <div className="h-1 w-full flex">
-          <span className="w-1/3 bg-[#008751]"></span>
-          <span className="w-1/3 bg-[#FCD116]"></span>
-          <span className="w-1/3 bg-[#E8112D]"></span>
+        <div className="h-0.5 w-full flex shrink-0">
+          <span className="w-1/3 bg-[#008751]" />
+          <span className="w-1/3 bg-[#FCD116]" />
+          <span className="w-1/3 bg-[#E8112D]" />
         </div>
       </header>
 
       {/* Contenu principal */}
-      <main className="max-w-md sm:max-w-lg mx-auto px-4 pt-5 space-y-4">
+      <main className="max-w-md sm:max-w-lg mx-auto px-3 pt-2.5 space-y-3">
 
         {isOffline && (
-          <div className="p-3 bg-amber-500/15 border border-amber-500/30 rounded-2xl text-xs text-amber-950 flex items-start gap-2 shadow-sm">
+          <div className="p-2.5 bg-amber-500/15 border border-amber-500/30 rounded-2xl text-xs text-amber-950 flex items-start gap-2 shadow-sm">
             <WifiOff className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
             <div>
               <strong className="block text-amber-900 font-extrabold">Zone sans réseau internet</strong>
               <p className="text-amber-800 text-[11px]">
-                Vous pouvez continuer à remplir vos fiches d'alertes, registres et références. Elles sont sauvegardées sur votre téléphone et seront envoyées automatiquement dès la reconnexion.
+                Vos fiches et plannings sont gardés sur votre téléphone et seront synchronisés automatiquement.
               </p>
             </div>
           </div>
         )}
-        
-        {/* Barre de navigation simple du RC (4 onglets prévus : fiches, planning, notifications, compte) */}
-        <nav className="bg-white rounded-2xl p-1 shadow-sm border border-slate-200/80 flex items-center justify-between text-xs font-bold text-slate-600 gap-0.5">
-          <button
-            onClick={() => setActiveTab("fiches")}
-            className={`flex-1 py-2.5 px-1 text-center rounded-xl transition-all flex items-center justify-center gap-1 ${
-              activeTab === "fiches"
-                ? "bg-[#e0f2e9] text-[#005c30]"
-                : "hover:text-slate-900"
-            }`}
-          >
-            <FileText className="w-4 h-4 shrink-0" />
-            <span className="truncate">Fiches</span>
-          </button>
 
-          <button
-            onClick={() => setActiveTab("planning")}
-            className={`flex-1 py-2.5 px-1 text-center rounded-xl transition-all flex items-center justify-center gap-1 ${
-              activeTab === "planning"
-                ? "bg-[#e0f2e9] text-[#005c30]"
-                : "hover:text-slate-900"
-            }`}
-          >
-            <Calendar className="w-4 h-4 shrink-0" />
-            <span className="truncate">Planning</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab("notifications")}
-            className={`flex-1 py-2.5 px-1 text-center rounded-xl transition-all flex items-center justify-center gap-1 ${
-              activeTab === "notifications"
-                ? "bg-[#e0f2e9] text-[#005c30]"
-                : "hover:text-slate-900"
-            }`}
-          >
-            <Bell className="w-4 h-4 shrink-0" />
-            <span className="truncate">Alertes</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab("compte")}
-            className={`flex-1 py-2.5 px-1 text-center rounded-xl transition-all flex items-center justify-center gap-1 ${
-              activeTab === "compte"
-                ? "bg-[#e0f2e9] text-[#005c30]"
-                : "hover:text-slate-900"
-            }`}
-          >
-            <User className="w-4 h-4 shrink-0" />
-            <span className="truncate">Compte</span>
-          </button>
+        {/* Grille 2x2 des 4 modules du Relais Communautaire avec illustrations Wax originales (< 25 Ko) */}
+        <nav aria-label="Modules Relais Communautaire" className="grid grid-cols-2 gap-2">
+          {MODULES_RC.map((mod) => {
+            const tabKey =
+              mod.id === "rc_fiches"
+                ? "fiches"
+                : mod.id === "rc_planning"
+                ? "planning"
+                : mod.id === "rc_alertes"
+                ? "notifications"
+                : "compte";
+            const isSelected = activeTab === tabKey;
+            return (
+              <button
+                key={mod.id}
+                type="button"
+                onClick={() => setActiveTab(tabKey)}
+                className={`p-2 rounded-2xl border-2 transition-all flex items-center gap-2 text-left min-h-[64px] cursor-pointer ${
+                  isSelected
+                    ? "bg-emerald-50/90 border-[#008751] shadow-sm"
+                    : "bg-white border-slate-200/90 hover:border-emerald-300"
+                }`}
+              >
+                <div className="w-11 h-11 rounded-xl overflow-hidden shrink-0 bg-[#F7F5EE]">
+                  <img
+                    src={mod.iconPath}
+                    alt={mod.waxIcon?.alt || mod.libelle}
+                    width={44}
+                    height={44}
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+                <span
+                  className={`font-black text-xs leading-tight break-words ${
+                    isSelected ? "text-[#005c30]" : "text-slate-800"
+                  }`}
+                >
+                  {mod.libelle}
+                </span>
+              </button>
+            );
+          })}
         </nav>
 
         {/* ------------------------------------------------------------- */}
@@ -2346,6 +2397,14 @@ export default function EspaceRelaisPage() {
             </div>
           </div>
 
+          <div className="max-w-5xl w-full mx-auto mb-2">
+            <SelecteurAppLecturePdf
+              blobUrl={planningRcPdfUrl}
+              nomFichier={`Planning_RC_S${semaineChoisie}_${anneeChoisie}.pdf`}
+              titreDocument={`Planning Hebdomadaire RC — Semaine ${semaineChoisie} (${anneeChoisie})`}
+            />
+          </div>
+
           <div className="flex-1 max-w-5xl w-full mx-auto bg-slate-800 rounded-2xl overflow-hidden shadow-2xl flex flex-col">
             {planningRcPdfUrl ? (
               <iframe
@@ -2361,6 +2420,21 @@ export default function EspaceRelaisPage() {
           </div>
         </div>
       )}
+
+      <ModalModuleSynchronisation
+        isOpen={isSyncRcOpen}
+        onClose={() => {
+          setIsSyncRcOpen(false);
+          setRcPendingSync(obtenirCompteursOutbox().total);
+        }}
+        onSyncCompleted={() => setRcPendingSync(obtenirCompteursOutbox().total)}
+      />
+
+      <ModalModuleDeconnexion
+        isOpen={isLogoutRcOpen}
+        onClose={() => setIsLogoutRcOpen(false)}
+        userProfile={rcData}
+      />
     </div>
   );
 }

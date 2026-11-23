@@ -649,22 +649,52 @@ export async function genererFichePdfSuperposee(
       }
     }
 
-    // 3. Actions menées (28 lignes pointillées)
+    // 3. Actions menées (10 lignes bien espacées — pour chaque action, aller à la ligne)
     const actionsTexte = cleanVal(donnees.actions_menees);
     if (actionsTexte && fieldMap.lignesPointillees) {
       const cfg = fieldMap.lignesPointillees;
       const availWidth = cfg.x1 - cfg.x0 - 2 * MARGE_TEXTE;
+      const maxLignes = cfg.yBaselines.length; // 10 lignes espacées
+
+      // Découper chaque action pour aller systématiquement à la ligne
+      const decouperEnActionsDistinctes = (raw: string): string[] => {
+        const parSaut = raw
+          .split(/\r?\n+/)
+          .map(s => s.trim())
+          .filter(Boolean);
+        if (parSaut.length > 1) return parSaut;
+        // Si l'utilisateur a saisi sur un seul bloc, séparer par numérotation ("1.", "2."), tirets ou phrases
+        const parPoints = raw
+          .replace(/\s+(?=\d+[\.\)]\s)/g, "\n")
+          .replace(/\s+-\s+/g, "\n- ")
+          .replace(/\.\s+(?=[A-ZÉÈÊÀÙÇ])/g, ".\n")
+          .split(/\r?\n+/)
+          .map(s => s.trim())
+          .filter(Boolean);
+        return parPoints.length > 0 ? parPoints : [raw];
+      };
+
+      const actionsDistinctes = decouperEnActionsDistinctes(actionsTexte);
+
+      const construireLignesDepuisActions = (fSize: number): string[] => {
+        const out: string[] = [];
+        for (const act of actionsDistinctes) {
+          const wrapped = wrapText(act, font, fSize, availWidth);
+          out.push(...wrapped);
+        }
+        return out;
+      };
+
       let fontSize = TAILLE_DEFAUT;
-      let lignes = wrapText(actionsTexte, font, fontSize, availWidth);
-      const maxLignes = cfg.yBaselines.length;
+      let lignes = construireLignesDepuisActions(fontSize);
 
       while (lignes.length > maxLignes && fontSize > TAILLE_MIN) {
         fontSize -= 0.5;
-        lignes = wrapText(actionsTexte, font, fontSize, availWidth);
+        lignes = construireLignesDepuisActions(fontSize);
       }
 
       if (lignes.length > maxLignes) {
-        warnings.push(`DÉBORDEMENT: "Actions menées" dépasse les 28 lignes officielles (${lignes.length} lignes).`);
+        warnings.push(`DÉBORDEMENT: "Actions menées" dépasse les ${maxLignes} lignes espacées (${lignes.length} lignes).`);
       }
 
       for (let i = 0; i < Math.min(lignes.length, maxLignes); i++) {

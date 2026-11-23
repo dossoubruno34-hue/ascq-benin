@@ -46,6 +46,7 @@ import {
   FicheOfficielleRapportHebdoSurveillance
 } from "@/components/fiches-officielles";
 import ModalApercuFidelePdf from "@/components/ModalApercuFidelePdf";
+import BoutonSuppressionSecurisee from "@/components/BoutonSuppressionSecurisee";
 
 export default function MesFichesPage() {
   const router = useRouter();
@@ -59,8 +60,60 @@ export default function MesFichesPage() {
   const [investigations, setInvestigations] = useState<any[]>([]);
   const [rapports, setRapports] = useState<any[]>([]);
 
-  const [filtreType, setFiltreType] = useState<"TOUT" | "ALR" | "REG" | "DEC" | "INV" | "RAP">("TOUT");
+  const [filtreType, setFiltreType] = useState<"TOUT" | "ALR" | "ALR_A_CONFIRMER" | "ALR_CONFIRMEES" | "REG" | "DEC" | "INV" | "RAP">("TOUT");
   const [filtreStatut, setFiltreStatut] = useState<string>("TOUT");
+  const [idsSupprimes, setIdsSupprimes] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = JSON.parse(localStorage.getItem("ascq_fiches_supprimees") || "[]");
+        if (Array.isArray(saved)) setIdsSupprimes(saved);
+        const params = new URLSearchParams(window.location.search);
+        const tab = params.get("tab");
+        if (tab === "a_confirmer") setFiltreType("ALR_A_CONFIRMER");
+        else if (tab === "confirmees") setFiltreType("ALR_CONFIRMEES");
+        else if (tab === "registre") setFiltreType("REG");
+        else if (tab === "deces") setFiltreType("DEC");
+        else if (tab === "investigation") setFiltreType("INV");
+        else if (tab === "rapport") setFiltreType("RAP");
+      } catch {}
+    }
+  }, []);
+
+  const handleSupprimerFiche = async (fiche: any) => {
+    if (!fiche?.id) return;
+    const tableMap: Record<string, string> = {
+      ALR: "alertes_communautaires",
+      REG: "registre_alertes_rumeurs",
+      DEC: "deces_communautaires",
+      INV: "investigations_evenements",
+      RAP: "rapports_hebdomadaires"
+    };
+    const tableName = tableMap[fiche.type];
+    if (tableName) {
+      try {
+        await supabase.from(tableName).delete().eq("id", fiche.id);
+      } catch (e) {
+        console.warn("Suppression distante:", e);
+      }
+    }
+    if (typeof window !== "undefined") {
+      try {
+        const nextIds = Array.from(new Set([...idsSupprimes, fiche.id]));
+        setIdsSupprimes(nextIds);
+        localStorage.setItem("ascq_fiches_supprimees", JSON.stringify(nextIds));
+        if (fiche.type === "REG") {
+          const loc = JSON.parse(localStorage.getItem("ascq_registres_locaux") || "[]");
+          localStorage.setItem("ascq_registres_locaux", JSON.stringify(loc.filter((x: any) => x.id !== fiche.id)));
+        }
+      } catch {}
+    }
+    if (ficheConsultation?.id === fiche.id) {
+      setFicheConsultation(null);
+    }
+    await chargerFiches();
+  };
   const [recherche, setRecherche] = useState("");
   const [brouillonsCount, setBrouillonsCount] = useState(0);
   const [page, setPage] = useState(1);
@@ -746,9 +799,23 @@ export default function MesFichesPage() {
   // Tri antichronologique
   fichesUnifiees.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-  // Filtrage
-  const fichesFiltrees = fichesUnifiees.filter((f) => {
-    if (filtreType !== "TOUT" && f.type !== filtreType) return false;
+  // Filtrage (avec exclusion des fiches supprimées et sous-onglets Alertes à confirmer / Alertes déjà confirmées)
+  const fichesActives = fichesUnifiees.filter((f) => !idsSupprimes.includes(f.id));
+  const nbAlertesAConfirmer = fichesActives.filter(
+    (f) => f.type === "ALR" && f.statut !== "VALIDE" && f.resultat !== "AVEREE" && f.statut !== "INVALIDE"
+  ).length;
+  const nbAlertesConfirmees = fichesActives.filter(
+    (f) => f.type === "ALR" && (f.statut === "VALIDE" || f.resultat === "AVEREE")
+  ).length;
+
+  const fichesFiltrees = fichesActives.filter((f) => {
+    if (filtreType === "ALR_A_CONFIRMER") {
+      if (f.type !== "ALR" || f.statut === "VALIDE" || f.resultat === "AVEREE" || f.statut === "INVALIDE") return false;
+    } else if (filtreType === "ALR_CONFIRMEES") {
+      if (f.type !== "ALR" || (f.statut !== "VALIDE" && f.resultat !== "AVEREE")) return false;
+    } else if (filtreType !== "TOUT" && f.type !== filtreType) {
+      return false;
+    }
     if (filtreStatut === "PRIORITAIRE" && !f.estPrioritaire) return false;
     if (filtreStatut === "EN_ATTENTE" && f.resultat !== "EN_ATTENTE") return false;
     if (filtreStatut === "AVEREE" && f.resultat !== "AVEREE") return false;
@@ -939,66 +1006,142 @@ export default function MesFichesPage() {
           </div>
         )}
 
-        {/* Onglets de filtrage par type officiel */}
-        <div className="bg-white rounded-2xl p-1.5 border border-slate-200/80 shadow-sm flex items-center gap-1 overflow-x-auto scrollbar-none">
-          <button
-            onClick={() => { setFiltreType("TOUT"); setPage(1); }}
-            className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
-              filtreType === "TOUT" ? "bg-[#005c30] text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"
-            }`}
-          >
-            Toutes ({fichesUnifiees.length})
-          </button>
+        {/* Liste interne des sous-modules Fiches Surveillance en grille (ZÉRO défilement horizontal) */}
+        <div className="bg-white rounded-3xl p-3 border border-slate-200/80 shadow-sm space-y-2">
+          <div className="flex items-center justify-between px-1">
+            <span className="text-[11px] font-black uppercase tracking-wider text-slate-500">
+              Sous-modules Fiches Surveillance
+            </span>
+            <button
+              type="button"
+              onClick={() => { setFiltreType("TOUT"); setPage(1); }}
+              className={`text-xs font-extrabold px-2.5 py-1 rounded-xl transition-all ${
+                filtreType === "TOUT" ? "bg-[#005c30] text-white" : "text-[#005c30] bg-emerald-50 hover:bg-emerald-100"
+              }`}
+            >
+              Toutes ({fichesActives.length})
+            </button>
+          </div>
 
-          <button
-            onClick={() => { setFiltreType("ALR"); setPage(1); }}
-            className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${
-              filtreType === "ALR" ? "bg-[#005c30] text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"
-            }`}
-          >
-            <AlertTriangle className="w-3.5 h-3.5" />
-            <span>Alertes ({alertes.length})</span>
-          </button>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <button
+              type="button"
+              onClick={() => { setFiltreType("REG"); setPage(1); }}
+              className={`min-h-[54px] p-2 rounded-2xl text-xs font-extrabold border text-left flex items-center justify-between gap-1.5 transition-all ${
+                filtreType === "REG" ? "bg-blue-700 text-white border-blue-800 shadow-sm" : "bg-slate-50 hover:bg-blue-50/60 text-slate-800 border-slate-200"
+              }`}
+            >
+              <span className="flex items-center gap-2 min-w-0">
+                <img src="/icons/surveillance/surv-registre-alertes.svg" alt="Registre des alertes" width={32} height={32} className="w-8 h-8 shrink-0 rounded-lg" />
+                <span className="leading-tight">Registre des alertes</span>
+              </span>
+              <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black shrink-0 ${
+                filtreType === "REG" ? "bg-white/20 text-white" : "bg-blue-100 text-blue-800"
+              }`}>
+                {registres.filter(r => !idsSupprimes.includes(r.id)).length}
+              </span>
+            </button>
 
-          <button
-            onClick={() => { setFiltreType("REG"); setPage(1); }}
-            className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${
-              filtreType === "REG" ? "bg-blue-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"
-            }`}
-          >
-            <ClipboardList className="w-3.5 h-3.5" />
-            <span>Registre ({registres.length})</span>
-          </button>
+            <Link
+              href="/fiches/alerte/nouvelle"
+              className="min-h-[54px] p-2 rounded-2xl text-xs font-extrabold border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-[#005c30] text-left flex items-center justify-between gap-1.5 transition-all"
+            >
+              <span className="flex items-center gap-2 min-w-0">
+                <img src="/icons/surveillance/surv-notifier-alerte.svg" alt="Notifier une alerte" width={32} height={32} className="w-8 h-8 shrink-0 rounded-lg" />
+                <span className="leading-tight">Notifier une alerte</span>
+              </span>
+            </Link>
 
-          <button
-            onClick={() => { setFiltreType("DEC"); setPage(1); }}
-            className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${
-              filtreType === "DEC" ? "bg-purple-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"
-            }`}
-          >
-            <Skull className="w-3.5 h-3.5" />
-            <span>Décès ({deces.length})</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => { setFiltreType("ALR_A_CONFIRMER"); setPage(1); }}
+              className={`min-h-[54px] p-2 rounded-2xl text-xs font-extrabold border text-left flex items-center justify-between gap-1.5 transition-all ${
+                filtreType === "ALR_A_CONFIRMER" ? "bg-amber-600 text-white border-amber-700 shadow-sm" : "bg-slate-50 hover:bg-amber-50/70 text-slate-800 border-slate-200"
+              }`}
+            >
+              <span className="flex items-center gap-2 min-w-0">
+                <img src="/icons/surveillance/surv-alertes-a-confirmer.svg" alt="Alertes à confirmer" width={32} height={32} className="w-8 h-8 shrink-0 rounded-lg" />
+                <span className="leading-tight">Alertes à confirmer</span>
+              </span>
+              <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black shrink-0 ${
+                filtreType === "ALR_A_CONFIRMER" ? "bg-white/20 text-white" : "bg-amber-100 text-amber-900"
+              }`}>
+                {nbAlertesAConfirmer}
+              </span>
+            </button>
 
-          <button
-            onClick={() => { setFiltreType("INV"); setPage(1); }}
-            className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${
-              filtreType === "INV" ? "bg-amber-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"
-            }`}
-          >
-            <Search className="w-3.5 h-3.5" />
-            <span>Investigations ({investigations.length})</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => { setFiltreType("ALR_CONFIRMEES"); setPage(1); }}
+              className={`min-h-[54px] p-2 rounded-2xl text-xs font-extrabold border text-left flex items-center justify-between gap-1.5 transition-all ${
+                filtreType === "ALR_CONFIRMEES" ? "bg-[#005c30] text-white border-[#004724] shadow-sm" : "bg-slate-50 hover:bg-emerald-50/60 text-slate-800 border-slate-200"
+              }`}
+            >
+              <span className="flex items-center gap-2 min-w-0">
+                <img src="/icons/surveillance/surv-alertes-confirmees.svg" alt="Alertes déjà confirmées" width={32} height={32} className="w-8 h-8 shrink-0 rounded-lg" />
+                <span className="leading-tight">Alertes déjà confirmées</span>
+              </span>
+              <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black shrink-0 ${
+                filtreType === "ALR_CONFIRMEES" ? "bg-white/20 text-white" : "bg-emerald-100 text-emerald-800"
+              }`}>
+                {nbAlertesConfirmees}
+              </span>
+            </button>
 
-          <button
-            onClick={() => { setFiltreType("RAP"); setPage(1); }}
-            className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${
-              filtreType === "RAP" ? "bg-indigo-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"
-            }`}
-          >
-            <FileSpreadsheet className="w-3.5 h-3.5" />
-            <span>Rapports ({rapports.length})</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => { setFiltreType("DEC"); setPage(1); }}
+              className={`min-h-[54px] p-2 rounded-2xl text-xs font-extrabold border text-left flex items-center justify-between gap-1.5 transition-all ${
+                filtreType === "DEC" ? "bg-purple-700 text-white border-purple-800 shadow-sm" : "bg-slate-50 hover:bg-purple-50/60 text-slate-800 border-slate-200"
+              }`}
+            >
+              <span className="flex items-center gap-2 min-w-0">
+                <img src="/icons/surveillance/surv-notification-deces.svg" alt="Notification de décès" width={32} height={32} className="w-8 h-8 shrink-0 rounded-lg" />
+                <span className="leading-tight">Notification de décès</span>
+              </span>
+              <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black shrink-0 ${
+                filtreType === "DEC" ? "bg-white/20 text-white" : "bg-purple-100 text-purple-800"
+              }`}>
+                {deces.filter(d => !idsSupprimes.includes(d.id)).length}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { setFiltreType("INV"); setPage(1); }}
+              className={`min-h-[54px] p-2 rounded-2xl text-xs font-extrabold border text-left flex items-center justify-between gap-1.5 transition-all ${
+                filtreType === "INV" ? "bg-amber-700 text-white border-amber-800 shadow-sm" : "bg-slate-50 hover:bg-amber-50/60 text-slate-800 border-slate-200"
+              }`}
+            >
+              <span className="flex items-center gap-2 min-w-0">
+                <img src="/icons/surveillance/surv-fiche-investigation.svg" alt="Fiche d'investigation" width={32} height={32} className="w-8 h-8 shrink-0 rounded-lg" />
+                <span className="leading-tight">Fiche d&apos;investigation</span>
+              </span>
+              <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black shrink-0 ${
+                filtreType === "INV" ? "bg-white/20 text-white" : "bg-amber-100 text-amber-800"
+              }`}>
+                {investigations.filter(i => !idsSupprimes.includes(i.id)).length}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { setFiltreType("RAP"); setPage(1); }}
+              className={`min-h-[54px] p-2 rounded-2xl text-xs font-extrabold border text-left flex items-center justify-between gap-1.5 transition-all col-span-2 sm:col-span-2 ${
+                filtreType === "RAP" ? "bg-indigo-700 text-white border-indigo-800 shadow-sm" : "bg-slate-50 hover:bg-indigo-50/60 text-slate-800 border-slate-200"
+              }`}
+            >
+              <span className="flex items-center gap-2 min-w-0">
+                <img src="/icons/surveillance/surv-rapport-hebdo.svg" alt="Rapport hebdomadaire" width={32} height={32} className="w-8 h-8 shrink-0 rounded-lg" />
+                <span className="leading-tight">Rapport hebdomadaire</span>
+              </span>
+              <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black shrink-0 ${
+                filtreType === "RAP" ? "bg-white/20 text-white" : "bg-indigo-100 text-indigo-800"
+              }`}>
+                {rapports.filter(r => !idsSupprimes.includes(r.id)).length}
+              </span>
+            </button>
+          </div>
         </div>
 
         {/* Barre de recherche et filtre priorité */}
@@ -1180,6 +1323,14 @@ export default function MesFichesPage() {
                         <Eye className="w-3 h-3" />
                         <span>Détails</span>
                       </button>
+
+                      <BoutonSuppressionSecurisee
+                        titreElement={`${f.numero} — ${f.titre}`}
+                        typeElement={`la fiche ${f.typeLibelle}`}
+                        onConfirmerSuppression={() => handleSupprimerFiche(f)}
+                        variant="compact"
+                        label="Supprimer"
+                      />
                     </div>
                   </div>
                 </div>

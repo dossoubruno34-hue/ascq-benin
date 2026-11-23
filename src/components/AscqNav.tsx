@@ -6,67 +6,60 @@ import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import NotificationsModal from "@/components/NotificationsModal";
-import NetworkStatusIndicator from "@/components/NetworkStatusIndicator";
-import BoutonVerifierMiseAJour from "@/components/BoutonVerifierMiseAJour";
-import { 
-  Home, 
-  Users, 
-  ArrowLeftRight, 
-  MessageSquareText, 
-  BookOpen, 
-  LogOut, 
-  Bell, 
-  UserPlus, 
-  Activity, 
-  Calendar, 
-  CheckSquare, 
-  ClipboardCheck, 
-  FileText, 
-  BarChart3, 
-  ShieldCheck, 
-  HeartPulse, 
-  Crown, 
-  Stethoscope, 
-  Baby,
-  Layers,
-  Sparkles,
-  FileSpreadsheet,
-  Trash2
+import ModalModuleSynchronisation from "@/components/ModalModuleSynchronisation";
+import ModalModuleDeconnexion from "@/components/ModalModuleDeconnexion";
+import ModalMonProfil from "@/components/ModalMonProfil";
+import {
+  LogOut,
+  Bell,
+  RefreshCw,
+  CheckCircle2,
+  AlertTriangle,
+  LayoutGrid,
+  ShieldAlert,
+  ArrowLeft,
 } from "lucide-react";
-import { estCadreNonAscq, getTitreCadreOfficiel } from "@/lib/cadre-roles";
-import { getCachedUserSession, clearAllUserCaches } from "@/lib/offline-sync";
+import { estCadreNonAscq } from "@/lib/cadre-roles";
+import {
+  getCachedUserSession,
+  synchroniserToutesLesFilesAttente,
+} from "@/lib/offline-sync";
+import { obtenirCompteursOutbox } from "@/components/ModalModuleSynchronisation";
+import {
+  obtenirNomEtRoleCourt,
+  verifierAccesRoute,
+  enregistrerElementRecent,
+  MODULES_PRINCIPAUX,
+  SOUS_MODULES,
+} from "@/lib/navigation-registry";
 
 interface Props {
   userProfile?: any;
 }
 
-// Rôles autorisés pour l'accès Périmètre de Supervision
-const REPRESENTANT_ROLES = [
-  "SUPER_ADMIN",
-  "MEMBRE_MINISTERE",
-  "PF_CCLS_TP",
-  "REPRESENTANT_COMMUNAL"
-];
-
 export default function AscqNav({ userProfile }: Props) {
   const pathname = usePathname();
   const router = useRouter();
+
   const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [isSyncOpen, setIsSyncOpen] = useState(false);
+  const [isLogoutOpen, setIsLogoutOpen] = useState(false);
+  const [isProfilOpen, setIsProfilOpen] = useState(false);
+
   const [unreadCount, setUnreadCount] = useState(0);
+  const [pendingSyncCount, setPendingSyncCount] = useState(0);
+  const [hasSyncError, setHasSyncError] = useState(false);
+  const [isSyncingNow, setIsSyncingNow] = useState(false);
 
   const cachedProfile = typeof window !== "undefined" ? getCachedUserSession()?.profile : null;
-  const activeUser = userProfile || cachedProfile;
+  const [localProfile, setLocalProfile] = useState<any>(null);
+  const activeUser = localProfile || userProfile || cachedProfile;
 
-  const [detectedRole, setDetectedRole] = useState<string | null>(
-    activeUser?.role_technique || null
-  );
-
-  const [filtrePole, setFiltrePole] = useState<string>("TOUS");
-
-  const handleLogout = async () => {
-    clearAllUserCaches();
-    await supabase.auth.signOut();
-    router.push("/connexion?action=login");
+  const chargerEtatSync = () => {
+    if (typeof window === "undefined") return;
+    const c = obtenirCompteursOutbox();
+    setPendingSyncCount(c.total);
+    setHasSyncError(c.erreursJournal.length > 0 && c.total > 0);
   };
 
   const chargerNonLues = async () => {
@@ -79,297 +72,231 @@ export default function AscqNav({ userProfile }: Props) {
         .eq("lu", false)
         .or(`destinataire_id.eq.${user.id},destinataire_id.is.null`);
       setUnreadCount(count || 0);
-    } catch (e) {
-      // Ignore
+    } catch {
+      // Ignore hors ligne
     }
   };
 
   useEffect(() => {
-    if (activeUser?.role_technique) {
-      setDetectedRole(activeUser.role_technique);
-    } else {
-      supabase.rpc("obtenir_mon_profil").then(({ data }) => {
-        if (data && data.length > 0) {
-          setDetectedRole(data[0].role_technique);
-        }
-      });
-    }
     chargerNonLues();
+    chargerEtatSync();
+
+    const interval = setInterval(() => {
+      chargerEtatSync();
+    }, 4000);
+
+    const handleOnline = async () => {
+      setIsSyncingNow(true);
+      try {
+        await synchroniserToutesLesFilesAttente();
+      } finally {
+        setIsSyncingNow(false);
+        chargerEtatSync();
+      }
+    };
+
+    window.addEventListener("online", handleOnline);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("online", handleOnline);
+    };
   }, [userProfile]);
 
-  const rolesToCheck = [
-    activeUser?.role_nomination,
-    activeUser?.role_technique,
-    activeUser?.poste,
-    activeUser?.poste_autre,
-    detectedRole
-  ].filter(Boolean) as string[];
+  // Enregistrer automatiquement les sous-modules visités dans "Récents (3)"
+  useEffect(() => {
+    if (!pathname) return;
+    const foundSub = SOUS_MODULES.find((s) => s.route.split("?")[0] === pathname);
+    if (foundSub && foundSub.id !== "soins_overview" && foundSub.id !== "gouvernance_perimetre") {
+      enregistrerElementRecent({
+        id: foundSub.id,
+        libelle: foundSub.libelle,
+        route: foundSub.route,
+        parent: foundSub.parent,
+      });
+    }
+  }, [pathname]);
 
   const cleanTelNav = (activeUser?.telephone || "").replace(/\D/g, "");
   const isBrunoSuperAdmin = cleanTelNav.includes("69031463");
+  const isCadre = !isBrunoSuperAdmin && estCadreNonAscq(activeUser);
 
-  const isCadre = !isBrunoSuperAdmin && (estCadreNonAscq(activeUser) || (detectedRole && estCadreNonAscq({ role_technique: detectedRole })));
-  const cadreTitreOfficiel = getTitreCadreOfficiel(activeUser || { role_technique: detectedRole });
+  const { nomCourt, roleCourt } = obtenirNomEtRoleCourt(activeUser);
+  const homeHref = isCadre ? "/perimetre" : "/espace-ascq";
 
-  const isRepresentant = isBrunoSuperAdmin || rolesToCheck.some((r) => 
-    REPRESENTANT_ROLES.includes(r) ||
-    r.toUpperCase().includes("REPRESENTANT") ||
-    r.toUpperCase().includes("CADRE") ||
-    r.toUpperCase().includes("ADMIN")
-  );
-  const isAdmin = isBrunoSuperAdmin || rolesToCheck.some((r) => ["SUPER_ADMIN", "ADMINISTRATEUR"].includes(r));
-
-  const obtenirTitrePerimetre = () => {
-    if (isBrunoSuperAdmin) return "Super Admin & ASCQ";
-    if (rolesToCheck.includes("SUPER_ADMIN")) return "Super Admin";
-    if (rolesToCheck.includes("ADMINISTRATEUR")) return "Admin National";
-    if (rolesToCheck.includes("DDS") || rolesToCheck.includes("REPRESENTANT_DEPARTEMENTAL") || rolesToCheck.includes("CADRE_DEPARTEMENTAL")) return "Cadre Dép.";
-    if (rolesToCheck.includes("MCZS") || rolesToCheck.includes("CADRE_ZONE_SANITAIRE") || rolesToCheck.includes("RCSE")) return "Zone Sanitaire";
-    if (rolesToCheck.includes("REPRESENTANT_COMMUNAL") || rolesToCheck.includes("MCC") || rolesToCheck.includes("CADRE_COMMUNAL")) return "Représentant Com.";
-    if (rolesToCheck.includes("PF_CCLS_TP")) return "PF CCLS-TP";
-    return "Périmètre";
-  };
-
-  // Navigation spécifique dédiée aux Cadres et Responsables Hiérarchiques (NON-ASCQ)
-  const cadreNavItems = [
-    { href: "/perimetre", label: "Tableau de bord", icon: Crown },
-    { href: "/perimetre?tab=suivi_individuel", label: "ASCQ & RC Territoire", icon: Users },
-    { href: "/perimetre?tab=fiches_territoire", label: "Fiches & Données ASCQ", icon: ClipboardCheck },
-    { href: "/perimetre?tab=suggestions", label: "Suggestions & Observations", icon: Sparkles },
-    { href: "/perimetre?tab=alertes_missions", label: "Alertes & Missions", icon: HeartPulse },
-    { href: "/perimetre?tab=exports_journal", label: "Exports & Audit", icon: FileSpreadsheet },
-    { href: "/perimetre?tab=nettoyage_radiation", label: "Nettoyage & Radiation", icon: Trash2 },
-    { href: "/briefing", label: "Guide SIMR", icon: BookOpen },
-    { href: "/guide", label: "Guide Utilisateur", icon: BookOpen },
-    { href: "/presentation", label: "Présentation Conseils", icon: Sparkles },
-    ...(isAdmin ? [{ href: "/admin", label: "Administration", icon: ShieldCheck }] : [])
-  ];
-
-  // Pôles d'activités avec liaisons intelligentes pour les ASCQ de terrain
-  const POLES = [
-    { id: "TOUS", label: "Tous les onglets" },
-    { id: "SOINS", label: "🩺 Soins & Maternité" },
-    { id: "SURVEILLANCE", label: "🛡️ Surveillance" },
-    { id: "TERRAIN", label: "👥 Terrain & RC" },
-    { id: "RAPPORTS", label: "📊 Rapports SNIS" },
-    { id: "GOUVERNANCE", label: "👑 Gouvernance" },
-    { id: "OUTILS", label: "📚 Outils" }
-  ];
-
-  const allNavItems = [
-    // Accueil & Profil
-    { href: "/espace-ascq", label: "Mon espace", icon: Home, pole: "ACCUEIL" },
-
-    // Pôle 1 : Soins & Maternité
-    { href: "/espace-ascq/consultations", label: "Prise en charge iCCM", icon: Stethoscope, pole: "SOINS" },
-    { href: "/espace-ascq/maternite-enfance", label: "Maternité & 1000 Jours", icon: Baby, pole: "SOINS" },
-    { href: "/espace-ascq/references", label: "Références CS/GUPS", icon: HeartPulse, pole: "SOINS" },
-
-    // Pôle 2 : Surveillance & Alertes
-    { href: "/briefing", label: "Guide SIMR & Vaccins", icon: BookOpen, pole: "SURVEILLANCE" },
-    { href: "/fiches", label: "Fiches Surveillance", icon: Activity, pole: "SURVEILLANCE" },
-
-    // Pôle 3 : Terrain & RC
-    { href: "/espace-ascq/planning", label: "Planning", icon: Calendar, pole: "TERRAIN" },
-    { href: "/espace-ascq/activites-menees", label: "Activités", icon: CheckSquare, pole: "TERRAIN" },
-    { href: "/espace-ascq/suivi-relais", label: "Suivi RC", icon: ClipboardCheck, pole: "TERRAIN" },
-    { href: "/espace-ascq/relais", label: "Mes Relais", icon: Users, pole: "TERRAIN" },
-
-    // Pôle 4 : Rapports SNIS
-    { href: "/espace-ascq/rapport-hebdo-pnsc", label: "Suivi PNSC", icon: BarChart3, pole: "RAPPORTS" },
-    { href: "/espace-ascq/rapport-mensuel", label: "Rapport mensuel", icon: FileText, pole: "RAPPORTS" },
-
-    // Pôle 5 : Périmètre & Gouvernance
-    ...(isRepresentant ? [{ href: "/perimetre", label: "Périmètre", icon: Crown, pole: "GOUVERNANCE" }] : []),
-    ...(isAdmin ? [{ href: "/admin", label: "Administration", icon: ShieldCheck, pole: "GOUVERNANCE" }] : []),
-
-    // Pôle 6 : Outils & Ressources
-    { href: "/guide", label: "Guide Utilisateur", icon: BookOpen, pole: "OUTILS" },
-    { href: "/espace-ascq/bibliotheque", label: "Bibliothèque", icon: BookOpen, pole: "OUTILS" },
-    { href: "/espace-ascq/permutations", label: "Permutations", icon: ArrowLeftRight, pole: "OUTILS" },
-    { href: "/espace-ascq/requetes", label: "Requêtes", icon: MessageSquareText, pole: "OUTILS" },
-    { href: "/presentation", label: "Présentation Conseils", icon: Sparkles, pole: "OUTILS" }
-  ];
-
-  const filteredNavItems = filtrePole === "TOUS" 
-    ? allNavItems 
-    : allNavItems.filter(item => item.pole === "ACCUEIL" || item.pole === filtrePole);
+  // Vérification d'accès par rôle (Registre Central)
+  const accesVerif = activeUser ? verifierAccesRoute(pathname || "/", activeUser) : { autorise: true };
 
   return (
     <>
-      {/* 1. En-tête officiel vert foncé avec bandeau tricolore */}
-      <header className="bg-[#005c30] text-white sticky top-0 z-30 shadow-md print:hidden">
-        <div className="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <Link href={isCadre ? "/perimetre" : "/espace-ascq"} className="flex items-center gap-2.5 group">
-              <div className="w-8 h-8 rounded-full bg-white p-0.5 flex items-center justify-center shrink-0 shadow-sm overflow-hidden group-hover:scale-105 transition-transform border border-emerald-400">
-                {userProfile?.photo_url ? (
+      {/* En-tête compact fixe de 56 dp (h-14) — Zéro barre horizontale défilante */}
+      <header className="bg-[#005c30] text-white sticky top-0 z-30 shadow-md print:hidden h-14 flex flex-col justify-between">
+        <div className="max-w-4xl w-full mx-auto px-2.5 flex-1 flex items-center justify-between gap-1.5">
+          {/* Gauche : Photo (ouvre Mon profil) + Nom court & Rôle + Bouton Grille d'accueil */}
+          <div className="flex items-center gap-1.5 min-w-0">
+            <button
+              type="button"
+              onClick={() => setIsProfilOpen(true)}
+              className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 hover:bg-white/10 active:scale-95 transition-all"
+              title="Ouvrir Mon profil"
+              aria-label="Ouvrir Mon profil"
+            >
+              <div className="w-8 h-8 rounded-full bg-white p-0.5 flex items-center justify-center overflow-hidden shadow-sm border-2 border-[#FCD116]">
+                {activeUser?.photo_url ? (
                   <img
-                    src={userProfile.photo_url}
-                    alt="Photo"
+                    src={activeUser.photo_url}
+                    alt={nomCourt}
                     className="w-full h-full object-cover rounded-full"
                   />
                 ) : (
                   <Image
                     src="/logo-ascq.png"
-                    alt="Logo ASCQ Bénin"
-                    width={32}
-                    height={32}
+                    alt="SantéCom Bénin"
+                    width={28}
+                    height={28}
                     className="object-contain"
                   />
                 )}
               </div>
-              <div className="leading-tight">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <h1 className="font-extrabold text-sm sm:text-base tracking-tight text-white">
-                    {isCadre ? "Gouvernance Santé Bénin" : "ASCQ Bénin"}
-                  </h1>
-                  {isCadre ? (
-                    <span
-                      className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-gradient-to-r from-amber-400 to-amber-300 text-slate-950 font-black text-[10px] shadow border border-amber-500/40"
-                    >
-                      <Crown className="w-3 h-3 text-amber-950 fill-amber-950" />
-                      <span>{cadreTitreOfficiel}</span>
-                    </span>
-                  ) : isRepresentant && (
-                    <Link
-                      href="/perimetre"
-                      className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-gradient-to-r from-amber-400 to-amber-300 text-slate-950 font-black text-[10px] shadow hover:from-amber-300 hover:to-amber-200 transition-all border border-amber-500/40"
-                      title="Accéder à votre Espace Périmètre et Supervision Territoriale"
-                    >
-                      <Crown className="w-3 h-3 text-amber-950 fill-amber-950" />
-                      <span>{obtenirTitrePerimetre()}</span>
-                    </Link>
-                  )}
-                </div>
-                <p className="text-[11px] text-white/80">
-                  {activeUser ? `${activeUser.prenoms} ${activeUser.nom}` : isCadre ? "Cadre de Supervision" : "Espace ASCQ"}
-                </p>
-              </div>
-            </Link>
-          </div>
-
-          {/* Actions d'en-tête */}
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            <BoutonVerifierMiseAJour variant="header" />
-            <NetworkStatusIndicator />
-
-            {!isCadre && (
-              <Link
-                href="/espace-ascq/relais"
-                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white text-[#005c30] font-bold text-xs shadow hover:bg-emerald-50 active:scale-95 transition-all"
-              >
-                <UserPlus className="w-3.5 h-3.5" />
-                <span>Enrôler un RC</span>
-              </Link>
-            )}
+            </button>
 
             <button
+              type="button"
+              onClick={() => setIsProfilOpen(true)}
+              className="text-left min-w-0 leading-tight py-1 pr-1 rounded-lg hover:bg-white/10 transition-colors"
+              title="Mon profil — SantéCom Bénin"
+            >
+              <div className="flex items-center gap-1.5">
+                <span className="font-black text-xs sm:text-sm tracking-tight text-white truncate">
+                  SantéCom Bénin
+                </span>
+              </div>
+              <p className="text-[11px] text-emerald-100 font-bold truncate max-w-[145px] sm:max-w-[260px]">
+                {nomCourt}, <span className="text-[#FCD116]">{roleCourt}</span>
+              </p>
+            </button>
+
+            {pathname !== homeHref && (
+              <Link
+                href={homeHref}
+                className="inline-flex items-center gap-1 px-2.5 h-9 rounded-xl bg-white/15 hover:bg-white/25 text-white font-black text-[11px] shrink-0 transition-all active:scale-95 border border-white/20"
+                title="Retourner à la grille des 6 modules"
+              >
+                <LayoutGrid className="w-3.5 h-3.5 text-[#FCD116]" />
+                <span className="hidden xs:inline">Modules</span>
+              </Link>
+            )}
+          </div>
+
+          {/* Droite : Synchronisation (épinglé) + Notifications + Déconnexion (épinglé) */}
+          <div className="flex items-center gap-0.5 shrink-0">
+            {/* Module 7 : Synchronisation épinglé (sync-module.svg) */}
+            <button
+              type="button"
+              onClick={() => {
+                chargerEtatSync();
+                setIsSyncOpen(true);
+              }}
+              className="w-11 h-11 rounded-xl flex items-center justify-center text-white/95 hover:text-white hover:bg-white/10 transition-colors relative"
+              title={
+                pendingSyncCount > 0
+                  ? `Synchronisation : ${pendingSyncCount} élément(s) en attente`
+                  : "Synchronisation : Tout est à jour"
+              }
+              aria-label="Synchronisation"
+            >
+              <img
+                src="/icons/synchronisation/sync-module.svg"
+                alt="Synchronisation"
+                width={26}
+                height={26}
+                className={`w-6 h-6 object-contain ${isSyncingNow ? "animate-spin" : ""}`}
+              />
+
+              {pendingSyncCount > 0 && (
+                <span
+                  className={`absolute top-1 right-1 min-w-[16px] h-4 px-1 rounded-full text-white text-[9px] font-black flex items-center justify-center shadow ${
+                    hasSyncError ? "bg-[#D63838]" : "bg-[#E89B2D] text-slate-950"
+                  }`}
+                >
+                  {pendingSyncCount > 9 ? "9+" : pendingSyncCount}
+                </span>
+              )}
+            </button>
+
+            {/* Cloche de notifications */}
+            <button
+              type="button"
               onClick={() => setIsNotifOpen(true)}
-              className="p-2 rounded-xl text-white/90 hover:text-white hover:bg-white/10 transition-colors relative"
+              className="w-11 h-11 rounded-xl flex items-center justify-center text-white/95 hover:text-white hover:bg-white/10 transition-colors relative"
               title="Notifications"
+              aria-label="Notifications"
             >
               <Bell className="w-4 h-4" />
               {unreadCount > 0 && (
-                <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-black flex items-center justify-center animate-pulse">
+                <span className="absolute top-1.5 right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-[#D63838] text-white text-[9px] font-black flex items-center justify-center animate-pulse">
                   {unreadCount > 9 ? "9+" : unreadCount}
                 </span>
               )}
             </button>
 
+            {/* Module 8 : Déconnexion épinglé (auth-logout-module.svg) */}
             <button
-              onClick={handleLogout}
-              className="p-2 rounded-xl text-white/90 hover:text-white hover:bg-white/10 transition-colors"
-              title="Se déconnecter"
+              type="button"
+              onClick={() => {
+                chargerEtatSync();
+                setIsLogoutOpen(true);
+              }}
+              className="w-11 h-11 rounded-xl flex items-center justify-center text-white/95 hover:text-white hover:bg-white/10 transition-colors"
+              title="Déconnexion"
+              aria-label="Déconnexion"
             >
-              <LogOut className="w-4 h-4" />
+              <img
+                src="/icons/deconnexion/auth-logout-module.svg"
+                alt="Déconnexion"
+                width={26}
+                height={26}
+                className="w-6 h-6 object-contain"
+              />
             </button>
           </div>
         </div>
 
-        {/* Bandeau tricolore béninois */}
-        <div className="h-1 w-full flex">
-          <span className="w-1/3 bg-[#008751]"></span>
-          <span className="w-1/3 bg-[#FCD116]"></span>
-          <span className="w-1/3 bg-[#E8112D]"></span>
+        {/* Bandeau tricolore béninois (2px) */}
+        <div className="h-0.5 w-full flex shrink-0">
+          <span className="w-1/3 bg-[#008751]" />
+          <span className="w-1/3 bg-[#FCD116]" />
+          <span className="w-1/3 bg-[#E8112D]" />
         </div>
-
-        {/* 2. Barre de navigation : Mode Cadre vs Mode ASCQ de terrain */}
-        {isCadre ? (
-          <div className="bg-[#00381c] border-b border-white/10 overflow-x-auto scrollbar-none px-2 py-1.5">
-            <div className="max-w-4xl mx-auto flex items-center justify-start sm:justify-center gap-1.5 min-w-max">
-              {cadreNavItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = pathname === item.href;
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                      isActive
-                        ? "bg-white text-[#005c30] shadow-sm ring-1 ring-emerald-300"
-                        : "text-white/80 hover:text-white hover:bg-white/10"
-                    }`}
-                  >
-                    <Icon className="w-3.5 h-3.5 shrink-0" />
-                    <span>{item.label}</span>
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-        ) : (
-          <>
-            {/* Barre de filtrage intelligent par Pôle d'activité */}
-            <div className="bg-[#00381c] border-b border-white/10 overflow-x-auto scrollbar-none px-2 py-1">
-              <div className="max-w-4xl mx-auto flex items-center gap-1 min-w-max">
-                {POLES.map((pole) => {
-                  if (pole.id === "GOUVERNANCE" && !isRepresentant && !isAdmin) return null;
-                  const isSelected = filtrePole === pole.id;
-                  return (
-                    <button
-                      key={pole.id}
-                      onClick={() => setFiltrePole(pole.id)}
-                      className={`px-2.5 py-0.5 rounded-lg text-[11px] font-semibold transition-all ${
-                        isSelected
-                          ? "bg-emerald-500 text-white shadow-sm font-black scale-105"
-                          : "text-emerald-100/70 hover:text-white hover:bg-white/5"
-                      }`}
-                    >
-                      {pole.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Barre de navigation des onglets du pôle sélectionné */}
-            <div className="bg-[#004724] overflow-x-auto scrollbar-none">
-              <div className="max-w-4xl mx-auto px-2 flex items-center justify-start sm:justify-center gap-1 py-1.5 min-w-max">
-                {filteredNavItems.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = pathname === item.href;
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                        isActive
-                          ? "bg-white text-[#005c30] shadow-sm ring-1 ring-emerald-300"
-                          : "text-white/80 hover:text-white hover:bg-white/10"
-                      }`}
-                    >
-                      <Icon className="w-3.5 h-3.5 shrink-0" />
-                      <span>{item.label}</span>
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-          </>
-        )}
       </header>
 
+      {/* Barrière d'accès direct aux routes non autorisées selon le rôle */}
+      {!accesVerif.autorise && (
+        <div className="max-w-xl mx-auto my-6 px-4 print:hidden">
+          <div className="bg-rose-50 border-2 border-rose-200 rounded-3xl p-5 text-center space-y-3 shadow-sm">
+            <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-700 flex items-center justify-center mx-auto">
+              <ShieldAlert className="w-6 h-6" />
+            </div>
+            <h2 className="text-base font-black text-rose-950">
+              Accès non autorisé pour votre rôle ({roleCourt})
+            </h2>
+            <p className="text-xs text-rose-800 leading-relaxed">
+              {accesVerif.motifRefus || "Ce sous-module n'est pas ouvert à votre profil."}
+            </p>
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={() => router.push(homeHref)}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#008751] text-white font-black text-xs shadow hover:bg-[#006b40]"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Retourner à l&apos;accueil SantéCom Bénin</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modale Notifications */}
       <NotificationsModal
         isOpen={isNotifOpen}
         onClose={() => {
@@ -377,6 +304,32 @@ export default function AscqNav({ userProfile }: Props) {
           chargerNonLues();
         }}
         onNotificationsUpdated={chargerNonLues}
+      />
+
+      {/* Modale Module Synchronisation */}
+      <ModalModuleSynchronisation
+        isOpen={isSyncOpen}
+        onClose={() => {
+          setIsSyncOpen(false);
+          chargerEtatSync();
+        }}
+        onSyncCompleted={chargerEtatSync}
+      />
+
+      {/* Modale Module Déconnexion */}
+      <ModalModuleDeconnexion
+        isOpen={isLogoutOpen}
+        onClose={() => setIsLogoutOpen(false)}
+        userProfile={activeUser}
+      />
+
+      {/* Modale Mon Profil (ouverte en touchant la photo) */}
+      <ModalMonProfil
+        isOpen={isProfilOpen}
+        onClose={() => setIsProfilOpen(false)}
+        userProfile={activeUser}
+        onProfileUpdated={(updated) => setLocalProfile(updated)}
+        onOpenLogout={() => setIsLogoutOpen(true)}
       />
     </>
   );

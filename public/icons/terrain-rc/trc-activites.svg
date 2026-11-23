@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" fill="none">
+  <rect x="24" y="24" width="464" height="464" rx="96" fill="#F7F5EE" stroke="#112A3A" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  
+    <rect x="104" y="96" width="304" height="328" rx="32" fill="#FFFFFF" stroke="#112A3A" stroke-width="13"/>
+    <circle cx="164" cy="184" r="18" fill="#1D8F5A" stroke="#112A3A" stroke-width="8"/>
+    <line x1="208" y1="184" x2="356" y2="184" stroke="#112A3A" stroke-width="13" stroke-linecap="round"/>
+    <circle cx="164" cy="256" r="18" fill="#E89B2D" stroke="#112A3A" stroke-width="8"/>
+    <line x1="208" y1="256" x2="356" y2="256" stroke="#112A3A" stroke-width="13" stroke-linecap="round"/>
+    <circle cx="164" cy="328" r="18" fill="#D95B38" stroke="#112A3A" stroke-width="8"/>
+    <line x1="208" y1="328" x2="316" y2="328" stroke="#112A3A" stroke-width="13" stroke-linecap="round"/>
+    <!-- Coche verte en bas à droite -->
+    <path d="M332 372 L350 390 L382 354" stroke="#1D8F5A" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>
+  
+</svg>

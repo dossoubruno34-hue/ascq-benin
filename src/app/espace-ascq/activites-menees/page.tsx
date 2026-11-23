@@ -96,6 +96,12 @@ export default function ActivitesMeneesPage() {
 
   useEffect(() => {
     chargerDonnees();
+    if (typeof window !== "undefined") {
+      const p = new URLSearchParams(window.location.search).get("tab");
+      if (p === "campagnes") {
+        setCategorie("CAMPAGNE_SANTE");
+      }
+    }
   }, []);
 
   // Gestion des acteurs présents
@@ -265,7 +271,7 @@ export default function ActivitesMeneesPage() {
                   <option value="VISITE_DOMICILE">Visite à domicile (VAD)</option>
                   <option value="SUPERVISION_RELAIS">Supervision des Relais</option>
                   <option value="REUNION_COMMUNAUTAIRE">Réunion communautaire</option>
-                  <option value="CAMPAGNE_SANTE">Campagne de santé</option>
+                  <option value="CAMPAGNE_SANTE">Campagnes (MIILD, CPS, ONCHO)</option>
                   <option value="AUTRE">Autre activité</option>
                 </select>
               </div>

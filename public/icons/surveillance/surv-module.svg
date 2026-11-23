@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" fill="none">
+  <rect x="24" y="24" width="464" height="464" rx="96" fill="#163A5F" stroke="#112A3A" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  
+    <circle cx="256" cy="256" r="176" fill="#163A5F" stroke="#112A3A" stroke-width="13"/>
+    <circle cx="256" cy="256" r="132" fill="none" stroke="#0E8A94" stroke-width="8" stroke-dasharray="18 14"/>
+    <circle cx="256" cy="256" r="88" fill="none" stroke="#F7F5EE" stroke-width="7" opacity="0.45"/>
+    <!-- Faisceau radar -->
+    <path d="M256 256 L380 132 A175 175 0 0 1 430 256 Z" fill="#0E8A94" opacity="0.35"/>
+    <!-- Foyers détectés -->
+    <circle cx="348" cy="176" r="16" fill="#E89B2D" stroke="#F7F5EE" stroke-width="5"/>
+    <circle cx="172" cy="322" r="14" fill="#D95B38" stroke="#F7F5EE" stroke-width="5"/>
+    <!-- Croix centrale d'alerte sanitaire -->
+    <circle cx="256" cy="256" r="50" fill="#D63838" stroke="#F7F5EE" stroke-width="10"/>
+    <path d="M256 230 V282 M230 256 H282" stroke="#FFFFFF" stroke-width="14" stroke-linecap="round"/>
+  
+</svg>

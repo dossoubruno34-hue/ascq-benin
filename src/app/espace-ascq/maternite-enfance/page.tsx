@@ -98,6 +98,15 @@ export default function MaterniteEnfancePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatut, setFilterStatut] = useState<string>("TOUS");
 
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const p = new URLSearchParams(window.location.search).get("tab");
+      if (p === "perdus_de_vue" || p === "rappels") {
+        setActiveTab("rappels");
+      }
+    }
+  }, []);
+
   const [femmes, setFemmes] = useState<FemmeEnceinte[]>([]);
   const [enfants, setEnfants] = useState<Enfant1000Jours[]>([]);
 
@@ -1092,7 +1101,7 @@ export default function MaterniteEnfancePage() {
             }`}
           >
             <Bell className="w-4 h-4 text-amber-500" />
-            <span>Rappels & Vigilance</span>
+            <span>Perdus de vue &amp; Rappels</span>
             {rappelsTerrain.length > 0 && (
               <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-500 text-white font-black animate-pulse">
                 {rappelsTerrain.length}

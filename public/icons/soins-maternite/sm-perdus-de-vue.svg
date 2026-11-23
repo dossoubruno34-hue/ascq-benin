@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" fill="none">
+  <rect x="24" y="24" width="464" height="464" rx="96" fill="#F7F5EE" stroke="#112A3A" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  
+    <rect x="108" y="96" width="280" height="328" rx="32" fill="#FFFFFF" stroke="#112A3A" stroke-width="13"/>
+    <!-- Avatar patient ocre -->
+    <circle cx="196" cy="196" r="32" fill="#E89B2D" stroke="#112A3A" stroke-width="11"/>
+    <path d="M144 286 C144 250 166 234 196 234 C226 234 248 250 248 286 Z" fill="#0E8A94" stroke="#112A3A" stroke-width="11" stroke-linejoin="round"/>
+    <!-- Tracé de suivi interrompu en pointillés rouges -->
+    <line x1="144" y1="348" x2="236" y2="348" stroke="#112A3A" stroke-width="12" stroke-linecap="round"/>
+    <line x1="258" y1="348" x2="348" y2="348" stroke="#D63838" stroke-width="12" stroke-linecap="round" stroke-dasharray="14 16"/>
+    
+  <g>
+    <circle cx="408" cy="104" r="52" fill="#D63838" stroke="#F7F5EE" stroke-width="10"/>
+    <circle cx="408" cy="104" r="46" fill="none" stroke="#112A3A" stroke-width="8"/>
+    <path d="M392 88 L424 120 M424 88 L392 120" stroke="#FFFFFF" stroke-width="11" stroke-linecap="round"/>
+  </g>
+  
+</svg>

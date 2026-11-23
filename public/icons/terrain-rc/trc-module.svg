@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" fill="none">
+  <rect x="24" y="24" width="464" height="464" rx="96" fill="#F7F5EE" stroke="#112A3A" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  
+    <clipPath id="clip-trc">
+      <rect x="31" y="31" width="450" height="450" rx="88"/>
+    </clipPath>
+    <g clip-path="url(#clip-trc)">
+      <!-- Prairie verte en bas -->
+      <path d="M24 316 Q160 292 288 314 T488 308 L488 488 L24 488 Z" fill="#1D8F5A" stroke="#112A3A" stroke-width="13"/>
+      <!-- Sentier villageois ocre sinueux -->
+      <path d="M238 312 Q285 370 218 420 Q175 452 210 488 L306 488 Q272 448 312 410 Q360 362 288 312 Z" fill="#E89B2D" stroke="#112A3A" stroke-width="12" stroke-linejoin="round"/>
+      <!-- Case traditionnelle à gauche -->
+      <rect x="88" y="236" width="98" height="80" fill="#FFFFFF" stroke="#112A3A" stroke-width="12" stroke-linejoin="round"/>
+      <rect x="122" y="266" width="30" height="50" rx="6" fill="#163A5F" stroke="#112A3A" stroke-width="10"/>
+      <path d="M72 238 L137 174 L202 238 Z" fill="#D95B38" stroke="#112A3A" stroke-width="12" stroke-linejoin="round"/>
+      <!-- Agent RC à droite -->
+      <circle cx="348" cy="194" r="32" fill="#E89B2D" stroke="#112A3A" stroke-width="12"/>
+      <path d="M296 312 C296 262 320 242 348 242 C376 242 400 262 400 312 Z" fill="#0E8A94" stroke="#112A3A" stroke-width="12" stroke-linejoin="round"/>
+    </g>
+  
+</svg>

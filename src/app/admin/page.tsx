@@ -440,18 +440,29 @@ export default function AdminPage() {
       if (typeof window !== "undefined") {
         const params = new URLSearchParams(window.location.search);
         const urlTab = params.get("tab");
-        if (urlTab && ["dashboard", "comptes_ascq", "perimetre_activites", "permutations_requetes", "diffusion_alertes", "ecoute_conseils", "bibliotheque", "cotonou_referentiel", "exports"].includes(urlTab)) {
+        if (urlTab === "audit") {
+          setTab("perimetre_activites");
+        } else if (urlTab && ["dashboard", "comptes_ascq", "perimetre_activites", "permutations_requetes", "diffusion_alertes", "ecoute_conseils", "bibliotheque", "cotonou_referentiel", "exports"].includes(urlTab)) {
           setTab(urlTab as any);
         }
       }
 
-      // Rôles autorisés pour l'administration : Super Admin National et Représentants Communaux des ASCQ
-      const isSuperAdmin = profil.role_technique === "SUPER_ADMIN" || (profil.telephone || "").includes("69031463");
-      const isRepresentant = profil.role_nomination === "REPRESENTANT_COMMUNAL" || profil.role_technique === "REPRESENTANT_COMMUNAL";
+      // NB Gouvernance : Seuls les Administrateurs nommés (SUPER_ADMIN) ont accès à Administration.
+      // Les Représentants nommés accèdent uniquement à Périmètre pour leur ressort.
+      const isSuperAdmin =
+        profil.role_technique === "SUPER_ADMIN" ||
+        profil.role_technique === "ADMINISTRATEUR" ||
+        (profil.telephone || "").includes("69031463");
+      const isRepresentant =
+        profil.role_nomination === "REPRESENTANT_COMMUNAL" ||
+        profil.role_technique === "REPRESENTANT_COMMUNAL";
 
-      if (!isSuperAdmin && !isRepresentant) {
-        alert("Accès réservé au Super Administrateur et aux Représentants Communaux des ASCQ.");
-        router.push(estCadreNonAscq(profil) ? "/perimetre" : "/espace-ascq");
+      if (!isSuperAdmin) {
+        if (isRepresentant || estCadreNonAscq(profil)) {
+          router.replace("/perimetre");
+        } else {
+          router.replace("/espace-ascq");
+        }
         return;
       }
 
@@ -1451,14 +1462,14 @@ export default function AdminPage() {
           <div className="max-w-7xl mx-auto px-4 flex items-center gap-1 py-1.5 min-w-max">
             {[
               { id: "dashboard", label: "Tableau de bord", icon: LayoutDashboard },
-              { id: "comptes_ascq", label: "Comptes & ASCQ", icon: Users },
-              { id: "perimetre_activites", label: "Périmètre & Supervision ASCQ", icon: Activity, badge: demandesMdpList.length > 0 ? demandesMdpList.length : null },
+              { id: "comptes_ascq", label: "Comptes et validations", icon: Users },
+              { id: "perimetre_activites", label: "Journal d'audit & Supervision", icon: Activity, badge: demandesMdpList.length > 0 ? demandesMdpList.length : null },
               { id: "permutations_requetes", label: "Permutations & Requêtes", icon: ArrowLeftRight },
               { id: "diffusion_alertes", label: "Diffusion Alertes", icon: BellRing },
               { id: "ecoute_conseils", label: "Conseils & Citoyens", icon: HeartHandshake },
               { id: "bibliotheque", label: "Bibliothèque", icon: BookOpen },
               { id: "cotonou_referentiel", label: "Cotonou & Référentiel", icon: MapPin },
-              { id: "exports", label: "Centre d'Exports", icon: FileSpreadsheet },
+              { id: "exports", label: "Demandes d'export du ministère", icon: FileSpreadsheet },
             ].map((item) => {
               const Icon = item.icon;
               const isActive = tab === item.id;

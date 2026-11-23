@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" fill="none">
+  <rect x="24" y="24" width="464" height="464" rx="96" fill="#163A5F" stroke="#112A3A" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  
+    <rect x="74" y="84" width="364" height="344" rx="44" fill="#FFFFFF" stroke="#112A3A" stroke-width="13"/>
+    <!-- Barres d'histogramme multicolores -->
+    <rect x="118" y="292" width="44" height="86" rx="8" fill="#0E8A94" stroke="#112A3A" stroke-width="11"/>
+    <rect x="188" y="246" width="44" height="132" rx="8" fill="#1D8F5A" stroke="#112A3A" stroke-width="11"/>
+    <rect x="258" y="204" width="44" height="174" rx="8" fill="#E89B2D" stroke="#112A3A" stroke-width="11"/>
+    <rect x="328" y="156" width="44" height="222" rx="8" fill="#D95B38" stroke="#112A3A" stroke-width="11"/>
+    <!-- Ligne de base -->
+    <line x1="104" y1="378" x2="394" y2="378" stroke="#112A3A" stroke-width="12" stroke-linecap="round"/>
+    <!-- Courbe de progression -->
+    <path d="M132 234 L206 186 L276 154 L350 118" stroke="#163A5F" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="350" cy="118" r="14" fill="#E89B2D" stroke="#112A3A" stroke-width="9"/>
+  
+</svg>

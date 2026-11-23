@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" fill="none">
+  <rect x="24" y="24" width="464" height="464" rx="96" fill="#F7F5EE" stroke="#112A3A" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  
+    <!-- Cadran 1 : Croix médicale verte -->
+    <rect x="86" y="86" width="154" height="154" rx="28" fill="#FFFFFF" stroke="#112A3A" stroke-width="12"/>
+    <circle cx="163" cy="163" r="46" fill="#1D8F5A" stroke="#112A3A" stroke-width="10"/>
+    <path d="M163 141 V185 M141 163 H185" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round"/>
+    <!-- Cadran 2 : Coeur maternité terracotta -->
+    <rect x="272" y="86" width="154" height="154" rx="28" fill="#FFFFFF" stroke="#112A3A" stroke-width="12"/>
+    <path d="M349 204 C349 204 301 174 301 140 C301 122 316 110 331 110 C341 110 349 116 349 124 C349 116 357 110 367 110 C382 110 397 122 397 140 C397 174 349 204 349 204 Z" fill="#D95B38" stroke="#112A3A" stroke-width="10" stroke-linejoin="round"/>
+    <!-- Cadran 3 : Constantes vitales (ECG turquoise) -->
+    <rect x="86" y="272" width="154" height="154" rx="28" fill="#FFFFFF" stroke="#112A3A" stroke-width="12"/>
+    <path d="M108 352 H134 L148 312 L172 388 L190 336 L202 352 H218" stroke="#0E8A94" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- Cadran 4 : Croissance infantile (3 barres) -->
+    <rect x="272" y="272" width="154" height="154" rx="28" fill="#FFFFFF" stroke="#112A3A" stroke-width="12"/>
+    <rect x="304" y="362" width="22" height="36" rx="4" fill="#0E8A94" stroke="#112A3A" stroke-width="8"/>
+    <rect x="338" y="338" width="22" height="60" rx="4" fill="#E89B2D" stroke="#112A3A" stroke-width="8"/>
+    <rect x="372" y="310" width="22" height="88" rx="4" fill="#D95B38" stroke="#112A3A" stroke-width="8"/>
+  
+</svg>

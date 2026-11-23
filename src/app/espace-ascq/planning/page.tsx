@@ -30,6 +30,8 @@ import {
 } from "lucide-react";
 import AscqNav from "@/components/AscqNav";
 import SignatureCanvas from "@/components/SignatureCanvas";
+import BoutonSuppressionSecurisee from "@/components/BoutonSuppressionSecurisee";
+import SelecteurAppLecturePdf from "@/components/SelecteurAppLecturePdf";
 import { getCachedUserSession, getCachedMonEspace } from "@/lib/offline-sync";
 import { 
   generatePdfPlanningAscq, 
@@ -172,6 +174,43 @@ export default function PlanningAscqPage() {
   const [modalApercuRcOuvert, setModalApercuRcOuvert] = useState(false);
   const [previewRcPdfUrl, setPreviewRcPdfUrl] = useState<string | null>(null);
   const [previewRcPdfBytes, setPreviewRcPdfBytes] = useState<Uint8Array | null>(null);
+
+  // Suppression sécurisée d'un planning ASCQ
+  const handleSupprimerPlanningAscq = async (p: any) => {
+    const uid = currentUser?.id;
+    try {
+      if (p.id && !String(p.id).startsWith("planning_cnlstp_")) {
+        await supabase.from("lignes_planning_ascq").delete().eq("planning_id", p.id);
+        await supabase.from("plannings_ascq").delete().eq("id", p.id);
+      } else if (uid && p.annee && p.semaine) {
+        await supabase.from("plannings_ascq").delete().eq("ascq_id", uid).eq("annee", p.annee).eq("semaine", p.semaine);
+      }
+    } catch {}
+    if (typeof window !== "undefined") {
+      try {
+        if (uid) localStorage.removeItem(`planning_cnlstp_${uid}_${p.annee}_${p.semaine}`);
+        if (String(p.id).startsWith("planning_cnlstp_")) localStorage.removeItem(String(p.id));
+      } catch {}
+    }
+    setHistoriquePlannings(prev => prev.filter(item => !(item.annee === p.annee && item.semaine === p.semaine)));
+  };
+
+  // Suppression sécurisée d'un planning RC
+  const handleSupprimerPlanningRc = async (p: any) => {
+    if (!p?.id) return;
+    try {
+      await supabase.from("plannings_hebdo_relais").delete().eq("id", p.id);
+    } catch {}
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.removeItem(`validation_rc_planning_${p.id}`);
+        const allValids = JSON.parse(localStorage.getItem("all_validations_rc_plannings") || "{}");
+        delete allValids[p.id];
+        localStorage.setItem("all_validations_rc_plannings", JSON.stringify(allValids));
+      } catch {}
+    }
+    setPlanningsRelais(prev => prev.filter(item => item.id !== p.id));
+  };
 
   // Basculer un jour pour une activité donnée
   const toggleJourActivite = (actIdx: number, jour: string) => {
@@ -1607,6 +1646,14 @@ export default function PlanningAscqPage() {
                         <Eye className="w-3.5 h-3.5" />
                         <span>Aperçu PDF</span>
                       </button>
+
+                      <BoutonSuppressionSecurisee
+                        titreElement={`Planning ASCQ — Semaine ${p.semaine} (${p.annee})`}
+                        typeElement="ce planning hebdomadaire ASCQ"
+                        onConfirmerSuppression={() => handleSupprimerPlanningAscq(p)}
+                        variant="compact"
+                        label="Supprimer"
+                      />
                     </div>
                   </div>
                 ))}
@@ -1765,6 +1812,13 @@ export default function PlanningAscqPage() {
                           >
                             <Printer className="w-3.5 h-3.5" />
                           </button>
+
+                          <BoutonSuppressionSecurisee
+                            titreElement={`Planning RC ${nomRc} — Semaine ${p.semaine_num} (${p.annee})`}
+                            typeElement="ce planning de Relais Communautaire"
+                            onConfirmerSuppression={() => handleSupprimerPlanningRc(p)}
+                            variant="icon"
+                          />
                         </div>
                       </div>
                     </div>
@@ -1819,6 +1873,16 @@ export default function PlanningAscqPage() {
                 <X className="w-5 h-5" />
               </button>
             </div>
+          </div>
+
+          {/* Barre d'ouverture multi-applications (PDF Reader, Google Drive, WhatsApp...) */}
+          <div className="max-w-5xl w-full mx-auto mb-2">
+            <SelecteurAppLecturePdf
+              blobUrl={previewPdfBlobUrl}
+              pdfBytes={previewPdfBytes}
+              nomFichier={genererNomFichierPlanningAscq({ semaine, annee, arrondissement, commune, ascqNom })}
+              titreDocument={`Planning Hebdomadaire ASCQ Semaine ${semaine} (${annee})`}
+            />
           </div>
 
           {/* Rendu du PDF dans iframe intégrée */}
@@ -1992,6 +2056,15 @@ export default function PlanningAscqPage() {
                 <X className="w-5 h-5" />
               </button>
             </div>
+          </div>
+
+          <div className="max-w-5xl w-full mx-auto mb-2">
+            <SelecteurAppLecturePdf
+              blobUrl={previewRcPdfUrl}
+              pdfBytes={previewRcPdfBytes}
+              nomFichier={`Planning_RC_S${selectedRcPlanning.semaine_num}_${selectedRcPlanning.annee}.pdf`}
+              titreDocument={`Planning Hebdomadaire RC Semaine ${selectedRcPlanning.semaine_num}`}
+            />
           </div>
 
           <div className="flex-1 max-w-5xl w-full mx-auto bg-slate-800 rounded-2xl overflow-hidden shadow-2xl flex flex-col">

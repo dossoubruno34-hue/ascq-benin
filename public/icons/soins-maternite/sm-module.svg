@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" fill="none">
+  <rect x="24" y="24" width="464" height="464" rx="96" fill="#F7F5EE" stroke="#112A3A" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  
+    <clipPath id="clip-sm">
+      <rect x="31" y="31" width="450" height="450" rx="88"/>
+    </clipPath>
+    <g clip-path="url(#clip-sm)">
+      <!-- Frise supérieure turquoise à chevrons sobres -->
+      <rect x="24" y="24" width="464" height="58" fill="#0E8A94"/>
+      <path d="M36 62 L64 40 L92 62 L120 40 L148 62 L176 40 L204 62 L232 40 L260 62 L288 40 L316 62 L344 40 L372 62 L400 40 L428 62 L456 40 L484 62" stroke="#F7F5EE" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" opacity="0.55"/>
+      <line x1="24" y1="82" x2="488" y2="82" stroke="#112A3A" stroke-width="12"/>
+      <!-- Sol et chemin d'accès ocre -->
+      <rect x="24" y="366" width="464" height="122" fill="#E89B2D"/>
+      <line x1="24" y1="366" x2="488" y2="366" stroke="#112A3A" stroke-width="12"/>
+      <path d="M222 366 L190 488 L322 488 L290 366 Z" fill="#D95B38" stroke="#112A3A" stroke-width="12" stroke-linejoin="round"/>
+      <!-- Murs du poste de santé -->
+      <rect x="128" y="218" width="256" height="148" fill="#FFFFFF" stroke="#112A3A" stroke-width="13" stroke-linejoin="round"/>
+      <!-- Porte et fenêtres -->
+      <rect x="224" y="276" width="64" height="90" rx="10" fill="#0E8A94" stroke="#112A3A" stroke-width="12"/>
+      <rect x="152" y="256" width="44" height="44" rx="8" fill="#EAE5D7" stroke="#112A3A" stroke-width="10"/>
+      <rect x="316" y="256" width="44" height="44" rx="8" fill="#EAE5D7" stroke="#112A3A" stroke-width="10"/>
+      <!-- Toit terracotta -->
+      <path d="M98 220 L256 116 L414 220 Z" fill="#D95B38" stroke="#112A3A" stroke-width="14" stroke-linejoin="round"/>
+      <!-- Médaillon croix médicale verte sur le fronton -->
+      <circle cx="256" cy="184" r="36" fill="#F7F5EE" stroke="#112A3A" stroke-width="11"/>
+      <path d="M256 164 V204 M236 184 H276" stroke="#1D8F5A" stroke-width="14" stroke-linecap="round"/>
+    </g>
+  
+</svg>

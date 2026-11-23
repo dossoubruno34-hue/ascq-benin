@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" fill="none">
+  <rect x="24" y="24" width="464" height="464" rx="96" fill="#F7F5EE" stroke="#112A3A" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  
+    <rect x="116" y="84" width="280" height="344" rx="28" fill="#FFFFFF" stroke="#112A3A" stroke-width="13"/>
+    <!-- Bandeau supérieur bleu nuit sobre -->
+    <path d="M116 112 C116 96 128 84 144 84 H368 C384 84 396 96 396 112 V154 H116 Z" fill="#163A5F" stroke="#112A3A" stroke-width="12"/>
+    <!-- Flamme commémorative ocre & cierge -->
+    <path d="M256 188 C256 188 282 216 282 238 C282 254 270 266 256 266 C242 266 230 254 230 238 C230 216 256 188 256 188 Z" fill="#E89B2D" stroke="#112A3A" stroke-width="10"/>
+    <rect x="242" y="266" width="28" height="44" rx="4" fill="#EAE5D7" stroke="#112A3A" stroke-width="10"/>
+    <!-- Lignes d'acte -->
+    <line x1="164" y1="348" x2="348" y2="348" stroke="#112A3A" stroke-width="12" stroke-linecap="round"/>
+    <line x1="196" y1="384" x2="316" y2="384" stroke="#163A5F" stroke-width="11" stroke-linecap="round"/>
+  
+</svg>
