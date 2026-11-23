@@ -898,16 +898,16 @@ export default function MesFichesPage() {
             <div className="flex items-center gap-2 shrink-0">
               <Link
                 href="/briefing"
-                className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-2xl bg-emerald-50 hover:bg-emerald-100 text-[#005c30] font-bold text-xs border border-emerald-200 transition-colors"
+                className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-2xl bg-emerald-50 hover:bg-emerald-100 text-[#005c30] font-bold text-xs border border-emerald-200 transition-colors"
               >
-                <FileSpreadsheet className="w-4 h-4" />
+                <img src="/icons/surveillance/surv-guide-simr.svg" alt="Guide SIMR" width={36} height={36} className="w-9 h-9 rounded-xl shrink-0" />
                 <span>Guide SIMR</span>
               </Link>
               <Link
                 href="/fiches/nouvelle"
-                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-[#005c30] hover:bg-[#004724] text-white font-extrabold text-xs shadow-md active:scale-95 transition-all"
+                className="inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-2xl bg-[#005c30] hover:bg-[#004724] text-white font-extrabold text-xs shadow-md active:scale-95 transition-all"
               >
-                <Plus className="w-4 h-4 stroke-[3]" />
+                <img src="/icons/surveillance/surv-fiches.svg" alt="Nouvelle fiche" width={36} height={36} className="w-9 h-9 rounded-xl shrink-0" />
                 <span>Nouvelle fiche</span>
               </Link>
             </div>
@@ -1023,16 +1023,16 @@ export default function MesFichesPage() {
             </button>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
             <button
               type="button"
               onClick={() => { setFiltreType("REG"); setPage(1); }}
-              className={`min-h-[54px] p-2 rounded-2xl text-xs font-extrabold border text-left flex items-center justify-between gap-1.5 transition-all ${
+              className={`min-h-[82px] p-2.5 rounded-2xl text-xs font-extrabold border text-left flex items-center justify-between gap-2 transition-all ${
                 filtreType === "REG" ? "bg-blue-700 text-white border-blue-800 shadow-sm" : "bg-slate-50 hover:bg-blue-50/60 text-slate-800 border-slate-200"
               }`}
             >
-              <span className="flex items-center gap-2 min-w-0">
-                <img src="/icons/surveillance/surv-registre-alertes.svg" alt="Registre des alertes" width={32} height={32} className="w-8 h-8 shrink-0 rounded-lg" />
+              <span className="flex items-center gap-2.5 min-w-0">
+                <img src="/icons/surveillance/surv-registre-alertes.svg" alt="Registre des alertes" width={56} height={56} className="w-14 h-14 shrink-0 rounded-xl" />
                 <span className="leading-tight">Registre des alertes</span>
               </span>
               <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black shrink-0 ${
@@ -1044,10 +1044,10 @@ export default function MesFichesPage() {
 
             <Link
               href="/fiches/alerte/nouvelle"
-              className="min-h-[54px] p-2 rounded-2xl text-xs font-extrabold border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-[#005c30] text-left flex items-center justify-between gap-1.5 transition-all"
+              className="min-h-[82px] p-2.5 rounded-2xl text-xs font-extrabold border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-[#005c30] text-left flex items-center justify-between gap-2 transition-all"
             >
-              <span className="flex items-center gap-2 min-w-0">
-                <img src="/icons/surveillance/surv-notifier-alerte.svg" alt="Notifier une alerte" width={32} height={32} className="w-8 h-8 shrink-0 rounded-lg" />
+              <span className="flex items-center gap-2.5 min-w-0">
+                <img src="/icons/surveillance/surv-notifier-alerte.svg" alt="Notifier une alerte" width={56} height={56} className="w-14 h-14 shrink-0 rounded-xl" />
                 <span className="leading-tight">Notifier une alerte</span>
               </span>
             </Link>
@@ -1055,12 +1055,12 @@ export default function MesFichesPage() {
             <button
               type="button"
               onClick={() => { setFiltreType("ALR_A_CONFIRMER"); setPage(1); }}
-              className={`min-h-[54px] p-2 rounded-2xl text-xs font-extrabold border text-left flex items-center justify-between gap-1.5 transition-all ${
+              className={`min-h-[82px] p-2.5 rounded-2xl text-xs font-extrabold border text-left flex items-center justify-between gap-2 transition-all ${
                 filtreType === "ALR_A_CONFIRMER" ? "bg-amber-600 text-white border-amber-700 shadow-sm" : "bg-slate-50 hover:bg-amber-50/70 text-slate-800 border-slate-200"
               }`}
             >
-              <span className="flex items-center gap-2 min-w-0">
-                <img src="/icons/surveillance/surv-alertes-a-confirmer.svg" alt="Alertes à confirmer" width={32} height={32} className="w-8 h-8 shrink-0 rounded-lg" />
+              <span className="flex items-center gap-2.5 min-w-0">
+                <img src="/icons/surveillance/surv-alertes-a-confirmer.svg" alt="Alertes à confirmer" width={56} height={56} className="w-14 h-14 shrink-0 rounded-xl" />
                 <span className="leading-tight">Alertes à confirmer</span>
               </span>
               <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black shrink-0 ${
@@ -1073,12 +1073,12 @@ export default function MesFichesPage() {
             <button
               type="button"
               onClick={() => { setFiltreType("ALR_CONFIRMEES"); setPage(1); }}
-              className={`min-h-[54px] p-2 rounded-2xl text-xs font-extrabold border text-left flex items-center justify-between gap-1.5 transition-all ${
+              className={`min-h-[82px] p-2.5 rounded-2xl text-xs font-extrabold border text-left flex items-center justify-between gap-2 transition-all ${
                 filtreType === "ALR_CONFIRMEES" ? "bg-[#005c30] text-white border-[#004724] shadow-sm" : "bg-slate-50 hover:bg-emerald-50/60 text-slate-800 border-slate-200"
               }`}
             >
-              <span className="flex items-center gap-2 min-w-0">
-                <img src="/icons/surveillance/surv-alertes-confirmees.svg" alt="Alertes déjà confirmées" width={32} height={32} className="w-8 h-8 shrink-0 rounded-lg" />
+              <span className="flex items-center gap-2.5 min-w-0">
+                <img src="/icons/surveillance/surv-alertes-confirmees.svg" alt="Alertes déjà confirmées" width={56} height={56} className="w-14 h-14 shrink-0 rounded-xl" />
                 <span className="leading-tight">Alertes déjà confirmées</span>
               </span>
               <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black shrink-0 ${
@@ -1091,12 +1091,12 @@ export default function MesFichesPage() {
             <button
               type="button"
               onClick={() => { setFiltreType("DEC"); setPage(1); }}
-              className={`min-h-[54px] p-2 rounded-2xl text-xs font-extrabold border text-left flex items-center justify-between gap-1.5 transition-all ${
+              className={`min-h-[82px] p-2.5 rounded-2xl text-xs font-extrabold border text-left flex items-center justify-between gap-2 transition-all ${
                 filtreType === "DEC" ? "bg-purple-700 text-white border-purple-800 shadow-sm" : "bg-slate-50 hover:bg-purple-50/60 text-slate-800 border-slate-200"
               }`}
             >
-              <span className="flex items-center gap-2 min-w-0">
-                <img src="/icons/surveillance/surv-notification-deces.svg" alt="Notification de décès" width={32} height={32} className="w-8 h-8 shrink-0 rounded-lg" />
+              <span className="flex items-center gap-2.5 min-w-0">
+                <img src="/icons/surveillance/surv-notification-deces.svg" alt="Notification de décès" width={56} height={56} className="w-14 h-14 shrink-0 rounded-xl" />
                 <span className="leading-tight">Notification de décès</span>
               </span>
               <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black shrink-0 ${
@@ -1109,12 +1109,12 @@ export default function MesFichesPage() {
             <button
               type="button"
               onClick={() => { setFiltreType("INV"); setPage(1); }}
-              className={`min-h-[54px] p-2 rounded-2xl text-xs font-extrabold border text-left flex items-center justify-between gap-1.5 transition-all ${
+              className={`min-h-[82px] p-2.5 rounded-2xl text-xs font-extrabold border text-left flex items-center justify-between gap-2 transition-all ${
                 filtreType === "INV" ? "bg-amber-700 text-white border-amber-800 shadow-sm" : "bg-slate-50 hover:bg-amber-50/60 text-slate-800 border-slate-200"
               }`}
             >
-              <span className="flex items-center gap-2 min-w-0">
-                <img src="/icons/surveillance/surv-fiche-investigation.svg" alt="Fiche d'investigation" width={32} height={32} className="w-8 h-8 shrink-0 rounded-lg" />
+              <span className="flex items-center gap-2.5 min-w-0">
+                <img src="/icons/surveillance/surv-fiche-investigation.svg" alt="Fiche d'investigation" width={56} height={56} className="w-14 h-14 shrink-0 rounded-xl" />
                 <span className="leading-tight">Fiche d&apos;investigation</span>
               </span>
               <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black shrink-0 ${
@@ -1127,12 +1127,12 @@ export default function MesFichesPage() {
             <button
               type="button"
               onClick={() => { setFiltreType("RAP"); setPage(1); }}
-              className={`min-h-[54px] p-2 rounded-2xl text-xs font-extrabold border text-left flex items-center justify-between gap-1.5 transition-all col-span-2 sm:col-span-2 ${
+              className={`min-h-[82px] p-2.5 rounded-2xl text-xs font-extrabold border text-left flex items-center justify-between gap-2 transition-all col-span-2 sm:col-span-2 ${
                 filtreType === "RAP" ? "bg-indigo-700 text-white border-indigo-800 shadow-sm" : "bg-slate-50 hover:bg-indigo-50/60 text-slate-800 border-slate-200"
               }`}
             >
-              <span className="flex items-center gap-2 min-w-0">
-                <img src="/icons/surveillance/surv-rapport-hebdo.svg" alt="Rapport hebdomadaire" width={32} height={32} className="w-8 h-8 shrink-0 rounded-lg" />
+              <span className="flex items-center gap-2.5 min-w-0">
+                <img src="/icons/surveillance/surv-rapport-hebdo.svg" alt="Rapport hebdomadaire" width={56} height={56} className="w-14 h-14 shrink-0 rounded-xl" />
                 <span className="leading-tight">Rapport hebdomadaire</span>
               </span>
               <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black shrink-0 ${
@@ -1200,6 +1200,19 @@ export default function MesFichesPage() {
                               f.type === "INV" ? "bg-amber-50 text-amber-800 border-amber-100" :
                               "bg-indigo-50 text-indigo-700 border-indigo-100";
 
+              const ficheIconPath =
+                f.type === "DEC"
+                  ? "/icons/surveillance/surv-notification-deces.svg"
+                  : f.type === "REG"
+                  ? "/icons/surveillance/surv-registre-alertes.svg"
+                  : f.type === "INV"
+                  ? "/icons/surveillance/surv-fiche-investigation.svg"
+                  : f.type === "RAP"
+                  ? "/icons/surveillance/surv-rapport-hebdo.svg"
+                  : f.statut === "VALIDE" || f.resultat === "AVEREE"
+                  ? "/icons/surveillance/surv-alertes-confirmees.svg"
+                  : "/icons/surveillance/surv-alertes-a-confirmer.svg";
+
               return (
                 <div
                   key={`${f.type}_${f.id}`}
@@ -1208,6 +1221,13 @@ export default function MesFichesPage() {
                   }`}
                 >
                   <div className="flex items-start justify-between gap-3">
+                    <img
+                      src={ficheIconPath}
+                      alt={f.typeLibelle}
+                      width={56}
+                      height={56}
+                      className="w-14 h-14 rounded-2xl shrink-0 bg-[#F7F5EE]"
+                    />
                     <div className="space-y-1.5 flex-1">
                       <div className="flex items-center flex-wrap gap-2">
                         <span className={`font-mono text-xs font-black px-2 py-0.5 rounded-lg border ${badgeBg}`}>

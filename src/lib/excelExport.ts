@@ -49,19 +49,33 @@ export interface RapportHebdoData {
   observations: string;
 }
 
-// Fonction utilitaire pour déclencher le téléchargement dans le navigateur
+// Fonction utilitaire pour générer le fichier Excel et proposer l'ouverture directe dans les applications compatibles (Excel, Google Sheets, WPS, etc.)
 function telechargerFichierExcel(contenuHtml: string, nomFichier: string) {
   const blob = new Blob(["\uFEFF" + contenuHtml], {
     type: "application/vnd.ms-excel;charset=utf-8",
   });
   const url = URL.createObjectURL(blob);
+
+  // Déclencher le sélecteur d'application compatible sur l'appareil (Excel, Google Sheets, WPS, WhatsApp)
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(
+      new CustomEvent("santecom_excel_ready", {
+        detail: {
+          blob,
+          blobUrl: url,
+          nomFichier,
+          titreDocument: nomFichier.replace(/\.(xls|xlsx|csv)$/i, "").replace(/_/g, " "),
+        },
+      })
+    );
+  }
+
   const a = document.createElement("a");
   a.href = url;
   a.download = nomFichier;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  URL.revokeObjectURL(url);
 }
 
 // ---------------------------------------------------------------------

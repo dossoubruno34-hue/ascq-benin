@@ -449,6 +449,26 @@ const ICONS = {
     <path d="M332 336 L350 354 L382 318" stroke="${WHITE}" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>
   `),
 
+  // Ménages à réassigner — Habitation communautaire avec flèche de réaffectation entre deux relais
+  "public/icons/terrain-rc/trc-menages-reassigner.svg": wrapSvg(`
+    <rect x="116" y="216" width="184" height="156" fill="${WHITE}" stroke="${INK}" stroke-width="13" stroke-linejoin="round"/>
+    <path d="M92 220 L208 124 L324 220 Z" fill="${OCRE}" stroke="${INK}" stroke-width="13" stroke-linejoin="round"/>
+    <rect x="182" y="286" width="52" height="86" rx="8" fill="${BLEU}" stroke="${INK}" stroke-width="10"/>
+    <!-- Flèche de réaffectation terracotta -->
+    <circle cx="364" cy="308" r="64" fill="${TERRACOTTA}" stroke="${IVOIRE}" stroke-width="10"/>
+    <circle cx="364" cy="308" r="58" fill="none" stroke="${INK}" stroke-width="10"/>
+    <path d="M334 296 H392 M372 276 L394 296 L372 316" stroke="${WHITE}" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M394 328 H336 M356 308 L334 328 L356 348" stroke="${WHITE}" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+  `),
+
+  // Campagnes (MIILD, CPS, ONCHO) — Moustiquaire / bouclier de campagne de santé publique
+  "public/icons/terrain-rc/trc-campagnes.svg": wrapSvg(`
+    <path d="M256 96 L404 376 H108 Z" fill="${TURQUOISE}" stroke="${INK}" stroke-width="13" stroke-linejoin="round"/>
+    <line x1="256" y1="96" x2="256" y2="376" stroke="${IVOIRE}" stroke-width="8" stroke-dasharray="12 12"/>
+    <circle cx="256" cy="264" r="54" fill="${OCRE}" stroke="${INK}" stroke-width="11"/>
+    <path d="M256 238 V290 M230 264 H282" stroke="${WHITE}" stroke-width="13" stroke-linecap="round"/>
+  `),
+
   // =========================================================================
   // 6. SOUS-ICÔNES — MODULE 4 : RAPPORTS SNIS (4 SOUS-ICÔNES)
   // =========================================================================

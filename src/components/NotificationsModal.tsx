@@ -15,8 +15,15 @@ import {
   Calendar,
   MessageSquare,
   FileText,
-  Inbox
+  Inbox,
+  Send
 } from "lucide-react";
+import {
+  extraireMetaDemandeFichier,
+  nettoyerMessageDemandeFichier,
+  envoyerFichierAuDemandeur
+} from "@/lib/demande-fichier";
+import { getCachedUserSession } from "@/lib/offline-sync";
 
 interface NotificationItem {
   id: string;
@@ -77,6 +84,35 @@ export default function NotificationsModal({ isOpen, onClose, onNotificationsUpd
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [filtreActif, setFiltreActif] = useState<"non_lues" | "toutes">("non_lues");
+  const [sendingNotifId, setSendingNotifId] = useState<string | null>(null);
+  const [sentNotifIds, setSentNotifIds] = useState<Set<string>>(new Set());
+
+  const handleEnvoyerFichierDemande = async (notif: NotificationItem) => {
+    const meta = extraireMetaDemandeFichier(notif.message);
+    if (!meta) return;
+    setSendingNotifId(notif.id);
+    try {
+      const session = getCachedUserSession();
+      const prof = session?.profile;
+      const proprietaireNom = prof ? `${prof.prenoms || ""} ${prof.nom || ""}`.trim() : "Agent SantéCom";
+      const res = await envoyerFichierAuDemandeur({
+        notificationId: notif.id,
+        demandeurId: meta.demandeurId,
+        proprietaireNom,
+        typeFichier: meta.typeFichier,
+        referenceFichier: meta.referenceFichier,
+        lienFichier: meta.lienFichier,
+      });
+      if (res.ok) {
+        setSentNotifIds((prev) => new Set(prev).add(notif.id));
+        await handleMarquerLue(notif.id);
+      } else {
+        alert("Erreur lors de l'envoi : " + (res.error || "Réessayez"));
+      }
+    } finally {
+      setSendingNotifId(null);
+    }
+  };
 
   const getLocalReadIds = (): Set<string> => {
     if (typeof window === "undefined") return new Set();
@@ -282,7 +318,10 @@ export default function NotificationsModal({ isOpen, onClose, onNotificationsUpd
             notificationsAffichees.map((notif) => {
               const isUrgente = notif.priorite === "URGENTE";
               const titrePropre = corrigerTexteUtf8(notif.titre);
-              const messagePropre = corrigerTexteUtf8(notif.message);
+              const metaDemande = extraireMetaDemandeFichier(notif.message);
+              const messagePropre = corrigerTexteUtf8(nettoyerMessageDemandeFichier(notif.message));
+              const estDemandeFichier = notif.type_notification === "DEMANDE_FICHIER" || Boolean(metaDemande);
+              const dejaEnvoye = sentNotifIds.has(notif.id);
 
               return (
                 <div
@@ -343,6 +382,24 @@ export default function NotificationsModal({ isOpen, onClose, onNotificationsUpd
                     </div>
 
                     <div className="flex flex-col items-end gap-1.5 shrink-0 ml-2">
+                      {estDemandeFichier && metaDemande && !dejaEnvoye && (
+                        <button
+                          type="button"
+                          disabled={sendingNotifId === notif.id}
+                          onClick={() => handleEnvoyerFichierDemande(notif)}
+                          className="inline-flex items-center gap-1.5 text-xs text-white bg-[#008751] hover:bg-[#006b40] font-black px-3 py-1.5 rounded-xl shadow-sm active:scale-95 transition-all disabled:opacity-60"
+                          title={`Envoyer le fichier demandé à ${metaDemande.demandeurNom}`}
+                        >
+                          <Send className="w-3.5 h-3.5" />
+                          <span>{sendingNotifId === notif.id ? "Envoi..." : "Envoyer"}</span>
+                        </button>
+                      )}
+                      {dejaEnvoye && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-black text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md">
+                          <Check className="w-3 h-3" />
+                          <span>Envoyé</span>
+                        </span>
+                      )}
                       {!notif.lu ? (
                         <button
                           type="button"

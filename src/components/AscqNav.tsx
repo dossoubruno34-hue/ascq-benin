@@ -207,9 +207,9 @@ export default function AscqNav({ userProfile }: Props) {
               <img
                 src="/icons/synchronisation/sync-module.svg"
                 alt="Synchronisation"
-                width={26}
-                height={26}
-                className={`w-6 h-6 object-contain ${isSyncingNow ? "animate-spin" : ""}`}
+                width={36}
+                height={36}
+                className={`w-9 h-9 object-contain ${isSyncingNow ? "animate-spin" : ""}`}
               />
 
               {pendingSyncCount > 0 && (
@@ -253,9 +253,9 @@ export default function AscqNav({ userProfile }: Props) {
               <img
                 src="/icons/deconnexion/auth-logout-module.svg"
                 alt="Déconnexion"
-                width={26}
-                height={26}
-                className="w-6 h-6 object-contain"
+                width={36}
+                height={36}
+                className="w-9 h-9 object-contain"
               />
             </button>
           </div>

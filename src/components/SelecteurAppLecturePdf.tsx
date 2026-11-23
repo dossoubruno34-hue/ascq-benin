@@ -33,43 +33,36 @@ export default function SelecteurAppLecturePdf({
     return "";
   };
 
-  // 1. Ouvrir avec Lecteur PDF natif (Adobe Acrobat, WPS, Lecteur PDF Android/iOS)
-  const handleOuvrirLecteurPdf = async () => {
-    const url = obtenirBlobUrl();
-    if (!url) return;
-
-    // Sur mobile compatible Web Share avec fichier, proposer l'ouverture native dans les apps PDF installées
-    if (pdfBytes && typeof navigator !== "undefined" && navigator.canShare) {
+  const obtenirBlob = async (): Promise<Blob | null> => {
+    if (pdfBytes) {
+      return new Blob([pdfBytes as any], { type: "application/pdf" });
+    }
+    if (blobUrl) {
       try {
-        const file = new File([pdfBytes as any], nomFichier, { type: "application/pdf" });
-        if (navigator.canShare({ files: [file] })) {
-          await navigator.share({
-            files: [file],
-            title: nomFichier,
-            text: `Ouvrir ${nomFichier} avec votre lecteur PDF (Adobe, WPS, Drive PDF Viewer...)`
-          });
-          return;
-        }
-      } catch (e: any) {
-        if (e?.name === "AbortError") return;
+        const res = await fetch(blobUrl);
+        return await res.blob();
+      } catch {
+        return null;
       }
     }
-
-    // Repli : ouverture directe dans le lecteur PDF du système / navigateur
-    window.open(url, "_blank", "noopener,noreferrer");
+    return null;
   };
 
-  // 2. Ouvrir / Enregistrer dans Google Drive
-  const handleOuvrirGoogleDrive = async () => {
-    if (pdfBytes && typeof navigator !== "undefined" && navigator.canShare) {
+  // 1. Lire directement avec Lecteur PDF natif (Adobe Acrobat, WPS, Lecteur PDF Android/iOS)
+  const handleOuvrirLecteurPdf = async () => {
+    const url = obtenirBlobUrl();
+    const blob = await obtenirBlob();
+
+    if (blob && typeof navigator !== "undefined" && navigator.canShare) {
       try {
-        const file = new File([pdfBytes as any], nomFichier, { type: "application/pdf" });
+        const file = new File([blob], nomFichier, { type: "application/pdf" });
         if (navigator.canShare({ files: [file] })) {
           await navigator.share({
             files: [file],
             title: nomFichier,
-            text: `Enregistrer ou lire ${nomFichier} dans Google Drive`
+            text: `Lire ${nomFichier} avec Lecteur PDF / Adobe / WPS`,
           });
+          setStatutAction("Ouvert dans le lecteur PDF");
           return;
         }
       } catch (e: any) {
@@ -77,18 +70,38 @@ export default function SelecteurAppLecturePdf({
       }
     }
 
-    // Sur ordinateur ou navigateur sans Web Share Files : télécharger le PDF et ouvrir Google Drive
-    const url = obtenirBlobUrl();
     if (url) {
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = nomFichier;
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => {
-        try { document.body.removeChild(a); } catch {}
-      }, 400);
-      setStatutAction("Fichier téléchargé • Prêt pour Google Drive / Lecteur PDF");
+      window.open(url, "_blank", "noopener,noreferrer");
+      setStatutAction("Ouvert en lecture directe");
+    }
+  };
+
+  // 2. Lire directement avec Google Drive (Visionneuse PDF Drive sur mobile / navigateur)
+  const handleOuvrirGoogleDrive = async () => {
+    const url = obtenirBlobUrl();
+    const blob = await obtenirBlob();
+
+    if (blob && typeof navigator !== "undefined" && navigator.canShare) {
+      try {
+        const file = new File([blob], nomFichier, { type: "application/pdf" });
+        if (navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            files: [file],
+            title: nomFichier,
+            text: `Lire ${nomFichier} avec Google Drive PDF Viewer`,
+          });
+          setStatutAction("Ouvert avec Google Drive");
+          return;
+        }
+      } catch (e: any) {
+        if (e?.name === "AbortError") return;
+      }
+    }
+
+    // Sur PC : ouvrir directement le PDF pour lecture immédiate (sans forcer uniquement le téléchargement)
+    if (url) {
+      window.open(url, "_blank", "noopener,noreferrer");
+      setStatutAction("Document ouvert pour lecture directe");
       setTimeout(() => setStatutAction(null), 4000);
     }
   };

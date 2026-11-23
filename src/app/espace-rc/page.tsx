@@ -904,9 +904,9 @@ export default function EspaceRelaisPage() {
               <img
                 src="/icons/synchronisation/sync-module.svg"
                 alt="Synchronisation"
-                width={26}
-                height={26}
-                className="w-6 h-6 object-contain"
+                width={36}
+                height={36}
+                className="w-9 h-9 object-contain"
               />
               {rcPendingSync > 0 && (
                 <span className="absolute top-1.5 right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-[#E89B2D] text-slate-950 text-[9px] font-black flex items-center justify-center">
@@ -935,9 +935,9 @@ export default function EspaceRelaisPage() {
               <img
                 src="/icons/deconnexion/auth-logout-module.svg"
                 alt="Déconnexion"
-                width={26}
-                height={26}
-                className="w-6 h-6 object-contain"
+                width={36}
+                height={36}
+                className="w-9 h-9 object-contain"
               />
             </button>
           </div>
@@ -983,23 +983,23 @@ export default function EspaceRelaisPage() {
                 key={mod.id}
                 type="button"
                 onClick={() => setActiveTab(tabKey)}
-                className={`p-2 rounded-2xl border-2 transition-all flex items-center gap-2 text-left min-h-[64px] cursor-pointer ${
+                className={`p-2.5 rounded-2xl border-2 transition-all flex flex-col items-center justify-center gap-2 text-center min-h-[120px] cursor-pointer ${
                   isSelected
                     ? "bg-emerald-50/90 border-[#008751] shadow-sm"
                     : "bg-white border-slate-200/90 hover:border-emerald-300"
                 }`}
               >
-                <div className="w-11 h-11 rounded-xl overflow-hidden shrink-0 bg-[#F7F5EE]">
+                <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden shrink-0 bg-[#F7F5EE]">
                   <img
                     src={mod.iconPath}
                     alt={mod.waxIcon?.alt || mod.libelle}
-                    width={44}
-                    height={44}
+                    width={96}
+                    height={96}
                     className="w-full h-full object-contain"
                   />
                 </div>
                 <span
-                  className={`font-black text-xs leading-tight break-words ${
+                  className={`font-black text-xs sm:text-sm leading-tight break-words ${
                     isSelected ? "text-[#005c30]" : "text-slate-800"
                   }`}
                 >

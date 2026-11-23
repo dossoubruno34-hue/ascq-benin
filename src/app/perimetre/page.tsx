@@ -49,6 +49,7 @@ import {
 import { getCachedUserSession, getCachedMonEspace } from "@/lib/offline-sync";
 import { estCadreNonAscq, getTitreCadreOfficiel, getPerimetreScope, PerimetreScope } from "@/lib/cadre-roles";
 import BeninPhoneAction from "@/components/BeninPhoneAction";
+import { demanderFichierAuProprietaire } from "@/lib/demande-fichier";
 import {
   telechargerCsvBOM,
   telechargerExcelHtml,
@@ -96,6 +97,40 @@ function PerimetreGouvernanceContent() {
   // Modal d'édition/correction d'un RMA par le Représentant Communal
   const [editingRma, setEditingRma] = useState<any | null>(null);
   const [savingRma, setSavingRma] = useState(false);
+  const [demandeFichierLoadingId, setDemandeFichierLoadingId] = useState<string | null>(null);
+  const [demandeFichierSentIds, setDemandeFichierSentIds] = useState<Set<string>>(new Set());
+
+  const handleDemanderFichier = async (
+    ficheId: string,
+    typeFichier: string,
+    referenceFichier: string,
+    lienFichier: string,
+    proprietaire: any
+  ) => {
+    if (!proprietaire?.id || !currentUser?.id) return;
+    setDemandeFichierLoadingId(ficheId);
+    try {
+      const demandeurNom = `${currentUser.prenoms || ""} ${currentUser.nom || ""}`.trim() || "Superviseur";
+      const demandeurRole = currentUser.role_nomination || currentUser.role_technique || "Représentant";
+      const res = await demanderFichierAuProprietaire({
+        destinataireId: proprietaire.id,
+        destinataireNom: `${proprietaire.prenoms || ""} ${proprietaire.nom || ""}`.trim(),
+        demandeurId: currentUser.id,
+        demandeurNom,
+        demandeurRole,
+        typeFichier,
+        referenceFichier,
+        lienFichier,
+      });
+      if (res.ok) {
+        setDemandeFichierSentIds((prev) => new Set(prev).add(ficheId));
+      } else {
+        alert("Erreur lors de la demande : " + (res.error || "Réessayez"));
+      }
+    } finally {
+      setDemandeFichierLoadingId(null);
+    }
+  };
 
   // -------------------------------------------------------------------
   // NETTOYAGE DES DONNÉES ERRONÉES & GESTION / RADIATION DES ASCQ
@@ -3265,6 +3300,35 @@ function PerimetreGouvernanceContent() {
                                           <span>Consulter</span>
                                         </button>
 
+                                        <button
+                                          type="button"
+                                          disabled={demandeFichierLoadingId === `RMA_${r.id}` || demandeFichierSentIds.has(`RMA_${r.id}`)}
+                                          onClick={() =>
+                                            handleDemanderFichier(
+                                              `RMA_${r.id}`,
+                                              "Rapport Mensuel (RMA)",
+                                              `Mois ${r.mois}/${r.annee}`,
+                                              "/espace-ascq/rapport-mensuel",
+                                              selectedAscq
+                                            )
+                                          }
+                                          className={`py-1 px-2 rounded-lg font-bold text-[11px] flex items-center gap-1 transition-all ${
+                                            demandeFichierSentIds.has(`RMA_${r.id}`)
+                                              ? "bg-emerald-100 text-emerald-800"
+                                              : "bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200"
+                                          }`}
+                                          title="Cibler ce fichier chez le propriétaire pour qu'il puisse vous l'envoyer"
+                                        >
+                                          <Send className="w-3 h-3" />
+                                          <span>
+                                            {demandeFichierSentIds.has(`RMA_${r.id}`)
+                                              ? "Demandé ✓"
+                                              : demandeFichierLoadingId === `RMA_${r.id}`
+                                              ? "Envoi..."
+                                              : "Demander le fichier"}
+                                          </span>
+                                        </button>
+
                                         {isRepresentantCommunal && (
                                           <>
                                             {r.statut !== "VALIDE" && (
@@ -3319,17 +3383,45 @@ function PerimetreGouvernanceContent() {
                                         </p>
                                       </div>
 
-                                      {isRepresentantCommunal && h.statut !== "VALIDE" && (
+                                      <div className="flex items-center gap-1.5 self-end sm:self-auto shrink-0">
                                         <button
                                           type="button"
-                                          disabled={actionInProgress === h.id}
-                                          onClick={() => handleValiderHebdoPnsc(h.id)}
-                                          className="py-1 px-2.5 rounded-lg bg-[#005c30] hover:bg-[#004724] text-white font-bold text-[11px] flex items-center gap-1 self-end sm:self-auto shrink-0 transition-all"
+                                          disabled={demandeFichierLoadingId === `PNSC_${h.id}` || demandeFichierSentIds.has(`PNSC_${h.id}`)}
+                                          onClick={() =>
+                                            handleDemanderFichier(
+                                              `PNSC_${h.id}`,
+                                              "Rapport Hebdo PNSC",
+                                              `Semaine ${h.semaine}/${h.annee}`,
+                                              "/espace-ascq/rapport-hebdo-pnsc",
+                                              selectedAscq
+                                            )
+                                          }
+                                          className={`py-1 px-2 rounded-lg font-bold text-[11px] flex items-center gap-1 transition-all ${
+                                            demandeFichierSentIds.has(`PNSC_${h.id}`)
+                                              ? "bg-emerald-100 text-emerald-800"
+                                              : "bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200"
+                                          }`}
                                         >
-                                          {actionInProgress === h.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
-                                          <span>Valider</span>
+                                          <Send className="w-3 h-3" />
+                                          <span>
+                                            {demandeFichierSentIds.has(`PNSC_${h.id}`)
+                                              ? "Demandé ✓"
+                                              : "Demander le fichier"}
+                                          </span>
                                         </button>
-                                      )}
+
+                                        {isRepresentantCommunal && h.statut !== "VALIDE" && (
+                                          <button
+                                            type="button"
+                                            disabled={actionInProgress === h.id}
+                                            onClick={() => handleValiderHebdoPnsc(h.id)}
+                                            className="py-1 px-2.5 rounded-lg bg-[#005c30] hover:bg-[#004724] text-white font-bold text-[11px] flex items-center gap-1 transition-all"
+                                          >
+                                            {actionInProgress === h.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
+                                            <span>Valider</span>
+                                          </button>
+                                        )}
+                                      </div>
                                     </div>
                                   ))}
                                 </div>
@@ -3354,13 +3446,36 @@ function PerimetreGouvernanceContent() {
                                       <span className="font-bold text-slate-900">{al.type_alerte_nom} (Sem. {al.semaine_epidemio})</span>
                                       <p className="text-[10px] text-slate-500">Notifié le {al.date_notification} • Délai: {al.delai_detection_notification_heures}h</p>
                                     </div>
-                                    <button
-                                      type="button"
-                                      onClick={() => setFicheAffichee({ type: "ALERTES", donnees: al, ascq: selectedAscq })}
-                                      className="p-1.5 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-800"
-                                    >
-                                      <Eye className="w-4 h-4" />
-                                    </button>
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                      <button
+                                        type="button"
+                                        disabled={demandeFichierLoadingId === `ALR_${al.id}` || demandeFichierSentIds.has(`ALR_${al.id}`)}
+                                        onClick={() =>
+                                          handleDemanderFichier(
+                                            `ALR_${al.id}`,
+                                            "Fiche Alerte SIMR",
+                                            `${al.type_alerte_nom || "Alerte"} (S${al.semaine_epidemio || ""})`,
+                                            "/fiches?tab=registre",
+                                            selectedAscq
+                                          )
+                                        }
+                                        className={`py-1 px-2 rounded-lg font-bold text-[11px] flex items-center gap-1 ${
+                                          demandeFichierSentIds.has(`ALR_${al.id}`)
+                                            ? "bg-emerald-100 text-emerald-800"
+                                            : "bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200"
+                                        }`}
+                                      >
+                                        <Send className="w-3 h-3" />
+                                        <span>{demandeFichierSentIds.has(`ALR_${al.id}`) ? "Demandé ✓" : "Demander le fichier"}</span>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => setFicheAffichee({ type: "ALERTES", donnees: al, ascq: selectedAscq })}
+                                        className="p-1.5 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-800"
+                                      >
+                                        <Eye className="w-4 h-4" />
+                                      </button>
+                                    </div>
                                   </div>
                                 ))}
 
@@ -3370,13 +3485,36 @@ function PerimetreGouvernanceContent() {
                                       <span className="font-bold text-slate-900">{d.type_deces_nom} ({d.village || "-"})</span>
                                       <p className="text-[10px] text-slate-500">Défunt : {d.defunt_nom_prenom || "Non précisé"} • Date: {d.date_notification}</p>
                                     </div>
-                                    <button
-                                      type="button"
-                                      onClick={() => setFicheAffichee({ type: "DECES", donnees: d, ascq: selectedAscq })}
-                                      className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800"
-                                    >
-                                      <Eye className="w-4 h-4" />
-                                    </button>
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                      <button
+                                        type="button"
+                                        disabled={demandeFichierLoadingId === `DEC_${d.id}` || demandeFichierSentIds.has(`DEC_${d.id}`)}
+                                        onClick={() =>
+                                          handleDemanderFichier(
+                                            `DEC_${d.id}`,
+                                            "Notification de décès",
+                                            `${d.type_deces_nom || "Décès"} (${d.date_notification || ""})`,
+                                            "/fiches?tab=deces",
+                                            selectedAscq
+                                          )
+                                        }
+                                        className={`py-1 px-2 rounded-lg font-bold text-[11px] flex items-center gap-1 ${
+                                          demandeFichierSentIds.has(`DEC_${d.id}`)
+                                            ? "bg-emerald-100 text-emerald-800"
+                                            : "bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200"
+                                        }`}
+                                      >
+                                        <Send className="w-3 h-3" />
+                                        <span>{demandeFichierSentIds.has(`DEC_${d.id}`) ? "Demandé ✓" : "Demander le fichier"}</span>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => setFicheAffichee({ type: "DECES", donnees: d, ascq: selectedAscq })}
+                                        className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800"
+                                      >
+                                        <Eye className="w-4 h-4" />
+                                      </button>
+                                    </div>
                                   </div>
                                 ))}
                               </div>

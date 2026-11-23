@@ -54,6 +54,7 @@ import {
 import BeninPhoneAction from "@/components/BeninPhoneAction";
 import { parseBeninPhone } from "@/lib/beninPhone";
 import { estCadreNonAscq } from "@/lib/cadre-roles";
+import { demanderFichierAuProprietaire } from "@/lib/demande-fichier";
 
 export default function AdminPage() {
   const router = useRouter();
@@ -108,6 +109,33 @@ export default function AdminPage() {
   const [modalSuppressionUser, setModalSuppressionUser] = useState<any | null>(null);
   const [confirmTexteSuppressionAdmin, setConfirmTexteSuppressionAdmin] = useState("");
   const [submittingSuppressionAdmin, setSubmittingSuppressionAdmin] = useState(false);
+  const [demandeFichierAdminSent, setDemandeFichierAdminSent] = useState<Set<string>>(new Set());
+
+  const handleDemanderFichierAdmin = async (
+    ficheKey: string,
+    typeFichier: string,
+    referenceFichier: string,
+    lienFichier: string,
+    proprietaire: any
+  ) => {
+    if (!proprietaire?.id || !currentUser?.id) return;
+    const res = await demanderFichierAuProprietaire({
+      destinataireId: proprietaire.id,
+      destinataireNom: `${proprietaire.prenoms || ""} ${proprietaire.nom || ""}`.trim(),
+      demandeurId: currentUser.id,
+      demandeurNom: `${currentUser.prenoms || ""} ${currentUser.nom || ""}`.trim() || "Administrateur",
+      demandeurRole: "Administrateur National",
+      typeFichier,
+      referenceFichier,
+      lienFichier,
+    });
+    if (res.ok) {
+      setDemandeFichierAdminSent((prev) => new Set(prev).add(ficheKey));
+      setToastMessage({ text: `Demande du fichier « ${typeFichier} » envoyée à ${proprietaire.prenoms} ${proprietaire.nom}.`, error: false });
+    } else {
+      setToastMessage({ text: "Erreur lors de la demande : " + (res.error || "Réessayez"), error: true });
+    }
+  };
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [vueSousOngletComptes, setVueSousOngletComptes] = useState<"validation" | "referentiel">("validation");
   const [referentielAscq, setReferentielAscq] = useState<any[]>([]);
@@ -2484,9 +2512,32 @@ export default function AdminPage() {
                                           Gap RH : {h.rh_gap} • Gap Moto : {h.motos_gap} • Arriérés : {Number(h.remuneration_due_llf || 0) + Number(h.remuneration_due_fadec || 0) + Number(h.remuneration_due_srhr || 0)} mois
                                         </p>
                                       </div>
-                                      <span className="px-2 py-0.5 rounded text-[9px] font-black bg-emerald-100 text-emerald-800">
-                                        {h.statut}
-                                      </span>
+                                      <div className="flex items-center gap-1.5">
+                                        <button
+                                          type="button"
+                                          disabled={demandeFichierAdminSent.has(`ADMIN_PNSC_${h.id}`)}
+                                          onClick={() =>
+                                            handleDemanderFichierAdmin(
+                                              `ADMIN_PNSC_${h.id}`,
+                                              "Rapport Hebdo PNSC",
+                                              `Semaine ${h.semaine}/${h.annee}`,
+                                              "/espace-ascq/rapport-hebdo-pnsc",
+                                              selectedPerimetreAscq
+                                            )
+                                          }
+                                          className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 ${
+                                            demandeFichierAdminSent.has(`ADMIN_PNSC_${h.id}`)
+                                              ? "bg-emerald-100 text-emerald-800"
+                                              : "bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200"
+                                          }`}
+                                        >
+                                          <Send className="w-2.5 h-2.5" />
+                                          <span>{demandeFichierAdminSent.has(`ADMIN_PNSC_${h.id}`) ? "Demandé ✓" : "Demander le fichier"}</span>
+                                        </button>
+                                        <span className="px-2 py-0.5 rounded text-[9px] font-black bg-emerald-100 text-emerald-800">
+                                          {h.statut}
+                                        </span>
+                                      </div>
                                     </div>
                                   ))}
                                 </div>
@@ -2514,9 +2565,32 @@ export default function AdminPage() {
                                           Mois : {r.mois}/{r.annee}
                                         </p>
                                       </div>
-                                      <span className={`px-2 py-0.5 rounded text-[9px] font-black ${r.statut === "VALIDE" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
-                                        {r.statut}
-                                      </span>
+                                      <div className="flex items-center gap-1.5">
+                                        <button
+                                          type="button"
+                                          disabled={demandeFichierAdminSent.has(`ADMIN_RMA_${r.id}`)}
+                                          onClick={() =>
+                                            handleDemanderFichierAdmin(
+                                              `ADMIN_RMA_${r.id}`,
+                                              "Rapport Mensuel (RMA)",
+                                              `Mois ${r.mois}/${r.annee}`,
+                                              "/espace-ascq/rapport-mensuel",
+                                              selectedPerimetreAscq
+                                            )
+                                          }
+                                          className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 ${
+                                            demandeFichierAdminSent.has(`ADMIN_RMA_${r.id}`)
+                                              ? "bg-emerald-100 text-emerald-800"
+                                              : "bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200"
+                                          }`}
+                                        >
+                                          <Send className="w-2.5 h-2.5" />
+                                          <span>{demandeFichierAdminSent.has(`ADMIN_RMA_${r.id}`) ? "Demandé ✓" : "Demander le fichier"}</span>
+                                        </button>
+                                        <span className={`px-2 py-0.5 rounded text-[9px] font-black ${r.statut === "VALIDE" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
+                                          {r.statut}
+                                        </span>
+                                      </div>
                                     </div>
                                   ))}
                                 </div>

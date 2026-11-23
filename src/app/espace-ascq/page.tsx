@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import AscqNav from "@/components/AscqNav";
+import ModalModuleSynchronisation, { obtenirCompteursOutbox } from "@/components/ModalModuleSynchronisation";
+import ModalModuleDeconnexion from "@/components/ModalModuleDeconnexion";
 import {
   AlertTriangle,
   RefreshCw,
@@ -85,6 +87,15 @@ function MonEspaceContent() {
   const [listeDecesEnAttente, setListeDecesEnAttente] = useState<any[]>([]);
   const [showModalDeces, setShowModalDeces] = useState(false);
   const [acquittementEnCours, setAcquittementEnCours] = useState(false);
+  const [isSyncHomeOpen, setIsSyncHomeOpen] = useState(false);
+  const [isLogoutHomeOpen, setIsLogoutHomeOpen] = useState(false);
+  const [homePendingSync, setHomePendingSync] = useState(0);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setHomePendingSync(obtenirCompteursOutbox().total);
+    }
+  }, []);
 
   const loadEspaceData = async () => {
     setLoading(true);
@@ -523,9 +534,9 @@ function MonEspaceContent() {
               </Link>
             </section>
 
-            {/* Grille des 6 modules principaux (2 colonnes × 3 lignes) avec illustrations Wax originales */}
+            {/* Grille des 8 modules principaux (6 modules + Synchronisation + Déconnexion) avec icônes doublées */}
             <section aria-label="Modules principaux SantéCom Bénin">
-              <div className="grid grid-cols-2 gap-2.5">
+              <div className="grid grid-cols-2 gap-3">
                 {modulesAutorises.map((mod) => {
                   const badgeCount = obtenirBadgeModule(mod.id);
                   return (
@@ -533,34 +544,28 @@ function MonEspaceContent() {
                       key={mod.id}
                       type="button"
                       onClick={() => router.push(`/espace-ascq?module=${mod.id}`)}
-                      className="group relative bg-white hover:bg-emerald-50/40 active:scale-[0.98] rounded-2xl p-2.5 border-2 border-slate-200/90 hover:border-[#008751] shadow-xs transition-all flex items-center gap-2.5 text-left min-h-[96px] cursor-pointer overflow-hidden"
+                      className="group relative bg-white hover:bg-emerald-50/40 active:scale-[0.98] rounded-2xl p-3 border-2 border-slate-200/90 hover:border-[#008751] shadow-xs transition-all flex flex-col items-center justify-center gap-2 text-center min-h-[146px] cursor-pointer overflow-hidden"
                     >
-                      {/* Pictogramme vectoriel officiel 512x512 (Bibliothèque Iconographique ASCQ Bénin) */}
-                      <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl overflow-hidden shrink-0 shadow-xs bg-[#F7F5EE]">
+                      {/* Pictogramme vectoriel officiel doublé pour une excellente visibilité */}
+                      <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl overflow-hidden shrink-0 shadow-xs bg-[#F7F5EE]">
                         <img
                           src={mod.iconPath}
                           alt={mod.waxIcon?.alt || mod.libelle}
-                          width={64}
-                          height={64}
+                          width={112}
+                          height={112}
                           className="w-full h-full object-contain group-hover:scale-105 transition-transform"
                         />
                       </div>
 
                       {/* Libellé du module */}
-                      <div className="min-w-0 flex-1">
-                        <span className="font-black text-xs sm:text-sm text-slate-900 leading-snug block break-words">
-                          {mod.libelle}
-                        </span>
-                        <span className="text-[10px] font-bold text-[#008751] inline-flex items-center gap-0.5 mt-0.5">
-                          <span>Ouvrir</span>
-                          <ChevronRight className="w-3 h-3" />
-                        </span>
-                      </div>
+                      <span className="font-black text-xs sm:text-sm text-slate-900 leading-snug block break-words">
+                        {mod.libelle}
+                      </span>
 
                       {/* Pastille de comptage faite par le code */}
                       {badgeCount > 0 && (
                         <span
-                          className="absolute top-1.5 right-1.5 min-w-[20px] h-5 px-1.5 rounded-full bg-[#E8112D] text-white font-black text-[10px] flex items-center justify-center shadow"
+                          className="absolute top-2 right-2 min-w-[22px] h-5 px-1.5 rounded-full bg-[#D63838] text-white font-black text-[10px] flex items-center justify-center shadow"
                           title={`${badgeCount} élément(s) à traiter`}
                         >
                           {badgeCount > 99 ? "99+" : badgeCount}
@@ -569,6 +574,54 @@ function MonEspaceContent() {
                     </button>
                   );
                 })}
+
+                {/* Tuile 7 sur l'accueil : Synchronisation */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setHomePendingSync(obtenirCompteursOutbox().total);
+                    setIsSyncHomeOpen(true);
+                  }}
+                  className="group relative bg-white hover:bg-emerald-50/40 active:scale-[0.98] rounded-2xl p-3 border-2 border-slate-200/90 hover:border-[#008751] shadow-xs transition-all flex flex-col items-center justify-center gap-2 text-center min-h-[146px] cursor-pointer overflow-hidden"
+                >
+                  <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl overflow-hidden shrink-0 shadow-xs bg-[#F7F5EE]">
+                    <img
+                      src="/icons/synchronisation/sync-module.svg"
+                      alt="Synchronisation"
+                      width={112}
+                      height={112}
+                      className="w-full h-full object-contain group-hover:scale-105 transition-transform"
+                    />
+                  </div>
+                  <span className="font-black text-xs sm:text-sm text-slate-900 leading-snug block">
+                    Synchronisation
+                  </span>
+                  {homePendingSync > 0 && (
+                    <span className="absolute top-2 right-2 min-w-[22px] h-5 px-1.5 rounded-full bg-[#E89B2D] text-slate-950 font-black text-[10px] flex items-center justify-center shadow">
+                      {homePendingSync}
+                    </span>
+                  )}
+                </button>
+
+                {/* Tuile 8 sur l'accueil : Déconnexion */}
+                <button
+                  type="button"
+                  onClick={() => setIsLogoutHomeOpen(true)}
+                  className="group relative bg-white hover:bg-rose-50/40 active:scale-[0.98] rounded-2xl p-3 border-2 border-slate-200/90 hover:border-[#D63838] shadow-xs transition-all flex flex-col items-center justify-center gap-2 text-center min-h-[146px] cursor-pointer overflow-hidden"
+                >
+                  <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl overflow-hidden shrink-0 shadow-xs bg-[#F7F5EE]">
+                    <img
+                      src="/icons/deconnexion/auth-logout-module.svg"
+                      alt="Déconnexion"
+                      width={112}
+                      height={112}
+                      className="w-full h-full object-contain group-hover:scale-105 transition-transform"
+                    />
+                  </div>
+                  <span className="font-black text-xs sm:text-sm text-slate-900 leading-snug block">
+                    Déconnexion
+                  </span>
+                </button>
               </div>
             </section>
 
@@ -719,23 +772,23 @@ function MonEspaceContent() {
                             parent: sub.parent,
                           })
                         }
-                        className="group relative bg-white hover:bg-emerald-50/50 active:scale-[0.98] rounded-2xl p-2.5 border-2 border-slate-200/90 hover:border-[#008751] shadow-xs transition-all flex items-center gap-2.5 min-h-[82px]"
+                        className="group relative bg-white hover:bg-emerald-50/50 active:scale-[0.98] rounded-2xl p-3 border-2 border-slate-200/90 hover:border-[#008751] shadow-xs transition-all flex flex-col items-center justify-center gap-2 text-center min-h-[136px]"
                       >
-                        <div className="w-12 h-12 rounded-xl overflow-hidden shrink-0 bg-[#F7F5EE]">
+                        <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden shrink-0 bg-[#F7F5EE]">
                           <img
                             src={sub.iconPath}
                             alt={sub.libelle}
-                            width={48}
-                            height={48}
+                            width={96}
+                            height={96}
                             className="w-full h-full object-contain group-hover:scale-105 transition-transform"
                           />
                         </div>
 
-                        <div className="min-w-0 flex-1">
+                        <div className="min-w-0 w-full">
                           <span className="font-black text-xs sm:text-sm text-slate-900 leading-snug block break-words">
                             {sub.libelle}
                           </span>
-                          <span className="text-[10px] font-bold text-slate-500 inline-flex items-center gap-0.5 mt-0.5">
+                          <span className="text-[10px] font-bold text-slate-500 inline-flex items-center justify-center gap-0.5 mt-0.5">
                             <span>{sub.disponibleHorsLigne ? "✓ Hors ligne" : "En ligne"}</span>
                             <ChevronRight className="w-3 h-3 text-[#008751]" />
                           </span>
@@ -794,6 +847,20 @@ function MonEspaceContent() {
           </div>
         </div>
       )}
+      <ModalModuleSynchronisation
+        isOpen={isSyncHomeOpen}
+        onClose={() => {
+          setIsSyncHomeOpen(false);
+          setHomePendingSync(obtenirCompteursOutbox().total);
+        }}
+        onSyncCompleted={() => setHomePendingSync(obtenirCompteursOutbox().total)}
+      />
+
+      <ModalModuleDeconnexion
+        isOpen={isLogoutHomeOpen}
+        onClose={() => setIsLogoutHomeOpen(false)}
+        userProfile={espaceData}
+      />
     </div>
   );
 }
