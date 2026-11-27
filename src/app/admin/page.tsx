@@ -1466,7 +1466,7 @@ export default function AdminPage() {
               className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold shadow-sm transition-all active:scale-95"
             >
               <LayoutDashboard className="w-3.5 h-3.5" />
-              <span>Mon Espace ASCQ (Terrain)</span>
+              <span>Modules SantéCom</span>
             </Link>
             <Link
               href="/fiches"

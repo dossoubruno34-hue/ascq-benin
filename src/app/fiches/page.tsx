@@ -850,15 +850,21 @@ export default function MesFichesPage() {
     }, 200);
   };
 
+  const estRc = currentUser?.poste === "RC" || currentUser?.role_technique === "RC";
+  const estObservateurLectureSeule =
+    (currentUser?.poste === "PF_CCLS_TP" ||
+      currentUser?.role_technique === "PF_CCLS_TP" ||
+      currentUser?.poste === "MEMBRE_MINISTERE" ||
+      currentUser?.role_technique === "MEMBRE_MINISTERE") &&
+    currentUser?.role_technique !== "SUPER_ADMIN";
+
   return (
     <div className="min-h-screen bg-[#f4f7f5] text-slate-800 antialiased pb-24">
       {/* Navigation normale - masquée à l'impression */}
       <div className="print:hidden">
-        {currentUser?.poste === "ASCQ" ? (
-          <AscqNav userProfile={currentUser} />
-        ) : (
+        {estRc ? (
           <header className="bg-[#005c30] text-white sticky top-0 z-30 shadow-md">
-            <div className="max-w-3xl mx-auto px-4 h-16 flex items-center justify-between">
+            <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between">
               <Link href="/espace-rc" className="flex items-center gap-2 text-white/90 hover:text-white">
                 <ArrowLeft className="w-5 h-5" />
                 <span className="text-xs font-bold">Retour Espace RC</span>
@@ -866,12 +872,14 @@ export default function MesFichesPage() {
               <h1 className="text-sm font-extrabold">Surveillance Communautaire</h1>
               <div className="w-8"></div>
             </div>
-            <div className="h-1 w-full flex">
+            <div className="h-0.5 w-full flex">
               <span className="w-1/3 bg-[#008751]"></span>
               <span className="w-1/3 bg-[#FCD116]"></span>
               <span className="w-1/3 bg-[#E8112D]"></span>
             </div>
           </header>
+        ) : (
+          <AscqNav userProfile={currentUser} />
         )}
       </div>
 
@@ -903,13 +911,15 @@ export default function MesFichesPage() {
                 <img src="/icons/surveillance/surv-guide-simr.svg" alt="Guide SIMR" width={36} height={36} className="w-9 h-9 rounded-xl shrink-0" />
                 <span>Guide SIMR</span>
               </Link>
-              <Link
-                href="/fiches/nouvelle"
-                className="inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-2xl bg-[#005c30] hover:bg-[#004724] text-white font-extrabold text-xs shadow-md active:scale-95 transition-all"
-              >
-                <img src="/icons/surveillance/surv-fiches.svg" alt="Nouvelle fiche" width={36} height={36} className="w-9 h-9 rounded-xl shrink-0" />
-                <span>Nouvelle fiche</span>
-              </Link>
+              {!estObservateurLectureSeule && (
+                <Link
+                  href="/fiches/nouvelle"
+                  className="inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-2xl bg-[#005c30] hover:bg-[#004724] text-white font-extrabold text-xs shadow-md active:scale-95 transition-all"
+                >
+                  <img src="/icons/surveillance/surv-fiches.svg" alt="Nouvelle fiche" width={36} height={36} className="w-9 h-9 rounded-xl shrink-0" />
+                  <span>Nouvelle fiche</span>
+                </Link>
+              )}
             </div>
           </div>
 
@@ -954,8 +964,9 @@ export default function MesFichesPage() {
           </div>
         </div>
 
-        {/* NOUVEAU MODULE OFFICIEL : PRISE EN CHARGE DES CAS EN COMMUNAUTÉ (iCCM) */}
-        <div className="bg-gradient-to-r from-emerald-950 to-[#005c30] text-white rounded-3xl p-5 border-2 border-emerald-400 shadow-md space-y-3">
+        {/* NOUVEAU MODULE OFFICIEL : PRISE EN CHARGE DES CAS EN COMMUNAUTÉ (iCCM) — Réservé ASCQ */}
+        {!estRc && !estObservateurLectureSeule && (
+          <div className="bg-gradient-to-r from-emerald-950 to-[#005c30] text-white rounded-3xl p-5 border-2 border-emerald-400 shadow-md space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-2xl bg-white/20 text-white flex items-center justify-center shrink-0 backdrop-blur-sm shadow-inner">
@@ -990,6 +1001,7 @@ export default function MesFichesPage() {
             </div>
           </div>
         </div>
+        )}
 
         {/* Brouillons en attente */}
         {brouillonsCount > 0 && (
@@ -1042,15 +1054,17 @@ export default function MesFichesPage() {
               </span>
             </button>
 
-            <Link
-              href="/fiches/alerte/nouvelle"
-              className="min-h-[82px] p-2.5 rounded-2xl text-xs font-extrabold border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-[#005c30] text-left flex items-center justify-between gap-2 transition-all"
-            >
-              <span className="flex items-center gap-2.5 min-w-0">
-                <img src="/icons/surveillance/surv-notifier-alerte.svg" alt="Notifier une alerte" width={56} height={56} className="w-14 h-14 shrink-0 rounded-xl" />
-                <span className="leading-tight">Notifier une alerte</span>
-              </span>
-            </Link>
+            {!estObservateurLectureSeule && (
+              <Link
+                href="/fiches/alerte/nouvelle"
+                className="min-h-[82px] p-2.5 rounded-2xl text-xs font-extrabold border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-[#005c30] text-left flex items-center justify-between gap-2 transition-all"
+              >
+                <span className="flex items-center gap-2.5 min-w-0">
+                  <img src="/icons/surveillance/surv-notifier-alerte.svg" alt="Notifier une alerte" width={56} height={56} className="w-14 h-14 shrink-0 rounded-xl" />
+                  <span className="leading-tight">Notifier une alerte</span>
+                </span>
+              </Link>
+            )}
 
             <button
               type="button"
@@ -1106,41 +1120,45 @@ export default function MesFichesPage() {
               </span>
             </button>
 
-            <button
-              type="button"
-              onClick={() => { setFiltreType("INV"); setPage(1); }}
-              className={`min-h-[82px] p-2.5 rounded-2xl text-xs font-extrabold border text-left flex items-center justify-between gap-2 transition-all ${
-                filtreType === "INV" ? "bg-amber-700 text-white border-amber-800 shadow-sm" : "bg-slate-50 hover:bg-amber-50/60 text-slate-800 border-slate-200"
-              }`}
-            >
-              <span className="flex items-center gap-2.5 min-w-0">
-                <img src="/icons/surveillance/surv-fiche-investigation.svg" alt="Fiche d'investigation" width={56} height={56} className="w-14 h-14 shrink-0 rounded-xl" />
-                <span className="leading-tight">Fiche d&apos;investigation</span>
-              </span>
-              <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black shrink-0 ${
-                filtreType === "INV" ? "bg-white/20 text-white" : "bg-amber-100 text-amber-800"
-              }`}>
-                {investigations.filter(i => !idsSupprimes.includes(i.id)).length}
-              </span>
-            </button>
+            {!estRc && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => { setFiltreType("INV"); setPage(1); }}
+                  className={`min-h-[82px] p-2.5 rounded-2xl text-xs font-extrabold border text-left flex items-center justify-between gap-2 transition-all ${
+                    filtreType === "INV" ? "bg-amber-700 text-white border-amber-800 shadow-sm" : "bg-slate-50 hover:bg-amber-50/60 text-slate-800 border-slate-200"
+                  }`}
+                >
+                  <span className="flex items-center gap-2.5 min-w-0">
+                    <img src="/icons/surveillance/surv-fiche-investigation.svg" alt="Fiche d'investigation" width={56} height={56} className="w-14 h-14 shrink-0 rounded-xl" />
+                    <span className="leading-tight">Fiche d&apos;investigation</span>
+                  </span>
+                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black shrink-0 ${
+                    filtreType === "INV" ? "bg-white/20 text-white" : "bg-amber-100 text-amber-800"
+                  }`}>
+                    {investigations.filter(i => !idsSupprimes.includes(i.id)).length}
+                  </span>
+                </button>
 
-            <button
-              type="button"
-              onClick={() => { setFiltreType("RAP"); setPage(1); }}
-              className={`min-h-[82px] p-2.5 rounded-2xl text-xs font-extrabold border text-left flex items-center justify-between gap-2 transition-all col-span-2 sm:col-span-2 ${
-                filtreType === "RAP" ? "bg-indigo-700 text-white border-indigo-800 shadow-sm" : "bg-slate-50 hover:bg-indigo-50/60 text-slate-800 border-slate-200"
-              }`}
-            >
-              <span className="flex items-center gap-2.5 min-w-0">
-                <img src="/icons/surveillance/surv-rapport-hebdo.svg" alt="Rapport hebdomadaire" width={56} height={56} className="w-14 h-14 shrink-0 rounded-xl" />
-                <span className="leading-tight">Rapport hebdomadaire</span>
-              </span>
-              <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black shrink-0 ${
-                filtreType === "RAP" ? "bg-white/20 text-white" : "bg-indigo-100 text-indigo-800"
-              }`}>
-                {rapports.filter(r => !idsSupprimes.includes(r.id)).length}
-              </span>
-            </button>
+                <button
+                  type="button"
+                  onClick={() => { setFiltreType("RAP"); setPage(1); }}
+                  className={`min-h-[82px] p-2.5 rounded-2xl text-xs font-extrabold border text-left flex items-center justify-between gap-2 transition-all col-span-2 sm:col-span-2 ${
+                    filtreType === "RAP" ? "bg-indigo-700 text-white border-indigo-800 shadow-sm" : "bg-slate-50 hover:bg-indigo-50/60 text-slate-800 border-slate-200"
+                  }`}
+                >
+                  <span className="flex items-center gap-2.5 min-w-0">
+                    <img src="/icons/surveillance/surv-rapport-hebdo.svg" alt="Rapport hebdomadaire" width={56} height={56} className="w-14 h-14 shrink-0 rounded-xl" />
+                    <span className="leading-tight">Rapport hebdomadaire</span>
+                  </span>
+                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black shrink-0 ${
+                    filtreType === "RAP" ? "bg-white/20 text-white" : "bg-indigo-100 text-indigo-800"
+                  }`}>
+                    {rapports.filter(r => !idsSupprimes.includes(r.id)).length}
+                  </span>
+                </button>
+              </>
+            )}
           </div>
         </div>
 
@@ -1344,13 +1362,15 @@ export default function MesFichesPage() {
                         <span>Détails</span>
                       </button>
 
-                      <BoutonSuppressionSecurisee
-                        titreElement={`${f.numero} — ${f.titre}`}
-                        typeElement={`la fiche ${f.typeLibelle}`}
-                        onConfirmerSuppression={() => handleSupprimerFiche(f)}
-                        variant="compact"
-                        label="Supprimer"
-                      />
+                      {!estObservateurLectureSeule && (
+                        <BoutonSuppressionSecurisee
+                          titreElement={`${f.numero} — ${f.titre}`}
+                          typeElement={`la fiche ${f.typeLibelle}`}
+                          onConfirmerSuppression={() => handleSupprimerFiche(f)}
+                          variant="compact"
+                          label="Supprimer"
+                        />
+                      )}
                     </div>
                   </div>
                 </div>

@@ -71,7 +71,6 @@ function MonEspaceContent() {
   const [compteurs, setCompteurs] = useState({
     alertesAConfirmer: 0,
     validationsEnAttente: 0,
-    menagesAReassigner: 0,
     perdusDeVue: 0,
     activitesSemaine: 0,
     consultationsSemaine: 0,
@@ -102,15 +101,15 @@ function MonEspaceContent() {
     setLoadError("");
 
     const session = getCachedUserSession();
-    if (session?.profile && estCadreNonAscq(session.profile)) {
-      window.location.replace("/perimetre");
+    if (session?.profile?.poste === "RC") {
+      window.location.replace("/espace-rc");
       return;
     }
 
     const cached = getCachedMonEspace();
     if (cached) {
-      if (estCadreNonAscq(cached)) {
-        window.location.replace("/perimetre");
+      if (cached.poste === "RC") {
+        window.location.replace("/espace-rc");
         return;
       }
       setEspaceData(cached);
@@ -163,8 +162,8 @@ function MonEspaceContent() {
         return;
       }
 
-      if (estCadreNonAscq(prof)) {
-        window.location.replace("/perimetre");
+      if (prof.poste === "RC") {
+        window.location.replace("/espace-rc");
         return;
       }
 
@@ -289,7 +288,6 @@ function MonEspaceContent() {
         setCompteurs({
           alertesAConfirmer: nbAlertesAConf,
           validationsEnAttente: nbValidations,
-          menagesAReassigner: 0,
           perdusDeVue: 0,
           activitesSemaine: activitesSemRes.count || 0,
           consultationsSemaine: consultSemRes.count || 0,
@@ -342,13 +340,13 @@ function MonEspaceContent() {
 
   useEffect(() => {
     const session = getCachedUserSession();
-    if (session?.profile && estCadreNonAscq(session.profile)) {
-      window.location.replace("/perimetre");
+    if (session?.profile?.poste === "RC") {
+      window.location.replace("/espace-rc");
       return;
     }
     const cached = getCachedMonEspace();
-    if (cached && estCadreNonAscq(cached)) {
-      window.location.replace("/perimetre");
+    if (cached && cached.poste === "RC") {
+      window.location.replace("/espace-rc");
       return;
     }
     loadEspaceData();
@@ -414,7 +412,7 @@ function MonEspaceContent() {
   // Pastilles de comptage générées par le code pour chaque module principal
   const obtenirBadgeModule = (modId: string): number => {
     if (modId === "surveillance") return compteurs.alertesAConfirmer + relances48h.deces;
-    if (modId === "terrain") return compteurs.validationsEnAttente + compteurs.menagesAReassigner;
+    if (modId === "terrain") return compteurs.validationsEnAttente;
     if (modId === "soins") return compteurs.perdusDeVue;
     if (modId === "rapports") return echeanceRapport.urgent ? 1 : 0;
     return 0;

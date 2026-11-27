@@ -150,7 +150,7 @@ export default function GuideUtilisateurPage() {
       <header className="bg-[#005c30] text-white sticky top-0 z-30 shadow-md print:hidden">
         <div className="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between">
           <Link
-            href={selectedProfil === "RC" ? "/espace-rc" : currentUser?.role_technique === "SUPER_ADMIN" ? "/perimetre" : "/espace-ascq"}
+            href={selectedProfil === "RC" ? "/espace-rc" : "/espace-ascq"}
             className="flex items-center gap-2 text-white/90 hover:text-white transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />

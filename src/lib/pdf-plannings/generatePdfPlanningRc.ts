@@ -96,15 +96,16 @@ export async function generatePdfPlanningRc(data: RcPlanningData): Promise<Uint8
   const contentWidth = pageWidth - 2 * marginX; // 771.89 pt
 
   // =========================================================================
-  // 1. EN-TÊTE SUPÉRIEUR (TRAIT POUR TRAIT)
-  // CNLS-TP À GAUCHE | LOGO ASC SANTÉ COMM. DU BÉNIN À DROITE
+  // 1. EN-TÊTE SUPÉRIEUR HARMONISÉ AVEC LE RAM ASCQ
+  // CNLS-TP À GAUCHE | NUMÉRO + EMAIL + LOGO ASC À DROITE + FILET VERT #008751
   // =========================================================================
-  const headerTopY = pageHeight - 16;
+  const headerTopY = pageHeight - 14;
+  const cVertBenin = rgb(0 / 255, 135 / 255, 81 / 255);
 
   // Bannière CNLS-TP à gauche
   if (bannerImg) {
     const bAsp = bannerImg.width / bannerImg.height;
-    const bH = 40;
+    const bH = 38;
     const bW = bH * bAsp;
     page.drawImage(bannerImg, {
       x: marginX,
@@ -114,18 +115,47 @@ export async function generatePdfPlanningRc(data: RcPlanningData): Promise<Uint8
     });
   }
 
-  // Logo ASC Santé Communautaire à droite
+  // Logo ASC Santé Communautaire + Numéro & Email à droite (identique au RAM ASCQ)
+  let logoW = 0;
   if (logoImg) {
     const lAsp = logoImg.width / logoImg.height;
-    const lH = 40;
-    const lW = lH * lAsp;
+    const lH = 38;
+    logoW = lH * lAsp;
     page.drawImage(logoImg, {
-      x: pageWidth - marginX - lW,
+      x: pageWidth - marginX - logoW,
       y: headerTopY - lH,
-      width: lW,
+      width: logoW,
       height: lH,
     });
   }
+
+  const telText = "0141285050/0196830551";
+  const mailText = "ascqbenin@gmail.com";
+  const rightInfoX = pageWidth - marginX - logoW - 8;
+  const telW = bold.widthOfTextAtSize(telText, 8);
+  const mailW = regular.widthOfTextAtSize(mailText, 7.5);
+  page.drawText(telText, {
+    x: rightInfoX - telW,
+    y: headerTopY - 16,
+    size: 8,
+    font: bold,
+    color: cBlack,
+  });
+  page.drawText(mailText, {
+    x: rightInfoX - mailW,
+    y: headerTopY - 28,
+    size: 7.5,
+    font: regular,
+    color: rgb(71 / 255, 85 / 255, 105 / 255),
+  });
+
+  // Ligne de séparation verte officielle (#008751)
+  page.drawLine({
+    start: { x: marginX, y: headerTopY - 41 },
+    end: { x: pageWidth - marginX, y: headerTopY - 41 },
+    thickness: 1.5,
+    color: cVertBenin,
+  });
 
   // =========================================================================
   // 2. TITRE OFFICIEL AU CENTRE (PARFAITEMENT DÉGAGÉ DES LOGOS)
@@ -133,7 +163,7 @@ export async function generatePdfPlanningRc(data: RcPlanningData): Promise<Uint8
   // Ligne 1 : POLITIQUE NATIONALE DE SANTÉ COMMUNAUTAIRE
   const t1 = "POLITIQUE NATIONALE DE SANTÉ COMMUNAUTAIRE";
   const t1W = bold.widthOfTextAtSize(t1, 11.5);
-  const t1Y = headerTopY - 48;
+  const t1Y = headerTopY - 54;
 
   page.drawText(t1, {
     x: (pageWidth - t1W) / 2,

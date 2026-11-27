@@ -1797,9 +1797,7 @@ function PerimetreGouvernanceContent() {
   const isRepresentantCommunal = isSuperAdmin || 
     currentUser?.poste === "REPRESENTANT_COMMUNAL" || 
     currentUser?.role_technique === "REPRESENTANT_COMMUNAL" || 
-    (currentUser?.role_nomination || "").toUpperCase().includes("REPRESENTANT_COMMUNAL") ||
-    (currentUser?.role_nomination || "").toUpperCase().includes("COMMUNAL") ||
-    currentUser?.poste === "PF_CCLS_TP";
+    (currentUser?.role_nomination || "").toUpperCase().includes("REPRESENTANT_COMMUNAL");
 
   const isRepresentantDepartemental = isSuperAdmin ||
     currentUser?.poste === "REPRESENTANT_DEPARTEMENTAL" ||
@@ -1881,8 +1879,8 @@ function PerimetreGouvernanceContent() {
           </div>
         )}
 
-        {/* ONGLETS DE GOUVERNANCE */}
-        <div className="bg-white rounded-2xl p-1 shadow-sm border border-slate-200/80 flex items-center justify-between text-xs font-bold text-slate-600 gap-1 overflow-x-auto">
+        {/* ONGLETS DE GOUVERNANCE (Grille responsive sans défilement horizontal forcé sur mobile) */}
+        <div className="bg-white rounded-2xl p-1.5 shadow-sm border border-slate-200/80 grid grid-cols-2 sm:flex sm:flex-wrap items-center justify-between text-xs font-bold text-slate-600 gap-1">
           <button
             onClick={() => setActiveTab("dashboard_compile")}
             className={`flex-1 py-2.5 px-2 text-center rounded-xl transition-all flex items-center justify-center gap-1.5 whitespace-nowrap ${

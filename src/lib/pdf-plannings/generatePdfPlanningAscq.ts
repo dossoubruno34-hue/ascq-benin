@@ -61,36 +61,66 @@ export async function generatePdfPlanningAscq(data: AscqPlanningData): Promise<U
   const contentWidth = pageWidth - 2 * marginX; // 771.89 pt
 
   // =========================================================================
-  // 1. EN-TÊTE SUPÉRIEUR
-  // CNLS-TP À GAUCHE | LOGO ASC SANTÉ COMM. DU BÉNIN À DROITE
+  // 1. EN-TÊTE SUPÉRIEUR HARMONISÉ AVEC LE RAM ASCQ
+  // CNLS-TP À GAUCHE | NUMÉRO + EMAIL + LOGO ASC À DROITE + FILET VERT #008751
   // =========================================================================
-  const headerTopY = pageHeight - 16;
+  const headerTopY = pageHeight - 14;
+  const cVertBenin = rgb(0 / 255, 135 / 255, 81 / 255);
 
   // Bannière CNLS-TP à gauche
   if (bannerImg) {
     const bAsp = bannerImg.width / bannerImg.height;
-    const bH = 44;
+    const bH = 40;
     const bW = bH * bAsp;
     page.drawImage(bannerImg, {
       x: marginX,
       y: headerTopY - bH,
-      width: Math.min(bW, 255),
+      width: Math.min(bW, 250),
       height: bH,
     });
   }
 
-  // Logo ASC Santé Communautaire à droite
+  // Logo ASC Santé Communautaire + Numéro & Email à droite (identique au RAM ASCQ)
+  let logoW = 0;
   if (logoImg) {
     const lAsp = logoImg.width / logoImg.height;
-    const lH = 44;
-    const lW = lH * lAsp;
+    const lH = 40;
+    logoW = lH * lAsp;
     page.drawImage(logoImg, {
-      x: pageWidth - marginX - lW,
+      x: pageWidth - marginX - logoW,
       y: headerTopY - lH,
-      width: lW,
+      width: logoW,
       height: lH,
     });
   }
+
+  const telText = "0141285050/0196830551";
+  const mailText = "ascqbenin@gmail.com";
+  const rightInfoX = pageWidth - marginX - logoW - 8;
+  const telW = bold.widthOfTextAtSize(telText, 8);
+  const mailW = regular.widthOfTextAtSize(mailText, 7.5);
+  page.drawText(telText, {
+    x: rightInfoX - telW,
+    y: headerTopY - 17,
+    size: 8,
+    font: bold,
+    color: cBlack,
+  });
+  page.drawText(mailText, {
+    x: rightInfoX - mailW,
+    y: headerTopY - 29,
+    size: 7.5,
+    font: regular,
+    color: rgb(71 / 255, 85 / 255, 105 / 255),
+  });
+
+  // Ligne de séparation verte officielle (#008751)
+  page.drawLine({
+    start: { x: marginX, y: headerTopY - 43 },
+    end: { x: pageWidth - marginX, y: headerTopY - 43 },
+    thickness: 1.5,
+    color: cVertBenin,
+  });
 
   // =========================================================================
   // 2. TITRE & LOCALISATION AU CENTRE
@@ -102,7 +132,7 @@ export async function generatePdfPlanningAscq(data: AscqPlanningData): Promise<U
 
   const locLine = `DÉPARTEMENT : ${deptStr} — COMMUNE : ${comStr} — ARRONDISSEMENT : ${arrStr}`;
   const locW = bold.widthOfTextAtSize(locLine, 10);
-  const locY = headerTopY - 54;
+  const locY = headerTopY - 56;
 
   page.drawText(locLine, {
     x: (pageWidth - locW) / 2,

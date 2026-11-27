@@ -121,7 +121,7 @@ export default function AscqNav({ userProfile }: Props) {
   const isCadre = !isBrunoSuperAdmin && estCadreNonAscq(activeUser);
 
   const { nomCourt, roleCourt } = obtenirNomEtRoleCourt(activeUser);
-  const homeHref = isCadre ? "/perimetre" : "/espace-ascq";
+  const homeHref = "/espace-ascq";
 
   // Vérification d'accès par rôle (Registre Central)
   const accesVerif = activeUser ? verifierAccesRoute(pathname || "/", activeUser) : { autorise: true };

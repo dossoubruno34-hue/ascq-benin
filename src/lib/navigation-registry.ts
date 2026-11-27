@@ -568,20 +568,6 @@ export const REGISTRE_NAVIGATION: NavigationEntry[] = [
     statut: "actif"
   },
   {
-    id: "trc-menages-reassigner",
-    libelle: "Ménages à réassigner",
-    icone: "Home",
-    iconId: "trc-menages-reassigner",
-    iconPath: "/icons/terrain-rc/trc-menages-reassigner.svg",
-    parent: "terrain",
-    route: "/espace-ascq/relais?tab=menages_reassigner",
-    roles: ["ASCQ", "REPRESENTANT_COMMUNAL", "SUPER_ADMIN"],
-    ordre: 6,
-    badge: "menages_a_reassigner",
-    disponibleHorsLigne: true,
-    statut: "actif"
-  },
-  {
     id: "trc-campagnes",
     libelle: "Campagnes (MIILD, CPS, ONCHO)",
     icone: "Flag",
@@ -590,7 +576,7 @@ export const REGISTRE_NAVIGATION: NavigationEntry[] = [
     parent: "terrain",
     route: "/espace-ascq/activites-menees?tab=campagnes",
     roles: ["ASCQ", "REPRESENTANT_COMMUNAL", "SUPER_ADMIN"],
-    ordre: 7,
+    ordre: 6,
     disponibleHorsLigne: true,
     statut: "actif",
     estSaisie: true
