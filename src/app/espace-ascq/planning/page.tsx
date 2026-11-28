@@ -58,7 +58,7 @@ const ACTIVITES_OFFICIELLES_CNLSTP = [
   "Visites à domicile et dépistage actif",
   "Campagne spécifique de santé publique",
   "Suivi groupé et orientation des RC",
-  "Formation continue des RC"
+  "Formation"
 ];
 
 const JOURS_ABREV = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"] as const;
@@ -147,6 +147,10 @@ export default function PlanningAscqPage() {
     9: ["Mar"],
     10: ["Mar"]
   });
+  const [campagneTitre, setCampagneTitre] = useState<string>("");
+  const [formationTitre, setFormationTitre] = useState<string>("");
+  const campagneInputRef = useRef<HTMLInputElement | null>(null);
+  const formationInputRef = useRef<HTMLInputElement | null>(null);
 
   // 4. Autres activités (Possibilité d'ajouter plusieurs autres activités)
   const [autresActivites, setAutresActivites] = useState<Array<{ id: string; nom: string; jours: string[] }>>([
@@ -214,13 +218,22 @@ export default function PlanningAscqPage() {
 
   // Basculer un jour pour une activité donnée
   const toggleJourActivite = (actIdx: number, jour: string) => {
+    const existants = activitesJours[actIdx] || [];
+    const seraAjoute = !existants.includes(jour);
     setActivitesJours(prev => {
-      const existants = prev[actIdx] || [];
-      const nouveau = existants.includes(jour)
-        ? existants.filter(j => j !== jour)
-        : [...existants, jour];
+      const cur = prev[actIdx] || [];
+      const nouveau = cur.includes(jour)
+        ? cur.filter(j => j !== jour)
+        : [...cur, jour];
       return { ...prev, [actIdx]: nouveau };
     });
+    if (seraAjoute) {
+      if (actIdx === 8 && !campagneTitre.trim()) {
+        setTimeout(() => campagneInputRef.current?.focus(), 60);
+      } else if (actIdx === 10 && !formationTitre.trim()) {
+        setTimeout(() => formationInputRef.current?.focus(), 60);
+      }
+    }
   };
 
   const toggleJourAutre = (jour: string) => {
@@ -386,6 +399,13 @@ export default function PlanningAscqPage() {
               const parts = (l.periode || l.jour_semaine || "").split(",").map((s: string) => s.trim()).filter(Boolean);
               if (num >= 1 && num <= 10) {
                 nouvJours[num] = parts;
+                if (num === 8 && typeof l.activite === "string") {
+                  const m = l.activite.match(/\(([^)]+)\)\s*$/);
+                  if (m?.[1]) setCampagneTitre(m[1].trim());
+                } else if (num === 10 && typeof l.activite === "string") {
+                  const m = l.activite.match(/\(([^)]+)\)\s*$/);
+                  if (m?.[1]) setFormationTitre(m[1].trim());
+                }
               } else if (num >= 11) {
                 autresDb.push({
                   id: `autre-db-${num}`,
@@ -404,6 +424,8 @@ export default function PlanningAscqPage() {
             }
           } else if (localParsed) {
             if (localParsed.activitesJours) setActivitesJours(localParsed.activitesJours);
+        if (typeof localParsed.campagneTitre === "string") setCampagneTitre(localParsed.campagneTitre);
+        if (typeof localParsed.formationTitre === "string") setFormationTitre(localParsed.formationTitre);
             if (Array.isArray(localParsed.autresActivites) && localParsed.autresActivites.length > 0) {
               setAutresActivites(localParsed.autresActivites);
             }
@@ -417,6 +439,8 @@ export default function PlanningAscqPage() {
         setMotifEcart(localParsed.motif_ecart ?? localParsed.motifEcart ?? "Un RC malade");
         setObservations(localParsed.observations ?? "RAS");
         if (localParsed.activitesJours) setActivitesJours(localParsed.activitesJours);
+        if (typeof localParsed.campagneTitre === "string") setCampagneTitre(localParsed.campagneTitre);
+        if (typeof localParsed.formationTitre === "string") setFormationTitre(localParsed.formationTitre);
         if (Array.isArray(localParsed.autresActivites) && localParsed.autresActivites.length > 0) {
           setAutresActivites(localParsed.autresActivites);
         } else if (localParsed.autreActiviteNom) {
@@ -584,6 +608,8 @@ export default function PlanningAscqPage() {
       rcAttendus: Number(rcAttendus),
       motifEcart: aEcartRc ? motifEcart.trim() : null,
       activitesJours,
+      campagneTitre: campagneTitre.trim() || undefined,
+      formationTitre: formationTitre.trim() || undefined,
       autresActivites: autresValides,
       autreActiviteNom: autresValides[0]?.nom || autreActiviteNom.trim() || undefined,
       autreActiviteJours: autresValides[0]?.jours || autreActiviteJours,
@@ -653,6 +679,14 @@ export default function PlanningAscqPage() {
     try {
       if (aEcartRc && !motifEcart.trim()) {
         throw new Error("Veuillez renseigner le motif de l'écart entre le nombre de RC planifiés et attendus.");
+      }
+      if ((activitesJours[8] || []).length > 0 && !campagneTitre.trim()) {
+        campagneInputRef.current?.focus();
+        throw new Error("Veuillez saisir le titre obligatoire de la campagne spécifique de santé publique avant de continuer.");
+      }
+      if ((activitesJours[10] || []).length > 0 && !formationTitre.trim()) {
+        formationInputRef.current?.focus();
+        throw new Error("Veuillez saisir le titre obligatoire de la formation avant de continuer.");
       }
       if (valider && !signatureTactile) {
         throw new Error("Veuillez apposer votre signature manuscrite tactile avant de valider officiellement le planning.");
@@ -727,16 +761,25 @@ export default function PlanningAscqPage() {
 
         if (savedId) {
           await supabase.from("lignes_planning_ascq").delete().eq("planning_id", savedId);
-          const lignes = ACTIVITES_OFFICIELLES_CNLSTP.map((act, idx) => ({
-            planning_id: savedId,
-            ordre: idx + 1,
-            activite: act,
-            periode: (activitesJours[idx + 1] || []).join(", "),
-            jour_semaine: (activitesJours[idx + 1] || []).join(", "),
-            lieu: arrondissement,
-            personnes_impliquees: "ASCQ / Relais Communautaires",
-            objectifs: "Exécution des interventions communautaires prioritaires"
-          }));
+          const lignes = ACTIVITES_OFFICIELLES_CNLSTP.map((act, idx) => {
+            const actNum = idx + 1;
+            let activiteLabel = act;
+            if (actNum === 8 && campagneTitre.trim()) {
+              activiteLabel = `Campagne spécifique de santé publique (${campagneTitre.trim()})`;
+            } else if (actNum === 10 && formationTitre.trim()) {
+              activiteLabel = `Formation (${formationTitre.trim()})`;
+            }
+            return {
+              planning_id: savedId,
+              ordre: actNum,
+              activite: activiteLabel,
+              periode: (activitesJours[actNum] || []).join(", "),
+              jour_semaine: (activitesJours[actNum] || []).join(", "),
+              lieu: arrondissement,
+              personnes_impliquees: "ASCQ / Relais Communautaires",
+              objectifs: "Exécution des interventions communautaires prioritaires"
+            };
+          });
 
           const autresValides = autresActivites.filter(a => a.nom && a.nom.trim());
           autresValides.forEach((aut, aIdx) => {
@@ -766,6 +809,8 @@ export default function PlanningAscqPage() {
         rcAttendus: Number(rcAttendus),
         motifEcart: aEcartRc ? motifEcart.trim() : null,
         activitesJours,
+        campagneTitre: campagneTitre.trim(),
+        formationTitre: formationTitre.trim(),
         autresActivites,
         autreActiviteNom: autresActivites[0]?.nom || "",
         autreActiviteJours: autresActivites[0]?.jours || [],
@@ -1397,36 +1442,93 @@ export default function PlanningAscqPage() {
                   {ACTIVITES_OFFICIELLES_CNLSTP.map((act, idx) => {
                     const actNum = idx + 1;
                     const selectionnes = activitesJours[actNum] || [];
+                    const estCampagne = actNum === 8;
+                    const estFormation = actNum === 10;
+                    const titreSpecifique = estCampagne ? campagneTitre : estFormation ? formationTitre : "";
+                    const libelleAffiche =
+                      (estCampagne || estFormation) && titreSpecifique.trim()
+                        ? `${act} (${titreSpecifique.trim()})`
+                        : act;
 
                     return (
                       <div 
                         key={actNum}
-                        className="p-3 bg-slate-50/80 hover:bg-slate-50 rounded-2xl border border-slate-200/70 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                        className="p-3 bg-slate-50/80 hover:bg-slate-50 rounded-2xl border border-slate-200/70 transition-all space-y-2.5"
                       >
-                        <div className="flex items-center gap-2 sm:max-w-[42%]">
-                          <span className="font-bold text-xs text-slate-500">{actNum}.</span>
-                          <span className="font-bold text-xs text-slate-800">{act}</span>
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div className="flex items-start gap-2 sm:max-w-[45%]">
+                            <span className="font-bold text-xs text-slate-500 shrink-0">{actNum}.</span>
+                            <span className="font-bold text-xs text-slate-800 whitespace-normal break-words leading-snug">
+                              {libelleAffiche}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {JOURS_ABREV.map((j) => {
+                              const actif = selectionnes.includes(j);
+                              return (
+                                <button
+                                  key={j}
+                                  type="button"
+                                  onClick={() => toggleJourActivite(actNum, j)}
+                                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                                    actif
+                                      ? "bg-[#005c30] text-white shadow-sm scale-105"
+                                      : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
+                                  }`}
+                                >
+                                  {j}
+                                </button>
+                              );
+                            })}
+                          </div>
                         </div>
 
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          {JOURS_ABREV.map((j) => {
-                            const actif = selectionnes.includes(j);
-                            return (
-                              <button
-                                key={j}
-                                type="button"
-                                onClick={() => toggleJourActivite(actNum, j)}
-                                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-                                  actif
-                                    ? "bg-[#005c30] text-white shadow-sm scale-105"
-                                    : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
-                                }`}
-                              >
-                                {j}
-                              </button>
-                            );
-                          })}
-                        </div>
+                        {estCampagne && selectionnes.length > 0 && (
+                          <div
+                            className={`p-2.5 rounded-xl border text-xs space-y-1 ${
+                              !campagneTitre.trim()
+                                ? "bg-amber-50 border-amber-300"
+                                : "bg-emerald-50/50 border-emerald-200"
+                            }`}
+                          >
+                            <label className="font-bold text-slate-800 block">
+                              Titre de la campagne spécifique de santé publique <span className="text-red-600">*</span>
+                            </label>
+                            <input
+                              ref={campagneInputRef}
+                              type="text"
+                              value={campagneTitre}
+                              onChange={(e) => setCampagneTitre(e.target.value)}
+                              placeholder="Ex: Campagne de distribution de MILDA / Chimio-prévention..."
+                              required
+                              className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                            />
+                          </div>
+                        )}
+
+                        {estFormation && selectionnes.length > 0 && (
+                          <div
+                            className={`p-2.5 rounded-xl border text-xs space-y-1 ${
+                              !formationTitre.trim()
+                                ? "bg-amber-50 border-amber-300"
+                                : "bg-emerald-50/50 border-emerald-200"
+                            }`}
+                          >
+                            <label className="font-bold text-slate-800 block">
+                              Titre de la formation (ASCQ ou RC) <span className="text-red-600">*</span>
+                            </label>
+                            <input
+                              ref={formationInputRef}
+                              type="text"
+                              value={formationTitre}
+                              onChange={(e) => setFormationTitre(e.target.value)}
+                              placeholder="Ex: Formation iCCM / Surveillance épidémiologique..."
+                              required
+                              className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                            />
+                          </div>
+                        )}
                       </div>
                     );
                   })}

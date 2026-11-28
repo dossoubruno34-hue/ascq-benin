@@ -17,7 +17,7 @@ const ACTIVITES_OFFICIELLES_ASCQ = [
   "Prise en charge communautaire des cas",
   "Visites des sites prioritaires",
   "Visites à domicile et dépistage",
-  "Campagne",
+  "Campagne spécifique de santé publique",
   "Suivi groupé et orientation des RC",
   "Formation",
   "Réunion de coordination mensuelle avec le CCLS-TP",
@@ -223,11 +223,19 @@ export async function generatePdfPlanningAscq(data: AscqPlanningData): Promise<U
   const colW_Obs = contentWidth - (colW_No + colW_Act + colW_Resp + colW_DaysTotal); // 160.89 pt (réduit pour rééquilibrer)
 
   // Construction dynamique des lignes : 10 activités standard + toutes les "Autres activités" ajoutées
-  const baseTen = ACTIVITES_OFFICIELLES_ASCQ.slice(0, 10).map((nom, i) => ({
-    nom,
-    jours: data.activitesJours[i + 1] || [],
-    isCustom: false
-  }));
+  const baseTen = ACTIVITES_OFFICIELLES_ASCQ.slice(0, 10).map((nom, i) => {
+    let displayNom = nom;
+    if (i === 7 && data.campagneTitre?.trim()) {
+      displayNom = `Campagne spécifique de santé publique (${data.campagneTitre.trim()})`;
+    } else if (i === 9 && data.formationTitre?.trim()) {
+      displayNom = `Formation (${data.formationTitre.trim()})`;
+    }
+    return {
+      nom: displayNom,
+      jours: data.activitesJours[i + 1] || [],
+      isCustom: false,
+    };
+  });
 
   const extraList = Array.isArray(data.autresActivites) && data.autresActivites.some(a => a && a.nom && a.nom.trim())
     ? data.autresActivites
@@ -366,13 +374,28 @@ export async function generatePdfPlanningAscq(data: AscqPlanningData): Promise<U
       color: cBlack,
     });
 
-    // Libellé de l'activité (Bleu Bic si autre activité ajoutée par l'ASCQ)
-    page.drawText(sanitizeWinAnsi(item.nom), {
-      x: marginX + colW_No + 8,
-      y: rY + (rowH - 8.5) / 2,
-      size: 8.5,
-      font: bold,
-      color: item.isCustom ? cBleuBic : cBlack,
+    // Libellé de l'activité avec retour à la ligne automatique (Bleu Bic si autre activité ajoutée par l'ASCQ)
+    const maxActWidth = colW_Act - 14;
+    let actFontSize = 8.5;
+    let actLines = wrapText(sanitizeWinAnsi(item.nom), bold, actFontSize, maxActWidth);
+    if (actLines.length > 2) {
+      actFontSize = 7.3;
+      actLines = wrapText(sanitizeWinAnsi(item.nom), bold, actFontSize, maxActWidth).slice(0, 3);
+    } else if (actLines.length === 2) {
+      actFontSize = 7.8;
+      actLines = wrapText(sanitizeWinAnsi(item.nom), bold, actFontSize, maxActWidth).slice(0, 3);
+    }
+    const lineStep = actFontSize + 2;
+    const totalTextH = actLines.length * lineStep - 2;
+    const startLineY = rY + (rowH + totalTextH) / 2 - actFontSize;
+    actLines.forEach((line, lIdx) => {
+      page.drawText(line, {
+        x: marginX + colW_No + 8,
+        y: startLineY - lIdx * lineStep,
+        size: actFontSize,
+        font: bold,
+        color: item.isCustom ? cBleuBic : cBlack,
+      });
     });
 
     // Responsable ASCQ

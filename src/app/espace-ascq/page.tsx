@@ -70,6 +70,7 @@ function MonEspaceContent() {
   // Compteurs temps réel pour le bandeau "À faire" (3 lignes) et les pastilles des 6 modules
   const [compteurs, setCompteurs] = useState({
     alertesAConfirmer: 0,
+    decesEnAttente: 0,
     validationsEnAttente: 0,
     validationsRcEnAttente: 0,
     planningsRcEnAttente: 0,
@@ -238,6 +239,7 @@ function MonEspaceContent() {
 
         const [
           alertesAttenteRes,
+          decesAttenteRes,
           rcAttenteRes,
           planningsRcAttenteRes,
           activitesSemRes,
@@ -248,6 +250,11 @@ function MonEspaceContent() {
           supabase
             .from("alertes_communautaires")
             .select("id", { count: "exact", head: true })
+            .or(`ascq_superviseur_id.eq.${prof.id},notificateur_id.eq.${prof.id}`)
+            .in("statut", ["NOTIFIE", "EN_ATTENTE"]),
+          supabase
+            .from("deces_communautaires")
+            .select("id")
             .eq("ascq_superviseur_id", prof.id)
             .in("statut", ["NOTIFIE", "EN_ATTENTE"]),
           supabase
@@ -284,21 +291,6 @@ function MonEspaceContent() {
             .lt("created_at", ilYADeuxJours),
         ]);
 
-        const nbAlertesAConf = alertesAttenteRes.count || 0;
-        const nbRcAttente = rcAttenteRes.count || 0;
-        const nbPlanningsRc = planningsRcAttenteRes.count || 0;
-        const nbValidations = nbRcAttente + nbPlanningsRc;
-
-        setCompteurs({
-          alertesAConfirmer: nbAlertesAConf,
-          validationsEnAttente: nbValidations,
-          validationsRcEnAttente: nbRcAttente,
-          planningsRcEnAttente: nbPlanningsRc,
-          perdusDeVue: 0,
-          activitesSemaine: activitesSemRes.count || 0,
-          consultationsSemaine: consultSemRes.count || 0,
-        });
-
         const localAcquittes = new Set<string>();
         if (typeof window !== "undefined") {
           try {
@@ -306,6 +298,23 @@ function MonEspaceContent() {
             if (raw) (JSON.parse(raw) || []).forEach((id: string) => localAcquittes.add(id));
           } catch {}
         }
+
+        const nbAlertesAConf = alertesAttenteRes.count || 0;
+        const nbDecesAttente = (decesAttenteRes.data || []).filter((d: any) => !localAcquittes.has(d.id)).length;
+        const nbRcAttente = rcAttenteRes.count || 0;
+        const nbPlanningsRc = planningsRcAttenteRes.count || 0;
+        const nbValidations = nbRcAttente + nbPlanningsRc;
+
+        setCompteurs({
+          alertesAConfirmer: nbAlertesAConf,
+          decesEnAttente: nbDecesAttente,
+          validationsEnAttente: nbValidations,
+          validationsRcEnAttente: nbRcAttente,
+          planningsRcEnAttente: nbPlanningsRc,
+          perdusDeVue: 0,
+          activitesSemaine: activitesSemRes.count || 0,
+          consultationsSemaine: consultSemRes.count || 0,
+        });
 
         let decesList: any[] = [];
         try {
@@ -417,25 +426,25 @@ function MonEspaceContent() {
 
   // Pastilles de comptage générées par le code pour chaque module principal
   const obtenirBadgeModule = (modId: string): number => {
-    if (modId === "surveillance") return compteurs.alertesAConfirmer + relances48h.deces;
+    if (modId === "surveillance") return compteurs.alertesAConfirmer + compteurs.decesEnAttente;
     if (modId === "terrain") return compteurs.validationsEnAttente;
     if (modId === "soins") return compteurs.perdusDeVue;
     if (modId === "rapports") return echeanceRapport.urgent ? 1 : 0;
-    if (modId === "gouvernance") return compteurs.alertesAConfirmer + relances48h.deces + compteurs.validationsEnAttente;
+    if (modId === "gouvernance") return compteurs.alertesAConfirmer + compteurs.decesEnAttente + compteurs.validationsEnAttente;
     return 0;
   };
 
   // Pastille par sous-module (alignée avec le compteur "À traiter" du module parent)
   const obtenirBadgeSousModule = (subId: string): number => {
-    if (subId === "surv-fiches") return compteurs.alertesAConfirmer + relances48h.deces;
+    if (subId === "surv-fiches") return compteurs.alertesAConfirmer + compteurs.decesEnAttente;
     if (subId === "surv-alertes-a-confirmer") return compteurs.alertesAConfirmer;
-    if (subId === "surv-notification-deces") return relances48h.deces;
+    if (subId === "surv-notification-deces") return compteurs.decesEnAttente;
     if (subId === "trc-validations-inscription") return compteurs.validationsRcEnAttente;
     if (subId === "trc-planning") return compteurs.planningsRcEnAttente;
     if (subId === "trc-mes-relais") return compteurs.validationsEnAttente;
     if (subId === "snis-rapport-mensuel") return echeanceRapport.urgent ? 1 : 0;
     if (subId === "sm-perdus-de-vue") return compteurs.perdusDeVue;
-    if (subId === "gov-perimetre") return compteurs.alertesAConfirmer + relances48h.deces;
+    if (subId === "gov-perimetre") return compteurs.alertesAConfirmer + compteurs.decesEnAttente;
     if (subId === "gov-comptes-validations") return compteurs.validationsRcEnAttente;
     return 0;
   };

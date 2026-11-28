@@ -25,6 +25,8 @@ export interface AscqPlanningData {
   rcAttendus: number;
   motifEcart?: string | null;
   activitesJours: Record<number, string[]>; // 1..10 -> ["Lun", "Mer"]
+  campagneTitre?: string;
+  formationTitre?: string;
   autreActiviteNom?: string;
   autreActiviteJours?: string[];
   autresActivites?: AutreActiviteAscq[];
