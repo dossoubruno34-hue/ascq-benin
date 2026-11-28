@@ -190,6 +190,11 @@ export default function AdminPage() {
     } | null;
   } | null>(null);
   const [facebookSyncLoading, setFacebookSyncLoading] = useState(false);
+  const [fbTokenPanelOpen, setFbTokenPanelOpen] = useState(false);
+  const [fbOverrideToken, setFbOverrideToken] = useState("");
+  const [fbManualMessage, setFbManualMessage] = useState("");
+  const [fbManualUrl, setFbManualUrl] = useState("");
+  const [fbManualLoading, setFbManualLoading] = useState(false);
 
   // Bibliothèque documentaire
   const [documentsBiblio, setDocumentsBiblio] = useState<any[]>([]);
@@ -658,10 +663,13 @@ export default function AdminPage() {
     }
   };
 
-  const handleDeclencherSyncFacebook = async () => {
+  const handleDeclencherSyncFacebook = async (customToken?: string) => {
     setFacebookSyncLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("sync-facebook-posts");
+      const invokeOpts = customToken?.trim()
+        ? { body: { token: customToken.trim() } }
+        : undefined;
+      const { data, error } = await supabase.functions.invoke("sync-facebook-posts", invokeOpts);
       if (error) {
         let errorDetails = "Jeton Facebook expiré ou non autorisé (Code 190). Veuillez renouveler le jeton de page dans Supabase Secrets.";
         try {
@@ -678,6 +686,7 @@ export default function AdminPage() {
         setToastMessage({ text: data.error || "Synchronisation Facebook : vérification du jeton.", error: true });
       } else {
         setToastMessage({ text: "Synchronisation Facebook exécutée avec succès !", error: false });
+        if (customToken?.trim()) setFbOverrideToken("");
       }
       await chargerEtatSyncFacebook();
     } catch (err: any) {
@@ -689,6 +698,36 @@ export default function AdminPage() {
       await chargerEtatSyncFacebook();
     } finally {
       setFacebookSyncLoading(false);
+    }
+  };
+
+  const handlePublierFacebookManuelle = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!fbManualMessage.trim()) return;
+    setFbManualLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("sync-facebook-posts", {
+        body: {
+          action: "manual_post",
+          message: fbManualMessage.trim(),
+          permalink_url: fbManualUrl.trim() || undefined,
+        },
+      });
+      if (error || !data?.success) {
+        setToastMessage({
+          text: data?.error || error?.message || "Impossible de publier l'actualité Facebook.",
+          error: true,
+        });
+      } else {
+        setFbManualMessage("");
+        setFbManualUrl("");
+        setToastMessage({ text: "Publication Facebook ajoutée sur l'accueil !", error: false });
+        await chargerEtatSyncFacebook();
+      }
+    } catch (err: any) {
+      setToastMessage({ text: err?.message || "Erreur lors de la publication.", error: true });
+    } finally {
+      setFbManualLoading(false);
     }
   };
 
@@ -3097,12 +3136,19 @@ export default function AdminPage() {
                   </a>
                   <button
                     type="button"
-                    onClick={handleDeclencherSyncFacebook}
+                    onClick={() => handleDeclencherSyncFacebook()}
                     disabled={facebookSyncLoading}
                     className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs shadow-sm transition-all active:scale-95"
                   >
                     <RefreshCw className={`w-3.5 h-3.5 ${facebookSyncLoading ? "animate-spin" : ""}`} />
                     <span>{facebookSyncLoading ? "Synchronisation..." : "Synchroniser maintenant"}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFbTokenPanelOpen((v) => !v)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-bold text-xs transition-colors"
+                  >
+                    <span>{fbTokenPanelOpen ? "Masquer options" : "Jeton / Publier"}</span>
                   </button>
                 </div>
               </div>
@@ -3150,6 +3196,69 @@ export default function AdminPage() {
                       {facebookSyncState.dernier_log.status_code === 190 && " (Erreur 190 : Le jeton de page Facebook a expiré ou a été révoqué. Les publications précédentes restent affichées aux visiteurs pour assurer la continuité de service. Veuillez renouveler le jeton de page longue durée dans Supabase Secrets)."}
                     </p>
                   </div>
+                </div>
+              )}
+
+              {(fbTokenPanelOpen || facebookSyncState?.dernier_log?.status === "ERROR") && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-2 border-t border-slate-100">
+                  <div className="p-3.5 rounded-xl bg-blue-50/60 border border-blue-200 space-y-2.5 text-xs">
+                    <p className="font-extrabold text-blue-950">
+                      1. Tester un nouveau jeton Meta / Graph API
+                    </p>
+                    <p className="text-[11px] text-blue-900 leading-relaxed">
+                      Collez un nouveau jeton de page Facebook pour lancer une synchronisation immédiate. Pour le rendre permanent toutes les 60 min, mettez à jour <code className="bg-white px-1 rounded font-bold">FB_PAGE_TOKEN</code> dans <strong>Supabase → Edge Functions → Secrets</strong>.
+                    </p>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <input
+                        type="password"
+                        value={fbOverrideToken}
+                        onChange={(e) => setFbOverrideToken(e.target.value)}
+                        placeholder="Coller le nouveau jeton EAAG..."
+                        className="flex-1 px-3 py-2 rounded-lg border border-blue-200 bg-white text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleDeclencherSyncFacebook(fbOverrideToken)}
+                        disabled={facebookSyncLoading || !fbOverrideToken.trim()}
+                        className="px-3.5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs shrink-0 transition-colors"
+                      >
+                        Tester &amp; Synchroniser
+                      </button>
+                    </div>
+                  </div>
+
+                  <form
+                    onSubmit={handlePublierFacebookManuelle}
+                    className="p-3.5 rounded-xl bg-emerald-50/60 border border-emerald-200 space-y-2 text-xs"
+                  >
+                    <p className="font-extrabold text-emerald-950">
+                      2. Publier manuellement une actualité Facebook sur l&apos;accueil
+                    </p>
+                    <textarea
+                      rows={2}
+                      value={fbManualMessage}
+                      onChange={(e) => setFbManualMessage(e.target.value)}
+                      placeholder="Texte de la publication Facebook à afficher dans les 3 dernières actualités..."
+                      className="w-full px-3 py-2 rounded-lg border border-emerald-200 bg-white text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      required
+                    />
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <input
+                        type="url"
+                        value={fbManualUrl}
+                        onChange={(e) => setFbManualUrl(e.target.value)}
+                        placeholder="Lien de la publication Facebook (optionnel)"
+                        className="flex-1 px-3 py-2 rounded-lg border border-emerald-200 bg-white text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      />
+                      <button
+                        type="submit"
+                        disabled={fbManualLoading || !fbManualMessage.trim()}
+                        className="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs shrink-0 transition-colors"
+                      >
+                        {fbManualLoading ? "Publication..." : "Publier sur l'accueil"}
+                      </button>
+                    </div>
+                  </form>
                 </div>
               )}
             </div>

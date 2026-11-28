@@ -101,9 +101,62 @@ Deno.serve(async (req) => {
     );
   }
 
-  // 3. Récupérer les secrets Facebook stockés UNIQUEMENT dans Supabase Secrets
+  // 3. Lire le corps JSON optionnel (pour action manuelle ou test de jeton Super Admin)
+  let reqBody: any = {};
+  try {
+    if (req.method === "POST") {
+      const text = await req.text();
+      if (text && text.trim().startsWith("{")) {
+        reqBody = JSON.parse(text);
+      }
+    }
+  } catch {
+    reqBody = {};
+  }
+
+  // 3a. Publication manuelle directe par le Super Admin (continuité de service si Code 190)
+  if (isSuperAdmin && reqBody?.action === "manual_post") {
+    const manualMsg = typeof reqBody.message === "string" ? reqBody.message.trim() : "";
+    if (!manualMsg) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Le texte de la publication est obligatoire." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    const manualUrl =
+      typeof reqBody.permalink_url === "string" && reqBody.permalink_url.trim()
+        ? reqBody.permalink_url.trim()
+        : "https://www.facebook.com/profile.php?id=61595028870500";
+    const nowIso = new Date().toISOString();
+    const { error: manualErr } = await supabase.from("publications_facebook").insert({
+      id_facebook: `manual_${Date.now()}`,
+      message: manualMsg,
+      permalink_url: manualUrl,
+      created_time: nowIso,
+      fetched_at: nowIso,
+    });
+    if (manualErr) {
+      return new Response(
+        JSON.stringify({ success: false, error: manualErr.message }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    await supabase.from("facebook_sync_logs").insert({
+      status: "SUCCESS",
+      status_code: 200,
+      message: "Publication Facebook ajoutée manuellement par la coordination.",
+      posts_count: 1,
+    });
+    return new Response(
+      JSON.stringify({ success: true, mode: "manual_post", message: "Publication publiée sur l'accueil." }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
+  // 3b. Récupérer les secrets Facebook stockés dans Supabase Secrets (ou jeton test Super Admin)
   const pageId = Deno.env.get("FB_PAGE_ID") || "61595028870500";
-  const initialToken = Deno.env.get("FB_PAGE_TOKEN");
+  const overrideToken = isSuperAdmin && typeof reqBody?.token === "string" ? reqBody.token.trim() : "";
+  const initialToken = overrideToken || Deno.env.get("FB_PAGE_TOKEN");
 
   if (!initialToken) {
     const errorMsg = "Secret FB_PAGE_TOKEN non configuré dans Supabase Secrets.";
