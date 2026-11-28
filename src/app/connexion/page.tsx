@@ -283,25 +283,70 @@ export default function ConnexionPage() {
 
       // Gestion intelligente des formats béninois (+229, 01, 8 chiffres ou 10 chiffres)
       const nationalDigits = rawDigits.startsWith("229") ? rawDigits.substring(3) : rawDigits;
+      const no01 = nationalDigits.startsWith("01") && nationalDigits.length === 10 ? nationalDigits.substring(2) : nationalDigits;
+      const with01 = nationalDigits.startsWith("01") ? nationalDigits : `01${nationalDigits}`;
+
+      // 0. Résoudre d'abord l'email réel du compte inscrit (car les ASCQ et Cadres s'inscrivent avec leur email professionnel)
+      const resolvedRealEmails: string[] = [];
+      try {
+        const { data: rpcEmail } = await supabase.rpc("obtenir_email_connexion_par_telephone", {
+          p_telephone: rawDigits,
+        });
+        if (rpcEmail && typeof rpcEmail === "string" && rpcEmail.includes("@")) {
+          resolvedRealEmails.push(rpcEmail.trim().toLowerCase());
+        }
+      } catch {}
+
+      if (resolvedRealEmails.length === 0) {
+        try {
+          const phoneVariants = Array.from(
+            new Set([
+              rawDigits,
+              nationalDigits,
+              no01,
+              with01,
+              `+${rawDigits}`,
+              `+229${nationalDigits}`,
+              `+229${no01}`,
+              `+229${with01}`,
+            ])
+          );
+          const { data: uFound } = await supabase
+            .from("utilisateurs")
+            .select("email")
+            .in("telephone", phoneVariants)
+            .not("email", "is", null)
+            .limit(1)
+            .maybeSingle();
+          if (uFound?.email && uFound.email.includes("@")) {
+            resolvedRealEmails.push(uFound.email.trim().toLowerCase());
+          }
+        } catch {}
+      }
+
       const candidateEmails = [
+        ...resolvedRealEmails,
         `tel_${rawDigits}@ascq.local`,
         `tel_${nationalDigits}@ascq.local`,
-        nationalDigits.startsWith("01") ? `tel_${nationalDigits.substring(2)}@ascq.local` : `tel_01${nationalDigits}@ascq.local`,
-        `tel_229${nationalDigits}@ascq.local`
+        `tel_${no01}@ascq.local`,
+        `tel_${with01}@ascq.local`,
+        `tel_229${nationalDigits}@ascq.local`,
+        `tel_229${with01}@ascq.local`,
       ];
 
       uniqueEmails = Array.from(new Set(candidateEmails));
     }
 
     try {
-      // 1. Authentification Supabase avec tentative sur les formats de téléphone et formats de mot de passe (y compris code 4 chiffres)
+      // 1. Authentification Supabase avec tentative sur les formats d'email/téléphone et mot de passe
       let authData: any = null;
       let lastAuthError: any = null;
 
-      const candidatePasswords = [motDePasse];
-      if (motDePasse.length === 4) {
-        candidatePasswords.push(motDePasse.padStart(6, "0"));
-        candidatePasswords.push(motDePasse.padEnd(6, "0"));
+      const trimmedPwd = motDePasse.trim();
+      const candidatePasswords = [motDePasse, trimmedPwd];
+      if (trimmedPwd.length === 4) {
+        candidatePasswords.push(trimmedPwd.padStart(6, "0"));
+        candidatePasswords.push(trimmedPwd.padEnd(6, "0"));
       }
       const uniquePasswords = Array.from(new Set(candidatePasswords));
 
@@ -327,8 +372,11 @@ export default function ConnexionPage() {
         if (lastAuthError.message?.toLowerCase().includes("database error querying schema")) {
           throw new Error("Erreur de synchronisation du compte. Demandez à votre superviseur ASCQ de cliquer sur 'Réinitialiser le code d'accès' dans son espace Relais.");
         }
+        if (lastAuthError.message?.toLowerCase().includes("email not confirmed")) {
+          throw new Error("Votre adresse email n'est pas encore confirmée. Vérifiez votre boîte mail ou demandez à l'administrateur de valider votre accès.");
+        }
         if (lastAuthError.message?.includes("Invalid login credentials")) {
-          throw new Error("Numéro de téléphone ou mot de passe incorrect. Vérifiez vos identifiants ou votre code temporaire.");
+          throw new Error("Numéro de téléphone / email ou mot de passe incorrect. Astuce : si vous êtes ASCQ ou Cadre, vous pouvez aussi saisir votre adresse email.");
         }
         throw lastAuthError;
       }

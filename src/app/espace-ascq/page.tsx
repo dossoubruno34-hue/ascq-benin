@@ -71,6 +71,8 @@ function MonEspaceContent() {
   const [compteurs, setCompteurs] = useState({
     alertesAConfirmer: 0,
     validationsEnAttente: 0,
+    validationsRcEnAttente: 0,
+    planningsRcEnAttente: 0,
     perdusDeVue: 0,
     activitesSemaine: 0,
     consultationsSemaine: 0,
@@ -283,11 +285,15 @@ function MonEspaceContent() {
         ]);
 
         const nbAlertesAConf = alertesAttenteRes.count || 0;
-        const nbValidations = (rcAttenteRes.count || 0) + (planningsRcAttenteRes.count || 0);
+        const nbRcAttente = rcAttenteRes.count || 0;
+        const nbPlanningsRc = planningsRcAttenteRes.count || 0;
+        const nbValidations = nbRcAttente + nbPlanningsRc;
 
         setCompteurs({
           alertesAConfirmer: nbAlertesAConf,
           validationsEnAttente: nbValidations,
+          validationsRcEnAttente: nbRcAttente,
+          planningsRcEnAttente: nbPlanningsRc,
           perdusDeVue: 0,
           activitesSemaine: activitesSemRes.count || 0,
           consultationsSemaine: consultSemRes.count || 0,
@@ -415,14 +421,22 @@ function MonEspaceContent() {
     if (modId === "terrain") return compteurs.validationsEnAttente;
     if (modId === "soins") return compteurs.perdusDeVue;
     if (modId === "rapports") return echeanceRapport.urgent ? 1 : 0;
+    if (modId === "gouvernance") return compteurs.alertesAConfirmer + relances48h.deces + compteurs.validationsEnAttente;
     return 0;
   };
 
-  // Pastille par sous-module
+  // Pastille par sous-module (alignée avec le compteur "À traiter" du module parent)
   const obtenirBadgeSousModule = (subId: string): number => {
-    if (subId === "surv-alertes-a-confirmer" || subId === "surv-fiches") return compteurs.alertesAConfirmer;
-    if (subId === "trc-validations-inscription" || subId === "trc-mes-relais") return compteurs.validationsEnAttente;
+    if (subId === "surv-fiches") return compteurs.alertesAConfirmer + relances48h.deces;
+    if (subId === "surv-alertes-a-confirmer") return compteurs.alertesAConfirmer;
+    if (subId === "surv-notification-deces") return relances48h.deces;
+    if (subId === "trc-validations-inscription") return compteurs.validationsRcEnAttente;
+    if (subId === "trc-planning") return compteurs.planningsRcEnAttente;
+    if (subId === "trc-mes-relais") return compteurs.validationsEnAttente;
+    if (subId === "snis-rapport-mensuel") return echeanceRapport.urgent ? 1 : 0;
     if (subId === "sm-perdus-de-vue") return compteurs.perdusDeVue;
+    if (subId === "gov-perimetre") return compteurs.alertesAConfirmer + relances48h.deces;
+    if (subId === "gov-comptes-validations") return compteurs.validationsRcEnAttente;
     return 0;
   };
 

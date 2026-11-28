@@ -406,7 +406,7 @@ export default function AdminPage() {
   const [nouveauMdp, setNouveauMdp] = useState("Benin2026!");
   const [motifResetMdp, setMotifResetMdp] = useState("Réinitialisation suite à mot de passe oublié");
   const [resetMdpLoading, setResetMdpLoading] = useState(false);
-  const [resetMdpResult, setResetMdpResult] = useState<{ telephone: string; mdp: string } | null>(null);
+  const [resetMdpResult, setResetMdpResult] = useState<{ telephone: string; email?: string | null; mdp: string } | null>(null);
   const [demandesMdpList, setDemandesMdpList] = useState<any[]>([]);
 
   // Données géographiques pour nominations et filtres
@@ -1075,6 +1075,7 @@ export default function AdminPage() {
 
       setResetMdpResult({
         telephone: resetMdpModalUser.telephone,
+        email: resetMdpModalUser.email || null,
         mdp: nouveauMdp,
       });
 
@@ -4263,6 +4264,9 @@ export default function AdminPage() {
 
                   <div className="p-3.5 bg-white rounded-xl border border-emerald-200 font-mono text-xs space-y-1.5 select-all">
                     <p>Identifiant (Téléphone) : <strong>{resetMdpResult.telephone}</strong></p>
+                    {resetMdpResult.email && (
+                      <p>Email associé : <strong>{resetMdpResult.email}</strong></p>
+                    )}
                     <p>Nouveau Mot de Passe : <strong className="text-[#005c30] text-sm">{resetMdpResult.mdp}</strong></p>
                   </div>
 
@@ -4270,7 +4274,7 @@ export default function AdminPage() {
                     type="button"
                     onClick={() => {
                       navigator.clipboard.writeText(
-                        `Bonjour ${resetMdpModalUser.prenoms}, vos identifiants pour l'application ASCQ Bénin ont été réinitialisés :\nIdentifiant : ${resetMdpResult.telephone}\nMot de passe : ${resetMdpResult.mdp}\nLien : https://ascq-benin.vercel.app/connexion`
+                        `Bonjour ${resetMdpModalUser.prenoms}, vos identifiants pour l'application SantéCom Bénin ont été réinitialisés :\nIdentifiant : ${resetMdpResult.telephone}${resetMdpResult.email ? ` (ou ${resetMdpResult.email})` : ""}\nMot de passe : ${resetMdpResult.mdp}\nLien : https://ascq-benin.vercel.app/connexion`
                       );
                       alert("Identifiants copiés dans le presse-papier ! Vous pouvez les coller dans WhatsApp ou SMS.");
                     }}
