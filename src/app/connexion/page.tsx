@@ -139,6 +139,19 @@ export default function ConnexionPage() {
   };
 
   const [cachedUser, setCachedUser] = useState<any | null>(null);
+  const [isOnlineNow, setIsOnlineNow] = useState<boolean>(true);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const syncOnline = () => setIsOnlineNow(navigator.onLine);
+    syncOnline();
+    window.addEventListener("online", syncOnline);
+    window.addEventListener("offline", syncOnline);
+    return () => {
+      window.removeEventListener("online", syncOnline);
+      window.removeEventListener("offline", syncOnline);
+    };
+  }, []);
 
   // Redirection automatique ou proposition hors-ligne si déjà connecté
   useEffect(() => {
@@ -506,7 +519,7 @@ export default function ConnexionPage() {
           </div>
         )}
 
-        {cachedUser && !loginSuccess && (
+        {cachedUser && !loginSuccess && !isOnlineNow && (
           <div className="bg-emerald-50/90 border border-emerald-200 rounded-3xl p-5 shadow-sm space-y-3 text-left">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-black uppercase text-emerald-800 flex items-center gap-1.5">

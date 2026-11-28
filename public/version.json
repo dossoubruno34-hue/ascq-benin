@@ -1,6 +1,6 @@
 {
-  "version": "2.6.2",
-  "buildTimestamp": 1795300000000,
-  "buildDate": "21 Novembre 2026 - Audit Complet & Certification Production (V2.6.2)",
-  "releaseNotes": "Audit exhaustif de l'ensemble des modules (40 routes) : conformité des en-têtes officiels Ministère vs CNLS-TP/ASCQ, verrouillage strict de la phase pilote Zou, validation résiliente des plannings RC, horodatage systématique Date & Heure, hub de notifications résilient, synchronisation hors-ligne optimisée."
+  "version": "2.7.0",
+  "buildTimestamp": 1795860000000,
+  "buildDate": "28 Novembre 2026 - Mise à jour automatique, Signatures & Planning ASCQ (V2.7.0)",
+  "releaseNotes": "Mise à jour automatique dès qu'une connexion Internet est disponible, signature numérique/importée mémorisable avec détourage automatique, titres obligatoires Campagne & Formation avec retour à la ligne dans le planning ASCQ, et pastilles de notification par sous-module."
 }

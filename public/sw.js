@@ -1,6 +1,6 @@
-// Service Worker officiel ASCQ BÉNIN (PWA) - Mode Hors-Ligne Renforcé V21
+// Service Worker officiel ASCQ BÉNIN (PWA) - Mode Hors-Ligne Renforcé V22
 // Garanti d'ouverture 100% hors-ligne en zones rurales blanches & Purge automatique des caches
-const CACHE_NAME = "ascq-benin-v21";
+const CACHE_NAME = "ascq-benin-v22";
 
 // Pages et ressources critiques à pré-mettre en cache (la racine "/" est exclue pour toujours servir la version fraîche en ligne)
 const PRECACHE_ASSETS = [
@@ -142,7 +142,7 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       (async () => {
         const isRoot = url.pathname === "/" || url.pathname === "";
-        const timeoutMs = isRoot ? 3500 : 2500;
+        const timeoutMs = isRoot ? 5500 : 4500;
 
         try {
           // Contrôleur de timeout pour réseau mobile instable
@@ -151,7 +151,7 @@ self.addEventListener("fetch", (event) => {
 
           const response = await fetch(event.request, { 
             signal: abortController.signal,
-            cache: isRoot ? "no-cache" : "default"
+            cache: "no-store"
           });
           clearTimeout(timerId);
 

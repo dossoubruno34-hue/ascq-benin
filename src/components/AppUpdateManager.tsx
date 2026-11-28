@@ -120,6 +120,16 @@ export default function AppUpdateManager() {
           setNewVersionInfo(serverData);
           setUpdateAvailable(true);
           if (isManual) setManualChecking(false);
+
+          // Mise à jour automatique immédiate si connecté (avec garde anti-boucle)
+          const guardKey = `ascq_auto_updating_${versionServeur}`;
+          const alreadyTried = typeof sessionStorage !== "undefined" && sessionStorage.getItem(guardKey);
+          if (navigator.onLine && !alreadyTried) {
+            try {
+              sessionStorage.setItem(guardKey, "1");
+            } catch {}
+            appliquerMiseAJour();
+          }
           return;
         }
       }
@@ -128,6 +138,14 @@ export default function AppUpdateManager() {
       if (swRegistration?.waiting) {
         setUpdateAvailable(true);
         if (isManual) setManualChecking(false);
+        const guardKey = `ascq_auto_updating_sw`;
+        const alreadyTried = typeof sessionStorage !== "undefined" && sessionStorage.getItem(guardKey);
+        if (navigator.onLine && !alreadyTried) {
+          try {
+            sessionStorage.setItem(guardKey, "1");
+          } catch {}
+          appliquerMiseAJour();
+        }
         return;
       }
 
@@ -140,7 +158,7 @@ export default function AppUpdateManager() {
     } finally {
       if (isManual) setManualChecking(false);
     }
-  }, [swRegistration]);
+  }, [swRegistration, appliquerMiseAJour]);
 
   // 3. Enregistrement initial du Service Worker et écouteurs d'événements
   useEffect(() => {
@@ -161,6 +179,9 @@ export default function AppUpdateManager() {
         // Si une mise à jour est déjà en attente d'activation
         if (registration.waiting) {
           setUpdateAvailable(true);
+          if (navigator.onLine) {
+            registration.waiting.postMessage({ type: "SKIP_WAITING" });
+          }
         }
 
         // Détection de nouveau worker installé
@@ -172,6 +193,9 @@ export default function AppUpdateManager() {
             if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
               // Une nouvelle version a été téléchargée en arrière-plan
               setUpdateAvailable(true);
+              if (navigator.onLine) {
+                newWorker.postMessage({ type: "SKIP_WAITING" });
+              }
             }
           });
         });
@@ -204,6 +228,7 @@ export default function AppUpdateManager() {
       }
     };
     window.addEventListener("focus", handleFocus);
+    window.addEventListener("online", handleFocus);
 
     // Polling toutes les 2 minutes si connecté
     const interval = setInterval(() => {
@@ -215,6 +240,7 @@ export default function AppUpdateManager() {
     return () => {
       window.removeEventListener("verifier-maj-app", handleCustomCheck);
       window.removeEventListener("focus", handleFocus);
+      window.removeEventListener("online", handleFocus);
       clearInterval(interval);
     };
   }, [verifierNouvelleVersion]);
